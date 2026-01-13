@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+.idea/
+.env
+*.pyc
+.DS_Store
+phishtank.json
