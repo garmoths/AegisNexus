@@ -5,6 +5,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from app import models, database
+from fastapi.middleware.cors import CORSMiddleware
 
 # YOL AYARLARI
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -12,6 +13,17 @@ templates_dir = os.path.join(BASE_DIR, "frontend", "templates")
 static_dir = os.path.join(BASE_DIR, "frontend", "static")
 
 app = FastAPI()
+app = FastAPI() # Bu satır zaten var
+
+# --- BURAYI EKLE ---
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # "*" demek: Tüm IP adreslerine (Mobil, PC, Tablet) izin ver
+    allow_credentials=True,
+    allow_methods=["*"],  # Tüm metodlara (GET, POST, vb.) izin ver
+    allow_headers=["*"],  # Tüm başlıklara izin ver
+)
+# -------------------
 
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 templates = Jinja2Templates(directory=templates_dir)
