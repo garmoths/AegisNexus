@@ -42,7 +42,7 @@ Projeyi tek seferde kurup çalıştırmak için aşağıdaki komutları terminal
 
 ```bash
 # 1. Projeyi İndir
-git clone [https://github.com/tekdemirenes/PhisingDetector.git](https://github.com/tekdemirenes/PhisingDetector.git)
+git clone https://github.com/tekdemirenes/PhisingDetector.git
 cd PhisingDetector
 
 # 2. Kurulumu Yap ve Çalıştır (Mac/Linux)
@@ -61,10 +61,3 @@ Veritabanı: SQLAlchemy (ORM), PostgreSQL / SQLite
 Frontend: HTML5, CSS3 (Custom Matrix Theme), JavaScript
 
 Araçlar: Uvicorn, Pre-commit Hooks, Git
-
-### GitHub'a Göndermek İçin:
-
-Dosyayı kaydettikten sonra terminale şu komutu yapıştır:
-
-```bash
-git add README.md && git commit -m "docs: readme duzenlendi" && git push

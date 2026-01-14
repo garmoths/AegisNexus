@@ -4,153 +4,377 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Enes Threat Intel</title>
-    <link rel="stylesheet" href="/static/style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Courier+Prime&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Share+Tech+Mono&family=VT323&display=swap" rel="stylesheet">
+
+    <style>
+        /* --- GENEL AYARLAR --- */
+        :root {
+            --bg-color: #050505;
+            --panel-bg: rgba(10, 10, 10, 0.85);
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: #00ff41;
+            font-family: 'Share Tech Mono', monospace;
+            margin: 0; padding: 0;
+            overflow-x: hidden;
+        }
+
+        /* --- MATRIX ARKA PLAN --- */
+        canvas#matrix {
+            position: fixed; top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: -1;
+        }
+
+        /* --- RGB NEON ANİMASYONU --- */
+        @keyframes rgb-cycle {
+            0% { border-color: #00ff41; box-shadow: 0 0 10px rgba(0, 255, 65, 0.3); color: #00ff41; }
+            50% { border-color: #bc13fe; box-shadow: 0 0 15px rgba(188, 19, 254, 0.4); color: #bc13fe; }
+            100% { border-color: #00ff41; box-shadow: 0 0 10px rgba(0, 255, 65, 0.3); color: #00ff41; }
+        }
+
+        /* --- LOGO & BAŞLIK --- */
+        .header-container {
+            text-align: center; padding: 40px 0 20px 0;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.9), rgba(0,0,0,0.1));
+            position: relative; z-index: 10;
+        }
+
+        .cyber-eye {
+            width: 120px; height: 120px; border-radius: 50%;
+            border: 3px solid #00ff41;
+            animation: rgb-cycle 4s infinite alternate;
+            background: #000;
+        }
+
+        h1 {
+            font-family: 'Orbitron', sans-serif;
+            margin: 15px 0 5px 0; letter-spacing: 5px;
+            text-transform: uppercase; font-size: 2.5em;
+            text-shadow: 0 0 10px currentColor;
+            animation: rgb-cycle 4s infinite alternate;
+        }
+
+        p.subtitle {
+            font-family: 'VT323', monospace; font-size: 1.3em;
+            color: #ccc; letter-spacing: 2px;
+        }
+
+        /* --- DASHBOARD --- */
+        .dashboard {
+            display: grid; grid-template-columns: 1fr 1fr;
+            gap: 40px; padding: 40px;
+            max-width: 1500px; margin: 0 auto;
+            position: relative; z-index: 5;
+        }
+
+        @media (max-width: 900px) { .dashboard { grid-template-columns: 1fr; } }
+
+        /* --- PANELLER --- */
+        .panel {
+            background: var(--panel-bg);
+            border: 2px solid #00ff41;
+            border-radius: 8px; padding: 30px;
+            backdrop-filter: blur(5px);
+            animation: rgb-cycle 6s infinite alternate;
+        }
+
+        h2.panel-title {
+            margin-top: 0; border-bottom: 1px solid #333; padding-bottom: 10px;
+            font-family: 'Orbitron', sans-serif; color: #fff;
+        }
+
+        /* --- INPUT & BUTTON --- */
+        input, select {
+            width: 100%; padding: 15px; margin: 10px 0;
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid #444; color: #fff;
+            font-family: 'Share Tech Mono', monospace; font-size: 1.1em;
+            box-sizing: border-box; transition: 0.3s;
+        }
+        input:focus { border-color: #fff; outline: none; }
+
+        button {
+            width: 100%; padding: 15px; margin-top: 10px;
+            background: rgba(0, 0, 0, 0.6); border: 1px solid;
+            font-family: 'Orbitron', sans-serif; font-size: 1.1em;
+            cursor: pointer; letter-spacing: 2px; text-transform: uppercase;
+            animation: rgb-cycle 3s infinite alternate; transition: 0.2s;
+        }
+        button:hover { background: rgba(255, 255, 255, 0.1); box-shadow: 0 0 30px currentColor; }
+
+        /* --- SONUÇ ALANI --- */
+        #manualResultArea, #result-area {
+            margin-top: 20px; max-height: 450px; overflow-y: auto;
+            border-top: 1px solid #333; padding-top: 10px;
+        }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #000; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #666; }
+
+        .result-item {
+            background: rgba(255,255,255,0.03);
+            border-left: 3px solid #333;
+            padding: 12px; margin-bottom: 8px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .result-item:hover { border-left-color: #bc13fe; background: rgba(188, 19, 254, 0.1); }
+
+        .tag { font-size: 0.8em; padding: 3px 8px; background: #000; border: 1px solid #444; margin-left: 5px; color: #aaa; }
+
+        /* --- MODAL --- */
+        .modal {
+            display: none; position: fixed; z-index: 9999; left: 0; top: 0;
+            width: 100%; height: 100%; background: rgba(0,0,0,0.9);
+            backdrop-filter: blur(8px);
+        }
+        .modal-content {
+            background: #0d0d0d; border: 2px solid #ff3333;
+            margin: 10% auto; padding: 40px; width: 90%; max-width: 500px;
+            box-shadow: 0 0 50px rgba(255, 51, 51, 0.2);
+            text-align: center; position: relative;
+        }
+
+        /* --- FOOTER --- */
+        footer {
+            text-align: center; padding: 30px; color: #555; font-size: 0.9em;
+            background: rgba(0,0,0,0.9); position: relative; z-index: 10;
+        }
+
+        .score-high { color: #00ff41; font-weight: bold; font-size: 1.2em; }
+        .score-med { color: yellow; font-weight: bold; font-size: 1.2em; }
+        .score-low { color: #ff3333; font-weight: bold; font-size: 1.2em; }
+
+    </style>
 </head>
 <body>
-    <div id="particles-js"></div>
 
-    <div class="main-container">
-        <div class="logo-container">
-            <img src="/static/logo.jpg" alt="Cyber Eye" class="cyber-eye">
-        </div>
+    <canvas id="matrix"></canvas>
 
-        <header>
-            <h1>Phishing İstihbarat & Marka Koruma</h1>
-        </header>
+    <div id="addModal" class="modal">
+        <div class="modal-content">
+            <span style="position:absolute; top:15px; right:25px; cursor:pointer; font-size:24px; color:#fff;" onclick="closeModal()">✕</span>
+            <h2 style="color:#ff3333; font-family:'Orbitron';">⚠️ MANUEL GİRİŞ</h2>
+            <p style="color:#aaa;">Veritabanına yeni tehdit ekleniyor.</p>
+            <hr style="border-color:#333; margin-bottom:20px;">
 
-        <div class="search-box">
-            <input type="text" id="urlInput" placeholder="Marka veya URL ara (Örn: ziraat, instagram)...">
-            <select id="limitSelect">
-                <option value="5">5</option>
-                <option value="10">10</option>
-                <option value="20" selected>20</option>
-                <option value="50">50</option>
-                <option value="100">100</option>
+            <input type="text" id="newUrl" placeholder="Zararlı URL (Örn: http://fake.com)">
+            <input type="text" id="newTarget" placeholder="Hedef (Örn: Banka)">
+            <select id="newStatus">
+                <option value="ONLINE">ONLINE (Aktif)</option>
+                <option value="OFFLINE">OFFLINE (Pasif)</option>
             </select>
-            <button onclick="searchData()">ARA</button>
+            <button onclick="submitNewSite()" style="border-color:#ff3333; color:#ff3333; animation:none;">VERİTABANINA KAYDET</button>
         </div>
-
-        <div id="loading" class="hidden">
-            <div class="scanner"></div>
-            <p>Sistem Taranıyor...</p>
-        </div>
-
-        <div id="result-area" class="hidden"></div>
-
-        <div class="stats">
-            <p>Veritabanı Kapasitesi: <span id="total-count">...</span> Kayıt</p>
-        </div>
-
-        <footer>
-            <p class="neon-text">Made By Enes</p>
-        </footer>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
+    <div class="header-container">
+        <img src="/static/logo.jpg" alt="Cyber Eye" class="cyber-eye">
+        <h1>PHISHING INTELLIGENCE</h1>
+        <p class="subtitle">ADVANCED THREAT DETECTION SYSTEM</p>
+    </div>
+
+    <div class="dashboard">
+
+        <div class="panel">
+            <h2 class="panel-title">🛡️ YAPAY ZEKA TARAYICI</h2>
+            <p style="color:#888;">URL'yi girin, 3 katmanlı güvenlik motoru analiz etsin.</p>
+
+            <input type="text" id="manualUrlInput" placeholder="https://...">
+            <button onclick="checkManualURL()">SİSTEMİ BAŞLAT</button>
+
+            <div id="manualResultArea" style="display:none;">
+                <div id="scoreText">...</div>
+                <div id="riskText" style="color:#fff; margin:10px 0;">...</div>
+                <ul id="detailsList" style="padding-left:0; list-style:none;"></ul>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #333; padding-bottom:10px;">
+                <h2 style="margin:0; font-family:'Orbitron'; color:#fff;">🗄️ TEHDİT AKIŞI</h2>
+                <button onclick="openModal()" style="width:auto; padding:5px 15px; font-size:0.8em; margin:0;">+ EKLE</button>
+            </div>
+
+            <div style="display:flex; gap:10px; margin-top:15px;">
+                <input type="text" id="urlInput" placeholder="Ara..." style="flex:2;">
+                <select id="limitSelect" style="flex:1;">
+                    <option value="10">10</option>
+                    <option value="20" selected>20</option>
+                    <option value="50">50</option>
+                </select>
+            </div>
+            <button onclick="searchData()" style="margin-top:5px;">SORGULA</button>
+
+            <div style="margin:10px 0; font-size:0.8em; color:#666;">
+                Toplam Kayıt: <span id="total-count" style="color:#fff">...</span>
+            </div>
+
+            <div id="loading" style="display:none; color:yellow;">Veri Çekiliyor...</div>
+            <div id="result-area"></div>
+        </div>
+
+    </div>
+
+    <footer>
+        <p class="neon-text">SYSTEM SECURE | DATABASE CONNECTED | MADE BY ENES</p>
+    </footer>
 
     <script>
-        // --- PARTİKÜL AYARLARI ---
-        particlesJS("particles-js", {
-            "particles": {
-                "number": { "value": 80, "density": { "enable": true, "value_area": 800 } },
-                "color": { "value": "#00ff41" }, // YEŞİL RENK
-                "shape": { "type": "circle" },
-                "opacity": { "value": 0.5, "random": true },
-                "size": { "value": 3, "random": true },
-                "line_linked": { "enable": true, "distance": 150, "color": "#00ff41", "opacity": 0.2, "width": 1 },
-                "move": { "enable": true, "speed": 2, "direction": "none", "random": false, "straight": false, "out_mode": "out", "bounce": false }
-            },
-            "interactivity": {
-                "detect_on": "canvas",
-                "events": {
-                    "onhover": { "enable": true, "mode": "grab" }, // Mouse gelince tut
-                    "onclick": { "enable": true, "mode": "push" }, // Tıklayınca çoğalt
-                    "resize": true
-                },
-                "modes": {
-                    "grab": { "distance": 140, "line_linked": { "opacity": 0.5 } }
-                }
-            },
-            "retina_detect": true
-        });
+        // --- MATRIX EFEKTİ ---
+        const canvas = document.getElementById('matrix');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        const katakana = 'アァカサタナハマヤャラワガザダバパイィキシチニヒミリヰギジヂビピウゥクスツヌフムユュルグズブヅプ';
+        const latin = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        const alphabet = katakana + latin;
+        const fontSize = 16;
+        const columns = canvas.width / fontSize;
+        const rainDrops = [];
+        for(let x = 0; x < columns; x++) rainDrops[x] = 1;
+
+        const draw = () => {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#0F0';
+            ctx.font = fontSize + 'px monospace';
+            for(let i = 0; i < rainDrops.length; i++) {
+                const text = alphabet.charAt(Math.floor(Math.random() * alphabet.length));
+                ctx.fillText(text, i * fontSize, rainDrops[i] * fontSize);
+                if(rainDrops[i] * fontSize > canvas.height && Math.random() > 0.975) rainDrops[i] = 0;
+                rainDrops[i]++;
+            }
+        };
+        window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
+        setInterval(draw, 30);
 
         // --- SİTE FONKSİYONLARI ---
         window.onload = function() { fetchStats(); loadLatest(); };
-        document.getElementById("urlInput").addEventListener("keypress", function(e) { if (e.key === "Enter") searchData(); });
-        document.getElementById("limitSelect").addEventListener("change", function() {
-            const input = document.getElementById('urlInput').value;
-            input.length > 2 ? searchData() : loadLatest();
-        });
+        function openModal() { document.getElementById("addModal").style.display = "block"; }
+        function closeModal() { document.getElementById("addModal").style.display = "none"; }
+        window.onclick = function(e) { if(e.target == document.getElementById("addModal")) closeModal(); }
+
+        async function submitNewSite() {
+            const url = document.getElementById("newUrl").value;
+            const target = document.getElementById("newTarget").value;
+            const status = document.getElementById("newStatus").value;
+            if (!url || !target) { alert("Eksik bilgi!"); return; }
+            try {
+                const res = await fetch('/api/add-site', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url, target, status })
+                });
+                if(res.ok) { alert("Eklendi!"); closeModal(); loadLatest(); fetchStats(); }
+                else alert("Hata!");
+            } catch(e) { alert("Sunucu hatası"); }
+        }
+
+        async function checkManualURL() {
+            const url = document.getElementById("manualUrlInput").value;
+            const resultArea = document.getElementById("manualResultArea");
+            const scoreText = document.getElementById("scoreText");
+            const riskText = document.getElementById("riskText");
+            const detailsList = document.getElementById("detailsList");
+
+            if(!url) return;
+            resultArea.style.display = "block";
+            scoreText.innerText = "ANALİZ EDİLİYOR...";
+            scoreText.className = ""; detailsList.innerHTML = "";
+
+            try {
+                const res = await fetch('/api/check-url', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url })
+                });
+                const data = await res.json();
+
+                scoreText.innerText = `SKOR: %${data.score}`;
+                scoreText.className = data.score >= 80 ? "score-high" : (data.score >= 50 ? "score-med" : "score-low");
+                riskText.innerHTML = `DURUM: ${data.risk_level}`;
+
+                if(data.sources) detailsList.innerHTML += `<div style='font-size:0.7em; color:#666; margin-bottom:10px;'>${data.sources.map(s=>s.name).join(', ')}</div>`;
+                data.details.forEach(item => {
+                    const li = document.createElement("li");
+                    li.style.marginBottom = "5px";
+                    if(item.includes("Tehlikeli") || item.includes("yok") || item.includes("HTTPS")) {
+                        li.innerText = `❌ ${item}`; li.style.color = "#ff3333";
+                    } else if (item.includes("Güvenilir")) {
+                        li.innerText = `✅ ${item}`; li.style.color = "#00ff41";
+                    } else {
+                        li.innerText = `⚠️ ${item}`; li.style.color = "yellow";
+                    }
+                    detailsList.appendChild(li);
+                });
+            } catch(e) { scoreText.innerText = "HATA"; }
+        }
 
         async function fetchStats() {
             try {
                 const res = await fetch('/stats/');
                 const data = await res.json();
-                document.getElementById('total-count').innerText = data.toplam_zararli_site.toLocaleString();
-            } catch (e) {}
+                document.getElementById('total-count').innerText = data.toplam_zararli_site;
+            } catch(e) {}
         }
 
         async function loadLatest() {
             const limit = document.getElementById('limitSelect').value;
-            renderLoading();
             try {
                 const res = await fetch(`/latest/?limit=${limit}`);
                 const data = await res.json();
-                renderResults(data.data, "LATEST", limit);
-            } catch (e) { renderResults([], "ERROR"); }
+                renderList(data.data);
+            } catch(e) {}
         }
 
         async function searchData() {
             const input = document.getElementById('urlInput').value;
             const limit = document.getElementById('limitSelect').value;
-            if (!input || input.length < 3) { loadLatest(); return; }
-            renderLoading();
+            if(!input || input.length < 3) { loadLatest(); return; }
+
+            document.getElementById("loading").style.display = "block";
+            document.getElementById("result-area").innerHTML = "";
             try {
                 const res = await fetch(`/check/?url=${encodeURIComponent(input)}&limit=${limit}`);
                 const data = await res.json();
-                data.status === 'SAFE' ? renderSafe(input) : renderResults(data.data, "SEARCH", 0, input);
-            } catch (e) { renderResults([], "ERROR"); }
+                document.getElementById("loading").style.display = "none";
+                data.status === 'SAFE' ? document.getElementById("result-area").innerHTML = "<div style='padding:20px; text-align:center; color:#00ff41; border:1px solid #00ff41'>TEMİZ ✅</div>" : renderList(data.data);
+            } catch(e) {}
         }
 
-        function renderLoading() {
-            document.getElementById('result-area').classList.add('hidden');
-            document.getElementById('loading').classList.remove('hidden');
-        }
-
-        function renderSafe(input) {
-            document.getElementById('loading').classList.add('hidden');
-            const area = document.getElementById('result-area');
-            area.classList.remove('hidden');
-            area.innerHTML = `<div class="safe-box"><h2>✅ TEMİZ</h2><p>"${input}" ile ilgili tehdit bulunamadı.</p></div>`;
-        }
-
-        function renderResults(items, type, limit, input) {
-            document.getElementById('loading').classList.add('hidden');
-            const area = document.getElementById('result-area');
-            area.classList.remove('hidden');
-
-            if (type === "ERROR") { area.innerHTML = `<p style="color:red;">Bağlantı Hatası!</p>`; return; }
-
-            let html = "";
-            if (type === "SEARCH") html += `<div class="danger-header"><h2>🚨 ${items.length} SONUÇ: "${input}"</h2></div>`;
-            else html += `<p class="live-text">📡 Canlı Akış: Son ${limit} Tehdit</p>`;
-
-            html += `<div class="result-list">`;
+        // ==========================================
+        // DÜZELTME BURADA: (Active -> ONLINE)
+        // ==========================================
+        function renderList(items) {
+            const area = document.getElementById("result-area");
+            area.innerHTML = "";
             items.forEach(item => {
-                html += `
+                // Gelen veriyi kontrol et ve standartlaştır
+                let statusUpper = item.status.toUpperCase();
+                let displayStatus = "OFFLINE"; // Varsayılan
+
+                // Eğer active, valid veya online ise -> ONLINE yap
+                if(statusUpper === 'ACTIVE' || statusUpper === 'VALID' || statusUpper === 'ONLINE') {
+                    displayStatus = "ONLINE";
+                }
+
+                // Renk ayarı
+                const color = displayStatus === 'ONLINE' ? '#ff3333' : '#666';
+
+                area.innerHTML += `
                     <div class="result-item">
-                        <div class="url-text">💀 ${item.url}</div>
-                        <div class="meta-info">
-                            <span class="tag">Hedef: ${item.target}</span>
-                            <span class="tag">Durum: ${item.status}</span>
-                            <span class="id-badge">#${item.id}</span>
+                        <div style="font-weight:bold; color:${color}">${item.url}</div>
+                        <div>
+                            <span class="tag">${item.target}</span>
+                            <span class="tag" style="color:${color}; border-color:${color}">${displayStatus}</span>
                         </div>
                     </div>
                 `;
             });
-            html += `</div>`;
-            area.innerHTML = html;
         }
     </script>
 </body>

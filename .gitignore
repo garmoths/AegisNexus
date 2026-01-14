@@ -4,4 +4,5 @@ __pycache__/
 .env
 *.pyc
 .DS_Store
-phishtank.json
+.secrets.baseline
+.docs
