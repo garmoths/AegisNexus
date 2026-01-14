@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enes Threat Intel</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Courier+Prime&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="particles-js"></div>
+
+    <div class="main-container">
+        <div class="logo-container">
+            <img src="/static/logo.jpg" alt="Cyber Eye" class="cyber-eye">
+        </div>
+
+        <header>
+            <h1>Phishing İstihbarat & Marka Koruma</h1>
+        </header>
+
+        <div class="search-box">
+            <input type="text" id="urlInput" placeholder="Marka veya URL ara (Örn: ziraat, instagram)...">
+            <select id="limitSelect">
+                <option value="5">5</option>
+                <option value="10">10</option>
+                <option value="20" selected>20</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+            </select>
+            <button onclick="searchData()">ARA</button>
+        </div>
+
+        <div id="loading" class="hidden">
+            <div class="scanner"></div>
+            <p>Sistem Taranıyor...</p>
+        </div>
+
+        <div id="result-area" class="hidden"></div>
+
+        <div class="stats">
+            <p>Veritabanı Kapasitesi: <span id="total-count">...</span> Kayıt</p>
+        </div>
+
+        <footer>
+            <p class="neon-text">Made By Enes</p>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
+
+    <script>
+        // --- PARTİKÜL AYARLARI ---
+        particlesJS("particles-js", {
+            "particles": {
+                "number": { "value": 80, "density": { "enable": true, "value_area": 800 } },
+                "color": { "value": "#00ff41" }, // YEŞİL RENK
+                "shape": { "type": "circle" },
+                "opacity": { "value": 0.5, "random": true },
+                "size": { "value": 3, "random": true },
+                "line_linked": { "enable": true, "distance": 150, "color": "#00ff41", "opacity": 0.2, "width": 1 },
+                "move": { "enable": true, "speed": 2, "direction": "none", "random": false, "straight": false, "out_mode": "out", "bounce": false }
+            },
+            "interactivity": {
+                "detect_on": "canvas",
+                "events": {
+                    "onhover": { "enable": true, "mode": "grab" }, // Mouse gelince tut
+                    "onclick": { "enable": true, "mode": "push" }, // Tıklayınca çoğalt
+                    "resize": true
+                },
+                "modes": {
+                    "grab": { "distance": 140, "line_linked": { "opacity": 0.5 } }
+                }
+            },
+            "retina_detect": true
+        });
+
+        // --- SİTE FONKSİYONLARI ---
+        window.onload = function() { fetchStats(); loadLatest(); };
+        document.getElementById("urlInput").addEventListener("keypress", function(e) { if (e.key === "Enter") searchData(); });
+        document.getElementById("limitSelect").addEventListener("change", function() {
+            const input = document.getElementById('urlInput').value;
+            input.length > 2 ? searchData() : loadLatest();
+        });
+
+        async function fetchStats() {
+            try {
+                const res = await fetch('/stats/');
+                const data = await res.json();
+                document.getElementById('total-count').innerText = data.toplam_zararli_site.toLocaleString();
+            } catch (e) {}
+        }
+
+        async function loadLatest() {
+            const limit = document.getElementById('limitSelect').value;
+            renderLoading();
+            try {
+                const res = await fetch(`/latest/?limit=${limit}`);
+                const data = await res.json();
+                renderResults(data.data, "LATEST", limit);
+            } catch (e) { renderResults([], "ERROR"); }
+        }
+
+        async function searchData() {
+            const input = document.getElementById('urlInput').value;
+            const limit = document.getElementById('limitSelect').value;
+            if (!input || input.length < 3) { loadLatest(); return; }
+            renderLoading();
+            try {
+                const res = await fetch(`/check/?url=${encodeURIComponent(input)}&limit=${limit}`);
+                const data = await res.json();
+                data.status === 'SAFE' ? renderSafe(input) : renderResults(data.data, "SEARCH", 0, input);
+            } catch (e) { renderResults([], "ERROR"); }
+        }
+
+        function renderLoading() {
+            document.getElementById('result-area').classList.add('hidden');
+            document.getElementById('loading').classList.remove('hidden');
+        }
+
+        function renderSafe(input) {
+            document.getElementById('loading').classList.add('hidden');
+            const area = document.getElementById('result-area');
+            area.classList.remove('hidden');
+            area.innerHTML = `<div class="safe-box"><h2>✅ TEMİZ</h2><p>"${input}" ile ilgili tehdit bulunamadı.</p></div>`;
+        }
+
+        function renderResults(items, type, limit, input) {
+            document.getElementById('loading').classList.add('hidden');
+            const area = document.getElementById('result-area');
+            area.classList.remove('hidden');
+
+            if (type === "ERROR") { area.innerHTML = `<p style="color:red;">Bağlantı Hatası!</p>`; return; }
+
+            let html = "";
+            if (type === "SEARCH") html += `<div class="danger-header"><h2>🚨 ${items.length} SONUÇ: "${input}"</h2></div>`;
+            else html += `<p class="live-text">📡 Canlı Akış: Son ${limit} Tehdit</p>`;
+
+            html += `<div class="result-list">`;
+            items.forEach(item => {
+                html += `
+                    <div class="result-item">
+                        <div class="url-text">💀 ${item.url}</div>
+                        <div class="meta-info">
+                            <span class="tag">Hedef: ${item.target}</span>
+                            <span class="tag">Durum: ${item.status}</span>
+                            <span class="id-badge">#${item.id}</span>
+                        </div>
+                    </div>
+                `;
+            });
+            html += `</div>`;
+            area.innerHTML = html;
+        }
+    </script>
+</body>
+</html>

@@ -1,11 +1,22 @@
-from fastapi import FastAPI, Depends, HTTPException, Query
+import os
+from fastapi import FastAPI, Depends, Request, Query
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
+from sqlalchemy import desc
 from app import models, database
+
+# YOL AYARLARI
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+templates_dir = os.path.join(BASE_DIR, "frontend", "templates")
+static_dir = os.path.join(BASE_DIR, "frontend", "static")
 
 app = FastAPI()
 
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
+templates = Jinja2Templates(directory=templates_dir)
 
-# Veritabanı bağlantısı
+
 def get_db():
     db = database.SessionLocal()
     try:
@@ -15,43 +26,44 @@ def get_db():
 
 
 @app.get("/")
-def read_root():
-    return {"durum": "Canavar Gibi Çalışıyor! 🚀", "sahibi": "Enes"}
+def read_root(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
 
 
-# 1. Özet Bilgi (Veritabanında kaç site var?)
 @app.get("/stats/")
 def get_stats(db: Session = Depends(get_db)):
     count = db.query(models.PhishingURL).count()
-    return {"toplam_zararli_site": count, "mesaj": "Veritabanı dolu ve hazır!"}
+    return {"toplam_zararli_site": count}
 
 
-# 2. SORGULAMA MOTORU (Chrome Eklentisi bunu kullanacak)
-# Örnek kullanım: /check/?url=http://kotu-site.com
+# --- YENİ: EN SON EKLENENLERİ GETİR ---
+@app.get("/latest/")
+def get_latest(limit: int = 20, db: Session = Depends(get_db)):
+    # ID'si en büyük olanlar (en son eklenenler) en üstte gelsin
+    results = db.query(models.PhishingURL).order_by(desc(models.PhishingURL.id)).limit(limit).all()
+    return {
+        "status": "LATEST",
+        "count": len(results),
+        "data": results
+    }
+
+
+# --- ARAMA MOTORU (LİMİT ÖZELLİKLİ) ---
 @app.get("/check/")
-def check_url(url: str = Query(..., description="Kontrol edilecek site adresi"), db: Session = Depends(get_db)):
-    # Veritabanında bu URL var mı diye bakıyoruz
-    # (Tam eşleşme arıyoruz)
-    site = db.query(models.PhishingURL).filter(models.PhishingURL.url == url).first()
+def check_url(url: str = Query(..., min_length=3), limit: int = 20, db: Session = Depends(get_db)):
+    results = db.query(models.PhishingURL).filter(
+        models.PhishingURL.url.ilike(f"%{url}%")
+    ).limit(limit).all()
 
-    if site:
+    if results:
         return {
-            "result": "DANGER",
-            "message": "⚠️ DİKKAT! Bu site veritabanımızda kayıtlı!",
-            "details": {
-                "target": site.target,
-                "status": site.status
-            }
+            "status": "DANGER",
+            "count": len(results),
+            "data": results
         }
     else:
         return {
-            "result": "SAFE",
-            "message": "✅ Temiz görünüyor (veya henüz listemize düşmedi)."
+            "status": "SAFE",
+            "count": 0,
+            "message": "Temiz"
         }
-
-
-# 3. Son Eklenen 50 Siteyi Gör (Hepsini değil, bilgisayar donmasın)
-@app.get("/latest/")
-def get_latest(db: Session = Depends(get_db)):
-    siteler = db.query(models.PhishingURL).order_by(models.PhishingURL.id.desc()).limit(50).all()
-    return siteler
