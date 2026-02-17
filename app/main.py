@@ -13,6 +13,7 @@ from sqlalchemy import desc
 from app.database import SessionLocal, engine, Base
 from app.models import PhishingURL
 from app.scanner import calculate_safety_score
+from app.fetch_data import verileri_guncelle
 
 # Veritabanı tablolarını oluştur
 try:
@@ -120,28 +121,33 @@ def get_stats(db: Session = Depends(get_db)):
 
 
 @app.get("/latest/")
-def get_latest(limit: int = 20, db: Session = Depends(get_db)):
+def get_latest(limit: int = 20, page: int = 1, db: Session = Depends(get_db)):
     try:
-        items = db.query(PhishingURL).order_by(PhishingURL.id.desc()).limit(limit).all()
-        return {"data": items}
+        offset = (page - 1) * limit
+        total = db.query(PhishingURL).count()
+        items = db.query(PhishingURL).order_by(PhishingURL.id.desc()).offset(offset).limit(limit).all()
+        total_pages = (total + limit - 1) // limit
+        return {"data": items, "page": page, "total_pages": total_pages, "total": total}
     except Exception:
-        return {"data": []}
+        return {"data": [], "page": 1, "total_pages": 1, "total": 0}
 
 
 @app.get("/check/")
-def db_check(url: str, limit: int = 20, db: Session = Depends(get_db)):
+def db_check(url: str, limit: int = 20, page: int = 1, db: Session = Depends(get_db)):
     try:
-        results = db.query(PhishingURL).filter(PhishingURL.url.contains(url)).limit(limit).all()
-        if not results:
-            return {"status": "SAFE", "data": []}
-        return {"status": "DANGER", "data": results}
+        offset = (page - 1) * limit
+        query = db.query(PhishingURL).filter(PhishingURL.url.contains(url))
+        total = query.count()
+        results = query.order_by(PhishingURL.id.desc()).offset(offset).limit(limit).all()
+        if not results and page == 1:
+            return {"status": "SAFE", "data": [], "page": 1, "total_pages": 0, "total": 0}
+        total_pages = (total + limit - 1) // limit
+        return {"status": "DANGER", "data": results, "page": page, "total_pages": total_pages, "total": total}
     except Exception:
-        return {"status": "ERROR", "data": []}
+        return {"status": "ERROR", "data": [], "page": 1, "total_pages": 0, "total": 0}
 
 
-# ========================================================
-# 5. ANA SAYFA
-# ========================================================
+
 @app.get("/")
 async def read_root():
     if HTML_FILE.exists():
@@ -152,3 +158,24 @@ async def read_root():
         "Aranan_Yol": str(HTML_FILE),
         "Mevcut_Klasor": str(BASE_DIR)
     }
+
+
+# ========================================================
+# 5. VERİTABANI GÜNCELLEME (Phishing.Database import)
+# ========================================================
+@app.post("/api/update-database")
+async def update_database():
+    """Phishing.Database ve diğer kaynaklardan verileri çeker ve DB'ye ekler."""
+    try:
+        added = verileri_guncelle()
+        db = SessionLocal()
+        total = db.query(PhishingURL).count()
+        db.close()
+        return {
+            "status": "success",
+            "yeni_eklenen": added,
+            "toplam_kayit": total,
+            "message": f"{added:,} yeni tehdit eklendi. Toplam: {total:,}"
+        }
+    except Exception as e:
+        return {"status": "error", "message": str(e)}

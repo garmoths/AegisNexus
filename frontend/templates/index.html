@@ -67,9 +67,9 @@
 
         /* --- DASHBOARD --- */
         .dashboard {
-            display: grid; grid-template-columns: 1fr 1fr;
-            gap: 30px; padding: 30px; /* Boşluklar azaltıldı */
-            max-width: 1200px; margin: 0 auto; /* Genişlik kısıtlandı */
+            display: grid; grid-template-columns: 300px 1fr;
+            gap: 30px; padding: 30px;
+            max-width: 1200px; margin: 0 auto;
             position: relative; z-index: 5;
         }
 
@@ -78,9 +78,11 @@
         .panel {
             background: var(--panel-bg);
             border: 1px solid var(--neon-green);
-            border-radius: 8px; padding: 25px; /* İç boşluk azaltıldı */
+            border-radius: 8px; padding: 25px;
             backdrop-filter: blur(8px);
             animation: rgb-cycle 6s infinite alternate;
+            min-width: 0;
+            overflow: hidden;
         }
 
         h2.panel-title {
@@ -110,7 +112,7 @@
 
         /* --- SONUÇ LİSTESİ --- */
         #manualResultArea, #result-area {
-            margin-top: 15px; max-height: 400px; overflow-y: auto;
+            margin-top: 15px; max-height: 500px; overflow-y: auto;
             border-top: 1px solid #333; padding-top: 10px;
         }
 
@@ -120,7 +122,8 @@
             padding: 10px 15px; margin-bottom: 8px;
             display: flex; justify-content: space-between; align-items: center;
             font-size: 0.95em;
-            overflow: hidden; /* Taşmayı engelle */
+            overflow: hidden;
+            min-width: 0;
         }
         .result-item:hover { border-left-color: var(--neon-purple); background: rgba(188, 19, 254, 0.15); }
 
@@ -131,11 +134,13 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            max-width: 60%;
+            flex: 1;
+            min-width: 0;
         }
 
         .tag-container {
-            min-width: 140px; text-align: right; flex-shrink: 0;
+            min-width: 130px; text-align: right; flex-shrink: 0;
+            margin-left: 10px;
         }
 
         .tag {
@@ -234,6 +239,13 @@
 
             <div id="loading" style="display:none; color:yellow; font-size:1em;">Veri Çekiliyor...</div>
             <div id="result-area"></div>
+
+            <!-- SAYFALAMA -->
+            <div id="pagination" style="display:flex; justify-content:space-between; align-items:center; margin-top:12px; padding-top:10px; border-top:1px solid #333;">
+                <button id="prevBtn" onclick="changePage(-1)" style="width:auto; padding:8px 18px; font-size:0.85em; margin:0; opacity:0.5;" disabled>◀ ÖNCEKİ</button>
+                <span id="pageInfo" style="color:#888; font-size:0.9em;">Sayfa 1 / 1</span>
+                <button id="nextBtn" onclick="changePage(1)" style="width:auto; padding:8px 18px; font-size:0.85em; margin:0;">SONRAKİ ▶</button>
+            </div>
         </div>
 
     </div>
@@ -331,35 +343,72 @@
             } catch(e) { scoreText.innerText = "HATA"; }
         }
 
+        // SAYFALAMA DEĞİŞKENLERİ
+        let currentPage = 1;
+        let totalPages = 1;
+        let currentMode = 'latest'; // 'latest' veya 'search'
+
+        function updatePagination(page, total) {
+            currentPage = page;
+            totalPages = total;
+            document.getElementById('pageInfo').innerText = `Sayfa ${page} / ${total || 1}`;
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            prevBtn.disabled = (page <= 1);
+            prevBtn.style.opacity = (page <= 1) ? '0.4' : '1';
+            nextBtn.disabled = (page >= total);
+            nextBtn.style.opacity = (page >= total) ? '0.4' : '1';
+        }
+
+        function changePage(dir) {
+            const newPage = currentPage + dir;
+            if (newPage < 1 || newPage > totalPages) return;
+            currentPage = newPage;
+            if (currentMode === 'search') {
+                searchData(currentPage);
+            } else {
+                loadLatest(currentPage);
+            }
+        }
+
         async function fetchStats() {
             try {
                 const res = await fetch('/stats/');
                 const data = await res.json();
-                document.getElementById('total-count').innerText = data.toplam_zararli_site;
+                document.getElementById('total-count').innerText = data.toplam_zararli_site.toLocaleString('tr-TR');
             } catch(e) {}
         }
 
-        async function loadLatest() {
+        async function loadLatest(page = 1) {
+            currentMode = 'latest';
             const limit = document.getElementById('limitSelect').value;
             try {
-                const res = await fetch(`/latest/?limit=${limit}`);
+                const res = await fetch(`/latest/?limit=${limit}&page=${page}`);
                 const data = await res.json();
                 renderList(data.data);
+                updatePagination(data.page, data.total_pages);
             } catch(e) {}
         }
 
-        async function searchData() {
+        async function searchData(page = 1) {
             const input = document.getElementById('urlInput').value;
             const limit = document.getElementById('limitSelect').value;
-            if(!input || input.length < 3) { loadLatest(); return; }
+            if(!input || input.length < 3) { loadLatest(1); return; }
 
+            currentMode = 'search';
             document.getElementById("loading").style.display = "block";
             document.getElementById("result-area").innerHTML = "";
             try {
-                const res = await fetch(`/check/?url=${encodeURIComponent(input)}&limit=${limit}`);
+                const res = await fetch(`/check/?url=${encodeURIComponent(input)}&limit=${limit}&page=${page}`);
                 const data = await res.json();
                 document.getElementById("loading").style.display = "none";
-                data.status === 'SAFE' ? document.getElementById("result-area").innerHTML = "<div style='padding:20px; text-align:center; color:#00ff41; border:1px solid #00ff41; font-size:1.1em;'>TEMİZ ✅</div>" : renderList(data.data);
+                if (data.status === 'SAFE') {
+                    document.getElementById("result-area").innerHTML = "<div style='padding:20px; text-align:center; color:#00ff41; border:1px solid #00ff41; font-size:1.1em;'>TEMİZ ✅</div>";
+                    updatePagination(1, 1);
+                } else {
+                    renderList(data.data);
+                    updatePagination(data.page, data.total_pages);
+                }
             } catch(e) {}
         }
 
