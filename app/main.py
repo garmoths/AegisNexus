@@ -1,181 +1,56 @@
-import os
-import random
-import string
+import logging
+from contextlib import asynccontextmanager
 from pathlib import Path
-from fastapi import FastAPI, HTTPException, Depends
-from fastapi.staticfiles import StaticFiles
+
+from fastapi import FastAPI
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
-from sqlalchemy import desc
+from fastapi.staticfiles import StaticFiles
 
-# Senin dosyalarından importlar
-from app.database import SessionLocal, engine, Base
-from app.models import PhishingURL
-from app.scanner import calculate_safety_score
-from app.fetch_data import verileri_guncelle
+from app.database import Base, engine
+from app.routers import breach, contact, honeypot, infra, shield, system, threat
 
-# Veritabanı tablolarını oluştur
-try:
-    Base.metadata.create_all(bind=engine)
-except Exception as e:
-    print(f"DB Bilgisi: {e}")
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
+logger = logging.getLogger("aegis")
 
-app = FastAPI()
 
-# ========================================================
-# 1. DOSYA YOLLARI
-# ========================================================
-# Bu dosya (main.py) neredeyse, bir üst klasöre çıkıp frontend'i oradan bulur.
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        logger.warning("Veritabanı tabloları: %s", e)
+    yield
+
+
+app = FastAPI(
+    title="Aegis Nexus",
+    description="Phishing tespiti, altyapı özeti, sızıntı sorgusu, şifre üretimi ve demo tuzak modüllerini bir araya getiren yerel güvenlik paneli.",
+    lifespan=lifespan,
+)
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 STATIC_DIR = BASE_DIR / "frontend" / "static"
 HTML_FILE = BASE_DIR / "frontend" / "templates" / "index.html"
 
-# Terminale dosya yolunu yazdıralım ki emin olalım
-print(f"DEBUG -> HTML Dosyası şurada aranıyor: {HTML_FILE}")
-
-# Static klasör bağlantısı
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 else:
-    print(f"UYARI: Static klasörü bulunamadı: {STATIC_DIR}")
+    logger.warning("Static klasör yok: %s", STATIC_DIR)
 
-
-# ========================================================
-# 2. VERİTABANI BAĞLANTISI
-# ========================================================
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-# ========================================================
-# 3. YENİ BÖLÜM: SİTE EKLEME İŞLEMİ (/api/add-site)
-# ========================================================
-
-# Frontend'den gelecek veri modeli
-class SiteAddRequest(BaseModel):
-    url: str
-    target: str
-    status: str
-
-
-@app.post("/api/add-site")
-def add_site(item: SiteAddRequest, db: Session = Depends(get_db)):
-    # Boş veri kontrolü
-    if not item.url or not item.target:
-        raise HTTPException(status_code=400, detail="URL ve Hedef boş olamaz")
-
-    # Rastgele benzersiz bir ID oluştur (Örn: PHISH-9482)
-    random_id = ''.join(random.choices(string.digits, k=5))
-    phish_id_gen = f"PHISH-{random_id}"
-
-    # Veritabanı nesnesini hazırla
-    new_site = PhishingURL(
-        phish_id=phish_id_gen,
-        url=item.url,
-        target=item.target,
-        status=item.status,
-        online=True if item.status == "ONLINE" else False
-    )
-
-    try:
-        db.add(new_site)
-        db.commit()
-        db.refresh(new_site)
-        return {"status": "success", "message": "Site başarıyla veritabanına eklendi!", "id": phish_id_gen}
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Kayıt hatası: {str(e)}")
-
-
-# ========================================================
-# 4. DİĞER API ENDPOINTLERİ
-# ========================================================
-
-class URLCheckRequest(BaseModel):
-    url: str
-
-
-# 👇 DÜZELTİLEN KISIM BURASI 👇
-@app.post("/api/check-url")
-def check_url(request: URLCheckRequest, db: Session = Depends(get_db)):
-    if not request.url:
-        raise HTTPException(status_code=400, detail="URL boş olamaz")
-
-    # Artık 'db' değişkenini scanner'a gönderiyoruz!
-    return calculate_safety_score(request.url, db)
-
-
-@app.get("/stats/")
-def get_stats(db: Session = Depends(get_db)):
-    try:
-        count = db.query(PhishingURL).count()
-        return {"toplam_zararli_site": count}
-    except Exception as e:
-        print(f"DB Hatası: {e}")
-        return {"toplam_zararli_site": 0}
-
-
-@app.get("/latest/")
-def get_latest(limit: int = 20, page: int = 1, db: Session = Depends(get_db)):
-    try:
-        offset = (page - 1) * limit
-        total = db.query(PhishingURL).count()
-        items = db.query(PhishingURL).order_by(PhishingURL.id.desc()).offset(offset).limit(limit).all()
-        total_pages = (total + limit - 1) // limit
-        return {"data": items, "page": page, "total_pages": total_pages, "total": total}
-    except Exception:
-        return {"data": [], "page": 1, "total_pages": 1, "total": 0}
-
-
-@app.get("/check/")
-def db_check(url: str, limit: int = 20, page: int = 1, db: Session = Depends(get_db)):
-    try:
-        offset = (page - 1) * limit
-        query = db.query(PhishingURL).filter(PhishingURL.url.contains(url))
-        total = query.count()
-        results = query.order_by(PhishingURL.id.desc()).offset(offset).limit(limit).all()
-        if not results and page == 1:
-            return {"status": "SAFE", "data": [], "page": 1, "total_pages": 0, "total": 0}
-        total_pages = (total + limit - 1) // limit
-        return {"status": "DANGER", "data": results, "page": page, "total_pages": total_pages, "total": total}
-    except Exception:
-        return {"status": "ERROR", "data": [], "page": 1, "total_pages": 0, "total": 0}
-
+app.include_router(threat.router)
+app.include_router(system.router)
+app.include_router(infra.router)
+app.include_router(breach.router)
+app.include_router(shield.router)
+app.include_router(honeypot.router)
+app.include_router(contact.router)
 
 
 @app.get("/")
 async def read_root():
     if HTML_FILE.exists():
         return FileResponse(HTML_FILE)
-
     return {
         "Hata": "index.html bulunamadı.",
         "Aranan_Yol": str(HTML_FILE),
-        "Mevcut_Klasor": str(BASE_DIR)
     }
-
-
-# ========================================================
-# 5. VERİTABANI GÜNCELLEME (Phishing.Database import)
-# ========================================================
-@app.post("/api/update-database")
-async def update_database():
-    """Phishing.Database ve diğer kaynaklardan verileri çeker ve DB'ye ekler."""
-    try:
-        added = verileri_guncelle()
-        db = SessionLocal()
-        total = db.query(PhishingURL).count()
-        db.close()
-        return {
-            "status": "success",
-            "yeni_eklenen": added,
-            "toplam_kayit": total,
-            "message": f"{added:,} yeni tehdit eklendi. Toplam: {total:,}"
-        }
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
