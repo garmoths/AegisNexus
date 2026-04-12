@@ -3,11 +3,20 @@ import json
 import os
 import ssl
 import socket
+import logging
 import requests
 from urllib.parse import urlparse
 from sqlalchemy.orm import Session
 from app.models import PhishingURL
 from datetime import datetime
+from app.url_normalize import normalize_url_record
+
+# AI Modülleri
+from app.ai_analyzer import analyze_page_content
+from app.ml_classifier import classify_url
+from app.threat_intel import run_threat_intelligence
+
+logger = logging.getLogger(__name__)
 
 # =========================================================
 # AYARLAR VE JSON YÜKLEME
@@ -448,21 +457,25 @@ def calculate_safety_score(input_url, db: Session = None):
         }
 
     # ---------------------------------------------------------
-    # 2. KATMAN: INTERNAL DB (VERİTABANI)
+    # 2. KATMAN: INTERNAL DB (VERİTABANI) — hash / tam URL / domain (indeksli)
     # ---------------------------------------------------------
     if db:
-        match = db.query(PhishingURL).filter(PhishingURL.url == check_url).first()
-        if not match:
+        match = None
+        canon, url_hash, domain_norm = normalize_url_record(check_url)
+        if url_hash:
+            match = db.query(PhishingURL).filter(PhishingURL.url_hash == url_hash).first()
+        if match is None and canon:
+            match = db.query(PhishingURL).filter(PhishingURL.url == canon).first()
+        if match is None:
+            match = db.query(PhishingURL).filter(PhishingURL.url == check_url).first()
+        if match is None:
             match = db.query(PhishingURL).filter(PhishingURL.url == input_url).first()
-        if not match and len(raw_domain) > 6:
-            potential = db.query(PhishingURL).filter(
-                PhishingURL.url.contains(raw_domain)
-            ).limit(5).all()
-            for pm in potential:
-                pm_domain = pm.url.replace("https://", "").replace("http://", "").replace("www.", "").split('/')[0]
-                if pm_domain == raw_domain:
-                    match = pm
-                    break
+        if match is None and domain_norm and len(domain_norm) > 3:
+            match = (
+                db.query(PhishingURL)
+                .filter(PhishingURL.domain_norm == domain_norm)
+                .first()
+            )
 
         if match:
             return {
@@ -495,11 +508,18 @@ def calculate_safety_score(input_url, db: Session = None):
     # ---------------------------------------------------------
     site_is_up = False
     http_status = 0
+    page_content = None
     try:
         response = requests.get(check_url, timeout=5, allow_redirects=True)
         http_status = response.status_code
         if response.status_code < 400:
             site_is_up = True
+            # Sayfa içeriğini AI analizi için sakla
+            try:
+                response.encoding = response.apparent_encoding or 'utf-8'
+                page_content = response.text[:500_000]
+            except Exception:
+                page_content = None
     except Exception:
         site_is_up = False
 
@@ -620,7 +640,52 @@ def calculate_safety_score(input_url, db: Session = None):
     sources.append({"name": "Yapısal Analiz", "status": "Tamamlandı"})
 
     # ---------------------------------------------------------
-    # 6. SONUÇ
+    # 6. KATMAN: ML TABANLI URL SINIFLANDIRMA
+    # ---------------------------------------------------------
+    try:
+        ml_result = classify_url(input_url)
+        if ml_result["ml_penalty"] > 0:
+            score -= ml_result["ml_penalty"]
+            risks.extend(ml_result["ml_findings"])
+        sources.append({"name": "ML Sınıflandırma", "status": f"{ml_result['ml_label']} ({ml_result['ml_score']}/100)"})
+    except Exception as e:
+        logger.error(f"ML Classifier hatası: {e}")
+        ml_result = None
+
+    # ---------------------------------------------------------
+    # 7. KATMAN: AI İÇERİK ANALİZİ (NLP + Brand + Credential)
+    # ---------------------------------------------------------
+    ai_result = None
+    try:
+        if page_content:
+            ai_result = analyze_page_content(page_content, check_url)
+            if ai_result["ai_score_penalty"] > 0:
+                score -= ai_result["ai_score_penalty"]
+                risks.extend(ai_result["ai_findings"])
+            sources.append({"name": "AI İçerik Analizi", "status": "Tamamlandı"})
+
+            if ai_result.get("brand_impersonation"):
+                sources.append({"name": "Marka Taklidi", "status": f"⚠️ {ai_result['brand_impersonation'].upper()}"})
+            if ai_result.get("credential_harvesting"):
+                sources.append({"name": "Credential Harvesting", "status": "🚨 Tespit Edildi"})
+    except Exception as e:
+        logger.error(f"AI Analyzer hatası: {e}")
+
+    # ---------------------------------------------------------
+    # 8. KATMAN: HARİCİ TEHDİT İSTİHBARATI (VirusTotal, Google, AbuseIPDB)
+    # ---------------------------------------------------------
+    threat_result = None
+    try:
+        threat_result = run_threat_intelligence(check_url)
+        if threat_result["total_penalty"] > 0:
+            score -= threat_result["total_penalty"]
+            risks.extend(threat_result["findings"])
+        sources.extend(threat_result["sources"])
+    except Exception as e:
+        logger.error(f"Threat Intelligence hatası: {e}")
+
+    # ---------------------------------------------------------
+    # 9. SONUÇ
     # ---------------------------------------------------------
     final_score = max(0, min(100, score))
 
@@ -636,10 +701,34 @@ def calculate_safety_score(input_url, db: Session = None):
     if not risks:
         risks.append("✅ Herhangi bir risk faktörü tespit edilmedi.")
 
-    return {
+    result = {
         "url": input_url,
         "score": final_score,
         "risk_level": risk_level,
         "details": risks,
-        "sources": sources
+        "sources": sources,
     }
+
+    # AI ek bilgileri (frontend için)
+    if ai_result:
+        result["ai_analysis"] = {
+            "nlp_risk_score": ai_result.get("nlp_risk_score", 0),
+            "brand_impersonation": ai_result.get("brand_impersonation"),
+            "credential_harvesting": ai_result.get("credential_harvesting", False),
+            "malicious_scripts": len(ai_result.get("malicious_scripts", [])),
+            "content_anomalies": len(ai_result.get("content_anomalies", [])),
+        }
+    if ml_result:
+        result["ml_analysis"] = {
+            "ml_score": ml_result.get("ml_score", 0),
+            "ml_label": ml_result.get("ml_label", ""),
+            "triggered_features": len(ml_result.get("triggered_features", [])),
+        }
+    if threat_result:
+        result["threat_intel"] = {
+            "virustotal": threat_result.get("virustotal"),
+            "google_safe_browsing": threat_result.get("google_safe_browsing"),
+            "abuseipdb": threat_result.get("abuseipdb"),
+        }
+
+    return result

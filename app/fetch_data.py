@@ -1,131 +1,149 @@
+"""
+Çok kaynaklı phishing URL ingest — akış (stream) ve toplu INSERT.
+Bellekte tüm veritabanını tutmaz; url_hash ile çakışma yoksayılır (PostgreSQL).
+"""
+from __future__ import annotations
+
 import sys
 import os
-import requests
 import time
-from datetime import datetime
+from datetime import datetime, timezone
+import requests
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-# YOL AYARLARI
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
-sys.path.append(project_root)
+sys.path.insert(0, project_root)
 
 from app.database import SessionLocal, engine
 from app import models
+from app.url_normalize import normalize_url_record
 
-
-# --- KAYNAKLAR ---
-
+# --- Beslemeler (Phishing.Database + abuse.ch + OpenPhish) ---
 PHISHING_DB_SOURCES = {
     "phishing_db_links_active": "https://raw.githubusercontent.com/Phishing-Database/Phishing.Database/master/phishing-links-ACTIVE.txt",
     "phishing_db_domains_active": "https://raw.githubusercontent.com/Phishing-Database/Phishing.Database/master/phishing-domains-ACTIVE.txt",
-    "urlhaus": "https://urlhaus.abuse.ch/downloads/text_online/",
+    "phishing_db_links_active_now": "https://raw.githubusercontent.com/Phishing-Database/Phishing.Database/master/phishing-links-ACTIVE-NOW.txt",
+    "phishing_db_links_new_today": "https://raw.githubusercontent.com/Phishing-Database/Phishing.Database/master/phishing-links-NEW-today.txt",
+    "phishing_db_domains_new_today": "https://raw.githubusercontent.com/Phishing-Database/Phishing.Database/master/phishing-domains-NEW-today.txt",
+    "phishing_db_ips_active": "https://raw.githubusercontent.com/Phishing-Database/Phishing.Database/master/phishing-IPs-ACTIVE.txt",
+    "urlhaus_online": "https://urlhaus.abuse.ch/downloads/text_online/",
     "openphish": "https://openphish.com/feed.txt",
 }
 
-
-def fetch_from_url(name, url, timeout=60):
-    """Tek bir kaynaktan URL listesi çeker."""
-    print(f"   📡 [{name}] taranıyor...")
-    try:
-        r = requests.get(url, timeout=timeout)
-        if r.status_code == 200:
-            lines = [l.strip() for l in r.text.split('\n')
-                     if l.strip() and not l.startswith("#") and not l.startswith("//")]
-            print(f"   ✅ [{name}] {len(lines):,} kayıt bulundu.")
-            return lines
-        else:
-            print(f"   ⚠️ [{name}] HTTP {r.status_code}")
-    except Exception as e:
-        print(f"   ❌ [{name}] Hata: {e}")
-    return []
+BATCH_SIZE = 10_000
+REQUEST_TIMEOUT = 180
 
 
-def fetch_online_sources():
-    """Tüm kaynaklardan verileri çeker ve birleştirir."""
-    all_urls = []
-    for name, url in PHISHING_DB_SOURCES.items():
-        urls = fetch_from_url(name, url)
-        all_urls.extend(urls)
-    return list(set(all_urls))  # Tekrarları temizle
+def iter_feed_lines(url: str):
+    """Büyük dosyaları tek seferde RAM'e almadan satır satır okur."""
+    with requests.get(url, stream=True, timeout=REQUEST_TIMEOUT) as r:
+        if r.status_code != 200:
+            raise RuntimeError(f"HTTP {r.status_code}")
+        for raw in r.iter_lines(decode_unicode=True):
+            if not raw:
+                continue
+            line = raw.strip()
+            if line and not line.startswith("#") and not line.startswith("//"):
+                yield line
 
 
-def import_to_db(urls, source_tag="Unknown", batch_size=5000):
-    """URL listesini veritabanına toplu olarak ekler."""
+def _dedupe_rows(rows: list[dict]) -> list[dict]:
+    return list({r["url_hash"]: r for r in rows}.values())
+
+
+def _flush_postgres(db, rows: list[dict]) -> int:
+    if not rows:
+        return 0
+    rows = _dedupe_rows(rows)
+    stmt = pg_insert(models.PhishingURL).values(rows)
+    stmt = stmt.on_conflict_do_nothing(index_elements=["url_hash"])
+    res = db.execute(stmt)
+    db.commit()
+    return res.rowcount or 0
+
+
+def _flush_sqlite(db, rows: list[dict]) -> int:
+    """SQLite: küçük partlarda var olan hash'leri sorgula, sonra toplu ekle."""
+    if not rows:
+        return 0
+    rows = _dedupe_rows(rows)
+    hashes = [r["url_hash"] for r in rows]
+    existing = {
+        x[0]
+        for x in db.query(models.PhishingURL.url_hash)
+        .filter(models.PhishingURL.url_hash.in_(hashes))
+        .all()
+    }
+    fresh = [r for r in rows if r["url_hash"] not in existing]
+    if not fresh:
+        return 0
+    db.bulk_save_objects([models.PhishingURL(**r) for r in fresh])
+    db.commit()
+    return len(fresh)
+
+
+def ingest_stream(name: str, url: str, source_tag: str) -> int:
+    dialect = engine.dialect.name
+    added = 0
+    batch: list[dict] = []
     db = SessionLocal()
     models.Base.metadata.create_all(bind=engine)
-
     try:
-        # Mevcut URL'leri hafızaya al (hız için)
-        print("   🔍 Mevcut kayıtlar kontrol ediliyor...")
-        existing_urls = {x[0] for x in db.query(models.PhishingURL.url).all()}
-        print(f"   📊 Veritabanında mevcut: {len(existing_urls):,} kayıt")
-
-        new_items = []
-        for url in urls:
-            if url not in existing_urls:
-                # Eğer domain ise (http ile başlamıyorsa) URL formatına çevir
-                display_url = url if url.startswith("http") else f"http://{url}"
-
-                new_items.append(models.PhishingURL(
-                    phish_id=str(abs(hash(url))),
-                    url=display_url,
-                    status="active",
-                    online=True,
-                    target=source_tag,
-                    submission_time=datetime.now()
-                ))
-                existing_urls.add(url)
-
-        if new_items:
-            print(f"   🔥 {len(new_items):,} adet YENİ site ekleniyor...")
-            # Toplu ekleme (batch)
-            for i in range(0, len(new_items), batch_size):
-                batch = new_items[i:i + batch_size]
-                db.bulk_save_objects(batch)
-                db.commit()
-                print(f"   💾 Batch {i // batch_size + 1}: {len(batch):,} kayıt eklendi.")
-            print(f"   ✅ Toplam {len(new_items):,} yeni kayıt veritabanına eklendi!")
-        else:
-            print("   💤 Yeni bir tehdit yok, veritabanın zaten güncel.")
-
-        return len(new_items)
-
+        flush = _flush_postgres if dialect == "postgresql" else _flush_sqlite
+        for line in iter_feed_lines(url):
+            canon, uh, dn = normalize_url_record(line)
+            if not uh or not canon:
+                continue
+            batch.append(
+                {
+                    "phish_id": "S" + uh[:20],
+                    "url": canon,
+                    "url_hash": uh,
+                    "domain_norm": dn,
+                    "status": "active",
+                    "online": True,
+                    "target": f"{source_tag}:{name}",
+                    "submission_time": datetime.now(timezone.utc),
+                }
+            )
+            if len(batch) >= BATCH_SIZE:
+                added += flush(db, batch)
+                batch = []
+        if batch:
+            added += flush(db, batch)
+        return added
     except Exception as e:
-        print(f"   💥 Hata: {e}")
+        print(f"   [{name}] ingest hatası: {e}")
         db.rollback()
-        return 0
+        return added
     finally:
         db.close()
 
 
-def verileri_guncelle():
-    """Ana güncelleme fonksiyonu."""
-    print(f"\n{'='*60}")
-    print(f"⏰ GÜNCELLEME ZAMANI: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"{'='*60}")
+def verileri_guncelle() -> int:
+    print(f"\n{'=' * 60}")
+    print(f"Güncelleme: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"{'=' * 60}")
 
-    # 1. Tüm kaynaklardan verileri çek
-    online_urls = fetch_online_sources()
-    print(f"\n📦 Toplam benzersiz tehdit: {len(online_urls):,}")
+    total_added = 0
+    for name, url in PHISHING_DB_SOURCES.items():
+        print(f"\n--- {name} ---")
+        try:
+            total_added += ingest_stream(name, url, "Phishing.DB")
+        except Exception as e:
+            print(f"   Kaynak atlandı: {e}")
 
-    # 2. Veritabanına ekle
-    added = import_to_db(online_urls, source_tag="Phishing.DB")
-
-    print(f"\n{'='*60}")
-    print(f"📊 SONUÇ: {added:,} yeni kayıt eklendi")
-    print(f"{'='*60}\n")
-    return added
+    print(f"\n{'=' * 60}")
+    print(f"Bu çalışmada eklenen satır (yaklaşım): {total_added:,}")
+    print(f"{'=' * 60}\n")
+    return total_added
 
 
-# --- SONSUZ DÖNGÜ ---
 if __name__ == "__main__":
-    SAAT_ARALIGI = 4  # Kaç saatte bir güncellesin?
-
-    print("🛡️ OTOMATİK KORUMA SİSTEMİ DEVREDE")
-    print(f"Bilgisayar açık olduğu sürece her {SAAT_ARALIGI} saatte bir yeni veri çekecek.\n")
-
+    SAAT = 4
+    print("Feed ingest döngüsü (Ctrl+C ile çık)")
     while True:
         verileri_guncelle()
-
-        print(f"⏳ Şimdi bekleme modu... ({SAAT_ARALIGI} saat)")
-        time.sleep(SAAT_ARALIGI * 60 * 60)
+        print(f"Bekleniyor: {SAAT} saat\n")
+        time.sleep(SAAT * 3600)

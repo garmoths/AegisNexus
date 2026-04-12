@@ -3,317 +3,516 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Enes Threat Intel</title>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Share+Tech+Mono&family=VT323&display=swap" rel="stylesheet">
-
-    <style>
-        /* --- GENEL AYARLAR --- */
-        :root {
-            --bg-color: #050505;
-            --panel-bg: rgba(10, 10, 10, 0.90);
-            --neon-green: #00ff41;
-            --neon-purple: #bc13fe;
-            --neon-red: #ff3333;
-        }
-
-        body {
-            background-color: var(--bg-color);
-            color: var(--neon-green);
-            font-family: 'Share Tech Mono', monospace;
-            margin: 0; padding: 0;
-            overflow-x: hidden;
-            font-size: 15px; /* Font boyutu idealleştirildi */
-        }
-
-        canvas#matrix {
-            position: fixed; top: 0; left: 0;
-            width: 100%; height: 100%;
-            z-index: -1;
-        }
-
-        /* --- RGB NEON ANİMASYONU --- */
-        @keyframes rgb-cycle {
-            0% { border-color: var(--neon-green); box-shadow: 0 0 8px rgba(0, 255, 65, 0.2); color: var(--neon-green); }
-            50% { border-color: var(--neon-purple); box-shadow: 0 0 15px rgba(188, 19, 254, 0.3); color: var(--neon-purple); }
-            100% { border-color: var(--neon-green); box-shadow: 0 0 8px rgba(0, 255, 65, 0.2); color: var(--neon-green); }
-        }
-
-        /* --- HEADER --- */
-        .header-container {
-            text-align: center; padding: 25px 0 15px 0; /* Padding azaltıldı */
-            background: linear-gradient(to bottom, rgba(0,0,0,0.95), rgba(0,0,0,0.1));
-            position: relative; z-index: 10;
-        }
-
-        .cyber-eye {
-            width: 80px; height: 80px; border-radius: 50%; /* Logo küçültüldü */
-            border: 3px solid var(--neon-green);
-            animation: rgb-cycle 4s infinite alternate;
-            background: #000;
-        }
-
-        h1 {
-            font-family: 'Orbitron', sans-serif;
-            margin: 10px 0 5px 0; letter-spacing: 4px;
-            text-transform: uppercase; font-size: 2.2em; /* Başlık küçültüldü */
-            text-shadow: 0 0 10px currentColor;
-            animation: rgb-cycle 4s infinite alternate;
-        }
-
-        p.subtitle {
-            font-family: 'VT323', monospace; font-size: 1.2em;
-            color: #ccc; letter-spacing: 2px; margin: 0;
-        }
-
-        /* --- DASHBOARD --- */
-        .dashboard {
-            display: grid; grid-template-columns: 300px 1fr;
-            gap: 30px; padding: 30px;
-            max-width: 1200px; margin: 0 auto;
-            position: relative; z-index: 5;
-        }
-
-        @media (max-width: 900px) { .dashboard { grid-template-columns: 1fr; } }
-
-        .panel {
-            background: var(--panel-bg);
-            border: 1px solid var(--neon-green);
-            border-radius: 8px; padding: 25px;
-            backdrop-filter: blur(8px);
-            animation: rgb-cycle 6s infinite alternate;
-            min-width: 0;
-            overflow: hidden;
-        }
-
-        h2.panel-title {
-            margin-top: 0; border-bottom: 1px solid #333; padding-bottom: 10px;
-            font-family: 'Orbitron', sans-serif; color: #fff;
-            font-size: 1.4em;
-        }
-
-        /* --- INPUT & BUTTON --- */
-        input, select {
-            width: 100%; padding: 10px; margin: 8px 0; /* Daha zarif inputlar */
-            background: rgba(0, 0, 0, 0.8);
-            border: 1px solid #555; color: #fff;
-            font-family: 'Share Tech Mono', monospace; font-size: 1em;
-            box-sizing: border-box; transition: 0.3s;
-        }
-        input:focus { border-color: #fff; outline: none; box-shadow: 0 0 10px rgba(255,255,255,0.2); }
-
-        button {
-            width: 100%; padding: 12px; margin-top: 10px;
-            background: rgba(0, 0, 0, 0.7); border: 1px solid;
-            font-family: 'Orbitron', sans-serif; font-size: 1em;
-            cursor: pointer; letter-spacing: 1px; text-transform: uppercase;
-            animation: rgb-cycle 3s infinite alternate; transition: 0.2s; font-weight: bold;
-        }
-        button:hover { background: rgba(255, 255, 255, 0.15); box-shadow: 0 0 20px currentColor; transform: scale(1.01); }
-
-        /* --- SONUÇ LİSTESİ --- */
-        #manualResultArea, #result-area {
-            margin-top: 15px; max-height: 500px; overflow-y: auto;
-            border-top: 1px solid #333; padding-top: 10px;
-        }
-
-        .result-item {
-            background: rgba(255,255,255,0.04);
-            border-left: 3px solid #333;
-            padding: 10px 15px; margin-bottom: 8px;
-            display: flex; justify-content: space-between; align-items: center;
-            font-size: 0.95em;
-            overflow: hidden;
-            min-width: 0;
-        }
-        .result-item:hover { border-left-color: var(--neon-purple); background: rgba(188, 19, 254, 0.15); }
-
-        /* --- URL KESME (Ellipsis) --- */
-        .url-content {
-            font-weight: bold;
-            color: #00ff41;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            flex: 1;
-            min-width: 0;
-        }
-
-        .tag-container {
-            min-width: 130px; text-align: right; flex-shrink: 0;
-            margin-left: 10px;
-        }
-
-        .tag {
-            font-size: 0.8em; padding: 3px 8px;
-            background: #000; border: 1px solid #555;
-            margin-left: 5px; color: #ccc;
-            font-weight: bold;
-        }
-
-        /* --- MODAL --- */
-        .modal {
-            display: none; position: fixed; z-index: 9999; left: 0; top: 0;
-            width: 100%; height: 100%; background: rgba(0,0,0,0.92);
-            backdrop-filter: blur(5px);
-        }
-        .modal-content {
-            background: #0d0d0d; border: 2px solid var(--neon-red);
-            margin: 10% auto; padding: 30px; width: 90%; max-width: 450px;
-            box-shadow: 0 0 40px rgba(255, 51, 51, 0.2);
-            text-align: center; position: relative;
-        }
-
-        /* --- FOOTER --- */
-        footer {
-            text-align: center; padding: 20px; color: #666; font-size: 0.8em;
-            background: rgba(0,0,0,0.95); position: relative; z-index: 10;
-        }
-
-        .score-high { color: var(--neon-green); font-weight: bold; font-size: 1.2em; }
-        .score-med { color: yellow; font-weight: bold; font-size: 1.2em; }
-        .score-low { color: var(--neon-red); font-weight: bold; font-size: 1.2em; }
-    </style>
+    <title>Aegis Nexus</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/aegis.css">
 </head>
 <body>
 
-    <canvas id="matrix"></canvas>
+    <section id="top" class="hero-landing" aria-label="Karşılama">
+        <div class="hero-bg" aria-hidden="true"></div>
+        <div class="hero-topbar">
+            <a href="#top" class="hero-brand-link" aria-label="Ana sayfa">
+                <span class="logo-mark logo-mark--hero">
+                    <svg class="logo-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                        <path d="M12 2.2L4.2 5.1v6.1c0 4.4 2.9 8.1 7.8 9.3 4.9-1.2 7.8-4.9 7.8-9.3V5.1L12 2.2z" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round" fill="rgba(255,255,255,0.14)"/>
+                        <path d="M8.2 12.2l2.3 2.3 5.3-5.3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <span class="logo-wordmark">Aegis Nexus</span>
+                </span>
+            </a>
+            <nav class="hero-topnav" aria-label="Site menüsü">
+                <a href="#top" id="navAnaSayfa">Ana sayfa</a>
+                <a href="#hakkimizda" id="navHakkimizda">Hakkımızda</a>
+                <a href="#blog" id="navBlog">Blog</a>
+                <a href="#workspace" id="navIletisim">İletişim</a>
+            </nav>
+        </div>
+        <div class="hero-inner">
+            <div class="hero-copy">
+                <h1 class="hero-display">Aegis Nexus ile dijital dünyanızı güvenceye alın ve büyütün.</h1>
+                <p class="hero-tagline">Tehdit veritabanından aktif savunmaya, tam teşekküllü siber güvenlik ekosistemi.</p>
+                <div class="hero-cta">
+                    <a href="#workspace" class="btn-hero-solid" id="heroCtaPanel">Hemen kontrol et</a>
+                    <a href="#modules-overview" class="btn-hero-outline" id="heroCtaInfo">Daha fazla bilgi al</a>
+                </div>
+            </div>
+            <div class="hero-figure">
+                <img src="/static/hero-visual.png" width="640" height="720" alt="" decoding="async" fetchpriority="high">
+            </div>
+        </div>
+        <div class="hero-wave" aria-hidden="true">
+            <svg viewBox="0 0 1440 120" preserveAspectRatio="none">
+                <path fill="#ffffff" d="M0,40 C180,100 360,0 540,50 C720,100 900,20 1080,55 C1260,90 1350,70 1440,45 L1440,120 L0,120 Z"></path>
+                <path fill="#f0f4f8" opacity="0.95" d="M0,65 C200,110 400,30 600,70 C800,110 1000,40 1200,75 C1320,95 1400,85 1440,80 L1440,120 L0,120 Z"></path>
+            </svg>
+        </div>
+    </section>
 
-    <div id="addModal" class="modal">
+    <section id="modules-overview" class="modules-strip" aria-labelledby="modTitle">
+        <div class="modules-strip-inner">
+            <h2 id="modTitle" class="modules-strip-title">Platform modülleri</h2>
+            <p class="modules-strip-sub">Bir modüle dokunun; aşağıdaki çalışma alanında ilgili sekme açılır.</p>
+            <div class="modules-grid">
+                <button type="button" class="mod-card" data-goto-tab="threat">
+                    <span class="mod-card-icon" aria-hidden="true">
+                        <svg class="mod-svg" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 14h28v6H10zM10 24h28v6H10zM10 34h28v6H10z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="38" cy="12" r="5" stroke="currentColor" stroke-width="2"/><path d="M41 15l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                    </span>
+                    <h3>Tehdit veritabanı</h3>
+                    <p>URL analizi ve kayıtlı oltalama listesi.</p>
+                </button>
+                <button type="button" class="mod-card" data-goto-tab="infra">
+                    <span class="mod-card-icon" aria-hidden="true">
+                        <svg class="mod-svg" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M24 6v36M24 6l-6 10h12L24 6z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 18c4-4 10-6 14-6s10 2 14 6M14 24c3-3 6-4 10-4s7 1 10 4M18 30c2-2 4-3 6-3s4 1 6 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                    </span>
+                    <h3>Altyapı analizi</h3>
+                    <p>SSL, yönlendirme ve port özeti.</p>
+                </button>
+                <button type="button" class="mod-card" data-goto-tab="breach">
+                    <span class="mod-card-icon" aria-hidden="true">
+                        <svg class="mod-svg" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="8" y="16" width="32" height="22" rx="2" stroke="currentColor" stroke-width="2"/><path d="M8 20l16 11 16-11" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M33 9c-1.7 0-3 1.6-3 3.5 0 2.2 2.2 4.2 3 6.5.8-2.3 3-4.3 3-6.5C36 10.6 34.7 9 33 9z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                    </span>
+                    <h3>Sızıntı istihbaratı</h3>
+                    <p>E-postanın bilinen sızıntılarda aranması.</p>
+                </button>
+                <button type="button" class="mod-card" data-goto-tab="shield">
+                    <span class="mod-card-icon" aria-hidden="true">
+                        <svg class="mod-svg" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="18" cy="18" r="6" stroke="currentColor" stroke-width="2"/><path d="M22 22h14v6h-4v4h-4v4h-4v4H14V22h8z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M24 28h6M27 25v6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                    </span>
+                    <h3>Kriptografik kalkan</h3>
+                    <p>Güçlü rastgele şifre üretimi.</p>
+                </button>
+                <button type="button" class="mod-card" data-goto-tab="honeypot">
+                    <span class="mod-card-icon" aria-hidden="true">
+                        <svg class="mod-svg" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M24 4l18 10v14c0 11-7.7 20.3-18 23-10.3-2.7-18-12-18-23V14L24 4z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M16 22h16M20 18v12M28 18v12M16 26h16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                    </span>
+                    <h3>Aktif savunma</h3>
+                    <p>Demo tuzak sayfası ve ziyaret kaydı.</p>
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <section id="hakkimizda" class="strip-muted" aria-labelledby="aboutTitle">
+        <div class="strip-inner">
+            <h2 id="aboutTitle" class="strip-heading">Hakkımızda</h2>
+            <p class="strip-text">Aegis Nexus; oltalama tespiti, altyapı özeti, sızıntı farkındalığı ve güçlü parola üretimini tek çatıda toplar. Amacımız bireylerin ve işletmelerin dijital riskleri daha erken görmesidir.</p>
+        </div>
+    </section>
+
+    <section id="blog" class="strip-muted strip-muted--compact" aria-label="Blog">
+        <div class="strip-inner strip-inner--row">
+            <strong class="strip-label">Blog</strong>
+            <p class="strip-text strip-text--inline">Yakında makaleler ve güvenlik ipuçları burada olacak.</p>
+        </div>
+    </section>
+
+    <div id="addModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
         <div class="modal-content">
-            <span style="position:absolute; top:15px; right:20px; cursor:pointer; font-size:24px; color:#fff;" onclick="closeModal()">✕</span>
-            <h2 style="color:var(--neon-red); font-family:'Orbitron'; font-size: 1.6em;">⚠️ MANUEL GİRİŞ</h2>
-            <p style="color:#aaa; font-size: 1em;">Veritabanına yeni tehdit ekleniyor.</p>
-            <hr style="border-color:#333; margin-bottom:20px;">
-
-            <input type="text" id="newUrl" placeholder="Zararlı URL (Örn: http://fake.com)">
-            <input type="text" id="newTarget" placeholder="Hedef (Örn: Banka)">
-            <select id="newStatus">
-                <option value="ONLINE">ONLINE (Aktif)</option>
-                <option value="OFFLINE">OFFLINE (Pasif)</option>
+            <button type="button" class="modal-close" onclick="closeModal()" aria-label="Kapat">×</button>
+            <h2 id="modalTitle">Yeni tehdit kaydı</h2>
+            <p class="section-hint">Listeye elle kayıt eklemek için. Yalnızca güvenilir örnekler.</p>
+            <input type="text" id="newUrl" placeholder="URL" class="field-full" style="width:100%;margin-bottom:0.5rem;padding:0.65rem 0.85rem;border:1px solid var(--border);border-radius:8px;">
+            <input type="text" id="newTarget" placeholder="Hedef etiketi (örn. banka)" class="field-full" style="width:100%;margin-bottom:0.5rem;padding:0.65rem 0.85rem;border:1px solid var(--border);border-radius:8px;">
+            <select id="newStatus" style="width:100%;padding:0.65rem 0.85rem;border:1px solid var(--border);border-radius:8px;margin-bottom:0.75rem;font-family:var(--font);">
+                <option value="ONLINE">Aktif</option>
+                <option value="OFFLINE">Pasif</option>
             </select>
-            <button onclick="submitNewSite()" style="border-color:var(--neon-red); color:var(--neon-red); animation:none;">VERİTABANINA KAYDET</button>
+            <button type="button" class="btn btn--primary btn-block" onclick="submitNewSite()">Kaydet</button>
         </div>
     </div>
 
-    <div class="header-container">
-        <img src="/static/logo.jpg" alt="Cyber Eye" class="cyber-eye">
-        <h1>PHISHING INTELLIGENCE</h1>
-        <p class="subtitle">ADVANCED THREAT DETECTION SYSTEM</p>
-    </div>
+    <div id="workspace">
+    <header class="site-header">
+        <div class="header-inner">
+            <a href="#top" class="logo logo--with-mark">
+                <svg class="logo-icon logo-icon--header" width="36" height="36" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <path d="M12 2.2L4.2 5.1v6.1c0 4.4 2.9 8.1 7.8 9.3 4.9-1.2 7.8-4.9 7.8-9.3V5.1L12 2.2z" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round" fill="rgba(11,110,140,0.1)"/>
+                    <path d="M8.2 12.2l2.3 2.3 5.3-5.3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span class="logo-wordmark logo-wordmark--header">Aegis Nexus</span>
+            </a>
+            <nav class="main-nav" role="tablist" aria-label="Bölümler">
+                <button type="button" class="tab-btn active" data-tab="threat" role="tab">Tehdit</button>
+                <button type="button" class="tab-btn" data-tab="infra" role="tab">Altyapı</button>
+                <button type="button" class="tab-btn" data-tab="breach" role="tab">Sızıntı</button>
+                <button type="button" class="tab-btn" data-tab="shield" role="tab">Şifre</button>
+                <button type="button" class="tab-btn" data-tab="honeypot" role="tab">Tuzak</button>
+                <button type="button" class="tab-btn" data-tab="contact" role="tab">İletişim</button>
+            </nav>
+        </div>
+    </header>
 
-    <div class="dashboard">
+    <main class="main-content">
 
-        <div class="panel">
-            <h2 class="panel-title">🛡️ YAPAY ZEKA TARAYICI</h2>
-            <p style="color:#999; font-size: 0.9em;">URL'yi girin, 3 katmanlı güvenlik motoru analiz etsin.</p>
+        <div id="tab-panel-threat" class="tab-panel active">
+            <div class="grid-2">
+                <article class="card">
+                    <h2>URL analizi</h2>
+                    <p class="section-hint">Yerel liste, bağlantı ve içerik sinyalleri birleşir. Sonuç tavsiye niteliğindedir.</p>
+                    <div class="field-row">
+                        <input type="text" id="manualUrlInput" placeholder="https://… veya alan adı">
+                        <button type="button" class="btn btn--primary" onclick="checkManualURL()">Kontrol et</button>
+                    </div>
+                    <div id="manualResultArea" style="display:none;">
+                        <div id="scoreText" class="score-line">…</div>
+                        <div id="riskText" class="risk-line">…</div>
+                        <div id="aiPanels" style="display:none;">
+                            <div class="ai-grid">
+                                <div id="aiNlpBox" class="ai-box">
+                                    <div class="ai-label">İçerik riski</div>
+                                    <div id="aiNlpScore" class="ai-value">–</div>
+                                </div>
+                                <div id="aiMlBox" class="ai-box">
+                                    <div class="ai-label">ML skoru</div>
+                                    <div id="aiMlScore" class="ai-value">–</div>
+                                </div>
+                                <div id="aiBrandBox" class="ai-box">
+                                    <div class="ai-label">Marka taklidi</div>
+                                    <div id="aiBrandStatus" class="ai-value">–</div>
+                                </div>
+                            </div>
+                            <div id="aiThreatIntel" class="sources-box" style="display:none;">
+                                <strong style="color:var(--text);">Harici servisler</strong>
+                                <div id="aiThreatList" style="margin-top:0.35rem;"></div>
+                            </div>
+                            <div id="aiCredBox" class="alert" style="display:none;background:var(--danger-soft);border-color:#f0b4b4;color:var(--danger);margin-bottom:0.5rem;">
+                                Olası kimlik bilgisi toplama
+                            </div>
+                            <div id="aiScriptBox" class="alert" style="display:none;background:var(--warn-soft);border-color:#e8d48b;color:var(--warn);margin-bottom:0.5rem;">
+                                Şüpheli betik kalıbı: <span id="aiScriptCount">0</span>
+                            </div>
+                        </div>
+                        <div id="sourcesArea" class="sources-box" style="display:none;">
+                            <div class="ai-label" style="margin-bottom:0.25rem;">Kaynaklar</div>
+                            <div id="sourcesList"></div>
+                        </div>
+                        <ul id="detailsList"></ul>
+                    </div>
+                </article>
 
-            <input type="text" id="manualUrlInput" placeholder="https://...">
-            <button onclick="checkManualURL()">SİSTEMİ BAŞLAT</button>
-
-            <div id="manualResultArea" style="display:none;">
-                <div id="scoreText">...</div>
-                <div id="riskText" style="color:#fff; margin:10px 0; font-size:1em;">...</div>
-                <ul id="detailsList" style="padding-left:0; list-style:none; font-size:0.95em;"></ul>
+                <article class="card">
+                    <div class="toolbar">
+                        <h2 class="card-title-lg" style="border:none;padding:0;margin:0;">Tehdit listesi</h2>
+                        <span class="spacer"></span>
+                        <button type="button" class="btn btn--ghost btn--small" onclick="openModal()">+ Ekle</button>
+                    </div>
+                    <p class="section-hint">Veritabanındaki kayıtlar. Arama en az 3 karakter.</p>
+                    <div class="field-row">
+                        <input type="text" id="urlInput" placeholder="Ara…">
+                        <select id="limitSelect">
+                            <option value="10">10</option>
+                            <option value="20" selected>20</option>
+                            <option value="50">50</option>
+                        </select>
+                        <button type="button" class="btn btn--primary" onclick="searchData()">Ara</button>
+                    </div>
+                    <p class="stat-line">Toplam kayıt: <strong id="total-count">…</strong></p>
+                    <div id="loading" style="display:none;">Yükleniyor…</div>
+                    <div id="result-area"></div>
+                    <div class="pagination">
+                        <button type="button" class="btn btn--secondary btn--small" id="prevBtn" onclick="changePage(-1)" disabled>Önceki</button>
+                        <span id="pageInfo">Sayfa 1 / 1</span>
+                        <button type="button" class="btn btn--secondary btn--small" id="nextBtn" onclick="changePage(1)">Sonraki</button>
+                    </div>
+                </article>
             </div>
         </div>
 
-        <div class="panel">
-            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #333; padding-bottom:10px;">
-                <h2 style="margin:0; font-family:'Orbitron'; color:#fff; font-size:1.4em;">🗄️ TEHDİT AKIŞI</h2>
-                <button onclick="openModal()" style="width:auto; padding:8px 15px; font-size:0.8em; margin:0;">+ EKLE</button>
-            </div>
-
-            <div style="display:flex; gap:10px; margin-top:15px;">
-                <input type="text" id="urlInput" placeholder="Ara..." style="flex:2;">
-                <select id="limitSelect" style="flex:1;">
-                    <option value="10">10</option>
-                    <option value="20" selected>20</option>
-                    <option value="50">50</option>
-                </select>
-            </div>
-            <button onclick="searchData()" style="margin-top:8px;">SORGULA</button>
-
-            <div style="margin:10px 0; font-size:0.9em; color:#888;">
-                Toplam Kayıt: <span id="total-count" style="color:#fff; font-weight:bold;">...</span>
-            </div>
-
-            <div id="loading" style="display:none; color:yellow; font-size:1em;">Veri Çekiliyor...</div>
-            <div id="result-area"></div>
-
-            <!-- SAYFALAMA -->
-            <div id="pagination" style="display:flex; justify-content:space-between; align-items:center; margin-top:12px; padding-top:10px; border-top:1px solid #333;">
-                <button id="prevBtn" onclick="changePage(-1)" style="width:auto; padding:8px 18px; font-size:0.85em; margin:0; opacity:0.5;" disabled>◀ ÖNCEKİ</button>
-                <span id="pageInfo" style="color:#888; font-size:0.9em;">Sayfa 1 / 1</span>
-                <button id="nextBtn" onclick="changePage(1)" style="width:auto; padding:8px 18px; font-size:0.85em; margin:0;">SONRAKİ ▶</button>
-            </div>
+        <div id="tab-panel-infra" class="tab-panel">
+            <article class="card" style="max-width:40rem;">
+                <h2>Altyapı özeti</h2>
+                <p class="section-hint">SSL, yönlendirme ve birkaç yaygın port. Yalnızca izniniz olan adresler.</p>
+                <div class="field-row">
+                    <input type="text" id="infraUrl" placeholder="alan adı veya https://…">
+                    <button type="button" class="btn btn--primary" onclick="runInfraReport()">Rapor</button>
+                </div>
+                <pre id="infraOut" class="json-out" style="display:none;"></pre>
+            </article>
         </div>
 
+        <div id="tab-panel-breach" class="tab-panel">
+            <article class="card" style="max-width:40rem;">
+                <h2>E-posta — bilinen sızıntılar</h2>
+                <p class="section-hint">Have I Been Pwned verisi. <a href="https://haveibeenpwned.com/" target="_blank" rel="noopener noreferrer">haveibeenpwned.com</a> — API anahtarı .env içinde gerekir.</p>
+                <div class="field-row">
+                    <input type="email" id="breachEmail" placeholder="e-posta">
+                    <button type="button" class="btn btn--primary" onclick="runBreachLookup()">Sorgula</button>
+                </div>
+                <div id="breachReport" style="display:none;margin-top:1rem;color:var(--text);line-height:1.5;"></div>
+                <pre id="breachRaw" class="json-out" style="display:none;"></pre>
+            </article>
+        </div>
+
+        <div id="tab-panel-shield" class="tab-panel">
+            <article class="card" style="max-width:36rem;">
+                <h2>Güçlü şifre</h2>
+                <p class="section-hint">Rastgele üretim. Parolayı güvenli yerde saklayın.</p>
+                <label class="stat-line">Uzunluk <input type="number" id="pwdLen" value="20" min="8" max="128" style="width:5rem;margin-left:0.5rem;padding:0.35rem;border:1px solid var(--border);border-radius:6px;"></label>
+                <div class="check-row">
+                    <label><input type="checkbox" id="pwdLower" checked> a–z</label>
+                    <label><input type="checkbox" id="pwdUpper" checked> A–Z</label>
+                    <label><input type="checkbox" id="pwdDigit" checked> 0–9</label>
+                    <label><input type="checkbox" id="pwdSym" checked> sembol</label>
+                </div>
+                <button type="button" class="btn btn--primary" onclick="runPasswordGen()">Üret</button>
+                <div id="pwdOut" class="pwd-out" style="display:none;"></div>
+                <pre id="pwdMeta" class="json-out" style="display:none;"></pre>
+            </article>
+        </div>
+
+        <div id="tab-panel-honeypot" class="tab-panel">
+            <article class="card" style="max-width:40rem;">
+                <h2>Demo tuzak sayfası</h2>
+                <p class="section-hint">Eğitim amaçlı sahte giriş ekranı; yalnızca bu sunucuya teknik ziyaret kaydı düşer. Kötüye kullanmayın.</p>
+                <button type="button" class="btn btn--secondary" onclick="window.open('/honeypot/decoy','_blank')">Sayfayı aç</button>
+                <button type="button" class="btn btn--ghost" onclick="loadHoneypotStats()" style="margin-left:0.5rem;">Sayacı yenile</button>
+                <p class="stat-line" style="margin-top:1rem;">Kayıtlı ziyaret: <strong id="hpStats">—</strong></p>
+            </article>
+        </div>
+
+        <div id="tab-panel-contact" class="tab-panel">
+            <div class="contact-grid">
+                <article class="card">
+                    <h2>Bize ulaşın</h2>
+                    <p class="section-hint">Öneri, iş birliği veya teknik sorular.</p>
+                    <ul class="contact-list">
+                        <li><strong>E-posta:</strong> <a id="contactMail" href="mailto:destek@orneksite.com">destek@orneksite.com</a> <span class="section-hint">(örnek — kendi adresinizle değiştirin)</span></li>
+                        <li><strong>API özeti:</strong> <a href="/api/meta">/api/meta</a></li>
+                        <li><strong>Durum:</strong> <a href="/api/health">/api/health</a></li>
+                    </ul>
+                </article>
+                <article class="card">
+                    <h2>Mesaj gönder</h2>
+                    <p class="section-hint">Form sunucu günlüğüne yazılır; otomatik e-posta gönderilmez.</p>
+                    <input type="text" id="contactName" placeholder="Adınız" style="width:100%;margin-bottom:0.5rem;padding:0.65rem 0.85rem;border:1px solid var(--border);border-radius:8px;font-family:var(--font);">
+                    <input type="email" id="contactEmail" placeholder="E-postanız" style="width:100%;margin-bottom:0.5rem;padding:0.65rem 0.85rem;border:1px solid var(--border);border-radius:8px;font-family:var(--font);">
+                    <textarea id="contactMessage" class="field-full" placeholder="Mesajınız (en az 10 karakter)"></textarea>
+                    <button type="button" class="btn btn--primary btn-block" onclick="submitContact()">Gönder</button>
+                    <div id="contactStatus" role="status"></div>
+                </article>
+            </div>
+        </div>
+    </main>
     </div>
 
-    <footer>
-        <p class="neon-text">SYSTEM SECURE | DATABASE CONNECTED | MADE BY ENES</p>
+    <footer class="site-footer">
+        <div class="footer-inner">
+            Aegis Nexus — farkındalık ve kontrol araçları.<br>
+            <a href="/api/meta">Modül özeti</a> · <a href="/api/health">Sağlık</a>
+        </div>
     </footer>
 
     <script>
-        // MATRIX ANIMATION
-        const canvas = document.getElementById('matrix');
-        const ctx = canvas.getContext('2d');
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-        const alphabet = 'アァカサタナハマヤャラワガザダバパイィキシチニヒミリヰギジヂビピABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-        const fontSize = 16;
-        const columns = canvas.width / fontSize;
-        const rainDrops = [];
-        for(let x = 0; x < columns; x++) rainDrops[x] = 1;
-
-        const draw = () => {
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = '#0F0';
-            ctx.font = fontSize + 'px monospace';
-            for(let i = 0; i < rainDrops.length; i++) {
-                const text = alphabet.charAt(Math.floor(Math.random() * alphabet.length));
-                ctx.fillText(text, i * fontSize, rainDrops[i] * fontSize);
-                if(rainDrops[i] * fontSize > canvas.height && Math.random() > 0.975) rainDrops[i] = 0;
-                rainDrops[i]++;
-            }
+        const C = {
+            danger: '#c53030',
+            warn: '#b7791f',
+            ok: '#1d7a5a',
+            border: '#d8e1ea',
+            primary: '#0b6e8c'
         };
-        window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
-        setInterval(draw, 35);
 
-        // API FONKSİYONLARI
-        window.onload = function() { fetchStats(); loadLatest(); };
-        function openModal() { document.getElementById("addModal").style.display = "block"; }
-        function closeModal() { document.getElementById("addModal").style.display = "none"; }
-        window.onclick = function(e) { if(e.target == document.getElementById("addModal")) closeModal(); }
+        function activateTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(function(b) {
+                b.classList.toggle('active', b.getAttribute('data-tab') === tab);
+            });
+            document.querySelectorAll('.tab-panel').forEach(function(p) {
+                p.classList.toggle('active', p.id === 'tab-panel-' + tab);
+            });
+        }
+
+        function scrollToWorkspace() {
+            var el = document.getElementById('workspace');
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function scrollToId(id) {
+            var el = document.getElementById(id);
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function switchToTab(tab) {
+            activateTab(tab);
+            scrollToWorkspace();
+        }
+
+        function wireHeroNav() {
+            function prev(e) { if (e) e.preventDefault(); }
+            var cta = document.getElementById('heroCtaPanel');
+            if (cta) cta.addEventListener('click', function(e) { prev(e); switchToTab('threat'); });
+            var info = document.getElementById('heroCtaInfo');
+            if (info) info.addEventListener('click', function(e) { prev(e); scrollToId('modules-overview'); });
+            var na = document.getElementById('navAnaSayfa');
+            if (na) na.addEventListener('click', function(e) { prev(e); scrollToId('top'); });
+            var nh = document.getElementById('navHakkimizda');
+            if (nh) nh.addEventListener('click', function(e) { prev(e); scrollToId('hakkimizda'); });
+            var nb = document.getElementById('navBlog');
+            if (nb) nb.addEventListener('click', function(e) { prev(e); scrollToId('blog'); });
+            var ni = document.getElementById('navIletisim');
+            if (ni) ni.addEventListener('click', function(e) { prev(e); switchToTab('contact'); });
+        }
+
+        window.onload = function() {
+            fetchStats();
+            loadLatest();
+            wireHeroNav();
+            document.querySelectorAll('.tab-btn').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    activateTab(btn.getAttribute('data-tab'));
+                });
+            });
+            document.querySelectorAll('.mod-card[data-goto-tab]').forEach(function(card) {
+                card.addEventListener('click', function() {
+                    switchToTab(card.getAttribute('data-goto-tab'));
+                });
+            });
+        };
+
+        function openModal() { document.getElementById('addModal').classList.add('is-open'); }
+        function closeModal() { document.getElementById('addModal').classList.remove('is-open'); }
+        window.addEventListener('click', function(e) {
+            if (e.target === document.getElementById('addModal')) closeModal();
+        });
+
+        async function submitContact() {
+            var name = document.getElementById('contactName').value.trim();
+            var email = document.getElementById('contactEmail').value.trim();
+            var message = document.getElementById('contactMessage').value.trim();
+            var st = document.getElementById('contactStatus');
+            st.textContent = '';
+            if (message.length < 10) { st.textContent = 'Mesaj en az 10 karakter olmalı.'; st.style.color = C.danger; return; }
+            if (!name || !email) { st.textContent = 'Ad ve e-posta zorunlu.'; st.style.color = C.danger; return; }
+            try {
+                var res = await fetch('/api/contact', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: name, email: email, message: message })
+                });
+                var data = await res.json();
+                if (res.ok && data.ok) {
+                    st.textContent = data.mesaj || 'Teşekkürler.';
+                    st.style.color = C.ok;
+                    document.getElementById('contactMessage').value = '';
+                } else {
+                    var err = data.detail;
+                    if (Array.isArray(err)) err = err.map(function(d) { return d.msg || d.type; }).join(' ');
+                    st.textContent = err || 'Gönderilemedi.';
+                    st.style.color = C.danger;
+                }
+            } catch (err) {
+                st.textContent = 'Bağlantı hatası.';
+                st.style.color = C.danger;
+            }
+        }
+
+        async function runInfraReport() {
+            var u = document.getElementById('infraUrl').value.trim();
+            var out = document.getElementById('infraOut');
+            if (!u) return;
+            out.style.display = 'block';
+            out.textContent = 'Hazırlanıyor…';
+            try {
+                var res = await fetch('/api/infra/report', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: u })
+                });
+                var data = await res.json();
+                out.textContent = JSON.stringify(data, null, 2);
+            } catch (e) { out.textContent = String(e); }
+        }
+
+        async function runBreachLookup() {
+            var email = document.getElementById('breachEmail').value.trim();
+            var rep = document.getElementById('breachReport');
+            var raw = document.getElementById('breachRaw');
+            if (!email) return;
+            rep.style.display = 'block';
+            raw.style.display = 'block';
+            rep.textContent = 'Sorgulanıyor…';
+            raw.textContent = '';
+            try {
+                var res = await fetch('/api/breach/lookup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: email })
+                });
+                var data = await res.json();
+                if (data.ok && data.report_tr) rep.textContent = data.report_tr;
+                else if (data.hint) rep.textContent = (data.error || 'Hata') + ' — ' + data.hint;
+                else rep.textContent = data.error || JSON.stringify(data);
+                raw.textContent = JSON.stringify(data, null, 2);
+            } catch (e) { rep.textContent = String(e); }
+        }
+
+        async function runPasswordGen() {
+            var body = {
+                length: parseInt(document.getElementById('pwdLen').value, 10) || 20,
+                lowercase: document.getElementById('pwdLower').checked,
+                uppercase: document.getElementById('pwdUpper').checked,
+                digits: document.getElementById('pwdDigit').checked,
+                symbols: document.getElementById('pwdSym').checked
+            };
+            var po = document.getElementById('pwdOut');
+            var pm = document.getElementById('pwdMeta');
+            po.style.display = 'block';
+            pm.style.display = 'block';
+            try {
+                var res = await fetch('/api/shield/password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                var data = await res.json();
+                po.textContent = data.password || '—';
+                pm.textContent = JSON.stringify(data.meta || {}, null, 2);
+            } catch (e) { po.textContent = String(e); }
+        }
+
+        async function loadHoneypotStats() {
+            try {
+                var res = await fetch('/api/honeypot/stats');
+                var data = await res.json();
+                document.getElementById('hpStats').textContent = (data.honeypot_visits_recorded != null)
+                    ? data.honeypot_visits_recorded.toLocaleString('tr-TR') : '—';
+            } catch (e) { document.getElementById('hpStats').textContent = '—'; }
+        }
 
         async function submitNewSite() {
-            const url = document.getElementById("newUrl").value;
-            const target = document.getElementById("newTarget").value;
-            const status = document.getElementById("newStatus").value;
-            if (!url || !target) { alert("Eksik bilgi!"); return; }
+            const url = document.getElementById('newUrl').value;
+            const target = document.getElementById('newTarget').value;
+            const status = document.getElementById('newStatus').value;
+            if (!url || !target) { alert('URL ve hedef gerekli.'); return; }
             try {
                 const res = await fetch('/api/add-site', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ url, target, status })
                 });
-                if(res.ok) { alert("Eklendi!"); closeModal(); loadLatest(); fetchStats(); }
-                else alert("Hata!");
-            } catch(e) { alert("Sunucu hatası"); }
+                if (res.ok) { alert('Kaydedildi.'); closeModal(); loadLatest(); fetchStats(); }
+                else alert('Kayıt başarısız.');
+            } catch (e) { alert('Sunucuya ulaşılamadı.'); }
         }
 
         async function checkManualURL() {
-            const url = document.getElementById("manualUrlInput").value;
-            const resultArea = document.getElementById("manualResultArea");
-            const scoreText = document.getElementById("scoreText");
-            const riskText = document.getElementById("riskText");
-            const detailsList = document.getElementById("detailsList");
+            const url = document.getElementById('manualUrlInput').value;
+            const resultArea = document.getElementById('manualResultArea');
+            const scoreText = document.getElementById('scoreText');
+            const riskText = document.getElementById('riskText');
+            const detailsList = document.getElementById('detailsList');
+            const aiPanels = document.getElementById('aiPanels');
+            const sourcesArea = document.getElementById('sourcesArea');
 
-            if(!url) return;
-            resultArea.style.display = "block";
-            scoreText.innerText = "ANALİZ EDİLİYOR...";
-            scoreText.className = ""; detailsList.innerHTML = "";
+            if (!url) return;
+            resultArea.style.display = 'block';
+            aiPanels.style.display = 'none';
+            sourcesArea.style.display = 'none';
+            scoreText.innerText = 'Analiz…';
+            scoreText.className = 'score-line';
+            detailsList.innerHTML = '';
+            riskText.innerHTML = 'Bekleyin…';
 
             try {
                 const res = await fetch('/api/check-url', {
@@ -323,52 +522,111 @@
                 });
                 const data = await res.json();
 
-                scoreText.innerText = `SKOR: %${data.score}`;
-                scoreText.className = data.score >= 80 ? "score-high" : (data.score >= 50 ? "score-med" : "score-low");
-                riskText.innerHTML = `DURUM: ${data.risk_level}`;
+                scoreText.innerText = 'Skor: %' + data.score;
+                scoreText.className = 'score-line ' + (data.score >= 80 ? 'score-high' : (data.score >= 50 ? 'score-med' : 'score-low'));
+                riskText.innerHTML = data.risk_level;
 
-                if(data.sources) detailsList.innerHTML += `<div style='font-size:0.8em; color:#888; margin-bottom:10px;'>${data.sources.map(s=>s.name).join(', ')}</div>`;
-                data.details.forEach(item => {
-                    const li = document.createElement("li");
-                    li.style.marginBottom = "5px";
-                    if(item.includes("Tehlikeli") || item.includes("yok") || item.includes("HTTPS")) {
-                        li.innerText = `❌ ${item}`; li.style.color = "#ff3333";
-                    } else if (item.includes("Güvenilir")) {
-                        li.innerText = `✅ ${item}`; li.style.color = "#00ff41";
+                aiPanels.style.display = 'block';
+
+                const nlpScore = data.ai_analysis ? data.ai_analysis.nlp_risk_score : 0;
+                document.getElementById('aiNlpScore').innerText = nlpScore || '0';
+                document.getElementById('aiNlpBox').style.borderColor = nlpScore >= 15 ? C.danger : (nlpScore >= 8 ? C.warn : C.border);
+
+                const mlScore = data.ml_analysis ? data.ml_analysis.ml_score : 0;
+                document.getElementById('aiMlScore').innerText = mlScore ? String(mlScore) : '0';
+                document.getElementById('aiMlBox').style.borderColor = mlScore >= 45 ? C.danger : (mlScore >= 25 ? C.warn : C.border);
+
+                const brand = data.ai_analysis ? data.ai_analysis.brand_impersonation : null;
+                document.getElementById('aiBrandStatus').innerText = brand ? brand.toUpperCase() : 'Yok';
+                document.getElementById('aiBrandStatus').style.color = brand ? C.danger : C.ok;
+                document.getElementById('aiBrandBox').style.borderColor = brand ? C.danger : C.border;
+
+                document.getElementById('aiCredBox').style.display = (data.ai_analysis && data.ai_analysis.credential_harvesting) ? 'block' : 'none';
+
+                const scriptCount = data.ai_analysis ? data.ai_analysis.malicious_scripts : 0;
+                document.getElementById('aiScriptBox').style.display = scriptCount > 0 ? 'block' : 'none';
+                document.getElementById('aiScriptCount').innerText = scriptCount;
+
+                const threatPanel = document.getElementById('aiThreatIntel');
+                const threatList = document.getElementById('aiThreatList');
+                if (data.threat_intel) {
+                    threatPanel.style.display = 'block';
+                    let threatHtml = '';
+                    if (data.threat_intel.virustotal && data.threat_intel.virustotal.available) {
+                        const vt = data.threat_intel.virustotal;
+                        const vtColor = vt.malicious > 0 ? C.danger : (vt.suspicious > 0 ? C.warn : C.ok);
+                        threatHtml += '<div><span style="color:var(--text-muted);">VirusTotal:</span> <span style="color:' + vtColor + ';">' + vt.status + '</span></div>';
+                    }
+                    if (data.threat_intel.google_safe_browsing && data.threat_intel.google_safe_browsing.available) {
+                        const gsb = data.threat_intel.google_safe_browsing;
+                        const gsbColor = gsb.threat ? C.danger : C.ok;
+                        threatHtml += '<div><span style="color:var(--text-muted);">Google:</span> <span style="color:' + gsbColor + ';">' + gsb.status + '</span></div>';
+                    }
+                    if (data.threat_intel.abuseipdb && data.threat_intel.abuseipdb.available) {
+                        const aipdb = data.threat_intel.abuseipdb;
+                        const aipdbColor = aipdb.abuse_score >= 70 ? C.danger : (aipdb.abuse_score >= 30 ? C.warn : C.ok);
+                        threatHtml += '<div><span style="color:var(--text-muted);">AbuseIPDB:</span> <span style="color:' + aipdbColor + ';">' + aipdb.status + '</span></div>';
+                    }
+                    threatList.innerHTML = threatHtml || '<span style="color:var(--text-muted);">API anahtarları tanımlı değil.</span>';
+                } else {
+                    threatPanel.style.display = 'none';
+                }
+
+                if (data.sources && data.sources.length > 0) {
+                    sourcesArea.style.display = 'block';
+                    document.getElementById('sourcesList').innerHTML = data.sources.map(function(s) {
+                        return '<span style="display:inline-block;margin:2px 4px 2px 0;padding:2px 8px;border-radius:999px;background:#fff;border:1px solid var(--border);font-size:0.78rem;">' + s.name + '</span>';
+                    }).join('');
+                }
+
+                data.details.forEach(function(item) {
+                    const li = document.createElement('li');
+                    li.style.marginBottom = '0.35rem';
+                    if (item.includes('Tehlikeli') || item.includes('yok') || item.includes('HTTPS') || item.includes('🚨') || item.includes('❌') || item.includes('HARVESTING') || item.includes('TAKLİDİ')) {
+                        li.innerText = item.startsWith('❌') || item.startsWith('🚨') || item.startsWith('🎭') || item.startsWith('🦠') || item.startsWith('🔑') || item.startsWith('🧠') || item.startsWith('🛡') ? item : '❌ ' + item;
+                        li.style.color = C.danger;
+                    } else if (item.includes('Güvenilir') || item.includes('geçerli') || item.includes('Temiz') || item.startsWith('✅')) {
+                        li.innerText = item.startsWith('✅') ? item : '✅ ' + item;
+                        li.style.color = C.ok;
+                    } else if (item.startsWith('  ↳')) {
+                        li.innerText = item;
+                        li.style.color = 'var(--text-muted)';
+                        li.style.paddingLeft = '12px';
+                        li.style.fontSize = '0.85rem';
                     } else {
-                        li.innerText = `⚠️ ${item}`; li.style.color = "yellow";
+                        li.innerText = item.startsWith('⚠') || item.startsWith('🧠') || item.startsWith('🛡') || item.startsWith('📰') || item.startsWith('💡') ? item : '⚠ ' + item;
+                        li.style.color = C.warn;
                     }
                     detailsList.appendChild(li);
                 });
-            } catch(e) { scoreText.innerText = "HATA"; }
+            } catch (e) {
+                scoreText.innerText = 'Hata';
+                riskText.innerHTML = 'Sunucu veya ağ hatası.';
+            }
         }
 
-        // SAYFALAMA DEĞİŞKENLERİ
         let currentPage = 1;
         let totalPages = 1;
-        let currentMode = 'latest'; // 'latest' veya 'search'
+        let currentMode = 'latest';
 
         function updatePagination(page, total) {
             currentPage = page;
             totalPages = total;
-            document.getElementById('pageInfo').innerText = `Sayfa ${page} / ${total || 1}`;
+            document.getElementById('pageInfo').innerText = 'Sayfa ' + page + ' / ' + (total || 1);
             const prevBtn = document.getElementById('prevBtn');
             const nextBtn = document.getElementById('nextBtn');
             prevBtn.disabled = (page <= 1);
-            prevBtn.style.opacity = (page <= 1) ? '0.4' : '1';
+            prevBtn.style.opacity = (page <= 1) ? '0.45' : '1';
             nextBtn.disabled = (page >= total);
-            nextBtn.style.opacity = (page >= total) ? '0.4' : '1';
+            nextBtn.style.opacity = (page >= total) ? '0.45' : '1';
         }
 
         function changePage(dir) {
             const newPage = currentPage + dir;
             if (newPage < 1 || newPage > totalPages) return;
             currentPage = newPage;
-            if (currentMode === 'search') {
-                searchData(currentPage);
-            } else {
-                loadLatest(currentPage);
-            }
+            if (currentMode === 'search') searchData(currentPage);
+            else loadLatest(currentPage);
         }
 
         async function fetchStats() {
@@ -376,63 +634,62 @@
                 const res = await fetch('/stats/');
                 const data = await res.json();
                 document.getElementById('total-count').innerText = data.toplam_zararli_site.toLocaleString('tr-TR');
-            } catch(e) {}
+            } catch (e) {}
         }
 
-        async function loadLatest(page = 1) {
+        async function loadLatest(page) {
+            if (page === undefined) page = 1;
             currentMode = 'latest';
             const limit = document.getElementById('limitSelect').value;
             try {
-                const res = await fetch(`/latest/?limit=${limit}&page=${page}`);
+                const res = await fetch('/latest/?limit=' + limit + '&page=' + page);
                 const data = await res.json();
                 renderList(data.data);
                 updatePagination(data.page, data.total_pages);
-            } catch(e) {}
+            } catch (e) {}
         }
 
-        async function searchData(page = 1) {
+        async function searchData(page) {
+            if (page === undefined) page = 1;
             const input = document.getElementById('urlInput').value;
             const limit = document.getElementById('limitSelect').value;
-            if(!input || input.length < 3) { loadLatest(1); return; }
+            if (!input || input.length < 3) { loadLatest(1); return; }
 
             currentMode = 'search';
-            document.getElementById("loading").style.display = "block";
-            document.getElementById("result-area").innerHTML = "";
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('result-area').innerHTML = '';
             try {
-                const res = await fetch(`/check/?url=${encodeURIComponent(input)}&limit=${limit}&page=${page}`);
+                const res = await fetch('/check/?url=' + encodeURIComponent(input) + '&limit=' + limit + '&page=' + page);
                 const data = await res.json();
-                document.getElementById("loading").style.display = "none";
+                document.getElementById('loading').style.display = 'none';
                 if (data.status === 'SAFE') {
-                    document.getElementById("result-area").innerHTML = "<div style='padding:20px; text-align:center; color:#00ff41; border:1px solid #00ff41; font-size:1.1em;'>TEMİZ ✅</div>";
+                    document.getElementById('result-area').innerHTML =
+                        '<div class="alert alert--success">Listede eşleşme yok. Bu adresin güvenli olduğu anlamına gelmez — soldan tam URL analizi yapın.</div>';
                     updatePagination(1, 1);
                 } else {
                     renderList(data.data);
                     updatePagination(data.page, data.total_pages);
                 }
-            } catch(e) {}
+            } catch (e) {
+                document.getElementById('loading').style.display = 'none';
+            }
         }
 
         function renderList(items) {
-            const area = document.getElementById("result-area");
-            area.innerHTML = "";
-            items.forEach(item => {
+            const area = document.getElementById('result-area');
+            area.innerHTML = '';
+            items.forEach(function(item) {
                 let statusUpper = item.status.toUpperCase();
-                let displayStatus = "OFFLINE";
-                if(statusUpper === 'ACTIVE' || statusUpper === 'VALID' || statusUpper === 'ONLINE') {
-                    displayStatus = "ONLINE";
-                }
-
-                const statusColor = displayStatus === 'ONLINE' ? '#ff3333' : '#666';
-
-                area.innerHTML += `
-                    <div class="result-item">
-                        <div class="url-content">${item.url}</div>
-                        <div class="tag-container">
-                            <span class="tag">${item.target}</span>
-                            <span class="tag" style="color:${statusColor}; border-color:${statusColor}">${displayStatus}</span>
-                        </div>
-                    </div>
-                `;
+                let displayStatus = 'OFFLINE';
+                if (statusUpper === 'ACTIVE' || statusUpper === 'VALID' || statusUpper === 'ONLINE') displayStatus = 'ONLINE';
+                const pillClass = displayStatus === 'ONLINE' ? 'tag status-pill--on' : 'tag status-pill--off';
+                area.innerHTML +=
+                    '<div class="result-item">' +
+                    '<div class="url-content">' + item.url + '</div>' +
+                    '<div class="tag-container">' +
+                    '<span class="tag">' + item.target + '</span>' +
+                    '<span class="' + pillClass + '">' + displayStatus + '</span>' +
+                    '</div></div>';
             });
         }
     </script>
