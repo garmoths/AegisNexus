@@ -414,7 +414,7 @@
             out.style.display = 'block';
             out.textContent = 'Hazırlanıyor…';
             try {
-                var res = await fetch('/api/infra/report', {
+                var res = await fetch('/api/v2/api/infra/analyze', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ url: u })
@@ -434,7 +434,7 @@
             rep.textContent = 'Sorgulanıyor…';
             raw.textContent = '';
             try {
-                var res = await fetch('/api/breach/lookup', {
+                var res = await fetch('/api/v2/api/breach/check-email', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email: email })
@@ -460,7 +460,7 @@
             po.style.display = 'block';
             pm.style.display = 'block';
             try {
-                var res = await fetch('/api/shield/password', {
+                var res = await fetch('/api/v2/api/shield/generate', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(body)
@@ -473,7 +473,7 @@
 
         async function loadHoneypotStats() {
             try {
-                var res = await fetch('/api/honeypot/stats');
+                var res = await fetch('/api/v2/api/honeypot/stats');
                 var data = await res.json();
                 document.getElementById('hpStats').textContent = (data.honeypot_visits_recorded != null)
                     ? data.honeypot_visits_recorded.toLocaleString('tr-TR') : '—';
@@ -486,7 +486,7 @@
             const status = document.getElementById('newStatus').value;
             if (!url || !target) { alert('URL ve hedef gerekli.'); return; }
             try {
-                const res = await fetch('/api/add-site', {
+                const res = await fetch('/api/v2/api/phishing/add-site', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ url, target, status })
@@ -515,7 +515,7 @@
             riskText.innerHTML = 'Bekleyin…';
 
             try {
-                const res = await fetch('/api/check-url', {
+                const res = await fetch('/api/v2/api/phishing/check-url', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ url })
@@ -631,7 +631,7 @@
 
         async function fetchStats() {
             try {
-                const res = await fetch('/stats/');
+                const res = await fetch('/api/v2/api/phishing/stats');
                 const data = await res.json();
                 document.getElementById('total-count').innerText = data.toplam_zararli_site.toLocaleString('tr-TR');
             } catch (e) {}
@@ -642,7 +642,7 @@
             currentMode = 'latest';
             const limit = document.getElementById('limitSelect').value;
             try {
-                const res = await fetch('/latest/?limit=' + limit + '&page=' + page);
+                const res = await fetch('/api/v2/api/phishing/latest?limit=' + limit + '&page=' + page);
                 const data = await res.json();
                 renderList(data.data);
                 updatePagination(data.page, data.total_pages);
@@ -659,7 +659,7 @@
             document.getElementById('loading').style.display = 'block';
             document.getElementById('result-area').innerHTML = '';
             try {
-                const res = await fetch('/check/?url=' + encodeURIComponent(input) + '&limit=' + limit + '&page=' + page);
+                const res = await fetch('/api/v2/api/phishing/search?url=' + encodeURIComponent(input) + '&limit=' + limit + '&page=' + page);
                 const data = await res.json();
                 document.getElementById('loading').style.display = 'none';
                 if (data.status === 'SAFE') {

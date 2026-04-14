@@ -9,12 +9,12 @@ from urllib.parse import urlparse
 from sqlalchemy.orm import Session
 from app.models import PhishingURL
 from datetime import datetime
-from app.url_normalize import normalize_url_record
+from .url_normalize import normalize_url_record
 
-# AI Modülleri
-from app.ai_analyzer import analyze_page_content
-from app.ml_classifier import classify_url
-from app.threat_intel import run_threat_intelligence
+# AI Modülleri - Yerel modüllerden import
+from .ai_analyzer import analyze_page_content
+from .ml_classifier import classify_url
+from .threat_intel import run_threat_intelligence
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +99,9 @@ WHITELIST = {
     "kalkinma.com.tr",
     "exim.gov.tr", "eximbank.gov.tr",
     "ilbank.gov.tr",
+    "tbb.org.tr", "turkiyebankalari.com.tr",  # Birlik sitesi
+    "ziraat-online.com.tr", "isbank-online.com.tr",  # Online bankacılık
+    "garanti-online.com.tr", "akbank-online.com.tr",
 
     # ===== TÜRKİYE — TELEKOM & İNTERNET =====
     "turkcell.com.tr", "turkcell.com",
@@ -137,6 +140,11 @@ WHITELIST = {
     "defacto.com.tr",
     "koton.com",
     "mavi.com",
+    "tommylife.com.tr",
+    "mutluisverisepeti.com",
+    "bestlove.com.tr",
+    "pttavm.com",
+    "emag.com.tr",
 
     # ===== TÜRKİYE — HAVAYOLU & ULAŞIM =====
     "turkishairlines.com", "thy.com",
@@ -211,7 +219,7 @@ WHITELIST = {
     "instagram.com",
     "twitter.com", "x.com",
     "linkedin.com",
-    "tiktok.com",
+    "tiktok.com", "douyin.com",  # TikTok China
     "snapchat.com",
     "pinterest.com",
     "reddit.com",
@@ -220,10 +228,14 @@ WHITELIST = {
     "telegram.org", "t.me", "web.telegram.org",
     "whatsapp.com", "web.whatsapp.com",
     "signal.org",
-    "twitch.tv",
+    "twitch.tv", "twitch.com",
+    "youtube.com",
+    "viber.com",
+    "nextdoor.com",
 
     # ===== GLOBAL — E-TİCARET & FİNANS =====
     "amazon.com", "amazon.com.tr", "amazon.co.uk", "amazon.de",
+    "amazon.fr", "amazon.it", "amazon.es",
     "ebay.com",
     "aliexpress.com", "alibaba.com",
     "etsy.com", "shopify.com",
@@ -233,6 +245,10 @@ WHITELIST = {
     "revolut.com",
     "binance.com", "coinbase.com",
     "blockchain.com",
+    "kraken.com",
+    "gemini.com",
+    "huobi.com",
+    "okx.com",
 
     # ===== GLOBAL — EĞLENCE & İÇERİK =====
     "netflix.com",
@@ -301,7 +317,7 @@ def check_ssl_certificate(domain):
     try:
         ctx = ssl.create_default_context()
         with ctx.wrap_socket(socket.socket(), server_hostname=domain) as s:
-            s.settimeout(5)
+            s.settimeout(8)
             s.connect((domain, 443))
             cert = s.getpeercert()
 
@@ -326,7 +342,7 @@ def check_ssl_certificate(domain):
 def check_redirect_chain(url):
     """URL yönlendirme zincirini kontrol eder."""
     try:
-        resp = requests.get(url, timeout=5, allow_redirects=True)
+        resp = requests.get(url, timeout=8, allow_redirects=True)
         chain = resp.history
         final_url = resp.url
         return {
@@ -510,7 +526,7 @@ def calculate_safety_score(input_url, db: Session = None):
     http_status = 0
     page_content = None
     try:
-        response = requests.get(check_url, timeout=5, allow_redirects=True)
+        response = requests.get(check_url, timeout=8, allow_redirects=True)
         http_status = response.status_code
         if response.status_code < 400:
             site_is_up = True
