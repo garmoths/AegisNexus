@@ -18,7 +18,7 @@ jobs:
           request_pty: true
           script: |
             cd /var/www/aegis_nexus
-            git pull origin main
+            git pull https://${{ secrets.GH_TOKEN }}@github.com/garmoths/AegisNexus.git main
             source venv/bin/activate
             pip install -r requirements.txt
             echo "✅ Deployment complete!"
