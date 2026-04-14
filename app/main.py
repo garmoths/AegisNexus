@@ -1,12 +1,16 @@
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
+from dotenv import load_dotenv
 
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.database import Base, engine
+
+# Load environment variables
+load_dotenv()
 # Modüler yapı - 6 Katmanlı Güvenlik Kalkanı
 from modules import (
     phishing_detector_router,    # 01 - Phishing Detector
@@ -52,6 +56,7 @@ app = FastAPI(
 BASE_DIR = Path(__file__).resolve().parent.parent
 STATIC_DIR = BASE_DIR / "frontend" / "static"
 HTML_FILE = BASE_DIR / "frontend" / "templates" / "index.html"
+LLM_REPORT_FILE = BASE_DIR / "frontend" / "templates" / "llm_report.html"
 
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
@@ -59,12 +64,12 @@ else:
     logger.warning("Static klasör yok: %s", STATIC_DIR)
 
 # 6 Modüler Router
-app.include_router(phishing_detector_router, prefix="/api/v2")
-app.include_router(honeypot_router, prefix="/api/v2")
-app.include_router(breach_intel_router, prefix="/api/v2")
-app.include_router(password_shield_router, prefix="/api/v2")
-app.include_router(infra_guard_router, prefix="/api/v2")
-app.include_router(cyber_guardian_router, prefix="/api/v2")
+app.include_router(phishing_detector_router, prefix="/api/v2/phishing")
+app.include_router(honeypot_router, prefix="/api/v2/honeypot")
+app.include_router(breach_intel_router, prefix="/api/v2/breach")
+app.include_router(password_shield_router, prefix="/api/v2/shield")
+app.include_router(infra_guard_router, prefix="/api/v2/infra")
+app.include_router(cyber_guardian_router, prefix="/api/v2/guardian")
 
 
 @app.get("/")
@@ -74,4 +79,14 @@ async def read_root():
     return {
         "Hata": "index.html bulunamadı.",
         "Aranan_Yol": str(HTML_FILE),
+    }
+
+
+@app.get("/llm-report")
+async def llm_report_page():
+    if LLM_REPORT_FILE.exists():
+        return FileResponse(LLM_REPORT_FILE)
+    return {
+        "Hata": "llm_report.html bulunamadı.",
+        "Aranan_Yol": str(LLM_REPORT_FILE),
     }

@@ -1,8 +1,10 @@
 .venv/
 __pycache__/
-.idea/
+.DS_Store
 .env
 *.pyc
-.DS_Store
-.secrets.baseline
-.docs   
+.idea/
+*.egg-info/
+.pytest_cache/
+.coverage
+*.log

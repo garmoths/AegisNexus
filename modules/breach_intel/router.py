@@ -34,6 +34,15 @@ class EmailCheckRequest(BaseModel):
     email: str
 
 
+class LLMReportRequest(BaseModel):
+    domain: str
+    email_count: int
+    risk_score: int
+    company_name: Optional[str] = "Unknown"
+    data_types: Optional[List[str]] = []
+    source: Optional[str] = "unknown"
+
+
 class FullBreachAnalysisRequest(BaseModel):
     email: str
     include_osint: bool = True
@@ -50,7 +59,7 @@ class YouthSupportRequest(BaseModel):
 # ENDPOINT 1: TAM ANALIZ (Aegis Imperius)
 # =========================================================
 
-@router.post("/api/breach/full-analysis")
+@router.post("/full-analysis")
 def full_breach_analysis(
     req: FullBreachAnalysisRequest,
     db: Session = Depends(get_db)
@@ -211,7 +220,7 @@ def full_breach_analysis(
 # ENDPOINT 2: BASIT KONTROL (Quick Check)
 # =========================================================
 
-@router.post("/api/breach/check-email")
+@router.post("/check-email")
 def check_email_breach(
     req: EmailCheckRequest,
     db: Session = Depends(get_db)
@@ -262,7 +271,7 @@ def check_email_breach(
 # ENDPOINT 3: ZOMBI HESAPLAR
 # =========================================================
 
-@router.post("/api/breach/zombie-detector")
+@router.post("/zombie-detector")
 def detect_zombie_accounts(
     req: EmailCheckRequest
 ):
@@ -291,7 +300,7 @@ def detect_zombie_accounts(
 # ENDPOINT 4: KVKK RAPORU
 # =========================================================
 
-@router.post("/api/breach/generate-kvkk-report")
+@router.post("/generate-kvkk-report")
 def generate_kvkk_application(
     req: EmailCheckRequest,
     db: Session = Depends(get_db)
@@ -327,7 +336,7 @@ def generate_kvkk_application(
 # ENDPOINT 5: GÜVENLİK SEVİYELERİ
 # =========================================================
 
-@router.get("/api/breach/risk-levels")
+@router.get("/risk-levels")
 def get_risk_level_definitions():
     """Veri sızıntısı risk seviyelerini açıkla"""
     return {
@@ -361,7 +370,7 @@ def get_risk_level_definitions():
 # ENDPOINT 6: İSTATİSTİKLER
 # =========================================================
 
-@router.get("/api/breach/stats")
+@router.get("/stats")
 def get_breach_statistics():
     """Sızıntı istihbaratı genel istatistikleri"""
     return {
@@ -381,7 +390,7 @@ def get_breach_statistics():
 # ENDPOINT 7: GENÇ KULLANICILAR
 # =========================================================
 
-@router.post("/api/breach/youth-protection")
+@router.post("/youth-protection")
 def get_youth_protection_support(req: YouthSupportRequest):
     """
     Genç kullanıcılar için siber zorbalık ve şantaj koruması.
@@ -417,45 +426,45 @@ def get_youth_protection_support(req: YouthSupportRequest):
 # ENDPOINT 8: LLM-BASED RAPOR ÜRETİMİ (YENİ)
 # =========================================================
 
-@router.post("/api/breach/llm-report")
+@router.post("/llm-report")
 def generate_llm_report(
-    req: EmailCheckRequest
+    req: LLMReportRequest
 ):
     """
     LLM ile Türkçe detaylı breach raporu üret
-    HIBP → Ollama (LLaMA-2) → Türkçe özet
     """
     try:
-        # HIBP sorgusu
-        hibp_result = lookup_breaches(req.email)
-        
-        if not hibp_result.get("ok"):
-            return {
-                "status": "error",
-                "message": hibp_result.get("error"),
-                "module": "03_breach_intel"
-            }
-        
-        breaches = hibp_result.get("breaches", [])
-        
         # LLM rapor üretimi
         reporter = BreachReportGenerator()
-        report = reporter.generate_breach_summary(req.email, breaches)
+        
+        # Breach verileri oluştur
+        breach_info = {
+            "domain": req.domain,
+            "email_count": req.email_count,
+            "risk_score": req.risk_score,
+            "company_name": req.company_name,
+            "data_types": req.data_types
+        }
+        
+        report = reporter.generate_breach_summary(req.domain, [breach_info])
+        
+        # Report string olarak döner
+        report_text = report if isinstance(report, str) else str(report)
         
         return {
             "status": "success",
-            "email": req.email,
-            "breach_count": len(breaches),
-            "llm_report": report,
+            "domain": req.domain,
+            "report": report_text,
+            "risk_level": "HIGH",
             "module": "03_breach_intel",
-            "note": "Bu rapor Ollama (LLaMA-2) tarafından oluşturulmuştur"
+            "mode": "Groq LLM"
         }
     except Exception as e:
         logger.error(f"LLM rapor hatası: {e}")
         return {
             "status": "error",
             "message": str(e),
-            "note": "Ollama hizmetinin çalıştığından emin olun: http://localhost:11434",
+            "note": "Ollama service gerekli: http://localhost:11434",
             "module": "03_breach_intel"
         }
 
@@ -464,7 +473,7 @@ def generate_llm_report(
 # ENDPOINT 9: DARK WEB TARAMASI (YENİ)
 # =========================================================
 
-@router.post("/api/breach/dark-web-scan")
+@router.post("/dark-web-scan")
 def scan_dark_web_for_email(
     req: EmailCheckRequest
 ):
@@ -496,7 +505,7 @@ def scan_dark_web_for_email(
 # ENDPOINT 10: LLM-BASED HACKER PSYCHOLOJİ ANALİZİ (YENİ)
 # =========================================================
 
-@router.post("/api/breach/psychology-analysis")
+@router.post("/psychology-analysis")
 def analyze_hacker_psychology(
     req: dict  # {"forum_post": "...", "threat_type": "..."}
 ):
@@ -542,7 +551,7 @@ def analyze_hacker_psychology(
 # ENDPOINT 11: TELEGRAM CATCHER (YENİ)
 # =========================================================
 
-@router.get("/api/breach/catcher-stats")
+@router.get("/catcher-stats")
 def get_catcher_statistics():
     """
     Telegram'dan toplanan breach istatistikleri
@@ -564,7 +573,7 @@ def get_catcher_statistics():
         }
 
 
-@router.get("/api/breach/catcher-breaches")
+@router.get("/catcher-breaches")
 def get_catcher_breaches(domain: str = None, limit: int = 50):
     """
     Telegram'dan toplanan breach'leri listele

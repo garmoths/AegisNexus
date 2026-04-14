@@ -29,7 +29,7 @@ class PasswordCheckRequest(BaseModel):
     password: str
 
 
-@router.post("/api/shield/generate")
+@router.post("/generate")
 def generate_secure_password(req: PasswordGenerateRequest):
     """
     Kriptografik olarak güçlü şifre üret.
@@ -58,7 +58,7 @@ def generate_secure_password(req: PasswordGenerateRequest):
     }
 
 
-@router.post("/api/shield/generate-memorable")
+@router.post("/generate-memorable")
 def generate_memorable(req: MemorablePasswordRequest):
     """
     Akılda kalıcı ama güvenli şifre üret.
@@ -79,7 +79,7 @@ def generate_memorable(req: MemorablePasswordRequest):
     }
 
 
-@router.post("/api/shield/check-strength")
+@router.post("/check-strength")
 def check_password_strength(req: PasswordCheckRequest):
     """
     Mevcut şifre güçlülüğünü analiz et.
@@ -96,7 +96,7 @@ def check_password_strength(req: PasswordCheckRequest):
     }
 
 
-@router.get("/api/shield/categories")
+@router.get("/categories")
 def get_password_categories():
     """Şifre güvenlik kategorilerini listele"""
     return {
@@ -111,7 +111,7 @@ def get_password_categories():
     }
 
 
-@router.get("/api/shield/stats")
+@router.get("/stats")
 def get_shield_stats():
     """Kriptografik Kalkan istatistikleri"""
     return {
