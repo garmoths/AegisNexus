@@ -8,17 +8,15 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@master
-        with:
-          host: 104.248.45.198
-          username: root
-          key: ${{ secrets.FRANKFURT_SSH_KEY }}
-          port: 22
-          request_pty: true
-          script: |
-            cd /var/www/aegis_nexus
-            git pull https://${{ secrets.GH_TOKEN }}@github.com/garmoths/AegisNexus.git main
-            source venv/bin/activate
-            pip install -r requirements.txt
-            echo "✅ Deployment complete!"
+      - name: SSH and deploy
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.FRANKFURT_SSH_KEY }}" > ~/.ssh/frankfurt_key
+          chmod 600 ~/.ssh/frankfurt_key
+          ssh -i ~/.ssh/frankfurt_key -o StrictHostKeyChecking=no root@104.248.45.198 << 'EOSSH'
+          cd /var/www/aegis_nexus
+          git pull origin main
+          source venv/bin/activate
+          pip install -r requirements.txt
+          echo "✅ Deployment complete!"
+          EOSSH
