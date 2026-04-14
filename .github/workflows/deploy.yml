@@ -18,7 +18,6 @@ jobs:
           request_pty: true
           script: |
             cd /var/www/aegis_nexus
-            git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/garmoths/AegisNexus.git
             git pull origin main
             source venv/bin/activate
             pip install -r requirements.txt
