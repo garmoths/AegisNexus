@@ -18,7 +18,9 @@ jobs:
           request_pty: true
           script: |
             cd /var/www/aegis_nexus
+            git config --global credential.helper store
+            echo "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com" > ~/.git-credentials
             git pull origin main
             source venv/bin/activate
             pip install -r requirements.txt
-            echo "✅ Deployment completed! Code updated."
+            echo "✅ Deployment completed! Code synced."
