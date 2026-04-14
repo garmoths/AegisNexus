@@ -31,14 +31,14 @@ def _host_port(netloc: str) -> tuple[str, str | None]:
     return _strip_www(netloc), None
 
 
-def normalize_url_record(raw: str) -> tuple[str | None, str | None, str | None]:
+def normalize_url_record(raw: str) -> dict:
     """
-    Satır veya URL'den (canonical_url, sha256_hex, domain_norm) üretir.
-    Geçersizse (None, None, None).
+    Satır veya URL'den {canonical_url, url_hash, domain_norm} üretir.
+    Geçersizse boş dict.
     """
     line = (raw or "").strip()
     if not line or line.startswith("#") or line.startswith("//"):
-        return None, None, None
+        return {}
 
     if not re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", line):
         line = "http://" + line
@@ -46,7 +46,7 @@ def normalize_url_record(raw: str) -> tuple[str | None, str | None, str | None]:
     try:
         p = urlparse(line)
     except Exception:
-        return None, None, None
+        return {}
 
     netloc = (p.netloc or "").strip()
     path = p.path if p.path else "/"
@@ -58,11 +58,11 @@ def normalize_url_record(raw: str) -> tuple[str | None, str | None, str | None]:
             path = "/" + rest if rest else "/"
 
     if not netloc:
-        return None, None, None
+        return {}
 
     host, port = _host_port(netloc)
     if not host:
-        return None, None, None
+        return {}
 
     scheme = (p.scheme or "http").lower()
     query = urlencode(sorted(parse_qsl(p.query, keep_blank_values=True)))
@@ -70,4 +70,9 @@ def normalize_url_record(raw: str) -> tuple[str | None, str | None, str | None]:
     netloc_canon = f"{host}:{port}" if port else host
     canonical = urlunparse((scheme, netloc_canon, path, "", query, ""))
     digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-    return canonical, digest, host
+    
+    return {
+        "canonical_url": canonical,
+        "url_hash": digest,
+        "domain_norm": host
+    }

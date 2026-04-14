@@ -7,7 +7,15 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.database import Base, engine
-from app.routers import breach, contact, honeypot, infra, shield, system, threat
+# Modüler yapı - 6 Katmanlı Güvenlik Kalkanı
+from modules import (
+    phishing_detector_router,    # 01 - Phishing Detector
+    honeypot_router,             # 02 - IP Avcısı
+    breach_intel_router,         # 03 - Veri Radarı
+    password_shield_router,      # 04 - Kriptografik Kalkan
+    infra_guard_router,          # 05 - Altyapı Kalkanı
+    cyber_guardian_router,       # 06 - Siber Koruyucu
+)
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
 logger = logging.getLogger("aegis")
@@ -17,15 +25,28 @@ logger = logging.getLogger("aegis")
 async def lifespan(_app: FastAPI):
     try:
         Base.metadata.create_all(bind=engine)
+        logger.info("Aegis Nexus - 5 Katmanlı Güvenlik Kalkanı hazır")
     except Exception as e:
         logger.warning("Veritabanı tabloları: %s", e)
     yield
 
 
 app = FastAPI(
-    title="Aegis Nexus",
-    description="Phishing tespiti, altyapı özeti, sızıntı sorgusu, şifre üretimi ve demo tuzak modüllerini bir araya getiren yerel güvenlik paneli.",
+    title="Aegis Nexus - 5 Katmanlı Güvenlik Kalkanı",
+    description="""
+    Bireylerin ve KOBİ'lerin dijital dünyadaki tehlikelere karşı 
+    'reaktif' değil 'proaktif' korunmasını sağlayan yapay zeka ve istihbarat kalkanı.
+    
+    5 Modül:
+    01. Phishing Detector - Tehdit veritabanı ve URL tarama
+    02. Honeypot (IP Avcısı) - Dolandırıcıları tersine mühendislik ile avlama
+    03. Breach Intel (Veri Radarı) - Deep Web sızıntı takibi
+    04. Password Shield (Kriptografik Kalkan) - Yüz yıllar süren şifreler
+    05. Infra Guard (Altyapı Kalkanı) - SSL, port ve domain analizi
+    06. Cyber Guardian (Siber Koruyucu) - Siber zorbalık ve şantaj önleme
+    """,
     lifespan=lifespan,
+    version="2.0.0",
 )
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -37,13 +58,13 @@ if STATIC_DIR.exists():
 else:
     logger.warning("Static klasör yok: %s", STATIC_DIR)
 
-app.include_router(threat.router)
-app.include_router(system.router)
-app.include_router(infra.router)
-app.include_router(breach.router)
-app.include_router(shield.router)
-app.include_router(honeypot.router)
-app.include_router(contact.router)
+# 6 Modüler Router
+app.include_router(phishing_detector_router, prefix="/api/v2")
+app.include_router(honeypot_router, prefix="/api/v2")
+app.include_router(breach_intel_router, prefix="/api/v2")
+app.include_router(password_shield_router, prefix="/api/v2")
+app.include_router(infra_guard_router, prefix="/api/v2")
+app.include_router(cyber_guardian_router, prefix="/api/v2")
 
 
 @app.get("/")

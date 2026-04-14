@@ -15,6 +15,8 @@ import socket
 import requests
 from urllib.parse import urlparse, quote_plus
 from dotenv import load_dotenv
+from datetime import datetime, timedelta
+from functools import wraps
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -24,22 +26,91 @@ VIRUSTOTAL_API_KEY = os.getenv("VIRUSTOTAL_API_KEY", "")
 GOOGLE_SAFE_BROWSING_KEY = os.getenv("GOOGLE_SAFE_BROWSING_KEY", "")
 ABUSEIPDB_API_KEY = os.getenv("ABUSEIPDB_API_KEY", "")
 
+# Cache depolama (in-memory)
+API_CACHE = {}
+CACHE_TTL = 3600  # 1 saat
+
+# Rate limiting depolama
+API_RATE_LIMITS = {
+    "virustotal": {"requests": [], "limit": 4, "window": 60},  # 4 req/min
+    "abuseipdb": {"requests": [], "limit": 1500, "window": 86400},  # 1500 req/day
+    "google_safe": {"requests": [], "limit": 10000, "window": 86400},  # 10000 req/day
+}
+
+
+def _check_rate_limit(api_name):
+    """Rate limit kontrolü."""
+    if api_name not in API_RATE_LIMITS:
+        return True
+    
+    limit_config = API_RATE_LIMITS[api_name]
+    now = datetime.now()
+    cutoff = now - timedelta(seconds=limit_config["window"])
+    
+    # Eski requestleri temizle
+    limit_config["requests"] = [
+        req_time for req_time in limit_config["requests"]
+        if req_time > cutoff
+    ]
+    
+    # Limiti kontrol et
+    if len(limit_config["requests"]) >= limit_config["limit"]:
+        logger.warning(f"{api_name} rate limit aşıldı")
+        return False
+    
+    limit_config["requests"].append(now)
+    return True
+
+
+def _get_cached(cache_key):
+    """Cache'den al."""
+    if cache_key in API_CACHE:
+        cached_data, timestamp = API_CACHE[cache_key]
+        if datetime.now() - timestamp < timedelta(seconds=CACHE_TTL):
+            logger.debug(f"Cache hit: {cache_key}")
+            return cached_data
+        else:
+            del API_CACHE[cache_key]
+    return None
+
+
+def _set_cached(cache_key, data):
+    """Cache'ye koy."""
+    API_CACHE[cache_key] = (data, datetime.now())
+
 
 # =========================================================
 # 1. VIRUSTOTAL API
 # =========================================================
 
-def check_virustotal(url, timeout=10):
+def check_virustotal(url, timeout=8):
     """
-    VirusTotal API v3 ile URL taraması.
+    VirusTotal API v3 ile URL taraması (rate limited + cached).
     Döndürür: {"malicious": int, "suspicious": int, "clean": int, "status": str}
     """
+    cache_key = f"vt_{hashlib.sha256(url.encode()).hexdigest()}"
+    
+    # Cache kontrol
+    cached = _get_cached(cache_key)
+    if cached:
+        return cached
+    
     if not VIRUSTOTAL_API_KEY:
         return {
             "available": False,
             "status": "API key tanımlı değil",
             "malicious": 0, "suspicious": 0, "clean": 0,
             "engines": []
+        }
+    
+    # Rate limit kontrol
+    if not _check_rate_limit("virustotal"):
+        return {
+            "available": True,
+            "status": "VirusTotal rate limit aşıldı (4 req/dakika)",
+            "malicious": 0, "suspicious": 0, "clean": 0,
+            "engines": [],
+            "rate_limited": True
         }
 
     try:
@@ -111,7 +182,7 @@ def check_virustotal(url, timeout=10):
         else:
             status = f"✅ {total} motorun hiçbiri tehdit tespit etmedi"
 
-        return {
+        result = {
             "available": True,
             "status": status,
             "malicious": malicious,
@@ -120,6 +191,10 @@ def check_virustotal(url, timeout=10):
             "total_engines": total,
             "engines": threat_engines[:10]  # En fazla 10 motor
         }
+        
+        # Cache'ye koy
+        _set_cached(cache_key, result)
+        return result
 
     except requests.Timeout:
         return {
@@ -144,15 +219,32 @@ def check_virustotal(url, timeout=10):
 
 def check_google_safe_browsing(url, timeout=8):
     """
-    Google Safe Browsing API v4 ile kontrol.
+    Google Safe Browsing API v4 ile kontrol (cached + rate limited).
     Döndürür: {"threat": bool, "threat_type": str, "status": str}
     """
+    cache_key = f"gsb_{hashlib.sha256(url.encode()).hexdigest()}"
+    
+    # Cache kontrol
+    cached = _get_cached(cache_key)
+    if cached:
+        return cached
+    
     if not GOOGLE_SAFE_BROWSING_KEY:
         return {
             "available": False,
             "status": "API key tanımlı değil",
             "threat": False,
             "threat_type": None
+        }
+    
+    # Rate limit kontrol
+    if not _check_rate_limit("google_safe"):
+        return {
+            "available": True,
+            "status": "Google Safe Browsing rate limit aşıldı",
+            "threat": False,
+            "threat_type": None,
+            "rate_limited": True
         }
 
     try:
@@ -198,19 +290,23 @@ def check_google_safe_browsing(url, timeout=8):
                 "UNWANTED_SOFTWARE": "İstenmeyen Yazılım",
                 "POTENTIALLY_HARMFUL_APPLICATION": "Potansiyel Zararlı Uygulama",
             }
-            return {
+            result = {
                 "available": True,
                 "status": f"🚨 Google: {threat_names.get(threat_type, threat_type)} tespit edildi!",
                 "threat": True,
                 "threat_type": threat_names.get(threat_type, threat_type)
             }
+            _set_cached(cache_key, result)
+            return result
 
-        return {
+        result = {
             "available": True,
             "status": "✅ Google Safe Browsing: Temiz",
             "threat": False,
             "threat_type": None
         }
+        _set_cached(cache_key, result)
+        return result
 
     except Exception as e:
         logger.error(f"Google Safe Browsing hatası: {e}")
@@ -228,15 +324,32 @@ def check_google_safe_browsing(url, timeout=8):
 
 def check_abuseipdb(url, timeout=8):
     """
-    AbuseIPDB ile domain/IP itibar kontrolü.
+    AbuseIPDB ile domain/IP itibar kontrolü (cached + rate limited).
     Döndürür: {"abuse_score": int, "reports": int, "status": str}
     """
+    cache_key = f"abuseipdb_{hashlib.sha256(url.encode()).hexdigest()}"
+    
+    # Cache kontrol
+    cached = _get_cached(cache_key)
+    if cached:
+        return cached
+    
     if not ABUSEIPDB_API_KEY:
         return {
             "available": False,
             "status": "API key tanımlı değil",
             "abuse_score": 0,
             "total_reports": 0
+        }
+    
+    # Rate limit kontrol
+    if not _check_rate_limit("abuseipdb"):
+        return {
+            "available": True,
+            "status": "AbuseIPDB rate limit aşıldı (1500 req/gün)",
+            "abuse_score": 0,
+            "total_reports": 0,
+            "rate_limited": True
         }
 
     try:
@@ -292,7 +405,7 @@ def check_abuseipdb(url, timeout=8):
         else:
             status = f"✅ AbuseIPDB: Temiz — ISP: {isp} — {country}"
 
-        return {
+        result = {
             "available": True,
             "status": status,
             "abuse_score": abuse_score,
@@ -301,6 +414,10 @@ def check_abuseipdb(url, timeout=8):
             "country": country,
             "isp": isp
         }
+        
+        # Cache'ye koy
+        _set_cached(cache_key, result)
+        return result
 
     except Exception as e:
         logger.error(f"AbuseIPDB hatası: {e}")

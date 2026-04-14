@@ -326,7 +326,7 @@ def _nlp_phishing_analysis(html_lower):
 
 
 def _detect_brand_impersonation(html_lower, domain):
-    """Sayfa içeriğinde marka taklidi tespit eder."""
+    """Sayfa içeriğinde marka taklidi tespit eder (azaltılmış agresiflik)."""
     findings = []
     penalty = 0
     detected_brand = None
@@ -346,17 +346,22 @@ def _detect_brand_impersonation(html_lower, domain):
         # Visual cue eşleşmeleri
         visual_hits = sum(1 for vc in brand_info["visual_cues"] if re.search(vc, html_lower))
 
-        # Eğer yeterince eşleşme varsa → taklit şüphesi
-        if keyword_hits >= 2 and visual_hits >= 1:
+        # Agresiflik azaltılmış: 3 keyword + 2 visual cue gerekli VEYA 2 visual cue yeterli
+        if keyword_hits >= 3 and visual_hits >= 2:
             detected_brand = brand_name
-            penalty = 30
+            penalty = 25
             findings.append(f"🎭 MARKA TAKLİDİ: '{brand_name.upper()}' markası taklit ediliyor olabilir!")
             findings.append(f"  ↳ {keyword_hits} anahtar kelime + {visual_hits} görsel ipucu eşleşti")
             break
-        elif keyword_hits >= 3:
+        elif visual_hits >= 2:
             detected_brand = brand_name
             penalty = 20
-            findings.append(f"🎭 Marka şüphesi: '{brand_name}' ile ilgili {keyword_hits} referans bulundu")
+            findings.append(f"🎭 Marka şüphesi: '{brand_name}' ile ilgili {visual_hits} görsel ipucu bulundu")
+            break
+        elif keyword_hits >= 5:
+            detected_brand = brand_name
+            penalty = 15
+            findings.append(f"🎭 Hafif marka şüphesi: '{brand_name}' ile ilgili {keyword_hits} referans bulundu")
             break
 
     return {"penalty": penalty, "findings": findings, "brand": detected_brand}
@@ -554,6 +559,7 @@ def _calculate_entropy(text):
 def fetch_page_content(url, timeout=8):
     """Sayfa HTML içeriğini güvenli şekilde çeker."""
     import requests
+    import certifi
 
     try:
         headers = {
@@ -561,7 +567,13 @@ def fetch_page_content(url, timeout=8):
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7",
         }
-        response = requests.get(url, headers=headers, timeout=timeout, allow_redirects=True, verify=False)
+        response = requests.get(
+            url,
+            headers=headers,
+            timeout=timeout,
+            allow_redirects=True,
+            verify=certifi.where()
+        )
         response.encoding = response.apparent_encoding or 'utf-8'
 
         # Çok büyük sayfaları sınırla (max 500KB)
