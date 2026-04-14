@@ -15,12 +15,11 @@ jobs:
           username: root
           key: ${{ secrets.FRANKFURT_SSH_KEY }}
           port: 22
-          script_stop: true
+          request_pty: true
           script: |
-            set -e
             cd /var/www/aegis_nexus
             git pull origin main
             source venv/bin/activate
             pip install -r requirements.txt
             systemctl restart uvicorn
-            echo "✅ Deployment completed successfully!"
+            echo "✅ Deployment completed!"
