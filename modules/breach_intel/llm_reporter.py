@@ -1,243 +1,124 @@
 """
-LLM-based breach report generator using Ollama.
-Generates detailed Turkish breach summaries and recommendations.
+Groq-based breach report generator using Cloud LLM.
+Generates detailed Turkish breach summaries using llama2-70b model.
 """
 
-import requests
-import json
+import os
 import logging
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
+try:
+    from groq import Groq
+except ImportError:
+    Groq = None
+
 logger = logging.getLogger(__name__)
 
-OLLAMA_ENDPOINT = "http://localhost:11434/api/generate"
-OLLAMA_MODEL = "llama2"
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 class BreachReportGenerator:
-    """Generates detailed Turkish reports for breached data."""
+    """Generates detailed Turkish reports for breached data using Groq."""
     
-    def __init__(self, ollama_url: str = OLLAMA_ENDPOINT):
-        self.ollama_url = ollama_url
-        self.model = OLLAMA_MODEL
-        self._check_ollama_available()
-    
-    def _check_ollama_available(self) -> bool:
-        """Check if Ollama service is running."""
-        try:
-            response = requests.get(
-                self.ollama_url.replace("/api/generate", "/api/tags"),
-                timeout=2
-            )
-            return response.status_code == 200
-        except Exception as e:
-            logger.warning(f"Ollama not available: {e}. Using demo mode.")
-            return False
+    def __init__(self, api_key: str = None):
+        self.api_key = api_key or GROQ_API_KEY
+        if not self.api_key:
+            logger.warning("GROQ_API_KEY not found. Fallback mode will be used.")
+        
+        if Groq and self.api_key:
+            self.client = Groq(api_key=self.api_key)
+        else:
+            self.client = None
     
     def generate_breach_summary(
         self, 
-        email: str, 
+        domain: str, 
         breaches: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+    ) -> str:
         """
         Generate Turkish summary for breaches.
         
         Args:
-            email: Email address
-            breaches: List of breach objects from HIBP
+            domain: Domain/company name
+            breaches: List of breach objects
             
         Returns:
-            Summary with Türkçe rapor metni
+            Türkçe rapor metni
         """
         if not breaches:
-            return {
-                "email": email,
-                "summary": "İyi haber! E-posta adresiniz bilinen veri sızıntılarında bulunmamıştır.",
-                "risk_level": "LOW",
-                "actions": []
-            }
+            return "İyi haber! Bu domain bilinen veri sızıntılarında bulunmamıştır."
         
         breach_details = self._format_breaches_for_prompt(breaches)
-        prompt = self._build_report_prompt(email, breaches, breach_details)
+        prompt = self._build_report_prompt(domain, breaches, breach_details)
         
-        report_text = self._call_llm(prompt)
+        if self.client:
+            report_text = self._call_groq(prompt)
+        else:
+            report_text = self._demo_report_fallback()
         
-        return {
-            "email": email,
-            "breach_count": len(breaches),
-            "breaches": breaches,
-            "summary": report_text,
-            "risk_level": self._calculate_risk_level(breaches),
-            "actions": self._generate_actions(breaches),
-            "generated_at": datetime.utcnow().isoformat()
-        }
+        return report_text
     
     def _format_breaches_for_prompt(self, breaches: List[Dict]) -> str:
         """Format breach data for LLM prompt."""
         formatted = []
         for b in breaches:
+            company = b.get('company_name', b.get('domain', 'Unknown'))
+            records = b.get('email_count', 'N/A')
+            data_types = ', '.join(b.get('data_types', []))
+            
             formatted.append(
-                f"- {b.get('Name', 'Unknown')}: "
-                f"{b.get('BreachDate', 'Tarih bilinmiyor')} tarihinde, "
-                f"{b.get('PwnCount', 0):,} kayıt sızdırıldı. "
-                f"Sızan veri: {', '.join(b.get('DataClasses', []))}"
+                f"- {company}: {records} kayıt sızdırıldı ({data_types})"
             )
+        
         return "\n".join(formatted)
     
-    def _build_report_prompt(
-        self, 
-        email: str, 
-        breaches: List[Dict],
-        breach_details: str
-    ) -> str:
-        """Build LLM prompt for report generation."""
+    def _build_report_prompt(self, domain: str, breaches: List[Dict], breach_details: str) -> str:
+        """Build the prompt for LLM."""
         return f"""
-Aşağıda bir e-posta adresinin maruz kaldığı veri sızıntılarının listesi verilmiştir.
-Buna dayanarak, Türkçe olarak detaylı bir güvenlik raporu oluştur.
+Aşağıdaki veri sızıntısı hakkında kısa, profesyonel bir Türkçe güvenlik raporu yazın:
 
-E-posta: {email}
-Sızıntı Sayısı: {len(breaches)}
+DOMAIN/ŞİRKET: {domain}
+SAYSTILAR: {len(breaches)} sızıntı bulundu
 
-SIRTILIK TARİHÇESİ:
+SIZZINTILARIN DETAYLARı:
 {breach_details}
 
 LÜTFEN:
-1. En eski ve en yeni sızıntıları vurgula
-2. Hangi türde verilerin sızdığını analiz et (şifre, kredi kartı, kimlik vb)
-3. Türkçe olarak 3-4 cümlelik bir risk özeti yaz
-4. En iyi 3 hareketi öner (örn: şifre değişikliği, iki faktörlü kimlik doğrulama, kredi kartı izleme)
-5. Acil işaretleme gerekirse "⚠️ ACİL" başlığı ekle
+1. Tehlikenin türünü ve ciddiyetini açıkla (1-2 cümle)
+2. Etkilenen veri türlerini listele
+3. Acil yapılması gerekenler (3-4 madde)
+4. İçinde "⚠️ ACİL:" başlığı varsa kırmızı bayrak koy
+5. Cevabı kısa, profesyonel ve Türkçe yaz
 
-Türkçe cevap ver, profesyonel ton kullan:
+Yanıt ver:
 """
     
-    def _call_llm(self, prompt: str) -> str:
-        """Call Ollama LLM and get response."""
+    def _call_groq(self, prompt: str) -> str:
+        """Call Groq API and get response."""
         try:
-            response = requests.post(
-                self.ollama_url,
-                json={
-                    "model": self.model,
-                    "prompt": prompt,
-                    "stream": False,
-                    "temperature": 0.3,  # Lower temperature for consistent output
-                },
-                timeout=30
+            message = self.client.chat.completions.create(
+                messages=[
+                    {
+                        "role": "user",
+                        "content": prompt,
+                    }
+                ],
+                model="llama-3.3-70b-versatile",
+                temperature=0.3,
+                max_tokens=1000,
             )
             
-            if response.status_code == 200:
-                result = response.json()
-                return result.get("response", "").strip()
-            else:
-                logger.error(f"LLM API error: {response.status_code}")
-                return self._demo_report_fallback()
+            response_text = message.choices[0].message.content.strip()
+            return response_text
         
-        except requests.exceptions.ConnectionError:
-            logger.warning("Ollama not reachable. Using demo mode.")
-            return self._demo_report_fallback()
         except Exception as e:
-            logger.error(f"LLM call failed: {e}")
+            logger.error(f"Groq API error: {e}")
             return self._demo_report_fallback()
     
     def _demo_report_fallback(self) -> str:
-        """Fallback when Ollama unavailable."""
+        """Fallback when Groq unavailable."""
         return (
-            "🔴 Şu anda LLM analizi sunulamıyor. "
-            "Lütfen Ollama'yı yükleyin ve http://localhost:11434'te çalıştırın.\n\n"
+            "⚠️ Şu anda LLM analizi sunulamıyor. "
             "Temel analiz: Veri sızıntısına maruz kaldınız. "
             "Acilen şifre değişikliği ve iki faktörlü kimlik doğrulamayı etkinleştirin."
         )
-    
-    def _calculate_risk_level(self, breaches: List[Dict]) -> str:
-        """Calculate overall risk level."""
-        if len(breaches) == 0:
-            return "LOW"
-        elif len(breaches) <= 2:
-            total_records = sum(b.get("PwnCount", 0) for b in breaches)
-            return "MEDIUM" if total_records < 1000000 else "HIGH"
-        else:
-            return "CRITICAL"
-    
-    def _generate_actions(self, breaches: List[Dict]) -> List[str]:
-        """Generate recommended actions based on breaches."""
-        actions = []
-        
-        # Check for sensitive data types
-        all_data_classes = set()
-        for b in breaches:
-            all_data_classes.update(b.get("DataClasses", []))
-        
-        if any(dc in all_data_classes for dc in ["Passwords", "Email", "Username"]):
-            actions.append("🔐 Şifre değişikliği (tüm hesaplarda)")
-        
-        if any(dc in all_data_classes for dc in ["Credit card", "Payment"]):
-            actions.append("💳 Kredi kartınızı bloke edin ve banka ile iletişime geçin")
-        
-        if "Phone Number" in all_data_classes:
-            actions.append("📱 2FA ayarlarını kontrol edin")
-        
-        if "SSN" in all_data_classes or "Identity" in all_data_classes:
-            actions.append("⚠️ Kredi notu dondurmayı (credit freeze) düşünün")
-        
-        if not actions:
-            actions.append("✓ Genel hesap güvenliği taraması yapın")
-        
-        return actions
-    
-    def generate_forum_analysis_report(
-        self,
-        forum_post: str,
-        threat_classification: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """
-        Generate detailed analysis of forum post threat level.
-        
-        Args:
-            forum_post: Raw forum post text
-            threat_classification: Result from psychology analyzer
-            
-        Returns:
-            Detailed analysis with Türkçe açıklama
-        """
-        prompt = self._build_forum_analysis_prompt(forum_post, threat_classification)
-        analysis = self._call_llm(prompt)
-        
-        return {
-            "original_post_preview": forum_post[:200] + "..." if len(forum_post) > 200 else forum_post,
-            "threat_type": threat_classification.get("threat_type", "Unknown"),
-            "confidence": threat_classification.get("confidence", 0),
-            "detailed_analysis": analysis,
-            "timestamp": datetime.utcnow().isoformat()
-        }
-    
-    def _build_forum_analysis_prompt(
-        self, 
-        forum_post: str, 
-        threat_class: Dict
-    ) -> str:
-        """Build prompt for forum threat analysis."""
-        return f"""
-Aşağıdaki hacker forumu gönderisini analiz et ve ne kadar tehlikeli olduğunu Türkçe olarak açıkla.
-
-FORUM GÖNDERİSİ:
-{forum_post[:500]}
-
-YAPAY ZEKA ÖN ANALİZİ:
-- Tehdit Türü: {threat_class.get('threat_type')}
-- Güven Seviyesi: {threat_class.get('confidence')}%
-- Temel Dilbilgisi: {threat_class.get('language_pattern')}
-
-LÜTFEN:
-1. Bu gönderinin ne kadar profesyonel olduğunu değerlendir
-2. Hedef kitlesi kimler olabilir (bireyler, şirketler, vb)
-3. Tehlikenin şiddeti (1-10 ölçeğinde)
-4. Olası motivasyonu (para, intikam, ideoloji, vb)
-5. Tavsiye edilen savunma önlemleri
-
-Türkçe, profesyonel ve yapılandırılmış cevap ver.
-"""
-
-
-def get_report_generator() -> BreachReportGenerator:
-    """Factory function to get report generator instance."""
-    return BreachReportGenerator()

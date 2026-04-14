@@ -27,7 +27,7 @@ class CaseReportRequest(BaseModel):
     case_id: str
 
 
-@router.post("/api/guardian/analyze-threat")
+@router.post("/analyze-threat")
 def analyze_threat_message(req: ThreatAnalysisRequest):
     """
     Şüpheli mesajı analiz et - Şantaj veya siber zorbalık tespiti.
@@ -64,7 +64,7 @@ def analyze_threat_message(req: ThreatAnalysisRequest):
     }
 
 
-@router.post("/api/guardian/create-case")
+@router.post("/create-case")
 def create_support_case(req: SupportCaseRequest):
     """
     Yeni destek vakası oluştur.
@@ -94,7 +94,7 @@ def create_support_case(req: SupportCaseRequest):
     }
 
 
-@router.get("/api/guardian/cases/{case_id}")
+@router.get("/cases/{case_id}")
 def get_case_details(case_id: str):
     """Vaka detaylarını getir"""
     case = cyber_guardian.active_cases.get(case_id)
@@ -117,7 +117,7 @@ def get_case_details(case_id: str):
     }
 
 
-@router.post("/api/guardian/generate-report")
+@router.post("/generate-report")
 def generate_incident_report(req: CaseReportRequest):
     """
     Yasal başvuru için olay raporu oluştur.
@@ -147,7 +147,7 @@ def generate_incident_report(req: CaseReportRequest):
     }
 
 
-@router.get("/api/guardian/resources")
+@router.get("/resources")
 def get_support_resources():
     """Tüm destek kaynaklarını listele"""
     return {
@@ -173,7 +173,7 @@ def get_support_resources():
     }
 
 
-@router.get("/api/guardian/education")
+@router.get("/education")
 def get_prevention_education():
     """Önleyici eğitim materyalleri"""
     education = cyber_guardian.get_prevention_education()
@@ -187,7 +187,7 @@ def get_prevention_education():
     }
 
 
-@router.get("/api/guardian/stats")
+@router.get("/stats")
 def get_guardian_stats():
     """Cyber Guardian toplumsal etki istatistikleri"""
     stats = cyber_guardian.get_social_impact_stats()
@@ -205,7 +205,7 @@ def get_guardian_stats():
     }
 
 
-@router.get("/api/guardian/indicators")
+@router.get("/indicators")
 def get_threat_indicators():
     """Şantaj ve zorbalık göstergeleri listesi"""
     return {

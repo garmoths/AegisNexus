@@ -245,7 +245,7 @@ _BANK_DECOY_HTML = """<!DOCTYPE html>
 </html>"""
 
 
-@router.get("/honeypot/decoy", response_class=HTMLResponse)
+@router.get("/decoy", response_class=HTMLResponse)
 def honeypot_decoy_page(request: Request, db: Session = Depends(get_db)):
     """
     Gerçekçi banka login tuzak sayfası.
@@ -261,7 +261,7 @@ def honeypot_decoy_page(request: Request, db: Session = Depends(get_db)):
     event = HoneypotEvent(
         client_ip=ip,
         user_agent=user_agent[:500],
-        path="/honeypot/decoy",
+        path="/api/v2/decoy",
         referer=request.headers.get("referer", "")[:500],
         note=f"session_id:{session.session_id}",
     )
@@ -277,7 +277,7 @@ def honeypot_decoy_page(request: Request, db: Session = Depends(get_db)):
     return HTMLResponse(content=html_with_session)
 
 
-@router.post("/api/honeypot/session/create")
+@router.post("/session/create")
 def create_honeypot_session(
     req: HoneypotCreateRequest,
     request: Request,
@@ -292,7 +292,7 @@ def create_honeypot_session(
     event = HoneypotEvent(
         client_ip=ip,
         user_agent=user_agent[:500],
-        path="/api/honeypot/session/create",
+        path="/api/v2/session/create",
         note=f"session_id:{session.session_id},decoy:{req.decoy_type}",
     )
     db.add(event)
@@ -300,13 +300,13 @@ def create_honeypot_session(
     
     return {
         "session_id": session.session_id,
-        "decoy_page": f"/honeypot/decoy?session={session.session_id}",
+        "decoy_page": f"/api/v2/decoy?session={session.session_id}",
         "decoy_type": req.decoy_type,
         "module": "02_honeypot"
     }
 
 
-@router.post("/api/honeypot/interaction")
+@router.post("/interaction")
 def record_interaction(
     req: HoneypotInteractionRequest,
     request: Request,
@@ -320,7 +320,7 @@ def record_interaction(
     event = HoneypotEvent(
         client_ip=ip,
         user_agent=request.headers.get("user-agent", "")[:500],
-        path=f"/honeypot/{req.action}",
+        path=f"/api/v2/interaction",
         note=f"session_id:{req.session_id},action:{req.action},threat_score:{result.get('threat_score', 0)}",
     )
     db.add(event)
@@ -330,7 +330,7 @@ def record_interaction(
     return result
 
 
-@router.get("/api/honeypot/stats")
+@router.get("/stats")
 def get_honeypot_stats(session_id: Optional[str] = None):
     """Honeypot istatistikleri - Kurtarılmış kurban sayısı"""
     stats = honeypot_engine.get_session_stats(session_id)
@@ -343,7 +343,7 @@ def get_honeypot_stats(session_id: Optional[str] = None):
     return stats
 
 
-@router.post("/api/honeypot/session/close")
+@router.post("/session/close")
 def close_honeypot_session(session_id: str):
     """Oturumu kapat ve son raporu ver"""
     result = honeypot_engine.close_session(session_id)
@@ -351,7 +351,7 @@ def close_honeypot_session(session_id: str):
     return result
 
 
-@router.get("/api/honeypot/decoy-types")
+@router.get("/decoy-types")
 def get_decoy_types():
     """Mevcut tuzak türlerini listele"""
     return {

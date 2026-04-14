@@ -385,7 +385,7 @@
             if (message.length < 10) { st.textContent = 'Mesaj en az 10 karakter olmalı.'; st.style.color = C.danger; return; }
             if (!name || !email) { st.textContent = 'Ad ve e-posta zorunlu.'; st.style.color = C.danger; return; }
             try {
-                var res = await fetch('/api/contact', {
+                var res = await fetch('/api/v2/contact', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ name: name, email: email, message: message })
@@ -414,7 +414,7 @@
             out.style.display = 'block';
             out.textContent = 'Hazırlanıyor…';
             try {
-                var res = await fetch('/api/v2/api/infra/analyze', {
+                var res = await fetch('/api/v2/infra/analyze', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ url: u })
@@ -434,7 +434,7 @@
             rep.textContent = 'Sorgulanıyor…';
             raw.textContent = '';
             try {
-                var res = await fetch('/api/v2/api/breach/check-email', {
+                var res = await fetch('/api/v2/breach/check-email', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email: email })
@@ -460,7 +460,7 @@
             po.style.display = 'block';
             pm.style.display = 'block';
             try {
-                var res = await fetch('/api/v2/api/shield/generate', {
+                var res = await fetch('/api/v2/shield/generate', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(body)
@@ -473,7 +473,7 @@
 
         async function loadHoneypotStats() {
             try {
-                var res = await fetch('/api/v2/api/honeypot/stats');
+                var res = await fetch('/api/v2/honeypot/stats');
                 var data = await res.json();
                 document.getElementById('hpStats').textContent = (data.honeypot_visits_recorded != null)
                     ? data.honeypot_visits_recorded.toLocaleString('tr-TR') : '—';
@@ -486,7 +486,7 @@
             const status = document.getElementById('newStatus').value;
             if (!url || !target) { alert('URL ve hedef gerekli.'); return; }
             try {
-                const res = await fetch('/api/v2/api/phishing/add-site', {
+                const res = await fetch('/api/v2/phishing/add-site', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ url, target, status })
@@ -515,7 +515,7 @@
             riskText.innerHTML = 'Bekleyin…';
 
             try {
-                const res = await fetch('/api/v2/api/phishing/check-url', {
+                const res = await fetch('/api/v2/phishing/check-url', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ url })
@@ -631,7 +631,7 @@
 
         async function fetchStats() {
             try {
-                const res = await fetch('/api/v2/api/phishing/stats');
+                const res = await fetch('/api/v2/phishing/stats');
                 const data = await res.json();
                 document.getElementById('total-count').innerText = data.toplam_zararli_site.toLocaleString('tr-TR');
             } catch (e) {}
@@ -642,7 +642,7 @@
             currentMode = 'latest';
             const limit = document.getElementById('limitSelect').value;
             try {
-                const res = await fetch('/api/v2/api/phishing/latest?limit=' + limit + '&page=' + page);
+                const res = await fetch('/api/v2/phishing/latest?limit=' + limit + '&page=' + page);
                 const data = await res.json();
                 renderList(data.data);
                 updatePagination(data.page, data.total_pages);
@@ -659,7 +659,7 @@
             document.getElementById('loading').style.display = 'block';
             document.getElementById('result-area').innerHTML = '';
             try {
-                const res = await fetch('/api/v2/api/phishing/search?url=' + encodeURIComponent(input) + '&limit=' + limit + '&page=' + page);
+                const res = await fetch('/api/v2/phishing/search?url=' + encodeURIComponent(input) + '&limit=' + limit + '&page=' + page);
                 const data = await res.json();
                 document.getElementById('loading').style.display = 'none';
                 if (data.status === 'SAFE') {

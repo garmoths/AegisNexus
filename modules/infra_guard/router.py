@@ -24,7 +24,7 @@ class PortScanRequest(BaseModel):
     ports: Optional[List[int]] = None
 
 
-@router.post("/api/infra/analyze")
+@router.post("/analyze")
 def analyze_url(req: URLAnalyzeRequest):
     """
     Tam altyapı analizi - SSL, port, yönlendirme ve domain yapısı.
@@ -46,7 +46,7 @@ def analyze_url(req: URLAnalyzeRequest):
     }
 
 
-@router.post("/api/infra/ssl-check")
+@router.post("/ssl-check")
 def check_ssl_certificate(req: SSLCheckRequest):
     """SSL sertifikası detaylı analizi"""
     result = InfraAnalyzer.check_ssl(req.domain)
@@ -60,7 +60,7 @@ def check_ssl_certificate(req: SSLCheckRequest):
     }
 
 
-@router.post("/api/infra/port-scan")
+@router.post("/port-scan")
 def scan_ports(req: PortScanRequest):
     """Port taraması - Temel güvenlik kontrolü"""
     ports = req.ports or [80, 443, 8080, 8443]
@@ -81,7 +81,7 @@ def scan_ports(req: PortScanRequest):
     }
 
 
-@router.get("/api/infra/security-headers")
+@router.get("/security-headers")
 def get_security_headers_info():
     """Güvenlik başlıkları referansı"""
     return {
@@ -100,7 +100,7 @@ def get_security_headers_info():
     }
 
 
-@router.get("/api/infra/stats")
+@router.get("/stats")
 def get_infra_stats():
     """Altyapı analizi modülü istatistikleri"""
     return {

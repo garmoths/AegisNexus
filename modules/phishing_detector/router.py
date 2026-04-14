@@ -76,7 +76,7 @@ def rate_limit(max_requests: int, time_window: int):
     return decorator
 
 
-@router.post("/api/phishing/add-site")
+@router.post("/add-site")
 def add_site(item: SiteAddRequest, db: Session = Depends(get_db)):
     """Yeni phishing sitesi ekle"""
     if not item.url or not item.target:
@@ -114,7 +114,7 @@ def add_site(item: SiteAddRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail="Kayıt hatası")
 
 
-@router.post("/api/phishing/check-url")
+@router.post("/check-url")
 @rate_limit(max_requests=60, time_window=60)
 def check_url(request: URLCheckRequest, db: Session = Depends(get_db)):
     """URL güvenlik skorunu hesapla"""
@@ -130,7 +130,7 @@ def check_url(request: URLCheckRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail="URL kontrol başarısız")
 
 
-@router.get("/api/phishing/stats")
+@router.get("/stats")
 def get_stats(db: Session = Depends(get_db)):
     """Toplam zararlı site sayısı"""
     try:
@@ -143,7 +143,7 @@ def get_stats(db: Session = Depends(get_db)):
         return {"toplam_zararli_site": 0, "module": "01_phishing_detector"}
 
 
-@router.get("/api/phishing/latest")
+@router.get("/latest")
 def get_latest(limit: int = 20, page: int = 1, db: Session = Depends(get_db)):
     """Son eklenen tehditler"""
     try:
@@ -162,7 +162,7 @@ def get_latest(limit: int = 20, page: int = 1, db: Session = Depends(get_db)):
         return {"data": [], "page": 1, "total_pages": 1, "total": 0, "module": "01_phishing_detector"}
 
 
-@router.get("/api/phishing/search")
+@router.get("/search")
 def search_urls(url: str, limit: int = 20, page: int = 1, db: Session = Depends(get_db)):
     """URL içinde arama yap (case-insensitive)"""
     try:
@@ -210,7 +210,7 @@ def search_urls(url: str, limit: int = 20, page: int = 1, db: Session = Depends(
         }
 
 
-@router.post("/api/phishing/update-db")
+@router.post("/update-db")
 def update_phishtank_database(db: Session = Depends(get_db)):
     """Phishtank JSON'dan veritabanını güncelle"""
     try:
@@ -232,7 +232,7 @@ def update_phishtank_database(db: Session = Depends(get_db)):
 
 
 
-@router.post("/api/phishing/fetch-all")
+@router.post("/fetch-all")
 def fetch_all_phishing_data(db: Session = Depends(get_db)):
     """Tum kaynaklardan phishing verileri cek (URLHaus, OpenPhish, TweetFeed, Phishtank)"""
     try:
