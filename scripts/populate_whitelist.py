@@ -241,11 +241,19 @@ def populate_whitelist():
                 added += 1
                 
             except Exception as e:
-                print(f"  ❌ Error adding {domain}: {e}")
+                db.rollback()
+                db.close()
+                db = SessionLocal()
+                print(f"  ❌ Error adding {domain}: {str(e)[:80]}")
                 continue
         
-        db.commit()
-        print(f"   ✅ Added {len([d for d in domains])} domains")
+        try:
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            db.close()
+            db = SessionLocal()
+            print(f"   ⚠️ Commit failed: {str(e)[:80]}")
     
     db.close()
     
