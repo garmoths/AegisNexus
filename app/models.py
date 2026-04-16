@@ -17,6 +17,22 @@ class PhishingURL(Base):
     submission_time = Column(DateTime, default=datetime.utcnow)
 
 
+class WhitelistDomain(Base):
+    """Güvenilir şirketlerin domain whitelist'i"""
+    __tablename__ = "whitelist_domains"
+
+    id = Column(Integer, primary_key=True, index=True)
+    domain = Column(String(512), unique=True, index=True)
+    domain_norm = Column(String(512), index=True)  # Normalize edilmiş
+    category = Column(String(100), index=True)  # Banks, Gaming, Film, Gov, Tech, E-commerce, etc.
+    company_name = Column(String(256))
+    country = Column(String(100), nullable=True)
+    trusted_level = Column(String(20), default="high")  # high, medium
+    verified = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class HoneypotEvent(Base):
     """Yalnızca bu sunucuya gelen istekler — eğitim/demonstrasyon tuzak sayfası ziyaretleri."""
 

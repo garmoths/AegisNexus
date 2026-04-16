@@ -7,7 +7,7 @@ import logging
 import requests
 from urllib.parse import urlparse
 from sqlalchemy.orm import Session
-from app.models import PhishingURL
+from app.models import PhishingURL, WhitelistDomain
 from datetime import datetime
 from .url_normalize import normalize_url_record
 
@@ -312,6 +312,55 @@ WHITELIST_SHORT.update({"n11", "fb", "x", "bim", "sok", "ing", "teb"})
 # YARDIMCI FONKSİYONLAR
 # =========================================================
 
+def check_whitelist(domain: str, db: Session = None) -> dict:
+    """
+    Global whitelist'te domain'i kontrol et
+    Güvenilir şirket domain'leri phishing işaretlemez
+    """
+    if not db:
+        return {"whitelisted": False, "category": None, "trusted_level": None}
+    
+    try:
+        # Normalize domain
+        domain_norm = domain.lower().strip()
+        if domain_norm.startswith("www."):
+            domain_norm = domain_norm[4:]
+        
+        # Exact match ara
+        whitelist_entry = db.query(WhitelistDomain).filter(
+            WhitelistDomain.domain_norm == domain_norm
+        ).first()
+        
+        if whitelist_entry:
+            return {
+                "whitelisted": True,
+                "category": whitelist_entry.category,
+                "trusted_level": whitelist_entry.trusted_level,
+                "company_name": whitelist_entry.company_name
+            }
+        
+        # Subdomain check (ör. paypal.com'dan abcd.paypal.com çekmeliyiz)
+        for part_count in range(1, len(domain_norm.split('.'))):
+            partial_domain = '.'.join(domain_norm.split('.')[-part_count-1:])
+            whitelist_entry = db.query(WhitelistDomain).filter(
+                WhitelistDomain.domain_norm == partial_domain
+            ).first()
+            
+            if whitelist_entry:
+                return {
+                    "whitelisted": True,
+                    "category": whitelist_entry.category,
+                    "trusted_level": whitelist_entry.trusted_level,
+                    "company_name": whitelist_entry.company_name,
+                    "subdomain": True
+                }
+        
+        return {"whitelisted": False, "category": None, "trusted_level": None}
+        
+    except Exception as e:
+        logger.error(f"Whitelist check error for {domain}: {e}")
+        return {"whitelisted": False, "category": None, "trusted_level": None}
+
 def check_ssl_certificate(domain):
     """SSL sertifikasını kontrol eder ve bilgileri döndürür."""
     try:
@@ -443,31 +492,42 @@ def calculate_safety_score(input_url, db: Session = None):
     raw_domain = input_url.replace("https://", "").replace("http://", "").replace("www.", "").split('/')[0]
 
     # ---------------------------------------------------------
-    # 1. KATMAN: WHITELIST (BEYAZ LİSTE)
+    # 1. KATMAN: GLOBAL WHITELIST (DATABASE VE BUILTIN)
     # ---------------------------------------------------------
     is_safe = False
+    whitelist_info = None
 
-    # Tam eşleşme
-    if raw_domain in WHITELIST or domain in WHITELIST:
-        is_safe = True
+    # Önce database'den kontrol et (global whitelist)
+    if db:
+        whitelist_info = check_whitelist(domain, db)
+        if whitelist_info.get("whitelisted"):
+            is_safe = True
 
-    # Alt domain kontrolü (mail.google.com → google.com whitelist'te)
+    # Eğer database'de yoksa, builtin WHITELIST'i kontrol et
     if not is_safe:
-        for wl_domain in WHITELIST:
-            if domain == wl_domain or domain.endswith("." + wl_domain):
-                is_safe = True
-                break
+        # Tam eşleşme
+        if raw_domain in WHITELIST or domain in WHITELIST:
+            is_safe = True
 
-    # Uzantısız kısa isim kontrolü (kullanıcı sadece "google" yazdıysa)
-    if not is_safe and "." not in raw_domain and raw_domain in WHITELIST_SHORT:
-        is_safe = True
+        # Alt domain kontrolü (mail.google.com → google.com whitelist'te)
+        if not is_safe:
+            for wl_domain in WHITELIST:
+                if domain == wl_domain or domain.endswith("." + wl_domain):
+                    is_safe = True
+                    break
+
+        # Uzantısız kısa isim kontrolü (kullanıcı sadece "google" yazdıysa)
+        if not is_safe and "." not in raw_domain and raw_domain in WHITELIST_SHORT:
+            is_safe = True
 
     if is_safe:
+        category = whitelist_info.get("category", "Verified") if whitelist_info else "Verified"
+        company = whitelist_info.get("company_name", "Trusted Site") if whitelist_info else "Trusted Site"
         return {
             "url": input_url, "score": 100, "risk_level": "✅ Güvenli (Doğrulanmış)",
             "details": [
-                "Güvenilir Siteler Listesinde (Whitelist) mevcut.",
-                "Resmi ve doğrulanmış kurum/site."
+                f"Global Whitelist'te mevcut: {category}",
+                f"{company} - Resmi ve doğrulanmış kurum/site."
             ],
             "sources": [{"name": "Whitelist", "status": "Temiz ✅"}]
         }
