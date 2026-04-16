@@ -11,6 +11,7 @@ from functools import wraps
 import sys
 import os
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Path setup
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
@@ -292,6 +293,99 @@ def get_stats():
     except Exception as e:
         return jsonify({
             "error": "Database error",
+            "message": str(e)
+        }), 500
+
+@api_v1.route('/bulk-scan', methods=['POST'])
+@rate_limit
+def bulk_scan():
+    """
+    Toplu URL taraması (CSV upload)
+    
+    Form data:
+      - file: CSV dosyası (bir URL per line)
+    
+    Response:
+      {
+        "total": 100,
+        "critical": 5,
+        "high_risk": 10,
+        "safe": 85,
+        "results": [
+          {"url": "https://...", "score": 95, "risk_level": "Güvenli"},
+          ...
+        ]
+      }
+    """
+    if 'file' not in request.files:
+        return jsonify({"error": "Missing 'file' field"}), 400
+    
+    file = request.files['file']
+    
+    if file.filename == '':
+        return jsonify({"error": "Empty filename"}), 400
+    
+    if not file.filename.endswith('.csv'):
+        return jsonify({"error": "Only CSV files allowed"}), 400
+    
+    try:
+        # CSV'yi oku
+        stream = file.stream.read().decode('utf-8')
+        urls = []
+        
+        for line in stream.strip().split('\n'):
+            line = line.strip()
+            if line and not line.startswith('#'):
+                urls.append(line)
+        
+        if not urls:
+            return jsonify({"error": "No URLs found in CSV"}), 400
+        
+        if len(urls) > 10000:
+            return jsonify({"error": "Too many URLs (max 10000)"}), 400
+        
+        # Process URLs parallelized
+        results = []
+        
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            futures = {
+                executor.submit(calculate_safety_score, url): url 
+                for url in urls
+            }
+            
+            for future in as_completed(futures):
+                url = futures[future]
+                try:
+                    result = future.result(timeout=10)
+                    results.append({
+                        "url": url,
+                        "score": result.get('score', 0),
+                        "risk_level": result.get('risk_level', 'Unknown')
+                    })
+                except Exception as e:
+                    results.append({
+                        "url": url,
+                        "error": str(e),
+                        "score": 0
+                    })
+        
+        # Sort by risk (highest first)
+        results.sort(key=lambda x: x.get('score', 100))
+        
+        return jsonify({
+            "total": len(urls),
+            "processed": len(results),
+            "critical": len([r for r in results if r.get('score', 100) < 30]),
+            "high_risk": len([r for r in results if 30 <= r.get('score', 100) < 60]),
+            "medium": len([r for r in results if 60 <= r.get('score', 100) < 80]),
+            "safe": len([r for r in results if r.get('score', 100) >= 80]),
+            "results": results,
+            "timestamp": datetime.utcnow().isoformat() + 'Z'
+        }), 200
+    
+    except Exception as e:
+        return jsonify({
+            "error": "Processing error",
             "message": str(e)
         }), 500
 

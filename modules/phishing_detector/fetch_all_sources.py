@@ -396,6 +396,8 @@ def import_to_database(db: Session, entries: List[Dict], batch_size: int = 1000)
 
 def fetch_all_sources(db: Session) -> Dict:
     """Hızlı veri kaynaklarından yeni phishing URL'leri çek"""
+    from .alerts import get_alert_manager
+    
     all_results = {}
     total_added = 0
     total_updated = 0
@@ -416,6 +418,15 @@ def fetch_all_sources(db: Session) -> Dict:
             total_added += result['added']
             total_updated += result['updated']
             print(f"   ✅ {source_name}: {result['total']} URL, {result['added']} eklendi")
+            
+            # Alert: yeni phishing URLs bulundu
+            if result['added'] > 0:
+                alert_mgr = get_alert_manager()
+                alert_mgr.send_slack_alert(
+                    title="New Phishing URLs Detected",
+                    message=f"Source: {source_name}\n{result['added']} new URLs added",
+                    risk_level="🚨"
+                )
         else:
             print(f"   ⚠️  {source_name}: veri alinamadi")
     
