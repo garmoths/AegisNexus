@@ -12,11 +12,8 @@ from app.models import PhishingURL
 from .url_normalize import normalize_url_record
 
 DEFAULT_GITHUB_FEEDS = {
-    "github_phishing_active": "https://raw.githubusercontent.com/mitchellkrogza/Phishing.Database/master/phishing-links-ACTIVE.txt",
-    "github_phishing_new_today": "https://raw.githubusercontent.com/mitchellkrogza/Phishing.Database/master/phishing-links-NEW-today.txt",
     "github_spam404": "https://raw.githubusercontent.com/Spam404/lists/master/main-blacklist.txt",
-    "github_phishingdb_active": "https://raw.githubusercontent.com/Phishing-Database/Phishing.Database/master/phishing-links-ACTIVE.txt",
-    "github_phishingdb_new_today": "https://raw.githubusercontent.com/Phishing-Database/Phishing.Database/master/phishing-links-NEW-today.txt",
+    "github_phishing_new_today": "https://raw.githubusercontent.com/mitchellkrogza/Phishing.Database/master/phishing-links-NEW-today.txt",
 }
 
 
@@ -397,57 +394,18 @@ def import_to_database(db: Session, entries: List[Dict], batch_size: int = 1000)
 
 
 def fetch_all_sources(db: Session) -> Dict:
-    """Tum kaynaklardan veri cek ve birlestir"""
+    """Hızlı veri kaynaklarından yeni phishing URL'leri çek"""
     all_results = {}
     total_added = 0
     total_updated = 0
     global_seen_hashes: Set[str] = set()
     
     print("\n" + "="*60)
-    print("🚀 MULTI-SOURCE PHISHING DATA AGGREGATOR")
+    print("🚀 PHISHING DATA AGGREGATOR (FAST MODE)")
     print("="*60)
     
-    # 1. URLHaus
-    print("\n📡 1. URLHaus'ten veri cekiliyor...")
-    urls = deduplicate_urls(fetch_urlhaus_data(), seen_hashes=global_seen_hashes)
-    if urls:
-        entries = convert_to_phishtank_format(urls, "urlhaus")
-        result = import_to_database(db, entries)
-        all_results['urlhaus'] = result
-        total_added += result['added']
-        total_updated += result['updated']
-        print(f"   ✅ URLHaus: {result['total']} URL, {result['added']} eklendi")
-    else:
-        print("   ⚠️  URLHaus verisi alinamadi")
-    
-    # 2. OpenPhish
-    print("\n📡 2. OpenPhish'ten veri cekiliyor...")
-    urls = deduplicate_urls(fetch_openphish_data(), seen_hashes=global_seen_hashes)
-    if urls:
-        entries = convert_to_phishtank_format(urls, "openphish")
-        result = import_to_database(db, entries)
-        all_results['openphish'] = result
-        total_added += result['added']
-        total_updated += result['updated']
-        print(f"   ✅ OpenPhish: {result['total']} URL, {result['added']} eklendi")
-    else:
-        print("   ⚠️  OpenPhish verisi alinamadi")
-    
-    # 3. TweetFeed
-    print("\n📡 3. TweetFeed'ten veri cekiliyor...")
-    urls = deduplicate_urls(fetch_tweetfeed_data(), seen_hashes=global_seen_hashes)
-    if urls:
-        entries = convert_to_phishtank_format(urls, "tweetfeed")
-        result = import_to_database(db, entries)
-        all_results['tweetfeed'] = result
-        total_added += result['added']
-        total_updated += result['updated']
-        print(f"   ✅ TweetFeed: {result['total']} URL, {result['added']} eklendi")
-    else:
-        print("   ⚠️  TweetFeed verisi alinamadi")
-    
-    # 4. GitHub buyuk feed'leri (batch processing ile belllek tasarrufu)
-    print("\n📡 4. GitHub buyuk feed'lerinden veri cekiliyor...")
+    # 1. GitHub hızlı feed'leri (küçük dosyalar - yeni veriler)
+    print("\n📡 1. GitHub fast feeds'ten veri cekiliyor...")
     github_feeds = get_github_feed_urls()
     for source_name, feed_url in github_feeds.items():
         print(f"   ↳ {source_name}: {feed_url}")
@@ -461,10 +419,10 @@ def fetch_all_sources(db: Session) -> Dict:
             print(f"   ⚠️  {source_name}: veri alinamadi")
     
     print("\n" + "="*60)
-    print("📊 OZET")
+    print("📊 ÖZET")
     print("="*60)
     print(f"   Toplam yeni eklenen: {total_added}")
-    print(f"   Toplam guncellenen: {total_updated}")
+    print(f"   Toplam güncellenen: {total_updated}")
     print(f"   Aktif kaynak: {len([k for k in all_results if all_results[k]['total'] > 0])}")
     
     return {
