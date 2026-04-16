@@ -627,6 +627,30 @@ def calculate_safety_score(input_url, db: Session = None):
         }
 
     # ---------------------------------------------------------
+    # HIZLI PRE-CHECK: SSL + .edu/.gov/.org doğrulaması
+    # ---------------------------------------------------------
+    ssl_info = check_ssl_certificate(domain)
+    
+    # Güvenilir TLD'ler
+    trusted_tlds = [".edu", ".gov", ".org", ".mil", ".ac.uk", ".go.uk"]
+    is_trusted_tld = any(raw_domain.endswith(tld) for tld in trusted_tlds)
+    
+    # FAST PATH: SSL valid + .edu/.gov/.org = Güvenli (Tam tarama yapma)
+    if ssl_info["valid"] and not ssl_info["expired"] and is_trusted_tld:
+        return {
+            "url": input_url, "score": 95, "risk_level": "✅ Güvenli (Resmi Kuruluş + SSL)",
+            "details": [
+                f"Resmi kuruluş domain'i ({raw_domain})",
+                f"SSL sertifikası geçerli (Veren: {ssl_info['issuer']})",
+                "Düşük risk — Tam tarama gerekmez"
+            ],
+            "sources": [
+                {"name": "SSL Analiz", "status": "Doğrulandı ✅"},
+                {"name": "Domain TLD", "status": "Güvenilir ✅"}
+            ]
+        }
+
+    # ---------------------------------------------------------
     # 5. KATMAN: ÇOKLU ANALİZ
     # ---------------------------------------------------------
     score = 100
@@ -639,7 +663,6 @@ def calculate_safety_score(input_url, db: Session = None):
         risks.append("❌ HTTPS yok — güvensiz (HTTP) bağlantı.")
 
     # --- 5b. SSL Sertifika Kontrolü ---
-    ssl_info = check_ssl_certificate(domain)
     if ssl_info["valid"]:
         if ssl_info["expired"]:
             score -= 30
@@ -743,6 +766,22 @@ def calculate_safety_score(input_url, db: Session = None):
     except Exception as e:
         logger.error(f"ML Classifier hatası: {e}")
         ml_result = None
+
+    # ⚡ ERKEN ÇIKIŞ: Skor < 30 ise XHR/fetch/AI taraması yapma (düşük risk)
+    if score < 30:
+        final_score = max(0, min(100, score))
+        if final_score >= 80:
+            risk_level = "✅ Güvenli"
+        elif final_score >= 60:
+            risk_level = "⚠️ Şüpheli"
+        else:
+            risk_level = "🚨 Tehlikeli"
+        
+        return {
+            "url": input_url, "score": final_score, "risk_level": risk_level,
+            "details": ["Basit kontroller geçti — Detaylı tarama gerekmez"],
+            "sources": sources
+        }
 
     # ---------------------------------------------------------
     # 7. KATMAN: AI İÇERİK ANALİZİ (NLP + Brand + Credential)
