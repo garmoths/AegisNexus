@@ -3,11 +3,11 @@ Honeypot Engine - Dolandırıcı avlama motoru
 """
 from __future__ import annotations
 
-import json
+import re
 import time
 from datetime import datetime
-from typing import Dict, List, Optional
-from dataclasses import dataclass, asdict
+from typing import Any, Dict, List, Optional
+from dataclasses import dataclass
 
 
 @dataclass
@@ -50,6 +50,31 @@ class HoneypotSession:
         }
 
 
+@dataclass
+class IOCRecord:
+    """Tek bir IOC girdisinin toplu görünümü."""
+    ioc_type: str
+    value: str
+    source: str
+    confidence: float
+    first_seen: datetime
+    last_seen: datetime
+    count: int = 1
+    context: Optional[Dict[str, Any]] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "type": self.ioc_type,
+            "value": self.value,
+            "source": self.source,
+            "confidence": round(self.confidence, 2),
+            "count": self.count,
+            "first_seen": self.first_seen.isoformat(),
+            "last_seen": self.last_seen.isoformat(),
+            "context": self.context or {},
+        }
+
+
 class HoneypotEngine:
     """
     Aktif savunma motoru - Dolandırıcıları oyalayan ve bilgi toplayan sistem
@@ -82,6 +107,144 @@ class HoneypotEngine:
         self.captured_ips: set = set()
         self.total_time_wasted: float = 0.0
         self.total_sessions: int = 0
+        self.ioc_store: Dict[str, IOCRecord] = {}
+
+    @staticmethod
+    def _flatten_payload_values(payload: Any) -> List[str]:
+        """Nested payload icindeki tum string degerleri toplar."""
+        values: List[str] = []
+        if payload is None:
+            return values
+
+        if isinstance(payload, dict):
+            for k, v in payload.items():
+                values.extend(HoneypotEngine._flatten_payload_values(k))
+                values.extend(HoneypotEngine._flatten_payload_values(v))
+            return values
+
+        if isinstance(payload, list):
+            for item in payload:
+                values.extend(HoneypotEngine._flatten_payload_values(item))
+            return values
+
+        if isinstance(payload, (str, int, float, bool)):
+            values.append(str(payload))
+
+        return values
+
+    def _upsert_ioc(
+        self,
+        ioc_type: str,
+        value: str,
+        source: str,
+        confidence: float,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> IOCRecord:
+        """IOC kaydini ekler veya mevcut kaydi gunceller."""
+        key = f"{ioc_type}:{value.lower()}"
+        now = datetime.utcnow()
+        existing = self.ioc_store.get(key)
+
+        if existing:
+            existing.last_seen = now
+            existing.count += 1
+            existing.confidence = max(existing.confidence, confidence)
+            if context:
+                merged = dict(existing.context or {})
+                merged.update(context)
+                existing.context = merged
+            return existing
+
+        record = IOCRecord(
+            ioc_type=ioc_type,
+            value=value,
+            source=source,
+            confidence=confidence,
+            first_seen=now,
+            last_seen=now,
+            context=context or {},
+        )
+        self.ioc_store[key] = record
+        return record
+
+    def extract_iocs(self, payload: Optional[Dict[str, Any]] = None, raw_text: str = "") -> List[Dict[str, Any]]:
+        """Payload ve serbest metinden temel IOC tiplerini cikarir."""
+        corpus_parts = self._flatten_payload_values(payload)
+        if raw_text:
+            corpus_parts.append(raw_text)
+        corpus = "\n".join(corpus_parts)
+
+        if not corpus.strip():
+            return []
+
+        patterns = {
+            "url": (r"https?://[^\s\"'<>]+", 0.95),
+            "email": (r"\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b", 0.9),
+            "ipv4": (r"\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\b", 0.85),
+            "domain": (r"\b(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\b", 0.75),
+            "sha256": (r"\b[a-fA-F0-9]{64}\b", 0.95),
+            "md5": (r"\b[a-fA-F0-9]{32}\b", 0.8),
+        }
+
+        found: Dict[str, Dict[str, Any]] = {}
+        for ioc_type, (pattern, confidence) in patterns.items():
+            for match in re.finditer(pattern, corpus):
+                value = match.group(0).strip().rstrip(",.;")
+                key = f"{ioc_type}:{value.lower()}"
+                if key not in found:
+                    found[key] = {
+                        "type": ioc_type,
+                        "value": value,
+                        "confidence": confidence,
+                    }
+
+        return list(found.values())
+
+    def collect_iocs(
+        self,
+        source: str,
+        payload: Optional[Dict[str, Any]] = None,
+        raw_text: str = "",
+        context: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        """IOC cikarimi yapip collector store'a ekler."""
+        extracted = self.extract_iocs(payload=payload, raw_text=raw_text)
+        collected: List[Dict[str, Any]] = []
+
+        for item in extracted:
+            record = self._upsert_ioc(
+                ioc_type=item["type"],
+                value=item["value"],
+                source=source,
+                confidence=item["confidence"],
+                context=context,
+            )
+            collected.append(record.to_dict())
+
+        return collected
+
+    def list_iocs(self, ioc_type: Optional[str] = None, limit: int = 100, min_count: int = 1) -> List[Dict[str, Any]]:
+        """Toplanan IOC kayitlarini filtreleyip listeler."""
+        records = [r for r in self.ioc_store.values() if r.count >= max(min_count, 1)]
+        if ioc_type:
+            records = [r for r in records if r.ioc_type == ioc_type]
+
+        records.sort(key=lambda r: (r.count, r.last_seen), reverse=True)
+        return [r.to_dict() for r in records[: max(limit, 1)]]
+
+    def ioc_stats(self) -> Dict[str, Any]:
+        """IOC collector ozet istatistikleri."""
+        by_type: Dict[str, int] = {}
+        total_hits = 0
+        for record in self.ioc_store.values():
+            by_type[record.ioc_type] = by_type.get(record.ioc_type, 0) + 1
+            total_hits += record.count
+
+        return {
+            "unique_iocs": len(self.ioc_store),
+            "total_ioc_hits": total_hits,
+            "ioc_types": by_type,
+        }
     
     def create_session(self, ip: str, user_agent: str, decoy_type: str = "bank_login") -> HoneypotSession:
         """Yeni tuzak oturumu oluştur"""
@@ -137,6 +300,16 @@ class HoneypotEngine:
         # Toplam zaman kaybını güncelle
         self.total_time_wasted += response_delay
         session.time_wasted_seconds += response_delay
+
+        collected_iocs = self.collect_iocs(
+            source=f"honeypot:{action}",
+            payload=payload,
+            context={
+                "session_id": session_id,
+                "action": action,
+                "threat_score": session.threat_score,
+            },
+        )
         
         return {
             "session_id": session_id,
@@ -145,6 +318,7 @@ class HoneypotEngine:
             "delay_seconds": response_delay,
             "time_wasted_total": round(session.time_wasted_seconds, 2),
             "threat_score": session.threat_score,
+            "ioc_detected": len(collected_iocs),
             "status": "active",
         }
     
@@ -170,6 +344,7 @@ class HoneypotEngine:
             "total_interactions": total_interactions,
             "estimated_victims_saved": round(self.total_time_wasted / 300, 2),
             "estimated_money_saved_try": round(self.total_time_wasted / 300 * 5000, 2),
+            "ioc": self.ioc_stats(),
             "recent_sessions": all_sessions[-10:] if all_sessions else [],
         }
     

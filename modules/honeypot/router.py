@@ -4,11 +4,12 @@ Dolandırıcıları tersine mühendislik ile avlayan tuzak endpointleri
 """
 from __future__ import annotations
 
+import json
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, List
 
 from shared.utils.db import get_db
 from app.models import HoneypotEvent
@@ -35,6 +36,13 @@ class HoneypotInteractionRequest(BaseModel):
 
 class HoneypotCreateRequest(BaseModel):
     decoy_type: str = "bank_login"  # bank_login, social_login, shopping_login
+
+
+class IOCCollectRequest(BaseModel):
+    source: str = "external"
+    payload: Optional[dict] = None
+    raw_text: Optional[str] = None
+    tags: Optional[List[str]] = None
 
 
 # Gerçekçi banka login tuzak sayfası
@@ -321,7 +329,7 @@ def record_interaction(
         client_ip=ip,
         user_agent=request.headers.get("user-agent", "")[:500],
         path=f"/api/v2/interaction",
-        note=f"session_id:{req.session_id},action:{req.action},threat_score:{result.get('threat_score', 0)}",
+        note=f"session_id:{req.session_id},action:{req.action},threat_score:{result.get('threat_score', 0)},ioc:{result.get('ioc_detected', 0)}",
     )
     db.add(event)
     db.commit()
@@ -358,4 +366,70 @@ def get_decoy_types():
         "decoy_types": list(honeypot_engine.DECOY_TEMPLATES.keys()),
         "module": "02_honeypot",
         "description": "Her tuzak türü farklı dolandırıcı profiline hitap eder"
+    }
+
+
+@router.post("/ioc/collect")
+def collect_ioc_data(
+    req: IOCCollectRequest,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Honeypot disi kaynaklardan IOC topla."""
+    ip = _client_ip(request)
+    context = {
+        "client_ip": ip,
+        "user_agent": request.headers.get("user-agent", "")[:500],
+        "tags": req.tags or [],
+    }
+
+    collected = honeypot_engine.collect_iocs(
+        source=req.source,
+        payload=req.payload,
+        raw_text=req.raw_text or "",
+        context=context,
+    )
+
+    event = HoneypotEvent(
+        client_ip=ip,
+        user_agent=context["user_agent"],
+        path="/api/v2/ioc/collect",
+        referer=request.headers.get("referer", "")[:500],
+        note=json.dumps(
+            {
+                "source": req.source,
+                "ioc_count": len(collected),
+                "tags": req.tags or [],
+            },
+            ensure_ascii=True,
+        ),
+    )
+    db.add(event)
+    db.commit()
+
+    return {
+        "status": "success",
+        "collected_count": len(collected),
+        "collected": collected,
+        "module": "02_honeypot",
+    }
+
+
+@router.get("/ioc/list")
+def list_collected_iocs(ioc_type: Optional[str] = None, limit: int = 100, min_count: int = 1):
+    """Toplanan IOC listesi."""
+    return {
+        "status": "success",
+        "data": honeypot_engine.list_iocs(ioc_type=ioc_type, limit=limit, min_count=min_count),
+        "module": "02_honeypot",
+    }
+
+
+@router.get("/ioc/stats")
+def get_ioc_stats():
+    """IOC collector istatistikleri."""
+    return {
+        "status": "success",
+        "stats": honeypot_engine.ioc_stats(),
+        "module": "02_honeypot",
     }
