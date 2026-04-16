@@ -196,11 +196,18 @@ def normalize_domain(domain: str) -> str:
 
 def populate_whitelist():
     """Populate whitelist_domains table with 1000+ trusted domains"""
+    # Önce tabloları oluştur
+    from app.models import Base
+    from app.database import engine
+    print("📋 Creating tables...")
+    Base.metadata.create_all(bind=engine)
+    print("✅ Tables created!")
+    
     db = SessionLocal()
     added = 0
     skipped = 0
     
-    print("🌍 Populating global whitelist...")
+    print("\n🌍 Populating global whitelist...")
     
     for category, domains in WHITELIST_DATA:
         print(f"\n📌 {category}: {len(domains)} domains")
