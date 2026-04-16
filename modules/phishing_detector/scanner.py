@@ -631,9 +631,19 @@ def calculate_safety_score(input_url, db: Session = None):
     # ---------------------------------------------------------
     ssl_info = check_ssl_certificate(domain)
     
-    # Güvenilir TLD'ler
-    trusted_tlds = [".edu", ".gov", ".org", ".mil", ".ac.uk", ".go.uk"]
-    is_trusted_tld = any(raw_domain.endswith(tld) for tld in trusted_tlds)
+    # Güvenilir TLD'ler (tüm kombinasyonlar: .edu, .edu.tr, .ac.uk vb.)
+    def has_trusted_tld(domain_str):
+        trusted_patterns = [
+            ".edu", ".gov", ".org", ".mil",  # Base
+            ".ac.uk", ".go.uk", ".gov.uk",   # UK
+            ".ac.jp", ".go.jp",               # Japan
+            ".edu.tr", ".gov.tr",             # Turkey
+            ".edu.br", ".gov.br",             # Brazil
+            ".edu.au", ".gov.au",             # Australia
+        ]
+        return any(domain_str.endswith(pattern) for pattern in trusted_patterns)
+    
+    is_trusted_tld = has_trusted_tld(raw_domain)
     
     # FAST PATH: SSL valid + .edu/.gov/.org = Güvenli (Tam tarama yapma)
     if ssl_info["valid"] and not ssl_info["expired"] and is_trusted_tld:
