@@ -26,6 +26,7 @@
             <nav class="hero-topnav" aria-label="Site menüsü">
                 <a href="#top" id="navAnaSayfa">Ana sayfa</a>
                 <a href="#hakkimizda" id="navHakkimizda">Hakkımızda</a>
+                <a href="#api" id="navAPI">API</a>
                 <a href="#blog" id="navBlog">Blog</a>
                 <a href="#workspace" id="navIletisim">İletişim</a>
             </nav>
@@ -106,6 +107,36 @@
         <div class="strip-inner strip-inner--row">
             <strong class="strip-label">Blog</strong>
             <p class="strip-text strip-text--inline">Yakında makaleler ve güvenlik ipuçları burada olacak.</p>
+        </div>
+    </section>
+
+    <section id="api" class="strip-muted strip-muted--compact" aria-labelledby="apiTitle">
+        <div class="strip-inner">
+            <h2 id="apiTitle" class="strip-heading">🔌 API Entegrasyonu</h2>
+            <p class="strip-text" style="margin-bottom: 2rem;">URL güvenlik kontrolünü kendi uygulamanıza entegre edin. RESTful API ile kolayca haberleşin.</p>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem;">
+                <div style="background: rgba(255,255,255,0.5); padding: 1.5rem; border-radius: 12px;">
+                    <h3 style="color: var(--primary); margin-bottom: 0.5rem;">📚 Dokümantasyon</h3>
+                    <p style="font-size: 0.95rem; color: #666; margin-bottom: 1rem;">Tüm endpoint'leri, örnekleri ve entegrasyon yöntemlerini öğrenin.</p>
+                    <a href="/templates/api-docs.html" class="btn btn--primary" style="display: inline-block; padding: 0.6rem 1.2rem; text-decoration: none; border-radius: 6px; font-size: 0.9rem;">Dokümantasyonu Oku →</a>
+                </div>
+                
+                <div style="background: rgba(255,255,255,0.5); padding: 1.5rem; border-radius: 12px;">
+                    <h3 style="color: var(--primary); margin-bottom: 0.5rem;">🧪 Test Aracı</h3>
+                    <p style="font-size: 0.95rem; color: #666; margin-bottom: 1rem;">API'yi hemen test et. Curl'e gerek yok, tarayıcından kontrol et.</p>
+                    <a href="/api-test.html" target="_blank" class="btn btn--primary" style="display: inline-block; padding: 0.6rem 1.2rem; text-decoration: none; border-radius: 6px; font-size: 0.9rem;">Test Panelini Aç →</a>
+                </div>
+            </div>
+
+            <div style="background: #f5f7fa; padding: 1.5rem; border-radius: 12px; border-left: 4px solid var(--primary);">
+                <h3 style="color: var(--primary); margin-bottom: 0.75rem;">🚀 Hızlı Başlangıç</h3>
+                <p style="font-size: 0.9rem; color: #666; margin-bottom: 0.5rem;"><strong>Base URL:</strong></p>
+                <code style="background: white; padding: 0.5rem 0.75rem; border-radius: 4px; font-size: 0.85rem; display: block; margin-bottom: 1rem; overflow-x: auto;">http://104.248.45.198:5000/api/v1</code>
+                
+                <p style="font-size: 0.9rem; color: #666; margin-bottom: 0.5rem;"><strong>Örnek Kullanım:</strong></p>
+                <code style="background: white; padding: 0.75rem; border-radius: 4px; font-size: 0.85rem; display: block; overflow-x: auto; color: #d4573b;">curl "http://104.248.45.198:5000/api/v1/check-url?url=google.com"</code>
+            </div>
         </div>
     </section>
 
