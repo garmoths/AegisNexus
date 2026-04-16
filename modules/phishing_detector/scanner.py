@@ -312,49 +312,65 @@ WHITELIST_SHORT.update({"n11", "fb", "x", "bim", "sok", "ing", "teb"})
 # YARDIMCI FONKSİYONLAR
 # =========================================================
 
+import sqlite3
+
+WHITELIST_DB_PATH = os.path.join(os.path.dirname(__file__), '../../data/whitelist.db')
+
 def check_whitelist(domain: str, db: Session = None) -> dict:
     """
-    Global whitelist'te domain'i kontrol et
+    Global whitelist'te domain'i kontrol et (SQLite)
     Güvenilir şirket domain'leri phishing işaretlemez
     """
-    if not db:
-        return {"whitelisted": False, "category": None, "trusted_level": None}
-    
     try:
+        if not os.path.exists(WHITELIST_DB_PATH):
+            return {"whitelisted": False, "category": None, "trusted_level": None}
+        
         # Normalize domain
         domain_norm = domain.lower().strip()
         if domain_norm.startswith("www."):
             domain_norm = domain_norm[4:]
         
-        # Exact match ara
-        whitelist_entry = db.query(WhitelistDomain).filter(
-            WhitelistDomain.domain_norm == domain_norm
-        ).first()
+        conn = sqlite3.connect(WHITELIST_DB_PATH)
+        cursor = conn.cursor()
         
-        if whitelist_entry:
+        # Exact match ara
+        cursor.execute("""
+            SELECT id, category, trusted_level, company_name 
+            FROM whitelist_domains 
+            WHERE domain_norm = ?
+        """, (domain_norm,))
+        result = cursor.fetchone()
+        
+        if result:
+            conn.close()
             return {
                 "whitelisted": True,
-                "category": whitelist_entry.category,
-                "trusted_level": whitelist_entry.trusted_level,
-                "company_name": whitelist_entry.company_name
+                "category": result[1],
+                "trusted_level": result[2],
+                "company_name": result[3]
             }
         
-        # Subdomain check (ör. paypal.com'dan abcd.paypal.com çekmeliyiz)
+        # Subdomain check
         for part_count in range(1, len(domain_norm.split('.'))):
             partial_domain = '.'.join(domain_norm.split('.')[-part_count-1:])
-            whitelist_entry = db.query(WhitelistDomain).filter(
-                WhitelistDomain.domain_norm == partial_domain
-            ).first()
+            cursor.execute("""
+                SELECT id, category, trusted_level, company_name 
+                FROM whitelist_domains 
+                WHERE domain_norm = ?
+            """, (partial_domain,))
+            result = cursor.fetchone()
             
-            if whitelist_entry:
+            if result:
+                conn.close()
                 return {
                     "whitelisted": True,
-                    "category": whitelist_entry.category,
-                    "trusted_level": whitelist_entry.trusted_level,
-                    "company_name": whitelist_entry.company_name,
+                    "category": result[1],
+                    "trusted_level": result[2],
+                    "company_name": result[3],
                     "subdomain": True
                 }
         
+        conn.close()
         return {"whitelisted": False, "category": None, "trusted_level": None}
         
     except Exception as e:
