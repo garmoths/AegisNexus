@@ -267,7 +267,7 @@ def analyze_page_content(html_content, url):
     all_findings.extend(anomaly_result["findings"])
 
     return {
-        "ai_score_penalty": min(total_penalty, 15),  # Düşürüldü: 70 → 15 (AI önemsiz)
+        "ai_score_penalty": min(total_penalty, 3),  # Çok düşük: AI findings are noisy
         "ai_findings": all_findings,
         "brand_impersonation": brand_result.get("brand"),
         "credential_harvesting": cred_result["detected"],
@@ -298,17 +298,15 @@ def _nlp_phishing_analysis(html_lower):
             total_score += category_score
             category_hits[category] = hits
 
-    # Sonuç yorumlama
+    # Sonuç yorumlama (çok düşük penalty - NLP noisy)
     penalty = 0
-    if total_score >= 30:
-        penalty = 25
+    if total_score >= 40:  # Sadece çok yüksek risk
+        penalty = 2
         findings.append(f"🤖 NLP: Yüksek phishing riski tespit edildi (skor: {total_score})")
-    elif total_score >= 15:
-        penalty = 15
+    elif total_score >= 25:
+        penalty = 1
         findings.append(f"🤖 NLP: Orta düzey phishing belirtileri (skor: {total_score})")
-    elif total_score >= 8:
-        penalty = 8
-        findings.append(f"🤖 NLP: Hafif şüpheli içerik kalıpları (skor: {total_score})")
+    # else: penalty 0 (low scores ignored)
 
     # Detay
     category_names = {
