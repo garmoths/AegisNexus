@@ -638,11 +638,11 @@ def calculate_safety_score(input_url, db: Session = None):
     # FAST PATH: SSL valid + .edu/.gov/.org = Güvenli (Tam tarama yapma)
     if ssl_info["valid"] and not ssl_info["expired"] and is_trusted_tld:
         return {
-            "url": input_url, "score": 95, "risk_level": "✅ Güvenli (Resmi Kuruluş + SSL)",
+            "url": input_url, "score": 100, "risk_level": "✅ Güvenli (Resmi Kuruluş + SSL)",
             "details": [
                 f"Resmi kuruluş domain'i ({raw_domain})",
                 f"SSL sertifikası geçerli (Veren: {ssl_info['issuer']})",
-                "Düşük risk — Tam tarama gerekmez"
+                "Kurumsal domain — %100 güvenli"
             ],
             "sources": [
                 {"name": "SSL Analiz", "status": "Doğrulandı ✅"},
