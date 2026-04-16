@@ -536,17 +536,12 @@ def calculate_safety_score(input_url, db: Session = None):
         if not is_safe and "." not in raw_domain and raw_domain in WHITELIST_SHORT:
             is_safe = True
 
+    # Whitelist check - ama hemen dönme, full tarama yap
+    whitelist_info = None
+    is_whitelisted = False
     if is_safe:
-        category = whitelist_info.get("category", "Verified") if whitelist_info else "Verified"
-        company = whitelist_info.get("company_name", "Trusted Site") if whitelist_info else "Trusted Site"
-        return {
-            "url": input_url, "score": 100, "risk_level": "✅ Güvenli (Doğrulanmış)",
-            "details": [
-                f"Global Whitelist'te mevcut: {category}",
-                f"{company} - Resmi ve doğrulanmış kurum/site."
-            ],
-            "sources": [{"name": "Whitelist", "status": "Temiz ✅"}]
-        }
+        is_whitelisted = True
+        whitelist_info = whitelist_info or {"category": "Verified", "company_name": "Trusted Site"}
 
     # ---------------------------------------------------------
     # 2. KATMAN: INTERNAL DB (VERİTABANI) — hash / tam URL / domain (indeksli)
@@ -627,65 +622,20 @@ def calculate_safety_score(input_url, db: Session = None):
         }
 
     # ---------------------------------------------------------
-    # HIZLI PRE-CHECK: SSL + .edu/.gov/.org doğrulaması
-    # ---------------------------------------------------------
-    ssl_info = check_ssl_certificate(domain)
-    
-    # Güvenilir TLD'ler (tüm kombinasyonlar: .edu, .edu.tr, .ac.uk vb.)
-    def has_trusted_tld(domain_str):
-        trusted_patterns = [
-            ".edu", ".gov", ".org", ".mil",  # Base
-            ".ac.uk", ".go.uk", ".gov.uk",   # UK
-            ".ac.jp", ".go.jp",               # Japan
-            ".edu.tr", ".gov.tr",             # Turkey
-            ".edu.br", ".gov.br",             # Brazil
-            ".edu.au", ".gov.au",             # Australia
-        ]
-        return any(domain_str.endswith(pattern) for pattern in trusted_patterns)
-    
-    is_trusted_tld = has_trusted_tld(raw_domain)
-    
-    # FAST PATH: SSL valid + .edu/.gov/.org = Güvenli (Tam tarama yapma)
-    if ssl_info["valid"] and not ssl_info["expired"] and is_trusted_tld:
-        return {
-            "url": input_url, "score": 100, "risk_level": "✅ Güvenli (Resmi Kuruluş + SSL)",
-            "details": [
-                f"Resmi kuruluş domain'i ({raw_domain})",
-                f"SSL sertifikası geçerli (Veren: {ssl_info['issuer']})",
-                "Kurumsal domain — %100 güvenli"
-            ],
-            "sources": [
-                {"name": "SSL Analiz", "status": "Doğrulandı ✅"},
-                {"name": "Domain TLD", "status": "Güvenilir ✅"}
-            ]
-        }
-
-    # ---------------------------------------------------------
     # 5. KATMAN: ÇOKLU ANALİZ
     # ---------------------------------------------------------
     score = 100
     risks = []
     sources = []
+    
+    # Whitelist flag ekle
+    if is_whitelisted:
+        sources.append({"name": "Whitelist", "status": f"✅ {whitelist_info.get('company_name', 'Verified')}"})
 
     # --- 5a. HTTPS Kontrolü ---
     if check_url.startswith("http://"):
         score -= 25
         risks.append("❌ HTTPS yok — güvensiz (HTTP) bağlantı.")
-
-    # --- 5b. SSL Sertifika Kontrolü ---
-    if ssl_info["valid"]:
-        if ssl_info["expired"]:
-            score -= 30
-            risks.append(f"❌ SSL sertifikası süresi dolmuş!")
-        elif ssl_info["days_left"] < 30:
-            score -= 10
-            risks.append(f"⚠️ SSL sertifikası {ssl_info['days_left']} gün içinde dolacak.")
-        else:
-            risks.append(f"✅ SSL geçerli — Veren: {ssl_info['issuer']} ({ssl_info['days_left']} gün kaldı)")
-        sources.append({"name": "SSL Analiz", "status": "Tamamlandı"})
-    else:
-        score -= 20
-        risks.append("⚠️ SSL sertifikası doğrulanamadı.")
 
     # --- 5c. Yönlendirme Zinciri ---
     redirect_info = check_redirect_chain(check_url)
@@ -777,22 +727,6 @@ def calculate_safety_score(input_url, db: Session = None):
         logger.error(f"ML Classifier hatası: {e}")
         ml_result = None
 
-    # ⚡ ERKEN ÇIKIŞ: Skor < 30 ise XHR/fetch/AI taraması yapma (düşük risk)
-    if score < 30:
-        final_score = max(0, min(100, score))
-        if final_score >= 80:
-            risk_level = "✅ Güvenli"
-        elif final_score >= 60:
-            risk_level = "⚠️ Şüpheli"
-        else:
-            risk_level = "🚨 Tehlikeli"
-        
-        return {
-            "url": input_url, "score": final_score, "risk_level": risk_level,
-            "details": ["Basit kontroller geçti — Detaylı tarama gerekmez"],
-            "sources": sources
-        }
-
     # ---------------------------------------------------------
     # 7. KATMAN: AI İÇERİK ANALİZİ (NLP + Brand + Credential)
     # ---------------------------------------------------------
@@ -821,6 +755,11 @@ def calculate_safety_score(input_url, db: Session = None):
         if threat_result["total_penalty"] > 0:
             score -= threat_result["total_penalty"]
             risks.extend(threat_result["findings"])
+        else:
+            # VirusTotal temiz (penalty 0) + SSL geçerli = BONUS +25
+            if check_ssl_certificate(domain)["valid"] and not check_ssl_certificate(domain)["expired"]:
+                score += 25  # VirusTotal + SSL bonus
+                risks.append("✅ VirusTotal temiz + SSL geçerli = Yüksek güvenlik")
         sources.extend(threat_result["sources"])
     except Exception as e:
         logger.error(f"Threat Intelligence hatası: {e}")
