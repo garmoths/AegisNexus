@@ -112,7 +112,63 @@ def parse_feed_lines_to_urls(content: str) -> List[str]:
     return list(urls)
 
 
-def fetch_github_feed_data(feed_url: str) -> List[str]:
+def fetch_and_import_github_feed(db: Session, feed_url: str, source_name: str, global_seen_hashes: Set[str]) -> Dict:
+    """GitHub feed'i streaming ile fetch'le ve batch'ler halinde veritabanına yaz"""
+    batch_size = 1000
+    batch_urls = []
+    result = {"total": 0, "added": 0, "updated": 0, "errors": 0}
+    
+    try:
+        response = requests.get(feed_url, stream=True, timeout=120)
+        if response.status_code != 200:
+            return result
+            
+        line_count = 0
+        for line in response.iter_lines(decode_unicode=True):
+            line_count += 1
+            if not line or line.startswith("#"):
+                continue
+                
+            # Her satırı doğrudan parse et
+            line = line.strip().strip('"').strip("'")
+            
+            # URL formatını kontrol et
+            url = None
+            if line.startswith(("http://", "https://", "ftp://")):
+                url = line
+            elif line.startswith("www."):
+                url = f"http://{line}"
+            elif "." in line and "/" in line:
+                url = f"http://{line}"
+                
+            if url:
+                batch_urls.append(url)
+                result["total"] += 1
+                
+            # Batch'i uydu - veritabanına yaz
+            if len(batch_urls) >= batch_size:
+                entries = convert_to_phishtank_format(batch_urls, source_name)
+                batch_result = import_to_database(db, entries)
+                result["added"] += batch_result["added"]
+                result["updated"] += batch_result["updated"]
+                result["errors"] += batch_result["errors"]
+                batch_urls = []
+                
+                if line_count % 5000 == 0:
+                    print(f"   İşlenen: {line_count} (Eklendi: {result['added']}, Güncellendi: {result['updated']})")
+        
+        # Kalan batch'i yaz
+        if batch_urls:
+            entries = convert_to_phishtank_format(batch_urls, source_name)
+            batch_result = import_to_database(db, entries)
+            result["added"] += batch_result["added"]
+            result["updated"] += batch_result["updated"]
+            result["errors"] += batch_result["errors"]
+            
+    except Exception as e:
+        print(f"GitHub feed hatasi ({feed_url}): {e}")
+    
+    return result
     """GitHub raw feed'den URL listesini streaming ile ceker."""
     try:
         urls = set()
@@ -390,15 +446,13 @@ def fetch_all_sources(db: Session) -> Dict:
     else:
         print("   ⚠️  TweetFeed verisi alinamadi")
     
-    # 4. GitHub buyuk feed'leri
+    # 4. GitHub buyuk feed'leri (batch processing ile belllek tasarrufu)
     print("\n📡 4. GitHub buyuk feed'lerinden veri cekiliyor...")
     github_feeds = get_github_feed_urls()
     for source_name, feed_url in github_feeds.items():
         print(f"   ↳ {source_name}: {feed_url}")
-        urls = deduplicate_urls(fetch_github_feed_data(feed_url), seen_hashes=global_seen_hashes)
-        if urls:
-            entries = convert_to_phishtank_format(urls, source_name)
-            result = import_to_database(db, entries)
+        result = fetch_and_import_github_feed(db, feed_url, source_name, global_seen_hashes)
+        if result["total"] > 0:
             all_results[source_name] = result
             total_added += result['added']
             total_updated += result['updated']
