@@ -40,7 +40,12 @@ def fetch_urlhaus_data() -> List[str]:
     """URLHaus'tan son 30 günün phishing URL'leri"""
     try:
         url = "https://urlhaus-api.abuse.ch/downloads/csv_recent/"
-        response = requests.get(url, timeout=30)
+        api_key = os.getenv("URLHAUS_API_KEY", "")
+        headers = {}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+        
+        response = requests.get(url, headers=headers, timeout=30)
         
         if response.status_code == 200:
             urls = []
