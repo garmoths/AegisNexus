@@ -21,10 +21,15 @@ from functools import wraps
 load_dotenv()
 logger = logging.getLogger(__name__)
 
-# API Key'ler .env dosyasından okunur
-VIRUSTOTAL_API_KEY = os.getenv("VIRUSTOTAL_API_KEY", "")
-GOOGLE_SAFE_BROWSING_KEY = os.getenv("GOOGLE_SAFE_BROWSING_KEY", "")
-ABUSEIPDB_API_KEY = os.getenv("ABUSEIPDB_API_KEY", "")
+# API Key'ler .env dosyasından okunur (multiple keys for rotation)
+VIRUSTOTAL_API_KEYS = os.getenv("VIRUSTOTAL_API_KEYS", "").split(",") if os.getenv("VIRUSTOTAL_API_KEYS") else []
+VIRUSTOTAL_API_KEY = VIRUSTOTAL_API_KEYS[0] if VIRUSTOTAL_API_KEYS else os.getenv("VIRUSTOTAL_API_KEY", "")
+
+GOOGLE_SAFE_BROWSING_KEYS = os.getenv("GOOGLE_SAFE_BROWSING_KEYS", "").split(",") if os.getenv("GOOGLE_SAFE_BROWSING_KEYS") else []
+GOOGLE_SAFE_BROWSING_KEY = GOOGLE_SAFE_BROWSING_KEYS[0] if GOOGLE_SAFE_BROWSING_KEYS else os.getenv("GOOGLE_SAFE_BROWSING_KEY", "")
+
+ABUSEIPDB_API_KEYS = os.getenv("ABUSEIPDB_API_KEYS", "").split(",") if os.getenv("ABUSEIPDB_API_KEYS") else []
+ABUSEIPDB_API_KEY = ABUSEIPDB_API_KEYS[0] if ABUSEIPDB_API_KEYS else os.getenv("ABUSEIPDB_API_KEY", "")
 
 # Cache depolama (in-memory)
 API_CACHE = {}
@@ -32,10 +37,62 @@ CACHE_TTL = 3600  # 1 saat
 
 # Rate limiting depolama
 API_RATE_LIMITS = {
-    "virustotal": {"requests": [], "limit": 4, "window": 60},  # 4 req/min
-    "abuseipdb": {"requests": [], "limit": 1500, "window": 86400},  # 1500 req/day
-    "google_safe": {"requests": [], "limit": 10000, "window": 86400},  # 10000 req/day
+    "virustotal": {"requests": [], "limit": 4, "window": 60, "key_index": 0},  # 4 req/min
+    "abuseipdb": {"requests": [], "limit": 1500, "window": 86400, "key_index": 0},  # 1500 req/day
+    "google_safe": {"requests": [], "limit": 10000, "window": 86400, "key_index": 0},  # 10000 req/day
 }
+
+
+def _rotate_api_key(api_name):
+    """API key'i rotate et (rate limit aşıldıysa sonraki key'e geç)."""
+    if api_name not in API_RATE_LIMITS:
+        return None
+    
+    if api_name == "virustotal":
+        if len(VIRUSTOTAL_API_KEYS) > 1:
+            current_idx = API_RATE_LIMITS[api_name]["key_index"]
+            next_idx = (current_idx + 1) % len(VIRUSTOTAL_API_KEYS)
+            API_RATE_LIMITS[api_name]["key_index"] = next_idx
+            API_RATE_LIMITS[api_name]["requests"] = []  # Reset rate limit counter
+            logger.info(f"Rotated VirusTotal key: {current_idx} → {next_idx}")
+            return VIRUSTOTAL_API_KEYS[next_idx]
+        return VIRUSTOTAL_API_KEYS[0] if VIRUSTOTAL_API_KEYS else None
+    
+    elif api_name == "google_safe":
+        if len(GOOGLE_SAFE_BROWSING_KEYS) > 1:
+            current_idx = API_RATE_LIMITS[api_name]["key_index"]
+            next_idx = (current_idx + 1) % len(GOOGLE_SAFE_BROWSING_KEYS)
+            API_RATE_LIMITS[api_name]["key_index"] = next_idx
+            API_RATE_LIMITS[api_name]["requests"] = []
+            logger.info(f"Rotated Google Safe key: {current_idx} → {next_idx}")
+            return GOOGLE_SAFE_BROWSING_KEYS[next_idx]
+        return GOOGLE_SAFE_BROWSING_KEYS[0] if GOOGLE_SAFE_BROWSING_KEYS else None
+    
+    elif api_name == "abuseipdb":
+        if len(ABUSEIPDB_API_KEYS) > 1:
+            current_idx = API_RATE_LIMITS[api_name]["key_index"]
+            next_idx = (current_idx + 1) % len(ABUSEIPDB_API_KEYS)
+            API_RATE_LIMITS[api_name]["key_index"] = next_idx
+            API_RATE_LIMITS[api_name]["requests"] = []
+            logger.info(f"Rotated AbuseIPDB key: {current_idx} → {next_idx}")
+            return ABUSEIPDB_API_KEYS[next_idx]
+        return ABUSEIPDB_API_KEYS[0] if ABUSEIPDB_API_KEYS else None
+    
+    return None
+
+
+def _get_current_api_key(api_name):
+    """Şu anda aktif olan API key'i getir."""
+    if api_name == "virustotal":
+        idx = API_RATE_LIMITS[api_name]["key_index"]
+        return VIRUSTOTAL_API_KEYS[idx] if idx < len(VIRUSTOTAL_API_KEYS) else None
+    elif api_name == "google_safe":
+        idx = API_RATE_LIMITS[api_name]["key_index"]
+        return GOOGLE_SAFE_BROWSING_KEYS[idx] if idx < len(GOOGLE_SAFE_BROWSING_KEYS) else None
+    elif api_name == "abuseipdb":
+        idx = API_RATE_LIMITS[api_name]["key_index"]
+        return ABUSEIPDB_API_KEYS[idx] if idx < len(ABUSEIPDB_API_KEYS) else None
+    return None
 
 
 def _check_rate_limit(api_name):
@@ -103,22 +160,29 @@ def check_virustotal(url, timeout=8):
             "engines": []
         }
     
-    # Rate limit kontrol
+    # Rate limit kontrol + API key rotation
     if not _check_rate_limit("virustotal"):
-        return {
-            "available": True,
-            "status": "VirusTotal rate limit aşıldı (4 req/dakika)",
-            "malicious": 0, "suspicious": 0, "clean": 0,
-            "engines": [],
-            "rate_limited": True
-        }
+        # Rate limit aşıldıysa sonraki key'e geç
+        rotated_key = _rotate_api_key("virustotal")
+        if rotated_key:
+            logger.info("VirusTotal rate limit aşıldı, sonraki API key'e geçildi")
+        else:
+            return {
+                "available": True,
+                "status": "VirusTotal rate limit aşıldı (4 req/dakika) - başka key yok",
+                "malicious": 0, "suspicious": 0, "clean": 0,
+                "engines": [],
+                "rate_limited": True
+            }
 
     try:
         # URL'yi base64 ile encode et (VT API v3 gereksinimi)
         import base64
         url_id = base64.urlsafe_b64encode(url.encode()).decode().strip("=")
 
-        headers = {"x-apikey": VIRUSTOTAL_API_KEY}
+        # Şu anda aktif olan API key'i kullan
+        current_key = _get_current_api_key("virustotal")
+        headers = {"x-apikey": current_key}
 
         # Önce mevcut raporu kontrol et
         api_url = f"https://www.virustotal.com/api/v3/urls/{url_id}"
