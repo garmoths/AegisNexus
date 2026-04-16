@@ -37,23 +37,22 @@ def get_github_feed_urls() -> Dict[str, str]:
 
 
 def fetch_urlhaus_data() -> List[str]:
-    """URLHaus'tan son 30 günün phishing URL'leri"""
+    """URLHaus JSON API'den son phishing URL'leri"""
     try:
-        url = "https://urlhaus-api.abuse.ch/downloads/csv_recent/"
-        api_key = os.getenv("URLHAUS_API_KEY", "")
-        headers = {}
-        if api_key:
-            headers["Authorization"] = f"Bearer {api_key}"
-        
-        response = requests.get(url, headers=headers, timeout=30)
+        url = "https://urlhaus-api.abuse.ch/api/v1/"
+        # JSON API endpoint kullan
+        response = requests.post(
+            url,
+            data={"query": "get_recent", "limit": "1000"},
+            timeout=30
+        )
         
         if response.status_code == 200:
+            data = response.json()
             urls = []
-            lines = response.text.split('\n')
-            for line in lines[9:]:  # İlk 9 satır header
-                parts = line.split('","')
-                if len(parts) >= 3:
-                    phish_url = parts[2].replace('"', '')
+            if data.get("query_status") == "ok":
+                for item in data.get("urls", []):
+                    phish_url = item.get("url", "")
                     if phish_url.startswith('http'):
                         urls.append(phish_url)
             return list(set(urls))  # Unique
@@ -114,11 +113,19 @@ def parse_feed_lines_to_urls(content: str) -> List[str]:
 
 
 def fetch_github_feed_data(feed_url: str) -> List[str]:
-    """GitHub raw feed'den URL listesini ceker."""
+    """GitHub raw feed'den URL listesini streaming ile ceker."""
     try:
-        response = requests.get(feed_url, timeout=120)
+        urls = []
+        response = requests.get(feed_url, stream=True, timeout=120)
         if response.status_code == 200:
-            return parse_feed_lines_to_urls(response.text)
+            for line in response.iter_lines(decode_unicode=True):
+                if line:
+                    parsed_urls = parse_feed_lines_to_urls(line)
+                    urls.extend(parsed_urls)
+                    # Bellek tasarrufu: çok fazla tutma
+                    if len(urls) > 50000:
+                        break
+            return list(set(urls))
     except Exception as e:
         print(f"GitHub feed hatasi ({feed_url}): {e}")
     return []
