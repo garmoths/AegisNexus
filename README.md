@@ -4,6 +4,23 @@
 
 **Live:** http://104.248.45.198:8000
 
+## 🚀 Quick Start - API Test Dashboard
+
+**Interactive API Tester:** Open `frontend/api-test.html` in your browser
+- ✅ Single URL checking
+- ✅ Bulk scanning (CSV upload)
+- ✅ Whitelist management
+- ✅ Real-time statistics
+
+**API Documentation:** See `docs/API_INTEGRATION_GUIDE.md` for:
+- REST API endpoints
+- cURL examples
+- JavaScript/React integration
+- WordPress plugin template
+- Browser extension example
+
+**API Base:** `http://104.248.45.198:5000/api/v1`
+
 ## Modules
 - 🎣 Phishing Detector
 - 🕸️ Honeypot
