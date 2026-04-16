@@ -196,12 +196,15 @@ def normalize_domain(domain: str) -> str:
 
 def populate_whitelist():
     """Populate whitelist_domains table with 1000+ trusted domains"""
-    # Önce tabloları oluştur
-    from app.models import Base
-    from app.database import engine
-    print("📋 Creating tables...")
-    Base.metadata.create_all(bind=engine)
-    print("✅ Tables created!")
+    # Tabloları oluşturmaya çalış (başarısız olursa continue)
+    try:
+        from app.models import Base
+        from app.database import engine
+        print("📋 Creating tables...")
+        Base.metadata.create_all(bind=engine)
+        print("✅ Tables created!")
+    except Exception as e:
+        print(f"⚠️  Table creation skipped (may already exist): {str(e)[:100]}")
     
     db = SessionLocal()
     added = 0
