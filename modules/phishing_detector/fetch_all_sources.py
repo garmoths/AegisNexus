@@ -115,17 +115,25 @@ def parse_feed_lines_to_urls(content: str) -> List[str]:
 def fetch_github_feed_data(feed_url: str) -> List[str]:
     """GitHub raw feed'den URL listesini streaming ile ceker."""
     try:
-        urls = []
+        urls = set()
         response = requests.get(feed_url, stream=True, timeout=120)
         if response.status_code == 200:
             for line in response.iter_lines(decode_unicode=True):
-                if line:
-                    parsed_urls = parse_feed_lines_to_urls(line)
-                    urls.extend(parsed_urls)
-                    # Bellek tasarrufu: çok fazla tutma
-                    if len(urls) > 50000:
-                        break
-            return list(set(urls))
+                if not line or line.startswith("#"):
+                    continue
+                    
+                # Her satırı doğrudan parse et
+                line = line.strip().strip('"').strip("'")
+                
+                # URL formatını kontrol et
+                if line.startswith(("http://", "https://", "ftp://")):
+                    urls.add(line)
+                elif line.startswith("www."):
+                    urls.add(f"http://{line}")
+                elif "." in line and "/" in line:
+                    urls.add(f"http://{line}")
+                    
+            return list(urls)
     except Exception as e:
         print(f"GitHub feed hatasi ({feed_url}): {e}")
     return []
