@@ -196,15 +196,35 @@ def normalize_domain(domain: str) -> str:
 
 def populate_whitelist():
     """Populate whitelist_domains table with 1000+ trusted domains"""
-    # Tabloları oluşturmaya çalış (başarısız olursa continue)
+    from sqlalchemy import text
+    from app.database import engine
+    
+    # Direct SQL ile tablo oluştur (YETKI SORUNU ÇÖZMEK İÇİN)
+    print("📋 Creating tables...")
     try:
-        from app.models import Base
-        from app.database import engine
-        print("📋 Creating tables...")
-        Base.metadata.create_all(bind=engine)
+        with engine.connect() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS whitelist_domains (
+                    id SERIAL NOT NULL PRIMARY KEY,
+                    domain VARCHAR(512),
+                    domain_norm VARCHAR(512),
+                    category VARCHAR(100),
+                    company_name VARCHAR(256),
+                    country VARCHAR(100),
+                    trusted_level VARCHAR(20),
+                    verified BOOLEAN,
+                    created_at TIMESTAMP WITHOUT TIME ZONE,
+                    updated_at TIMESTAMP WITHOUT TIME ZONE
+                )
+            """))
+            conn.execute(text("""
+                CREATE INDEX IF NOT EXISTS idx_whitelist_domain_norm 
+                ON whitelist_domains(domain_norm)
+            """))
+            conn.commit()
         print("✅ Tables created!")
     except Exception as e:
-        print(f"⚠️  Table creation skipped (may already exist): {str(e)[:100]}")
+        print(f"⚠️  Table creation error: {str(e)[:100]}")
     
     db = SessionLocal()
     added = 0
