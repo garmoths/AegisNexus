@@ -14,6 +14,7 @@ from .url_normalize import normalize_url_record
 DEFAULT_GITHUB_FEEDS = {
     "github_spam404": "https://raw.githubusercontent.com/Spam404/lists/master/main-blacklist.txt",
     "github_phishing_new_today": "https://raw.githubusercontent.com/mitchellkrogza/Phishing.Database/master/phishing-links-NEW-today.txt",
+    "github_phishingdb_new_today": "https://raw.githubusercontent.com/Phishing-Database/Phishing.Database/master/phishing-links-NEW-today.txt",
 }
 
 
