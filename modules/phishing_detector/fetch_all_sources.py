@@ -4,7 +4,7 @@ Multi-Source Phishing Data Aggregator
 """
 import requests
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict, Set, Optional
 from urllib.parse import urlparse
 from sqlalchemy.orm import Session
@@ -48,10 +48,12 @@ def fetch_urlhaus_data() -> List[str]:
             for line in lines[9:]:  # İlk 9 satır header
                 parts = line.split('","')
                 if len(parts) >= 3:
-                    url = parts[2].replace('"', '')
-                    if url.startswith('http'):
-                        urls.append(url)
+                    phish_url = parts[2].replace('"', '')
+                    if phish_url.startswith('http'):
+                        urls.append(phish_url)
             return list(set(urls))  # Unique
+        else:
+            print(f"URLHaus Status: {response.status_code}")
     except Exception as e:
         print(f"URLHaus hatasi: {e}")
     return []
@@ -109,7 +111,7 @@ def parse_feed_lines_to_urls(content: str) -> List[str]:
 def fetch_github_feed_data(feed_url: str) -> List[str]:
     """GitHub raw feed'den URL listesini ceker."""
     try:
-        response = requests.get(feed_url, timeout=60)
+        response = requests.get(feed_url, timeout=120)
         if response.status_code == 200:
             return parse_feed_lines_to_urls(response.text)
     except Exception as e:
@@ -220,7 +222,7 @@ def extract_target_from_url(url: str) -> str:
 def convert_to_phishtank_format(urls: List[str], source: str) -> List[Dict]:
     """URL listesini Phishtank formatina cevir"""
     entries = []
-    timestamp = datetime.utcnow().isoformat()
+    timestamp = datetime.now(timezone.utc).isoformat()
     
     for i, url in enumerate(urls):
         entry = {
@@ -293,7 +295,7 @@ def import_to_database(db: Session, entries: List[Dict], batch_size: int = 1000)
                     status=entry.get('status', 'unknown'),
                     online=entry.get('online', False),
                     target=entry.get('target', 'Unknown'),
-                    submission_time=datetime.utcnow()
+                    submission_time=datetime.now(timezone.utc)
                 )
                 db.add(new_entry)
                 added += 1
