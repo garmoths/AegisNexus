@@ -3,18 +3,37 @@ Multi-Source Phishing Data Aggregator
 Ücretsiz kaynaklardan toplu phishing verisi çeker
 """
 import requests
-import json
 import os
-import csv
-import io
 from datetime import datetime
-from typing import List, Dict, Optional
+from typing import List, Dict, Set, Optional
 from urllib.parse import urlparse
 from sqlalchemy.orm import Session
 from app.models import PhishingURL
 from .url_normalize import normalize_url_record
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+DEFAULT_GITHUB_FEEDS = {
+    "github_phishing_active": "https://raw.githubusercontent.com/mitchellkrogza/Phishing.Database/master/phishing-links-ACTIVE.txt",
+    "github_phishing_new_today": "https://raw.githubusercontent.com/mitchellkrogza/Phishing.Database/master/phishing-links-NEW-today.txt",
+    "github_spam404": "https://raw.githubusercontent.com/Spam404/lists/master/main-blacklist.txt",
+    "github_phishingdb_active": "https://raw.githubusercontent.com/Phishing-Database/Phishing.Database/master/phishing-links-ACTIVE.txt",
+    "github_phishingdb_new_today": "https://raw.githubusercontent.com/Phishing-Database/Phishing.Database/master/phishing-links-NEW-today.txt",
+}
+
+
+def get_github_feed_urls() -> Dict[str, str]:
+    """GitHub feed URL'lerini env'den veya varsayilandan alir."""
+    raw = os.getenv("PHISHING_GITHUB_FEEDS", "").strip()
+    if not raw:
+        return DEFAULT_GITHUB_FEEDS
+
+    feeds: Dict[str, str] = {}
+    for idx, item in enumerate(raw.split(","), start=1):
+        url = item.strip()
+        if not url:
+            continue
+        feeds[f"github_custom_{idx}"] = url
+
+    return feeds or DEFAULT_GITHUB_FEEDS
 
 
 def fetch_urlhaus_data() -> List[str]:
@@ -52,30 +71,75 @@ def fetch_openphish_data() -> List[str]:
     return []
 
 
-def fetch_phishtank_data() -> List[str]:
-    """Phishtank JSON'dan URL'ler"""
-    phishtank_path = os.path.join(BASE_DIR, "phishtank.json")
-    
-    if not os.path.exists(phishtank_path):
-        return []
-    
+def parse_feed_lines_to_urls(content: str) -> List[str]:
+    """Duz metin feed satirlarini URL listesine cevirir."""
+    urls = set()
+
+    for raw_line in content.splitlines():
+        line = raw_line.strip().strip('"').strip("'")
+        if not line or line.startswith("#"):
+            continue
+
+        # Olasi CSV ve yorum formatlarini temizle
+        if "," in line:
+            line = line.split(",", 1)[0].strip()
+        if " " in line:
+            line = line.split(" ", 1)[0].strip()
+
+        if line.startswith(("http://", "https://")):
+            urls.add(line)
+            continue
+
+        if line.startswith("www."):
+            urls.add(f"http://{line}")
+            continue
+
+        # Domain/path formati geldiyse de kabul et
+        if "." in line and "/" in line:
+            urls.add(f"http://{line}")
+            continue
+
+        # Sadece domain ise de yakala
+        if "." in line and " " not in line:
+            urls.add(f"http://{line}")
+
+    return list(urls)
+
+
+def fetch_github_feed_data(feed_url: str) -> List[str]:
+    """GitHub raw feed'den URL listesini ceker."""
     try:
-        with open(phishtank_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            
-        if isinstance(data, dict) and 'data' in data:
-            data = data['data']
-        
-        urls = []
-        for entry in data:
-            url = entry.get('url', '')
-            if url and url.startswith('http'):
-                urls.append(url)
-        
-        return list(set(urls))
+        response = requests.get(feed_url, timeout=60)
+        if response.status_code == 200:
+            return parse_feed_lines_to_urls(response.text)
     except Exception as e:
-        print(f"Phishtank hatasi: {e}")
+        print(f"GitHub feed hatasi ({feed_url}): {e}")
     return []
+
+
+def deduplicate_urls(urls: List[str], seen_hashes: Optional[Set[str]] = None) -> List[str]:
+    """URL'leri normalize ederek hash bazli tekillestirir."""
+    unique_urls: List[str] = []
+    local_hashes: Set[str] = set()
+
+    for raw_url in urls:
+        normalized = normalize_url_record(raw_url)
+        url_hash = normalized.get("url_hash")
+        if not url_hash:
+            continue
+
+        if url_hash in local_hashes:
+            continue
+        if seen_hashes is not None and url_hash in seen_hashes:
+            continue
+
+        local_hashes.add(url_hash)
+        if seen_hashes is not None:
+            seen_hashes.add(url_hash)
+
+        unique_urls.append(normalized.get("canonical_url") or raw_url)
+
+    return unique_urls
 
 
 def fetch_tweetfeed_data() -> List[str]:
@@ -185,28 +249,46 @@ def import_to_database(db: Session, entries: List[Dict], batch_size: int = 1000)
             phish_id = str(entry.get('phish_id', ''))
             if not phish_id:
                 continue
-            
-            # Duplicate kontrolu
-            existing = db.query(PhishingURL).filter(
-                PhishingURL.phish_id == phish_id
-            ).first()
-            
+
             url = entry.get('url', '')
             normalized = normalize_url_record(url)
-            
-            if existing:
-                existing.url = url
-                existing.url_hash = normalized.get('url_hash')
-                existing.domain_norm = normalized.get('domain_norm')
-                existing.status = entry.get('status', 'unknown')
-                existing.online = entry.get('online', False)
-                existing.target = entry.get('target', 'Unknown')
+            url_hash = normalized.get('url_hash')
+            if not url_hash:
+                errors += 1
+                continue
+
+            # Global duplicate kontrolu (kaynak fark etmeksizin)
+            existing_by_hash = db.query(PhishingURL).filter(
+                PhishingURL.url_hash == url_hash
+            ).first()
+
+            if existing_by_hash:
+                existing_by_hash.url = normalized.get('canonical_url') or url
+                existing_by_hash.domain_norm = normalized.get('domain_norm')
+                existing_by_hash.status = entry.get('status', 'unknown')
+                existing_by_hash.online = entry.get('online', False)
+                existing_by_hash.target = entry.get('target', 'Unknown')
                 updated += 1
             else:
+                # Ayni phish_id daha once kaydedildiyse guncelle
+                existing_by_id = db.query(PhishingURL).filter(
+                    PhishingURL.phish_id == phish_id
+                ).first()
+
+                if existing_by_id:
+                    existing_by_id.url = normalized.get('canonical_url') or url
+                    existing_by_id.url_hash = url_hash
+                    existing_by_id.domain_norm = normalized.get('domain_norm')
+                    existing_by_id.status = entry.get('status', 'unknown')
+                    existing_by_id.online = entry.get('online', False)
+                    existing_by_id.target = entry.get('target', 'Unknown')
+                    updated += 1
+                    continue
+
                 new_entry = PhishingURL(
                     phish_id=phish_id,
-                    url=url,
-                    url_hash=normalized.get('url_hash'),
+                    url=normalized.get('canonical_url') or url,
+                    url_hash=url_hash,
                     domain_norm=normalized.get('domain_norm'),
                     status=entry.get('status', 'unknown'),
                     online=entry.get('online', False),
@@ -241,6 +323,7 @@ def fetch_all_sources(db: Session) -> Dict:
     all_results = {}
     total_added = 0
     total_updated = 0
+    global_seen_hashes: Set[str] = set()
     
     print("\n" + "="*60)
     print("🚀 MULTI-SOURCE PHISHING DATA AGGREGATOR")
@@ -248,7 +331,7 @@ def fetch_all_sources(db: Session) -> Dict:
     
     # 1. URLHaus
     print("\n📡 1. URLHaus'ten veri cekiliyor...")
-    urls = fetch_urlhaus_data()
+    urls = deduplicate_urls(fetch_urlhaus_data(), seen_hashes=global_seen_hashes)
     if urls:
         entries = convert_to_phishtank_format(urls, "urlhaus")
         result = import_to_database(db, entries)
@@ -261,7 +344,7 @@ def fetch_all_sources(db: Session) -> Dict:
     
     # 2. OpenPhish
     print("\n📡 2. OpenPhish'ten veri cekiliyor...")
-    urls = fetch_openphish_data()
+    urls = deduplicate_urls(fetch_openphish_data(), seen_hashes=global_seen_hashes)
     if urls:
         entries = convert_to_phishtank_format(urls, "openphish")
         result = import_to_database(db, entries)
@@ -274,7 +357,7 @@ def fetch_all_sources(db: Session) -> Dict:
     
     # 3. TweetFeed
     print("\n📡 3. TweetFeed'ten veri cekiliyor...")
-    urls = fetch_tweetfeed_data()
+    urls = deduplicate_urls(fetch_tweetfeed_data(), seen_hashes=global_seen_hashes)
     if urls:
         entries = convert_to_phishtank_format(urls, "tweetfeed")
         result = import_to_database(db, entries)
@@ -285,18 +368,21 @@ def fetch_all_sources(db: Session) -> Dict:
     else:
         print("   ⚠️  TweetFeed verisi alinamadi")
     
-    # 4. Phishtank JSON (yerel)
-    print("\n📡 4. Phishtank JSON'dan veri cekiliyor...")
-    urls = fetch_phishtank_data()
-    if urls:
-        entries = convert_to_phishtank_format(urls, "phishtank_json")
-        result = import_to_database(db, entries)
-        all_results['phishtank'] = result
-        total_added += result['added']
-        total_updated += result['updated']
-        print(f"   ✅ Phishtank JSON: {result['total']} URL, {result['added']} eklendi")
-    else:
-        print("   ⚠️  Phishtank JSON bulunamadi")
+    # 4. GitHub buyuk feed'leri
+    print("\n📡 4. GitHub buyuk feed'lerinden veri cekiliyor...")
+    github_feeds = get_github_feed_urls()
+    for source_name, feed_url in github_feeds.items():
+        print(f"   ↳ {source_name}: {feed_url}")
+        urls = deduplicate_urls(fetch_github_feed_data(feed_url), seen_hashes=global_seen_hashes)
+        if urls:
+            entries = convert_to_phishtank_format(urls, source_name)
+            result = import_to_database(db, entries)
+            all_results[source_name] = result
+            total_added += result['added']
+            total_updated += result['updated']
+            print(f"   ✅ {source_name}: {result['total']} URL, {result['added']} eklendi")
+        else:
+            print(f"   ⚠️  {source_name}: veri alinamadi")
     
     print("\n" + "="*60)
     print("📊 OZET")

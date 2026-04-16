@@ -16,7 +16,6 @@ from shared.utils.db import get_db, SessionLocal
 from app.models import PhishingURL
 from .scanner import calculate_safety_score
 from .url_normalize import normalize_url_record
-from .fetch_data import update_database_from_phishtank
 from .fetch_all_sources import fetch_all_sources
 
 logger = logging.getLogger(__name__)
@@ -212,21 +211,12 @@ def search_urls(url: str, limit: int = 20, page: int = 1, db: Session = Depends(
 
 @router.post("/update-db")
 def update_phishtank_database(db: Session = Depends(get_db)):
-    """Phishtank JSON'dan veritabanını güncelle"""
-    try:
-        result = update_database_from_phishtank(db)
-        return {
-            "status": "success",
-            "message": "Veritabanı güncellendi",
-            "data": result,
-            "module": "01_phishing_detector"
-        }
-    except Exception as e:
-        return {
-            "status": "error",
-            "message": str(e),
-            "module": "01_phishing_detector"
-        }
+    """Deprecated: Lokal PhishTank import kaldirildi."""
+    return {
+        "status": "deprecated",
+        "message": "Lokal PhishTank JSON import kaldirildi. /fetch-all endpoint'ini kullanin.",
+        "module": "01_phishing_detector"
+    }
 
 
 
@@ -234,7 +224,7 @@ def update_phishtank_database(db: Session = Depends(get_db)):
 
 @router.post("/fetch-all")
 def fetch_all_phishing_data(db: Session = Depends(get_db)):
-    """Tum kaynaklardan phishing verileri cek (URLHaus, OpenPhish, TweetFeed, Phishtank)"""
+    """Tum kaynaklardan phishing verileri cek (URLHaus, OpenPhish, TweetFeed, GitHub feed'leri)"""
     try:
         result = fetch_all_sources(db)
         return {
