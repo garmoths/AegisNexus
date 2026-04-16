@@ -267,7 +267,7 @@ def analyze_page_content(html_content, url):
     all_findings.extend(anomaly_result["findings"])
 
     return {
-        "ai_score_penalty": min(total_penalty, 70),  # Maksimum 70 puan ceza
+        "ai_score_penalty": min(total_penalty, 15),  # Düşürüldü: 70 → 15 (AI önemsiz)
         "ai_findings": all_findings,
         "brand_impersonation": brand_result.get("brand"),
         "credential_harvesting": cred_result["detected"],
@@ -349,18 +349,18 @@ def _detect_brand_impersonation(html_lower, domain):
         # Agresiflik azaltılmış: 3 keyword + 2 visual cue gerekli VEYA 2 visual cue yeterli
         if keyword_hits >= 3 and visual_hits >= 2:
             detected_brand = brand_name
-            penalty = 25
+            penalty = 3  # Düşürüldü: 25 → 3
             findings.append(f"🎭 MARKA TAKLİDİ: '{brand_name.upper()}' markası taklit ediliyor olabilir!")
             findings.append(f"  ↳ {keyword_hits} anahtar kelime + {visual_hits} görsel ipucu eşleşti")
             break
         elif visual_hits >= 2:
             detected_brand = brand_name
-            penalty = 20
+            penalty = 2  # Düşürüldü: 20 → 2
             findings.append(f"🎭 Marka şüphesi: '{brand_name}' ile ilgili {visual_hits} görsel ipucu bulundu")
             break
         elif keyword_hits >= 5:
             detected_brand = brand_name
-            penalty = 15
+            penalty = 1  # Düşürüldü: 15 → 1
             findings.append(f"🎭 Hafif marka şüphesi: '{brand_name}' ile ilgili {keyword_hits} referans bulundu")
             break
 
@@ -413,21 +413,21 @@ def _detect_credential_harvesting(html_raw, html_lower):
     # --- Değerlendirme ---
     if password_fields > 0 and form_count > 0:
         detected = True
-        penalty += 15
+        penalty += 2  # Düşürüldü: 15 → 2
         findings.append(f"🔑 Credential Harvesting: {password_fields} şifre alanı + {form_count} form tespit edildi")
 
     if cc_patterns > 0:
         detected = True
-        penalty += 20
+        penalty += 3  # Düşürüldü: 20 → 3
         findings.append(f"💳 Kredi kartı bilgisi toplama girişimi ({cc_patterns} kalıp)")
 
     if id_patterns > 0:
         detected = True
-        penalty += 15
+        penalty += 2  # Düşürüldü: 15 → 2
         findings.append(f"🆔 Kimlik bilgisi toplama girişimi ({id_patterns} kalıp)")
 
     if external_form:
-        penalty += 10
+        penalty += 1  # Düşürüldü: 10 → 1
         findings.append("⚠️ Form verisi harici bir sunucuya gönderiliyor")
 
     if hidden_inputs > 5:

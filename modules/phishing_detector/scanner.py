@@ -680,12 +680,12 @@ def calculate_safety_score(input_url, db: Session = None):
     # --- 5c. Yönlendirme Zinciri ---
     redirect_info = check_redirect_chain(check_url)
     if redirect_info["suspicious"]:
-        score -= 20
+        score -= 5  # Düşürüldü: 20 → 5
         risks.append(f"⚠️ Çok fazla yönlendirme ({redirect_info['redirect_count']} adet).")
     if redirect_info["final_url"] != check_url and redirect_info["redirect_count"] > 0:
         final_domain = urlparse(redirect_info["final_url"]).netloc.replace("www.", "")
         if final_domain != domain:
-            score -= 15
+            score -= 3  # Düşürüldü: 15 → 3
             risks.append(f"⚠️ Farklı siteye yönleniyor: {final_domain}")
     sources.append({"name": "Redirect Analiz", "status": "Tamamlandı"})
 
@@ -698,15 +698,15 @@ def calculate_safety_score(input_url, db: Session = None):
     if ":" in domain:
         port = domain.split(":")[-1]
         if port not in ["80", "443", "8080", "8443"]:
-            score -= 15
+            score -= 5  # Düşürüldü: 15 → 5
             risks.append(f"⚠️ Standart dışı port kullanılıyor: {port}")
 
     # --- 5f. URL Uzunluk Kontrolü ---
     if len(input_url) > 100:
-        score -= 15
+        score -= 5  # Düşürüldü: 15 → 5
         risks.append("⚠️ URL aşırı uzun (phishing göstergesi).")
     elif len(input_url) > 75:
-        score -= 8
+        score -= 2  # Düşürüldü: 8 → 2
         risks.append("⚠️ URL normalden uzun.")
 
     # --- 5g. Şüpheli Kelime Kontrolü ---
