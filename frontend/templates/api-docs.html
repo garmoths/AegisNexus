@@ -214,7 +214,7 @@
         <!-- 1. Endpoints Section -->
         <div id="endpoints" class="api-section active">
             <div class="info-box">
-                <strong>📍 Base URL:</strong> <code>http://104.248.45.198:5000/api/v1</code>
+                <strong>📍 Base URL:</strong> <code>https://api.aegisnexus.dev/api/v1</code>
             </div>
 
             <!-- Health Check -->
@@ -368,7 +368,7 @@
                 <div class="code-block">
 <span class="highlight-keyword">async function</span> <span class="highlight-func">checkUrl</span>(<span class="highlight">url</span>) {
   <span class="highlight-keyword">const</span> res = <span class="highlight-keyword">await</span> <span class="highlight-func">fetch</span>(
-    `http://104.248.45.198:5000/api/v1/check-url?url=${<span class="highlight-func">encodeURIComponent</span>(url)}`
+    `https://api.aegisnexus.dev/api/v1/check-url?url=${<span class="highlight-func">encodeURIComponent</span>(url)}`
   );
   <span class="highlight-keyword">const</span> data = <span class="highlight-keyword">await</span> res.<span class="highlight-func">json</span>();
   <span class="highlight-keyword">return</span> data;
@@ -404,7 +404,7 @@
             <div class="endpoint">
                 <div class="endpoint-title">🔌 cURL</div>
                 <div class="code-block">
-curl <span class="highlight-string">"http://104.248.45.198:5000/api/v1/check-url?url=google.com"</span> \
+curl <span class="highlight-string">"https://api.aegisnexus.dev/api/v1/check-url?url=google.com"</span> \
   -H <span class="highlight-string">"Accept: application/json"</span>
                 </div>
             </div>
@@ -414,7 +414,7 @@ curl <span class="highlight-string">"http://104.248.45.198:5000/api/v1/check-url
                 <div class="code-block">
 <span class="highlight-keyword">import</span> requests
 
-url = <span class="highlight-string">"http://104.248.45.198:5000/api/v1"</span>
+url = <span class="highlight-string">"https://api.aegisnexus.dev/api/v1"</span>
 response = requests.<span class="highlight-func">get</span>(
     f<span class="highlight-string">"{url}/check-url?url=google.com"</span>
 )
@@ -572,7 +572,7 @@ data = response.<span class="highlight-func">json</span>()
     </div>
 
     <script>
-        const API_BASE = 'http://104.248.45.198:5000/api/v1';
+        const API_BASE = 'https://api.aegisnexus.dev/api/v1';
 
         function switchSection(btn, sectionId) {
             document.querySelectorAll('.api-section').forEach(s => s.classList.remove('active'));
