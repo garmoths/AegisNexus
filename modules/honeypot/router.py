@@ -644,10 +644,7 @@ async def get_ioc_stats_advanced():
 
 
 @router.get("/ioc/search")
-async def search_ioc(
-    q: str,
-    db: Session = Depends(get_db)
-):
+async def search_ioc(q: str):
     """
     Search for specific IOC in database.
     
@@ -660,11 +657,14 @@ async def search_ioc(
         }
     
     try:
+        from app.database import SessionLocal
+        db = SessionLocal()
+        
         results = db.query(IndicatorOfCompromise).filter(
             IndicatorOfCompromise.ioc_value.ilike(f"%{q}%")
         ).limit(50).all()
         
-        return {
+        response = {
             "status": "success",
             "module": "02_honeypot_ioc_collector",
             "query": q,
@@ -684,6 +684,8 @@ async def search_ioc(
                 for r in results
             ]
         }
+        db.close()
+        return response
     except Exception as e:
         logger.error(f"IOC search error: {e}")
         return {
