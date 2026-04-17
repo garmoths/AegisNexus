@@ -8,7 +8,7 @@ import sys
 import os
 import logging
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 # Add parent directory to path
@@ -118,7 +118,7 @@ class IOCFetcher:
                 if existing:
                     # Update existing
                     existing.detection_count += 1
-                    existing.last_seen = datetime.utcnow()
+                    existing.last_seen = datetime.now(timezone.utc)
                     skipped += 1
                 else:
                     # Create new
@@ -193,7 +193,7 @@ class IOCFetcher:
     
     def run(self):
         """Execute full IOC collection cycle."""
-        self.stats["start_time"] = datetime.utcnow()
+        self.stats["start_time"] = datetime.now(timezone.utc)
         
         try:
             # Connect to DB
@@ -210,7 +210,7 @@ class IOCFetcher:
             stats = self.get_stats()
             
             # Log completion
-            self.stats["end_time"] = datetime.utcnow()
+            self.stats["end_time"] = datetime.now(timezone.utc)
             duration = (self.stats["end_time"] - self.stats["start_time"]).total_seconds()
             
             logger.info("=" * 70)

@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, Float, JSON, Index, BigInteger
 from app.database import Base
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class PhishingURL(Base):
@@ -14,7 +14,7 @@ class PhishingURL(Base):
     status = Column(String)
     online = Column(Boolean)
     target = Column(String)
-    submission_time = Column(DateTime, default=datetime.utcnow)
+    submission_time = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class WhitelistDomain(Base):
@@ -29,8 +29,8 @@ class WhitelistDomain(Base):
     country = Column(String(100), nullable=True)
     trusted_level = Column(String(20), default="high")  # high, medium
     verified = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class HoneypotEvent(Base):
@@ -44,7 +44,7 @@ class HoneypotEvent(Base):
     path = Column(String(256))
     referer = Column(String(512), nullable=True)
     note = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class IndicatorOfCompromise(Base):
@@ -75,8 +75,8 @@ class IndicatorOfCompromise(Base):
     confidence = Column(Float, nullable=False)  # 0.0-1.0 from source
     
     # Timeline & frequency
-    first_seen = Column(DateTime, index=True, nullable=False, default=datetime.utcnow)
-    last_seen = Column(DateTime, index=True, nullable=False, default=datetime.utcnow)
+    first_seen = Column(DateTime, index=True, nullable=False, default=lambda: datetime.now(timezone.utc))
+    last_seen = Column(DateTime, index=True, nullable=False, default=lambda: datetime.now(timezone.utc))
     detection_count = Column(Integer, default=1)  # How many times we've seen this
     
     # Enrichment data
@@ -92,8 +92,8 @@ class IndicatorOfCompromise(Base):
     is_monitored = Column(Boolean, default=True, index=True)  # Whether to continue monitoring
     
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     # Indexes for performance
     __table_args__ = (
@@ -130,8 +130,8 @@ class OperatorAPIKey(Base):
     is_verified = Column(Boolean, default=False)
     
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     last_alert_sent = Column(DateTime, nullable=True)
 
 
@@ -149,7 +149,7 @@ class IOCOperatorAlert(Base):
     operator_id = Column(Integer, index=True, nullable=False)  # Foreign key to OperatorAPIKey
     
     # Delivery tracking
-    alert_sent_at = Column(DateTime, index=True, nullable=False, default=datetime.utcnow)
+    alert_sent_at = Column(DateTime, index=True, nullable=False, default=lambda: datetime.now(timezone.utc))
     delivery_status = Column(String(50), default='pending')  # 'sent', 'delivered', 'failed', 'bounced'
     delivery_timestamp = Column(DateTime, nullable=True)
     
@@ -159,5 +159,5 @@ class IOCOperatorAlert(Base):
     retry_count = Column(Integer, default=0)
     
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
