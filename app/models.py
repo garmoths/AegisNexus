@@ -81,7 +81,7 @@ class IndicatorOfCompromise(Base):
     
     # Enrichment data
     context = Column(JSON, nullable=True)  # {'country': 'CN', 'asn': 'AS12345', 'owner': 'XYZ Corp'}
-    metadata = Column(JSON, nullable=True)  # Extra data from source API
+    ioc_metadata = Column(JSON, nullable=True)  # Extra data from source API
     
     # Operator tracking
     operator_alert_sent = Column(Boolean, default=False, index=True)

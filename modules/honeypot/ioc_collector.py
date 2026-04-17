@@ -100,7 +100,7 @@ class IOCRecord:
     # Additional fields
     threat_tags: List[str] = None  # ['zeus', 'dridex', 'emotet']
     context: Dict[str, Any] = None  # {'country': 'CN', 'asn': 'AS12345'}
-    metadata: Dict[str, Any] = None  # Raw API response metadata
+    ioc_metadata: Dict[str, Any] = None  # Raw API response metadata
     source_reference: str = None  # URL/ID to original report
     
     def __post_init__(self):
@@ -114,8 +114,8 @@ class IOCRecord:
             self.threat_tags = []
         if self.context is None:
             self.context = {}
-        if self.metadata is None:
-            self.metadata = {}
+        if self.ioc_metadata is None:
+            self.ioc_metadata = {}
     
     def get_value_hash(self) -> str:
         """Generate SHA256 hash of normalized value for deduplication."""
@@ -312,7 +312,7 @@ class AbuseChCollector:
                         confidence=0.95,
                         detection_count=1,
                         source_reference=url_record.get('urlhaus_reference', ''),
-                        metadata={'threat': threat, 'date_added': date_added},
+                        ioc_metadata={'threat': threat, 'date_added': date_added},
                     ))
                     
                     # Extract domain from URL
@@ -327,7 +327,7 @@ class AbuseChCollector:
                             threat_type=threat_type,
                             confidence=0.9,
                             detection_count=1,
-                            metadata={'threat': threat},
+                            ioc_metadata={'threat': threat},
                         ))
                 
                 except Exception as e:
@@ -376,7 +376,7 @@ class AbuseChCollector:
                         confidence=0.92,
                         detection_count=1,
                         threat_tags=[target] if target != 'Unknown' else [],
-                        metadata={'target': target},
+                        ioc_metadata={'target': target},
                     ))
                     
                     # Extract domain
@@ -465,7 +465,7 @@ class AbuseIPDBCollector:
                         threat_type=ThreatType.BOTNET,  # Most common
                         confidence=0.95,
                         detection_count=1,
-                        metadata={'abuseipdb_reference': f"https://www.abuseipdb.com/check/{ip}"},
+                        ioc_metadata={'abuseipdb_reference': f"https://www.abuseipdb.com/check/{ip}"},
                     ))
                 
                 except Exception as e:
