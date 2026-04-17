@@ -744,12 +744,14 @@
                 const res = await fetch('/api/v2/honeypot/ioc/stats');
                 const data = await res.json();
                 
-                document.getElementById('iocTotal').textContent = (data.total_iocs || 0).toLocaleString('tr-TR');
-                document.getElementById('iocHighRisk').textContent = (data.high_risk_count || 0).toLocaleString('tr-TR');
-                document.getElementById('iocMediumRisk').textContent = (data.medium_risk_count || 0).toLocaleString('tr-TR');
-                document.getElementById('iocLowRisk').textContent = (data.low_risk_count || 0).toLocaleString('tr-TR');
+                // Stats are nested under data.stats
+                const stats = data.stats || {};
+                document.getElementById('iocTotal').textContent = (stats.total_iocs || 0).toLocaleString('tr-TR');
+                document.getElementById('iocHighRisk').textContent = (stats.high_risk_count || 0).toLocaleString('tr-TR');
+                document.getElementById('iocMediumRisk').textContent = (stats.medium_risk_count || 0).toLocaleString('tr-TR');
+                document.getElementById('iocLowRisk').textContent = (stats.low_risk_count || 0).toLocaleString('tr-TR');
                 
-                const lastUpdate = data.last_update ? new Date(data.last_update).toLocaleString('tr-TR') : 'Bilinmiyor';
+                const lastUpdate = stats.last_update ? new Date(stats.last_update).toLocaleString('tr-TR') : 'Bilinmiyor';
                 document.getElementById('iocLastUpdate').textContent = lastUpdate;
             } catch (e) {
                 document.getElementById('iocTotal').textContent = '—';
