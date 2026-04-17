@@ -314,7 +314,7 @@ class AbuseChCollector:
             endpoint = "https://urlhaus.abuse.ch/downloads/csv/"
             
             logger.info(f"📥 Fetching URLhaus CSV from {endpoint}")
-            response = self.http.get(endpoint, timeout=30)
+            response = self.http.get(endpoint)
             
             # Only 200 = success
             if not response or response.status_code != 200:
