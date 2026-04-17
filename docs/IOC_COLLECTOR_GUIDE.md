@@ -14,7 +14,7 @@
 5. [Risk Scoring Algorithm](#risk-scoring-algorithm)
 6. [Data Models](#data-models)
 7. [Usage Examples](#usage-examples)
-8. [Integration with Threat Responder](#integration-with-cyber-guardian)
+8. [Integration with Threat Responder](#integration-with-threat-responder)
 9. [Best Practices](#best-practices)
 
 ---

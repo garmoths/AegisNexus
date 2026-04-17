@@ -283,7 +283,7 @@ Hesaplama:
 
 ---
 
-## 🔗 CYBER GUARDIAN ENTEGRASYONU
+## 🔗 THREAT RESPONDER ENTEGRASYONU
 
 IOC Collector'dan gelen veriler **Threat Responder modülüne** aktarılacak:
 
@@ -381,7 +381,7 @@ python app/main.py  # Restart with new models
 
 ---
 
-## 📈 FAZA 2: CYBER GUARDIAN SMS GATEWAY
+## 📈 FAZA 2: THREAT RESPONDER SMS GATEWAY
 
 Yapılacaklar:
 1. Honeypot'tan IOC'leri consume et
