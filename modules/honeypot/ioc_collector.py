@@ -265,39 +265,69 @@ class AbuseChCollector:
     
     def fetch_urlhaus_recent(self, limit: int = 100) -> List[IOCRecord]:
         """
-        Fetch recent malicious URLs from URLhaus.
-        
-        Returns: List of IOCRecord objects with URL and domain IOCs.
+        Fetch recent malicious URLs from URLhaus CSV dump.
+        Uses the direct CSV export endpoint.
         """
         iocs = []
-        endpoint = f"{self.BASE_URL}/urls/recent/"
+        
+        if not self.api_key:
+            logger.warning("URLhaus API key not configured")
+            return iocs
+        
+        # Use the CSV export endpoint with Auth-Key in URL
+        endpoint = f"https://urlhaus-api.abuse.ch/v2/files/exports/{self.api_key}/recent.csv"
         
         try:
-            params = {"limit": min(limit, 1000)}
-            headers = {}
-            if self.api_key:
-                headers["Auth-Key"] = self.api_key
-            
-            response = self.http.get(endpoint, params=params, headers=headers)
+            response = self.http.get(endpoint)
             
             if not response or response.status_code != 200:
                 logger.error(f"URLhaus API error: {response.status_code if response else 'timeout'}")
                 return iocs
             
-            data = response.json()
-            if data.get('query_status') != 'ok':
-                logger.warning(f"URLhaus query status: {data.get('query_status')}")
-                return iocs
-            
-            # Parse URLs
-            for url_record in data.get('urls', []):
+            # Parse CSV
+            lines = response.text.strip().split('\n')
+            for i, line in enumerate(lines[1:]):  # Skip header
+                if i >= limit:
+                    break
+                
+                parts = line.split(',')
+                if len(parts) < 3:
+                    continue
+                
                 try:
-                    url = url_record.get('url', '')
-                    threat = url_record.get('threat', '')
-                    date_added = url_record.get('date_added')
+                    url = parts[2].strip().strip('"')
+                    threat = parts[4].strip().strip('"') if len(parts) > 4 else 'malware'
                     
                     if not url:
                         continue
+                    
+                    risk_score = calculate_risk_score(
+                        threat_type=ThreatType.MALWARE,
+                        source=IOCSource.URLHAUS,
+                        confidence=0.90
+                    )
+                    
+                    iocs.append(IOCRecord(
+                        ioc_type=IOCType.URL,
+                        ioc_value=url,
+                        source=IOCSource.URLHAUS,
+                        threat_type=ThreatType.MALWARE,
+                        risk_score=risk_score,
+                        confidence=0.90,
+                        detection_count=1,
+                        ioc_metadata={'urlhaus_threat': threat},
+                    ))
+                
+                except Exception as e:
+                    logger.debug(f"Error parsing URLhaus record: {e}")
+                    continue
+            
+            logger.info(f"URLhaus fetched {len(iocs)} IOCs")
+            return iocs
+        
+        except Exception as e:
+            logger.error(f"URLhaus collection error: {e}")
+            return iocs
                     
                     # Map threat type
                     threat_map = {
@@ -420,81 +450,110 @@ class AbuseIPDBCollector:
     BASE_URL = "https://api.abuseipdb.com/api/v2"
     
     def __init__(self, api_key: str = None):
-        keys = os.getenv("ABUSEIPDB_API_KEYS", "").split(",")
-        self.api_key = api_key or (keys[0].strip() if keys else "")
+        self.api_keys = [k.strip() for k in os.getenv("ABUSEIPDB_API_KEYS", "").split(",") if k.strip()]
+        self.current_key_index = 0
+        self.api_key = api_key or (self.api_keys[0] if self.api_keys else "")
         self.http = HTTPSession(timeout=ABUSEIPDB_API_TIMEOUT)
+    
+    def get_next_key(self):
+        """Get next API key in rotation."""
+        if len(self.api_keys) > 1:
+            self.current_key_index = (self.current_key_index + 1) % len(self.api_keys)
+            self.api_key = self.api_keys[self.current_key_index]
+            logger.info(f"🔄 Rotated to API key #{self.current_key_index + 1}/{len(self.api_keys)}")
+        return self.api_key
     
     def fetch_blacklist(self, limit: int = 100) -> List[IOCRecord]:
         """
-        Fetch recent malicious IPs from AbuseIPDB blacklist.
+        Fetch recent malicious IPs from AbuseIPDB blacklist with key rotation.
         
         Returns: List of IOCRecord objects with IP IOCs.
         """
         iocs = []
         endpoint = f"{self.BASE_URL}/blacklist"
+        max_retries = len(self.api_keys)
+        attempt = 0
         
-        if not self.api_key:
-            logger.warning("AbuseIPDB API key not configured")
-            return iocs
-        
-        try:
-            headers = {
-                "Key": self.api_key,
-                "Accept": "application/json",
-            }
+        while attempt < max_retries:
+            attempt += 1
             
-            params = {
-                "limit": min(limit, 100000),
-                "plaintext": 1,  # Get plaintext format
-            }
-            
-            response = self.http.get(endpoint, headers=headers, params=params)
-            
-            if not response or response.status_code != 200:
-                logger.error(f"AbuseIPDB API error: {response.status_code if response else 'timeout'}")
+            if not self.api_key:
+                logger.warning("AbuseIPDB API key not configured")
                 return iocs
             
-            # Parse plaintext IP list
-            text = response.text
-            for line in text.strip().split('\n'):
-                line = line.strip()
-                if not line or line.startswith('#'):
+            try:
+                headers = {
+                    "Key": self.api_key,
+                    "Accept": "application/json",
+                }
+                
+                params = {
+                    "limit": min(limit, 100000),
+                    "plaintext": 1,  # Get plaintext format
+                }
+                
+                response = self.http.get(endpoint, headers=headers, params=params)
+                
+                # Success
+                if response and response.status_code == 200:
+                    # Parse plaintext IP list
+                    text = response.text
+                    for line in text.strip().split('\n'):
+                        line = line.strip()
+                        if not line or line.startswith('#'):
+                            continue
+                        
+                        try:
+                            ip = line.split(',')[0].strip() if ',' in line else line
+                            
+                            if not self._is_valid_ip(ip):
+                                continue
+                            
+                            risk_score = calculate_risk_score(
+                                threat_type=ThreatType.BOTNET,
+                                source=IOCSource.ABUSEIPDB,
+                                confidence=0.95,
+                                detection_count=1
+                            )
+                            
+                            iocs.append(IOCRecord(
+                                ioc_type=IOCType.IP,
+                                ioc_value=ip,
+                                source=IOCSource.ABUSEIPDB,
+                                threat_type=ThreatType.BOTNET,
+                                risk_score=risk_score,
+                                confidence=0.95,
+                                detection_count=1,
+                                ioc_metadata={'abuseipdb_reference': f"https://www.abuseipdb.com/check/{ip}"},
+                            ))
+                        
+                        except Exception as e:
+                            logger.debug(f"Error parsing AbuseIPDB IP: {e}")
+                            continue
+                    
+                    logger.info(f"AbuseIPDB fetched {len(iocs)} IOCs (key #{self.current_key_index + 1})")
+                    return iocs
+                
+                # Quota exceeded or auth error - try next key
+                elif response and response.status_code in [429, 401]:
+                    logger.warning(f"⚠️ Key #{self.current_key_index + 1} error: {response.status_code}. Trying next key...")
+                    self.get_next_key()
                     continue
                 
-                try:
-                    ip = line.split(',')[0].strip() if ',' in line else line
-                    
-                    if not self._is_valid_ip(ip):
-                        continue
-                    
-                    risk_score = calculate_risk_score(
-                        threat_type=ThreatType.BOTNET,
-                        source=IOCSource.ABUSEIPDB,
-                        confidence=0.95,
-                        detection_count=1
-                    )
-                    
-                    iocs.append(IOCRecord(
-                        ioc_type=IOCType.IP,
-                        ioc_value=ip,
-                        source=IOCSource.ABUSEIPDB,
-                        threat_type=ThreatType.BOTNET,
-                        risk_score=risk_score,
-                        confidence=0.95,
-                        detection_count=1,
-                        ioc_metadata={'abuseipdb_reference': f"https://www.abuseipdb.com/check/{ip}"},
-                    ))
-                
-                except Exception as e:
-                    logger.error(f"Error parsing AbuseIPDB IP: {e}")
-                    continue
+                # Other errors
+                else:
+                    logger.error(f"AbuseIPDB API error: {response.status_code if response else 'timeout'}")
+                    return iocs
             
-            logger.info(f"AbuseIPDB fetched {len(iocs)} IOCs")
-            return iocs
+            except Exception as e:
+                logger.error(f"AbuseIPDB request error (attempt {attempt}/{max_retries}): {e}")
+                if attempt < max_retries:
+                    self.get_next_key()
+                    continue
+                return iocs
         
-        except Exception as e:
-            logger.error(f"AbuseIPDB collection error: {e}")
-            return iocs
+        logger.error("AbuseIPDB: All API keys exhausted")
+        return iocs
     
     @staticmethod
     def _is_valid_ip(ip: str) -> bool:
