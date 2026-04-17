@@ -365,16 +365,16 @@ class AbuseChCollector:
                 
                 else:
                     status_code = response.status_code if response else "timeout"
-                    logger.warning(f"❌ URLhaus key #{self.urlhaus_key_index + 1}: HTTP {status_code}, rotating...")
+                    logger.warning(f"❌ URLhaus key #{self.urlhaus_key_index + 1}: HTTP {status_code}, rotating (attempt {attempt + 1}/{attempts})...")
                     self._rotate_urlhaus_key()
                     continue
             
             except requests.Timeout:
-                logger.warning(f"❌ URLhaus key #{self.urlhaus_key_index + 1}: timeout, rotating...")
+                logger.warning(f"❌ URLhaus key #{self.urlhaus_key_index + 1}: timeout (attempt {attempt + 1}/{attempts}), rotating...")
                 self._rotate_urlhaus_key()
                 continue
             except Exception as e:
-                logger.warning(f"❌ URLhaus key #{self.urlhaus_key_index + 1}: {e}, rotating...")
+                logger.warning(f"❌ URLhaus key #{self.urlhaus_key_index + 1}: {e} (attempt {attempt + 1}/{attempts}), rotating...")
                 self._rotate_urlhaus_key()
                 continue
         
@@ -454,16 +454,16 @@ class AbuseChCollector:
                 
                 else:
                     status_code = response.status_code if response else "timeout"
-                    logger.warning(f"❌ PhishTank key #{self.phishtank_key_index + 1}: HTTP {status_code}, rotating...")
+                    logger.warning(f"❌ PhishTank key #{self.phishtank_key_index + 1}: HTTP {status_code}, rotating (attempt {attempt + 1}/{attempts})...")
                     self._rotate_phishtank_key()
                     continue
             
             except requests.Timeout:
-                logger.warning(f"❌ PhishTank key #{self.phishtank_key_index + 1}: timeout, rotating...")
+                logger.warning(f"❌ PhishTank key #{self.phishtank_key_index + 1}: timeout (attempt {attempt + 1}/{attempts}), rotating...")
                 self._rotate_phishtank_key()
                 continue
             except Exception as e:
-                logger.warning(f"❌ PhishTank key #{self.phishtank_key_index + 1}: {e}, rotating...")
+                logger.warning(f"❌ PhishTank key #{self.phishtank_key_index + 1}: {e} (attempt {attempt + 1}/{attempts}), rotating...")
                 self._rotate_phishtank_key()
                 continue
         
