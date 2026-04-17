@@ -853,24 +853,81 @@ AegisNexus/
 
 ## 📝 Son Yapılan Değişiklikler
 
-### Tarih: 15 Nisan 2026 - Güvenlik ve Dayanıklılık Güncellemesi
+### Tarih: 17 Nisan 2026 - Phase 2: IOC Fetcher Automation & Frankfurt Deployment
 
-#### ✅ SSL/TLS HTTPS Entegrasyonu Tamamlandı
-- Let's Encrypt sertifikası kurulumuyla aegisnexus.dev ve www.aegisnexus.dev UHTTPSlestirildi
-- Nginx HTTPS termination aktif
-- Otomatik sertifika yenileme (Certbot timer)
-- HSTS header aktivasyonu
-- TLSv1.2 ve TLSv1.3 desteği
+#### ✅ IOC COLLECTOR SYSTEM TAMAMLANDI
+- Enterprise-grade IOC Collector Engine (1000+ lines)
+- Risk scoring algoritması (1-100 weighted scale)
+- PostgreSQL persistence (indicators_of_compromise, operator_api_keys, ioc_operator_alerts tables)
+- 6 REST API endpoints (fetch, list, search, stats, risk-level grouping)
+- Abuse.ch (URLhaus, PhishTank) + AbuseIPDB entegrasyonu
+- Comprehensive documentation (IOC_COLLECTOR_GUIDE.md, Setup guides)
 
-#### ✅ Background Process Dayanıklılığı Sağlandı
-- Ubuntu Systemd Service (`aegisnexus.service`) kurulumuyla terminal kapanırken bile arka planda çalışıyor
-- Otomatik yeniden başlama (3 retry maxed)
-- Graceful shutdown/restart
-- Systemd journal'da logging
-- Reboot sonrası auto-start
+#### ✅ FRANKFURT PRODUCTION DEPLOYMENT
+- **Server:** 104.248.45.198 (DigitalOcean, Ubuntu 20.04+)
+- **Database:** PostgreSQL phishing_db (1.2M+ phishing URLs)
+- **Credentials:** enes user with trust auth configured
+- **Ports:**
+  - Port 5000: Gunicorn (Flask API)
+  - Port 8000: Uvicorn (FastAPI Main)
+  - Port 80/443: Nginx Proxy
+
+#### ✅ IOC FETCHER AUTOMATION
+- **Script:** scripts/ioc_fetcher.py
+  - Connects to AbuseIPDB, URLhaus, PhishTank
+  - SHA256 deduplication
+  - Risk score calculation (1-100)
+  - Database persistence
+  - Comprehensive logging to /var/log/aegis/
+  - First run: 100 IOCs collected ✅
+
+- **Cron Job:** Hourly execution
+  ```
+  0 * * * * cd /var/www/aegis_nexus && source venv/bin/activate && python scripts/ioc_fetcher.py >> /var/log/aegis/ioc_fetcher.log 2>&1
+  ```
+
+#### ✅ DATABASE SETUP
+- PostgreSQL initialization script (scripts/db_setup.sql)
+- Database init tool (scripts/init_db.py)
+- 8 tables created: phishing_urls, whitelist_domains, honeypot_events, breach_records, password_checks, indicators_of_compromise, operator_api_keys, ioc_operator_alerts
+- Backup restore capability (1.2M URLs recovered from backup)
+
+#### ✅ DOCUMENTATION
+- docs/IOC_FETCHER_SETUP.md - Monitoring & troubleshooting
+- docs/IOC_DEPLOYMENT_CHECKLIST.md - Complete deployment steps
+- docs/FRANKFURT_DEPLOYMENT_STEPS.md - Production procedures
+- docs/POSTGRES_PASSWORD_FIX.md - Authentication solutions
+
+#### 🔧 FIXES APPLIED
+- SQLAlchemy reserved keyword conflict (metadata → ioc_metadata)
+- SQLAlchemy 2.0 text() wrapper for raw SQL
+- Python 3.12+ timezone-aware datetime deprecation warnings
+- PostgreSQL permission issues (trust auth, schema privileges)
+- pm2 process management (Flask/Gunicorn setup)
+- Nginx upstream proxy configuration
+
+#### ✅ PRODUCTION STATUS
+- PostgreSQL: Running with 1.2M+ phishing URLs
+- API: Online (Port 5000 Gunicorn + Port 8000 Uvicorn)
+- IOC Fetcher: Active (hourly cron job running)
+- Logs: /var/log/aegis/ with daily rotation (30-day retention)
+- Monitoring: Working (database growth tracked, error logs available)
+
+**FRANKFURT FRANKFURT DEPLOYMENT CREDENTIALS - NEVER FORGET:**
+- Server IP: 104.248.45.198
+- SSH User: root
+- PostgreSQL Password (postgres): Lekel.213141
+- Database: phishing_db
+- DB User: enes
+- DB Password: aegis123
+- Backup Location: /tmp/phishing_db.sql (1.2M URLs)
+- IOC Fetcher: scripts/ioc_fetcher.py (hourly via cron)
+- Logs Directory: /var/log/aegis/
 
 **Artık:**
 - Terminal kapatıldığında → ✅ Çalışmaya devam
 - SSH session bittiğinde → ✅ Çalışmaya devam
 - Server reboot olduğunda → ✅ Otomatik başlıyor
 - Crash/error olduğunda → ✅ 10 sn içinde restart
+- IOC Fetcher → ✅ Her saat başında çalışıyor
+- Veri Tabanı → ✅ 1.2M+ phishing URLs (Güvenli backup recovery yapıldı)
