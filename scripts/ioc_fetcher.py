@@ -92,7 +92,7 @@ class IOCFetcher:
         
         try:
             logger.info(f"🔄 Starting IOC collection from: {', '.join(sources)}")
-            collected = self.engine.collect_all(include_sources=sources)
+            collected = self.engine.collect_all(include_sources=sources, limit=1000)
             self.stats["collected"] = len(collected)
             logger.info(f"✅ Collected {self.stats['collected']} IOCs")
             return collected

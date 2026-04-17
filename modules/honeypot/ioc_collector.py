@@ -540,12 +540,13 @@ class IOCCollectorEngine:
         self.abuseipdb = AbuseIPDBCollector()
         self.last_update = {}
     
-    def collect_all(self, include_sources: List[str] = None) -> List[IOCRecord]:
+    def collect_all(self, include_sources: List[str] = None, limit: int = 1000) -> List[IOCRecord]:
         """
         Fetch IOCs from all configured sources.
         
         Args:
             include_sources: List of IOCSource values to include. If None, fetch all.
+            limit: Max IOCs per source
         
         Returns:
             List of collected and validated IOCRecord objects.
@@ -557,14 +558,14 @@ class IOCCollectorEngine:
         
         # Abuse.ch
         if IOCSource.URLHAUS.value in include_sources:
-            collected.extend(self.abuse_ch.fetch_urlhaus_recent(limit=5000))
+            collected.extend(self.abuse_ch.fetch_urlhaus_recent(limit=limit))
         
         if IOCSource.PHISHTANK.value in include_sources:
-            collected.extend(self.abuse_ch.fetch_phishtank_recent(limit=5000))
+            collected.extend(self.abuse_ch.fetch_phishtank_recent(limit=limit))
         
         # AbuseIPDB
         if IOCSource.ABUSEIPDB.value in include_sources:
-            collected.extend(self.abuseipdb.fetch_blacklist(limit=5000))
+            collected.extend(self.abuseipdb.fetch_blacklist(limit=limit))
         
         # Validate and deduplicate
         validated = self._validate_and_deduplicate(collected)
