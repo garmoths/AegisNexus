@@ -174,7 +174,7 @@ def check_virustotal(url, timeout=8):
             api_url = f"https://www.virustotal.com/api/v3/urls/{url_id}"
             resp = requests.get(api_url, headers=headers, timeout=timeout)
             
-            # Sadece 200 = başarı
+            # Sadece 200 = başarı - immediately return!
             if resp.status_code == 200:
                 data = resp.json()
                 stats = data.get("data", {}).get("attributes", {}).get("last_analysis_stats", {})
@@ -212,6 +212,7 @@ def check_virustotal(url, timeout=8):
                     "engines": threat_engines[:10]
                 }
                 _set_cached(cache_key, result)
+                logger.debug(f"✅ VirusTotal success on attempt {attempt + 1}, returning immediately")
                 return result
             
             elif resp.status_code == 404:
@@ -236,21 +237,22 @@ def check_virustotal(url, timeout=8):
                     continue
             
             else:
-                # Non-200 status = rotate
-                logger.warning(f"VirusTotal key #{API_RATE_LIMITS['virustotal']['key_index']}: HTTP {resp.status_code}, rotating...")
+                # Non-200 status = rotate to next key
+                logger.warning(f"VirusTotal key #{API_RATE_LIMITS['virustotal']['key_index']}: HTTP {resp.status_code}, rotating (attempt {attempt + 1}/{attempts})...")
                 _rotate_api_key("virustotal")
                 continue
         
         except requests.Timeout:
-            logger.warning(f"VirusTotal key #{API_RATE_LIMITS['virustotal']['key_index']}: timeout, rotating...")
+            logger.warning(f"VirusTotal key #{API_RATE_LIMITS['virustotal']['key_index']}: timeout (attempt {attempt + 1}/{attempts}), rotating...")
             _rotate_api_key("virustotal")
             continue
         except Exception as e:
-            logger.warning(f"VirusTotal key #{API_RATE_LIMITS['virustotal']['key_index']}: {e}, rotating...")
+            logger.warning(f"VirusTotal key #{API_RATE_LIMITS['virustotal']['key_index']}: {e} (attempt {attempt + 1}/{attempts}), rotating...")
             _rotate_api_key("virustotal")
             continue
     
-    # Tüm key'ler başarısız
+    # Tüm key'ler başarısız - return empty result
+    logger.error(f"❌ VirusTotal: All {len(VIRUSTOTAL_API_KEYS)} keys exhausted")
     return {
         "available": True,
         "status": f"VirusTotal: Tüm {len(VIRUSTOTAL_API_KEYS)} API key başarısız",
@@ -312,7 +314,7 @@ def check_google_safe_browsing(url, timeout=8):
             
             resp = requests.post(api_url, json=payload, timeout=timeout)
             
-            # Sadece 200 = başarı
+            # Sadece 200 = başarı - immediately return!
             if resp.status_code == 200:
                 data = resp.json()
                 matches = data.get("matches", [])
@@ -332,6 +334,7 @@ def check_google_safe_browsing(url, timeout=8):
                         "threat_type": threat_names.get(threat_type, threat_type)
                     }
                     _set_cached(cache_key, result)
+                    logger.debug(f"✅ Google Safe Browsing success on attempt {attempt + 1}, returning immediately")
                     return result
                 
                 result = {
@@ -341,23 +344,25 @@ def check_google_safe_browsing(url, timeout=8):
                     "threat_type": None
                 }
                 _set_cached(cache_key, result)
+                logger.debug(f"✅ Google Safe Browsing success (clean) on attempt {attempt + 1}, returning immediately")
                 return result
             
             else:
-                logger.warning(f"Google Safe Browsing key #{API_RATE_LIMITS['google_safe']['key_index']}: HTTP {resp.status_code}, rotating...")
+                logger.warning(f"Google Safe Browsing key #{API_RATE_LIMITS['google_safe']['key_index']}: HTTP {resp.status_code}, rotating (attempt {attempt + 1}/{attempts})...")
                 _rotate_api_key("google_safe")
                 continue
         
         except requests.Timeout:
-            logger.warning(f"Google Safe Browsing key #{API_RATE_LIMITS['google_safe']['key_index']}: timeout, rotating...")
+            logger.warning(f"Google Safe Browsing key #{API_RATE_LIMITS['google_safe']['key_index']}: timeout (attempt {attempt + 1}/{attempts}), rotating...")
             _rotate_api_key("google_safe")
             continue
         except Exception as e:
-            logger.warning(f"Google Safe Browsing key #{API_RATE_LIMITS['google_safe']['key_index']}: {e}, rotating...")
+            logger.warning(f"Google Safe Browsing key #{API_RATE_LIMITS['google_safe']['key_index']}: {e} (attempt {attempt + 1}/{attempts}), rotating...")
             _rotate_api_key("google_safe")
             continue
     
-    # Tüm key'ler başarısız
+    # Tüm key'ler başarısız - return empty result
+    logger.error(f"❌ Google Safe Browsing: All {len(GOOGLE_SAFE_BROWSING_KEYS)} keys exhausted")
     return {
         "available": True,
         "status": f"Google Safe Browsing: Tüm {len(GOOGLE_SAFE_BROWSING_KEYS)} API key başarısız",
@@ -425,7 +430,7 @@ def check_abuseipdb(url, timeout=8):
                 headers=headers, params=params, timeout=timeout
             )
             
-            # Sadece 200 = başarı
+            # Sadece 200 = başarı - immediately return!
             if resp.status_code == 200:
                 data = resp.json().get("data", {})
                 abuse_score = data.get("abuseConfidenceScore", 0)
@@ -452,23 +457,25 @@ def check_abuseipdb(url, timeout=8):
                     "isp": isp
                 }
                 _set_cached(cache_key, result)
+                logger.debug(f"✅ AbuseIPDB success on attempt {attempt + 1}, returning immediately")
                 return result
             
             else:
-                logger.warning(f"AbuseIPDB key #{API_RATE_LIMITS['abuseipdb']['key_index']}: HTTP {resp.status_code}, rotating...")
+                logger.warning(f"AbuseIPDB key #{API_RATE_LIMITS['abuseipdb']['key_index']}: HTTP {resp.status_code}, rotating (attempt {attempt + 1}/{attempts})...")
                 _rotate_api_key("abuseipdb")
                 continue
         
         except requests.Timeout:
-            logger.warning(f"AbuseIPDB key #{API_RATE_LIMITS['abuseipdb']['key_index']}: timeout, rotating...")
+            logger.warning(f"AbuseIPDB key #{API_RATE_LIMITS['abuseipdb']['key_index']}: timeout (attempt {attempt + 1}/{attempts}), rotating...")
             _rotate_api_key("abuseipdb")
             continue
         except Exception as e:
-            logger.warning(f"AbuseIPDB key #{API_RATE_LIMITS['abuseipdb']['key_index']}: {e}, rotating...")
+            logger.warning(f"AbuseIPDB key #{API_RATE_LIMITS['abuseipdb']['key_index']}: {e} (attempt {attempt + 1}/{attempts}), rotating...")
             _rotate_api_key("abuseipdb")
             continue
     
-    # Tüm key'ler başarısız
+    # Tüm key'ler başarısız - return empty result
+    logger.error(f"❌ AbuseIPDB: All {len(ABUSEIPDB_API_KEYS)} keys exhausted")
     return {
         "available": True,
         "status": f"AbuseIPDB: Tüm {len(ABUSEIPDB_API_KEYS)} API key başarısız",
