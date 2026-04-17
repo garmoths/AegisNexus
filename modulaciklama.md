@@ -55,8 +55,8 @@ Bu doküman, sistemdeki modüllerin ne işe yaradığını, ne yaptığını ve 
   - Güvenlik header referansları sunar (/security-headers)
 - Versiyon: v2
 
-## 06 - Cyber Guardian
-- API prefix: /api/v2/guardian
+## 06 - Threat Responder
+- API prefix: /api/v2/responder
 - Modül amacı: Siber zorbalık/şantaj içeriklerini analiz etmek ve mağdur destek akışı sunmak.
 - Ne yapar:
   - Tehdit mesaj analizi yapar (/analyze-threat)

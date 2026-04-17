@@ -152,7 +152,7 @@ Aegis Nexus, **6 katmanlı modüler güvenlik kalkanı** mimarisi ile inşa edil
   - `GET /api/v2/infra/ssl-cert/{domain}` - SSL sertifika detayları
   - `POST /api/v2/infra/port-scan` - Port taraması
 
-### 06️⃣ **Cyber Guardian** (Siber Koruyucu - Sosyal Tehdit)
+### 06️⃣ **Threat Responder** (Siber Koruyucu - Sosyal Tehdit)
 - **Amaç:** Siber zorbalık, şantaj ve sosyal ağ tehditleri tespit etme
 - **Özellikler:**
   - Siber zorbalık deteksiyonu
@@ -161,10 +161,10 @@ Aegis Nexus, **6 katmanlı modüler güvenlik kalkanı** mimarisi ile inşa edil
   - Reputasyon yönetimi
   - Tehlikeli içerik tespiti
   - Toplum odaklı tehdit analizi
-- **API Prefix:** `/api/v2/guardian`
+- **API Prefix:** `/api/v2/responder`
 - **Endpoint Örnekleri:**
-  - `POST /api/v2/guardian/check-profile` - Profil güvenlik analizi
-  - `GET /api/v2/guardian/threats/{username}` - Tehdit raporu
+  - `POST /api/v2/responder/check-profile` - Profil güvenlik analizi
+  - `GET /api/v2/responder/threats/{username}` - Tehdit raporu
 
 ---
 
@@ -300,7 +300,7 @@ app.include_router(honeypot_router, prefix="/api/v2/honeypot")
 app.include_router(breach_intel_router, prefix="/api/v2/breach")
 app.include_router(password_shield_router, prefix="/api/v2/shield")
 app.include_router(infra_guard_router, prefix="/api/v2/infra")
-app.include_router(cyber_guardian_router, prefix="/api/v2/guardian")
+app.include_router(threat_responder_router, prefix="/api/v2/responder")
 ```
 
 ### Root Endpoint
@@ -737,7 +737,7 @@ AegisNexus/
 │   │   ├── routers/
 │   │   └── ...
 │   │
-│   └── cyber_guardian/         # 06 - Cyber Guardian
+│   └── cyber_responder/         # 06 - Threat Responder
 │       ├── __init__.py
 │       ├── router.py
 │       ├── engine.py           # Zorbalık deteksiyonu
@@ -788,7 +788,7 @@ AegisNexus/
 ### Backend Development
 - ✅ FastAPI framework kurulumu ve temel app.main.py
 - ✅ SQLAlchemy ORM setup (PostgreSQL connection pooling)
-- ✅ 6 modüler router sistemi (phishing, honeypot, breach, shield, infra, guardian)
+- ✅ 6 modüler router sistemi (phishing, honeypot, breach, shield, infra, responder)
 - ✅ Pydantic data validation
 - ✅ Harici API entegrasyonları (VirusTotal, Google Safe Browsing, AbuseIPDB, Groq)
 - ✅ Database lifespan management (auto-create tables)

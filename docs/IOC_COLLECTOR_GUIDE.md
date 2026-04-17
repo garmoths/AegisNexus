@@ -14,7 +14,7 @@
 5. [Risk Scoring Algorithm](#risk-scoring-algorithm)
 6. [Data Models](#data-models)
 7. [Usage Examples](#usage-examples)
-8. [Integration with Cyber Guardian](#integration-with-cyber-guardian)
+8. [Integration with Threat Responder](#integration-with-cyber-guardian)
 9. [Best Practices](#best-practices)
 
 ---
@@ -36,7 +36,7 @@
 
 ✅ **Persists to PostgreSQL** for query, filtering, analytics
 
-✅ **Integrates with Cyber Guardian** for operator SMS alerts and daily reports
+✅ **Integrates with Threat Responder** for operator SMS alerts and daily reports
 
 ---
 
@@ -606,9 +606,9 @@ curl http://localhost:8000/api/v2/honeypot/ioc/stats-advanced
 
 ---
 
-## Integration with Cyber Guardian
+## Integration with Threat Responder
 
-IOC Collector feeds data to **Cyber Guardian** module for:
+IOC Collector feeds data to **Threat Responder** module for:
 
 1. **Realtime Alerts** (Risk 80+)
    - Push to operator webhook
