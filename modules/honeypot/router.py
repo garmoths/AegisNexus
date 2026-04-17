@@ -5,6 +5,7 @@ Dolandırıcıları tersine mühendislik ile avlayan tuzak endpointleri
 from __future__ import annotations
 
 import json
+import logging
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
@@ -12,10 +13,14 @@ from sqlalchemy.orm import Session
 from typing import Optional, List
 
 from shared.utils.db import get_db
-from app.models import HoneypotEvent
+from app.models import HoneypotEvent, IndicatorOfCompromise
 from .engine import honeypot_engine, HoneypotSession
+from .ioc_collector import IOCCollectorEngine, IOCRecord, IOCType, ThreatType, IOCSource
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["02-honeypot"])
+ioc_engine = IOCCollectorEngine()
 
 
 def _client_ip(request: Request) -> str:
@@ -433,3 +438,268 @@ def get_ioc_stats():
         "stats": honeypot_engine.ioc_stats(),
         "module": "02_honeypot",
     }
+
+
+# ============================================================================
+# ENTERPRISE IOC COLLECTOR ENDPOINTS (NEW)
+# ============================================================================
+
+class IOCCollectorFetchRequest(BaseModel):
+    """Fetch IOCs from external threat intelligence sources."""
+    sources: Optional[List[str]] = None  # Specific sources to fetch from
+    limit_per_source: int = 100
+
+
+class IOCFilterRequest(BaseModel):
+    """Filter stored IOCs by criteria."""
+    ioc_type: Optional[str] = None  # 'ip', 'domain', 'url', 'hash'
+    threat_type: Optional[str] = None  # 'phishing', 'malware', 'botnet', 'c2'
+    min_risk_score: int = 0  # Only return IOCs >= this score
+    source: Optional[str] = None  # Filter by specific source
+
+
+@router.post("/ioc/fetch-external")
+async def fetch_external_iocs(
+    req: IOCCollectorFetchRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Fetch IOCs from external threat intelligence sources.
+    
+    Sources:
+    - abuse.ch (URLhaus, PhishTank, SSL Phishing)
+    - AbuseIPDB (malicious IP database)
+    
+    Response: Collected, deduplicated, and scored IOCs
+    """
+    try:
+        logger.info(f"Starting external IOC collection from sources: {req.sources}")
+        
+        # Collect from sources
+        collected_iocs = ioc_engine.collect_all(include_sources=req.sources)
+        
+        logger.info(f"Collected {len(collected_iocs)} unique IOCs")
+        
+        # Store in memory cache
+        for ioc in collected_iocs:
+            ioc_engine.store_ioc(ioc)
+        
+        # Also persist to database (for operator gateway)
+        stored_count = 0
+        for ioc in collected_iocs:
+            try:
+                db_ioc = IndicatorOfCompromise(
+                    ioc_type=ioc.ioc_type,
+                    ioc_value=ioc.ioc_value,
+                    ioc_value_hash=ioc.get_value_hash(),
+                    source=ioc.source,
+                    threat_type=ioc.threat_type,
+                    threat_tags=ioc.threat_tags or [],
+                    risk_score=ioc.risk_score,
+                    confidence=ioc.confidence,
+                    first_seen=ioc.first_seen,
+                    last_seen=ioc.last_seen,
+                    detection_count=ioc.detection_count,
+                    context=ioc.context,
+                    metadata=ioc.metadata,
+                    source_reference=ioc.source_reference,
+                    status='active',
+                )
+                db.add(db_ioc)
+                stored_count += 1
+            except Exception as e:
+                logger.error(f"Error storing IOC {ioc.ioc_value}: {e}")
+                continue
+        
+        db.commit()
+        logger.info(f"Persisted {stored_count} IOCs to database")
+        
+        # Get updated stats
+        stats = ioc_engine.get_stats()
+        
+        return {
+            "status": "success",
+            "module": "02_honeypot_ioc_collector",
+            "collected": len(collected_iocs),
+            "persisted": stored_count,
+            "stats": stats,
+            "samples": [ioc.to_dict() for ioc in collected_iocs[:10]],  # First 10 samples
+        }
+    
+    except Exception as e:
+        logger.error(f"External IOC collection failed: {e}", exc_info=True)
+        return {
+            "status": "error",
+            "module": "02_honeypot_ioc_collector",
+            "error": str(e),
+        }
+
+
+@router.get("/ioc/list-collected")
+async def list_collected_iocs_advanced(
+    ioc_type: Optional[str] = None,
+    threat_type: Optional[str] = None,
+    min_risk_score: int = 0,
+    source: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0,
+):
+    """
+    List collected IOCs with advanced filtering.
+    
+    Filters:
+    - ioc_type: 'ip', 'domain', 'url', 'hash'
+    - threat_type: 'phishing', 'malware', 'botnet', 'c2'
+    - min_risk_score: 1-100
+    - source: 'abuse_urlhaus', 'abuse_phishtank', 'abuseipdb', 'honeypot'
+    """
+    filters = {}
+    if ioc_type:
+        filters['ioc_type'] = ioc_type
+    if threat_type:
+        filters['threat_type'] = threat_type
+    if min_risk_score > 0:
+        filters['min_risk_score'] = min_risk_score
+    if source:
+        filters['source'] = source
+    
+    all_iocs = ioc_engine.list_iocs(filters=filters)
+    total = len(all_iocs)
+    paginated = all_iocs[offset:offset+limit]
+    
+    return {
+        "status": "success",
+        "module": "02_honeypot_ioc_collector",
+        "total": total,
+        "returned": len(paginated),
+        "offset": offset,
+        "limit": limit,
+        "iocs": [ioc.to_dict() for ioc in paginated],
+    }
+
+
+@router.get("/ioc/stats-advanced")
+async def get_ioc_stats_advanced():
+    """
+    Get comprehensive IOC statistics.
+    
+    Returns:
+    - Total IOC count
+    - Breakdown by type (ip, domain, url, hash)
+    - Breakdown by threat type (phishing, malware, botnet, etc.)
+    - Breakdown by source (URLhaus, AbuseIPDB, etc.)
+    - Average risk score
+    - High risk count (>= 80)
+    - Critical count (>= 95)
+    """
+    stats = ioc_engine.get_stats()
+    
+    return {
+        "status": "success",
+        "module": "02_honeypot_ioc_collector",
+        "statistics": stats,
+        "insights": {
+            "high_risk_percentage": round((stats['high_risk_count'] / max(1, stats['total_iocs'])) * 100, 2),
+            "critical_percentage": round((stats['critical_count'] / max(1, stats['total_iocs'])) * 100, 2),
+            "average_risk_score": round(stats.get('average_risk_score', 0), 2),
+        }
+    }
+
+
+@router.get("/ioc/search")
+async def search_ioc(
+    q: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Search for specific IOC in database.
+    
+    Searches across: IP, domain, URL, file hash, source reference.
+    """
+    if len(q) < 2:
+        return {
+            "status": "error",
+            "message": "Search query must be at least 2 characters",
+        }
+    
+    try:
+        results = db.query(IndicatorOfCompromise).filter(
+            IndicatorOfCompromise.ioc_value.ilike(f"%{q}%")
+        ).limit(50).all()
+        
+        return {
+            "status": "success",
+            "module": "02_honeypot_ioc_collector",
+            "query": q,
+            "found": len(results),
+            "results": [
+                {
+                    "id": r.id,
+                    "type": r.ioc_type,
+                    "value": r.ioc_value,
+                    "threat_type": r.threat_type,
+                    "risk_score": r.risk_score,
+                    "source": r.source,
+                    "detection_count": r.detection_count,
+                    "first_seen": r.first_seen.isoformat() if r.first_seen else None,
+                    "last_seen": r.last_seen.isoformat() if r.last_seen else None,
+                }
+                for r in results
+            ]
+        }
+    except Exception as e:
+        logger.error(f"IOC search error: {e}")
+        return {
+            "status": "error",
+            "module": "02_honeypot_ioc_collector",
+            "error": str(e),
+        }
+
+
+@router.get("/ioc/by-risk-score")
+async def get_iocs_by_risk_level(
+    level: str,  # 'critical' (95-100), 'high' (80-94), 'medium' (50-79), 'low' (1-49)
+    limit: int = 100,
+    db: Session = Depends(get_db)
+):
+    """Get IOCs grouped by risk level."""
+    risk_ranges = {
+        'critical': (95, 100),
+        'high': (80, 94),
+        'medium': (50, 79),
+        'low': (1, 49),
+    }
+    
+    if level not in risk_ranges:
+        return {"status": "error", "message": f"Invalid level. Must be one of: {list(risk_ranges.keys())}"}
+    
+    min_score, max_score = risk_ranges[level]
+    
+    try:
+        results = db.query(IndicatorOfCompromise).filter(
+            IndicatorOfCompromise.risk_score >= min_score,
+            IndicatorOfCompromise.risk_score <= max_score,
+        ).order_by(IndicatorOfCompromise.risk_score.desc()).limit(limit).all()
+        
+        return {
+            "status": "success",
+            "module": "02_honeypot_ioc_collector",
+            "risk_level": level,
+            "score_range": {"min": min_score, "max": max_score},
+            "found": len(results),
+            "iocs": [
+                {
+                    "value": r.ioc_value,
+                    "type": r.ioc_type,
+                    "threat_type": r.threat_type,
+                    "risk_score": r.risk_score,
+                    "confidence": r.confidence,
+                    "source": r.source,
+                    "detection_count": r.detection_count,
+                }
+                for r in results
+            ]
+        }
+    except Exception as e:
+        logger.error(f"Risk level query error: {e}")
+        return {"status": "error", "error": str(e)}
