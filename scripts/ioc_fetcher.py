@@ -134,7 +134,7 @@ class IOCFetcher:
                         last_seen=ioc.last_seen,
                         detection_count=ioc.detection_count,
                         context=ioc.context,
-                        metadata=ioc.metadata,
+                        ioc_metadata=ioc.ioc_metadata,
                         source_reference=ioc.source_reference,
                         status='active',
                     )
