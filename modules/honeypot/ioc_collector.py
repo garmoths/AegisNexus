@@ -417,8 +417,19 @@ class AbuseIPDBCollector:
     BASE_URL = "https://api.abuseipdb.com/api/v2"
     
     def __init__(self, api_key: str = None):
-        self.api_key = api_key or os.getenv("ABUSEIPDB_API_KEYS", "").split(",")[0]
+        self.api_keys = os.getenv("ABUSEIPDB_API_KEYS", "").split(",")
+        self.current_key_index = 0
+        self.api_key = api_key or (self.api_keys[0] if self.api_keys else "")
         self.http = HTTPSession(timeout=ABUSEIPDB_API_TIMEOUT)
+    
+    def rotate_api_key(self):
+        """Switch to next API key on quota exceeded."""
+        if len(self.api_keys) > 1:
+            self.current_key_index = (self.current_key_index + 1) % len(self.api_keys)
+            self.api_key = self.api_keys[self.current_key_index]
+            logger.info(f"🔄 Rotating API key to #{self.current_key_index + 1}")
+            return True
+        return False
     
     def fetch_blacklist(self, limit: int = 100) -> List[IOCRecord]:
         """
@@ -445,6 +456,15 @@ class AbuseIPDBCollector:
             }
             
             response = self.http.get(endpoint, headers=headers, params=params)
+            
+            # Check for quota exceeded
+            if response and response.status_code == 429:
+                logger.warning(f"⚠️ AbuseIPDB quota exceeded for key #{self.current_key_index + 1}")
+                if self.rotate_api_key():
+                    # Retry with next key
+                    logger.info(f"🔄 Retrying with rotated key...")
+                    headers["Key"] = self.api_key
+                    response = self.http.get(endpoint, headers=headers, params=params)
             
             if not response or response.status_code != 200:
                 logger.error(f"AbuseIPDB API error: {response.status_code if response else 'timeout'}")
