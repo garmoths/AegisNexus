@@ -434,8 +434,8 @@ def list_collected_iocs(ioc_type: Optional[str] = None, limit: int = 100, min_co
 def get_ioc_stats():
     """IOC collector istatistikleri - veritabanından."""
     try:
-        from app.database import get_db
-        db = next(get_db())
+        from app.database import SessionLocal
+        db = SessionLocal()
         
         # Veritabanından IOC istatistikleri
         total = db.query(IndicatorOfCompromise).count()
@@ -449,6 +449,8 @@ def get_ioc_stats():
         last_update = db.query(IndicatorOfCompromise.created_at).order_by(
             IndicatorOfCompromise.created_at.desc()
         ).first()
+        
+        db.close()
         
         return {
             "status": "success",
