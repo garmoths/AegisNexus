@@ -328,53 +328,6 @@ class AbuseChCollector:
         except Exception as e:
             logger.error(f"URLhaus collection error: {e}")
             return iocs
-                    
-                    # Map threat type
-                    threat_map = {
-                        'phishing': ThreatType.PHISHING,
-                        'malware_download': ThreatType.MALWARE,
-                        'malware_distribution': ThreatType.MALWARE,
-                    }
-                    threat_type = threat_map.get(threat, ThreatType.MALWARE)
-                    
-                    # Create URL IOC
-                    url_normalized = normalize_value(url, IOCType.URL)
-                    iocs.append(IOCRecord(
-                        ioc_type=IOCType.URL,
-                        ioc_value=url_normalized,
-                        source=IOCSource.URLHAUS,
-                        threat_type=threat_type,
-                        confidence=0.95,
-                        detection_count=1,
-                        source_reference=url_record.get('urlhaus_reference', ''),
-                        ioc_metadata={'threat': threat, 'date_added': date_added},
-                    ))
-                    
-                    # Extract domain from URL
-                    domain_match = re.search(r'(?:https?://)?(?:www\.)?([^/:?#]+)', url)
-                    if domain_match:
-                        domain = domain_match.group(1)
-                        domain_normalized = normalize_value(domain, IOCType.DOMAIN)
-                        iocs.append(IOCRecord(
-                            ioc_type=IOCType.DOMAIN,
-                            ioc_value=domain_normalized,
-                            source=IOCSource.URLHAUS,
-                            threat_type=threat_type,
-                            confidence=0.9,
-                            detection_count=1,
-                            ioc_metadata={'threat': threat},
-                        ))
-                
-                except Exception as e:
-                    logger.error(f"Error parsing URLhaus record: {e}")
-                    continue
-            
-            logger.info(f"URLhaus fetched {len(iocs)} IOCs")
-            return iocs
-        
-        except Exception as e:
-            logger.error(f"URLhaus collection error: {e}")
-            return iocs
     
     def fetch_phishtank_recent(self, limit: int = 100) -> List[IOCRecord]:
         """Fetch recent phishing URLs from PhishTank (abuse.ch feed)."""
