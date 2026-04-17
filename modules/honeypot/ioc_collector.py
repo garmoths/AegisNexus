@@ -427,6 +427,8 @@ class AbuseIPDBCollector:
         max_retries = len(self.api_keys)
         attempt = 0
         
+        logger.info(f"🔑 Starting with {max_retries} API keys")
+        
         while attempt < max_retries:
             attempt += 1
             
@@ -435,6 +437,8 @@ class AbuseIPDBCollector:
                 return iocs
             
             try:
+                logger.info(f"📡 Attempt {attempt}/{max_retries}: Using key #{self.current_key_index + 1}")
+                
                 headers = {
                     "Key": self.api_key,
                     "Accept": "application/json",
@@ -484,28 +488,35 @@ class AbuseIPDBCollector:
                             logger.debug(f"Error parsing AbuseIPDB IP: {e}")
                             continue
                     
-                    logger.info(f"AbuseIPDB fetched {len(iocs)} IOCs (key #{self.current_key_index + 1})")
+                    logger.info(f"✅ AbuseIPDB fetched {len(iocs)} IOCs (key #{self.current_key_index + 1})")
                     return iocs
                 
-                # Quota exceeded or auth error - try next key
-                elif response and response.status_code in [429, 401]:
-                    logger.warning(f"⚠️ Key #{self.current_key_index + 1} error: {response.status_code}. Trying next key...")
+                # Quota exceeded (429) - try next key
+                elif response and response.status_code == 429:
+                    logger.warning(f"⚠️ 429 Quota exceeded for key #{self.current_key_index + 1}. Rotating to next key...")
+                    self.get_next_key()
+                    continue
+                
+                # Auth error (401) - try next key
+                elif response and response.status_code == 401:
+                    logger.warning(f"⚠️ 401 Auth failed for key #{self.current_key_index + 1}. Rotating to next key...")
                     self.get_next_key()
                     continue
                 
                 # Other errors
                 else:
-                    logger.error(f"AbuseIPDB API error: {response.status_code if response else 'timeout'}")
+                    logger.error(f"❌ AbuseIPDB API error: {response.status_code if response else 'timeout'}")
                     return iocs
             
             except Exception as e:
-                logger.error(f"AbuseIPDB request error (attempt {attempt}/{max_retries}): {e}")
+                logger.error(f"❌ AbuseIPDB request error (attempt {attempt}/{max_retries}): {e}")
                 if attempt < max_retries:
+                    logger.info(f"Rotating to next key...")
                     self.get_next_key()
                     continue
                 return iocs
         
-        logger.error("AbuseIPDB: All API keys exhausted")
+        logger.error("❌ AbuseIPDB: All {max_retries} API keys exhausted")
         return iocs
     
     @staticmethod
