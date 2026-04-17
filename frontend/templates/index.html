@@ -772,7 +772,7 @@
             resultsDiv.innerHTML = '<p>Aranıyor…</p>';
             
             try {
-                const res = await fetch('/api/v2/honeypot/ioc/search?query=' + encodeURIComponent(query));
+                const res = await fetch('/api/v2/honeypot/ioc/search?q=' + encodeURIComponent(query));
                 const data = await res.json();
                 
                 if (!data.results || data.results.length === 0) {
