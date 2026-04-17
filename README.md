@@ -24,7 +24,7 @@
 ## Modules
 - 🎣 Phishing Detector
 - 🕸️ Honeypot
-- 🛡️ Cyber Guardian
+- 🛡️ Threat Responder
 - 🏛️ Infrastructure Guard
 - 🔐 Password Shield
 - 🔓 Breach Intelligence
