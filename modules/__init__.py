@@ -10,10 +10,10 @@ Modüller:
 03. breach_intel - Veri sızıntısı istihbaratı
 04. password_shield - Kriptografik şifre üretimi
 05. infra_guard - Altyapı ve SSL güvenlik analizi
-06. cyber_guardian - Siber zorbalık ve şantaj önleme
+06. threat_responder - Tehdit göstergelerini operatörlere yanıt ver
 
-Her modülün router'ı /api/modular/ prefix'i altında erişilebilir.
-Örnek: /api/modular/phishing/check-url
+Her modülün router'ı /api/v2/modular/ prefix'i altında erişilebilir.
+Örnek: /api/v2/phishing/check-url
 """
 
 # 01 - Phishing Detector
@@ -31,8 +31,8 @@ from .password_shield import router as password_shield_router
 # 05 - Infrastructure Guard (Altyapı Kalkanı)
 from .infra_guard import router as infra_guard_router
 
-# 06 - Cyber Guardian (Siber Koruyucu)
-from .cyber_guardian import router as cyber_guardian_router
+# 06 - Threat Responder (Tehdit Yanıtlayıcı)
+from .threat_responder import router as threat_responder_router
 
 router = None  # Placeholder for direct router access
 
@@ -42,5 +42,5 @@ __all__ = [
     "breach_intel_router",
     "password_shield_router",
     "infra_guard_router",
-    "cyber_guardian_router",
+    "threat_responder_router",
 ]

@@ -1,4 +1,4 @@
-# IOC Collector + Cyber Guardian SMS Integration
+# IOC Collector + Threat Responder SMS Integration
 
 ## Quick Setup
 
@@ -78,7 +78,7 @@ CREATE TABLE ioc_operator_alerts (
 
 ---
 
-### Phase 2: Cyber Guardian SMS Integration (NEXT)
+### Phase 2: Threat Responder SMS Integration (NEXT)
 
 Will include:
 - Consume IOCs from Honeypot collector
@@ -151,7 +151,7 @@ EOF
 
 1. ✅ Deploy to Frankfurt (git push)
 2. ✅ Run database migration
-3. ⏳ Build Cyber Guardian SMS Gateway (Phase 2)
+3. ⏳ Build Threat Responder SMS Gateway (Phase 2)
 4. ⏳ Test operator webhook delivery
 5. ⏳ Setup daily cron jobs
 
