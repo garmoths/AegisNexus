@@ -3,7 +3,7 @@
 
 ---
 
-## 📌 Proje Özeti
+##  Proje Özeti
 
 **AegisNexus**, modern siber tehditlere karşı kurumsal düzeyde koruma sağlayan, açık kaynak istihbarat kaynakları ve makine öğrenmesi ile desteklenen bir kiberguvenlik platformudur. Platform, tehdit tespiti, analiz ve otomatik yanıt verme özelliklerini tek bir entegre sistem altında birleştirir.
 
@@ -11,7 +11,7 @@
 
 ---
 
-## 🏛️ Sistem Mimarisi (5 Katmanlı Model)
+##  Sistem Mimarisi (5 Katmanlı Model)
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -34,7 +34,7 @@
 
 ---
 
-## 📦 5 Ana Modül (Detaylı Açıklama)
+##  5 Ana Modül (Detaylı Açıklama)
 
 ### **1. Phishing Detector - Zararlı URL Tespiti**
 

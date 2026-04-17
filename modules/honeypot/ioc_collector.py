@@ -301,86 +301,87 @@ class AbuseChCollector:
     
     def fetch_urlhaus_recent(self, limit: int = 100) -> List[IOCRecord]:
         """
-        Fetch recent malicious URLs from URLhaus CSV dump with API key rotation.
-        Only 200 status = success, any other status = rotate to next key.
+        Fetch recent malicious URLs from URLhaus public CSV dump (no Auth-Key needed).
+        Downloads ZIP, extracts CSV, parses URLs.
         """
         iocs = []
         
-        if not self.urlhaus_api_keys:
-            logger.warning("URLhaus API key not configured")
-            return iocs
-        
-        # Try all URLhaus keys
-        attempts = len(self.urlhaus_api_keys)
-        for attempt in range(attempts):
+        try:
+            import io
+            import zipfile
+            
+            # Public endpoint - no Auth-Key required!
+            endpoint = "https://urlhaus.abuse.ch/downloads/csv/"
+            
+            logger.info(f"📥 Fetching URLhaus CSV from {endpoint}")
+            response = self.http.get(endpoint, timeout=30)
+            
+            # Only 200 = success
+            if not response or response.status_code != 200:
+                status = response.status_code if response else "timeout"
+                logger.warning(f"❌ URLhaus CSV download failed: HTTP {status}")
+                return iocs
+            
+            # Extract ZIP and parse CSV
             try:
-                current_key = self.urlhaus_api_keys[self.urlhaus_key_index]
-                # Use the CSV export endpoint with Auth-Key in URL
-                endpoint = f"https://urlhaus-api.abuse.ch/v2/files/exports/{current_key}/recent.csv"
+                zip_file = zipfile.ZipFile(io.BytesIO(response.content))
+                csv_content = zip_file.read(zip_file.namelist()[0]).decode('utf-8')
+            except Exception as e:
+                logger.warning(f"❌ URLhaus ZIP extraction failed: {e}")
+                return iocs
+            
+            # Parse CSV lines
+            lines = csv_content.strip().split('\n')
+            count = 0
+            for line in lines:
+                if count >= limit:
+                    break
                 
-                response = self.http.get(endpoint)
+                # Skip comments
+                if line.startswith('#'):
+                    continue
                 
-                # Only 200 = success
-                if response and response.status_code == 200:
-                    # Parse CSV
-                    lines = response.text.strip().split('\n')
-                    for i, line in enumerate(lines[1:]):  # Skip header
-                        if i >= limit:
-                            break
-                        
-                        parts = line.split(',')
-                        if len(parts) < 3:
-                            continue
-                        
-                        try:
-                            url = parts[2].strip().strip('"')
-                            threat = parts[4].strip().strip('"') if len(parts) > 4 else 'malware'
-                            
-                            if not url:
-                                continue
-                            
-                            risk_score = calculate_risk_score(
-                                threat_type=ThreatType.MALWARE,
-                                source=IOCSource.URLHAUS,
-                                confidence=0.90
-                            )
-                            
-                            iocs.append(IOCRecord(
-                                ioc_type=IOCType.URL,
-                                ioc_value=url,
-                                source=IOCSource.URLHAUS,
-                                threat_type=ThreatType.MALWARE,
-                                risk_score=risk_score,
-                                confidence=0.90,
-                                detection_count=1,
-                                ioc_metadata={'urlhaus_threat': threat},
-                            ))
-                        
-                        except Exception as e:
-                            logger.debug(f"Error parsing URLhaus record: {e}")
-                            continue
+                try:
+                    # CSV format: "id","dateadded","url","url_status","last_online","threat","tags","urlhaus_link","reporter"
+                    parts = [p.strip('"') for p in line.split('","')]
                     
-                    logger.info(f"✅ URLhaus (key #{self.urlhaus_key_index + 1}) fetched {len(iocs)} IOCs")
-                    return iocs
+                    if len(parts) < 7:
+                        continue
+                    
+                    url = parts[2].strip()
+                    threat = parts[5].strip() if len(parts) > 5 else 'malware'
+                    
+                    if not url or url.startswith('"'):
+                        continue
+                    
+                    risk_score = calculate_risk_score(
+                        threat_type=ThreatType.MALWARE,
+                        source=IOCSource.URLHAUS,
+                        confidence=0.90
+                    )
+                    
+                    iocs.append(IOCRecord(
+                        ioc_type=IOCType.URL,
+                        ioc_value=url,
+                        source=IOCSource.URLHAUS,
+                        threat_type=ThreatType.MALWARE,
+                        risk_score=risk_score,
+                        confidence=0.90,
+                        detection_count=1,
+                        ioc_metadata={'urlhaus_threat': threat},
+                    ))
+                    count += 1
                 
-                else:
-                    status_code = response.status_code if response else "timeout"
-                    logger.warning(f"❌ URLhaus key #{self.urlhaus_key_index + 1}: HTTP {status_code}, rotating (attempt {attempt + 1}/{attempts})...")
-                    self._rotate_urlhaus_key()
+                except Exception as e:
+                    logger.debug(f"Error parsing URLhaus record: {e}")
                     continue
             
-            except requests.Timeout:
-                logger.warning(f"❌ URLhaus key #{self.urlhaus_key_index + 1}: timeout (attempt {attempt + 1}/{attempts}), rotating...")
-                self._rotate_urlhaus_key()
-                continue
-            except Exception as e:
-                logger.warning(f"❌ URLhaus key #{self.urlhaus_key_index + 1}: {e} (attempt {attempt + 1}/{attempts}), rotating...")
-                self._rotate_urlhaus_key()
-                continue
+            logger.info(f"✅ URLhaus CSV fetched {len(iocs)} IOCs")
+            return iocs
         
-        # All keys failed
-        logger.error(f"URLhaus: All {len(self.urlhaus_api_keys)} API keys failed")
-        return iocs
+        except Exception as e:
+            logger.error(f"❌ URLhaus CSV fetch error: {e}")
+            return iocs
     
     def fetch_phishtank_recent(self, limit: int = 100) -> List[IOCRecord]:
         """Fetch recent phishing URLs from PhishTank with API key rotation."""
