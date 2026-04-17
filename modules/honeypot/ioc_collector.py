@@ -136,14 +136,14 @@ class IOCRecord:
 # ============================================================================
 
 class HTTPSession:
-    """Robust HTTP session with retries and timeouts."""
+    """Robust HTTP session with minimal retries."""
     
-    def __init__(self, timeout: int = 10, max_retries: int = 3):
+    def __init__(self, timeout: int = 10, max_retries: int = 0):
         self.session = requests.Session()
         retry_strategy = Retry(
             total=max_retries,
-            backoff_factor=1,
-            status_forcelist=[429, 500, 502, 503, 504],
+            backoff_factor=0,
+            status_forcelist=[500, 502, 503, 504],  # Removed 429 - we handle that manually
         )
         adapter = HTTPAdapter(max_retries=retry_strategy)
         self.session.mount("http://", adapter)
