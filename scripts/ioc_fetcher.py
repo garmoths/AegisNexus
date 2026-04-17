@@ -15,6 +15,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from modules.honeypot.ioc_collector import IOCCollectorEngine
 from app.database import SessionLocal
 from app.models import IndicatorOfCompromise
@@ -75,7 +76,7 @@ class IOCFetcher:
         try:
             self.db = SessionLocal()
             # Test connection
-            self.db.execute("SELECT 1")
+            self.db.execute(text("SELECT 1"))
             logger.info("✅ Database connection successful")
             return True
         except Exception as e:
