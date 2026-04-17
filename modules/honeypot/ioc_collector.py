@@ -274,9 +274,11 @@ class AbuseChCollector:
         
         try:
             params = {"limit": min(limit, 1000)}
+            headers = {}
             if self.api_key:
-                params["api_key"] = self.api_key
-            response = self.http.get(endpoint, params=params)
+                headers["Auth-Key"] = self.api_key
+            
+            response = self.http.get(endpoint, params=params, headers=headers)
             
             if not response or response.status_code != 200:
                 logger.error(f"URLhaus API error: {response.status_code if response else 'timeout'}")
@@ -351,9 +353,10 @@ class AbuseChCollector:
         
         try:
             params = {"limit": min(limit, 1000)}
+            headers = {}
             if self.api_key:
-                params["api_key"] = self.api_key
-            response = self.http.get(endpoint, params=params)
+                headers["Auth-Key"] = self.api_key
+            response = self.http.get(endpoint, params=params, headers=headers)
             
             if not response or response.status_code != 200:
                 logger.error(f"PhishTank API error: {response.status_code if response else 'timeout'}")
