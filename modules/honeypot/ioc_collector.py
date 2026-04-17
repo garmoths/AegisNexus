@@ -261,140 +261,215 @@ class AbuseChCollector:
     
     def __init__(self):
         self.http = HTTPSession(timeout=ABUSE_CH_API_TIMEOUT)
-        self.api_key = os.getenv("URLHAUS_API_KEY", "")
+        
+        # Load API keys for rotation
+        urlhaus_keys = os.getenv("URLHAUS_API_KEYS", "").split(",") if os.getenv("URLHAUS_API_KEYS") else []
+        urlhaus_keys = [k.strip() for k in urlhaus_keys if k.strip()]
+        
+        # Fallback to single key if no multi-key configured
+        if not urlhaus_keys:
+            single_key = os.getenv("URLHAUS_API_KEY", "")
+            if single_key:
+                urlhaus_keys = [single_key]
+        
+        self.urlhaus_api_keys = urlhaus_keys
+        self.urlhaus_key_index = 0
+        
+        phishtank_keys = os.getenv("PHISHTANK_API_KEYS", "").split(",") if os.getenv("PHISHTANK_API_KEYS") else []
+        phishtank_keys = [k.strip() for k in phishtank_keys if k.strip()]
+        
+        # Fallback to URLhaus keys for PhishTank (same API)
+        if not phishtank_keys:
+            phishtank_keys = self.urlhaus_api_keys
+        
+        self.phishtank_api_keys = phishtank_keys
+        self.phishtank_key_index = 0
+    
+    def _rotate_urlhaus_key(self):
+        """Rotate to next URLhaus API key."""
+        if len(self.urlhaus_api_keys) > 1:
+            self.urlhaus_key_index = (self.urlhaus_key_index + 1) % len(self.urlhaus_api_keys)
+            logger.info(f"Rotated URLhaus key to #{self.urlhaus_key_index + 1}/{len(self.urlhaus_api_keys)}")
+        return self.urlhaus_api_keys[self.urlhaus_key_index] if self.urlhaus_api_keys else None
+    
+    def _rotate_phishtank_key(self):
+        """Rotate to next PhishTank API key."""
+        if len(self.phishtank_api_keys) > 1:
+            self.phishtank_key_index = (self.phishtank_key_index + 1) % len(self.phishtank_api_keys)
+            logger.info(f"Rotated PhishTank key to #{self.phishtank_key_index + 1}/{len(self.phishtank_api_keys)}")
+        return self.phishtank_api_keys[self.phishtank_key_index] if self.phishtank_api_keys else None
     
     def fetch_urlhaus_recent(self, limit: int = 100) -> List[IOCRecord]:
         """
-        Fetch recent malicious URLs from URLhaus CSV dump.
-        Uses the direct CSV export endpoint.
+        Fetch recent malicious URLs from URLhaus CSV dump with API key rotation.
+        Only 200 status = success, any other status = rotate to next key.
         """
         iocs = []
         
-        if not self.api_key:
+        if not self.urlhaus_api_keys:
             logger.warning("URLhaus API key not configured")
             return iocs
         
-        # Use the CSV export endpoint with Auth-Key in URL
-        endpoint = f"https://urlhaus-api.abuse.ch/v2/files/exports/{self.api_key}/recent.csv"
-        
-        try:
-            response = self.http.get(endpoint)
-            
-            if not response or response.status_code != 200:
-                logger.error(f"URLhaus API error: {response.status_code if response else 'timeout'}")
-                return iocs
-            
-            # Parse CSV
-            lines = response.text.strip().split('\n')
-            for i, line in enumerate(lines[1:]):  # Skip header
-                if i >= limit:
-                    break
+        # Try all URLhaus keys
+        attempts = len(self.urlhaus_api_keys)
+        for attempt in range(attempts):
+            try:
+                current_key = self.urlhaus_api_keys[self.urlhaus_key_index]
+                # Use the CSV export endpoint with Auth-Key in URL
+                endpoint = f"https://urlhaus-api.abuse.ch/v2/files/exports/{current_key}/recent.csv"
                 
-                parts = line.split(',')
-                if len(parts) < 3:
+                response = self.http.get(endpoint)
+                
+                # Only 200 = success
+                if response and response.status_code == 200:
+                    # Parse CSV
+                    lines = response.text.strip().split('\n')
+                    for i, line in enumerate(lines[1:]):  # Skip header
+                        if i >= limit:
+                            break
+                        
+                        parts = line.split(',')
+                        if len(parts) < 3:
+                            continue
+                        
+                        try:
+                            url = parts[2].strip().strip('"')
+                            threat = parts[4].strip().strip('"') if len(parts) > 4 else 'malware'
+                            
+                            if not url:
+                                continue
+                            
+                            risk_score = calculate_risk_score(
+                                threat_type=ThreatType.MALWARE,
+                                source=IOCSource.URLHAUS,
+                                confidence=0.90
+                            )
+                            
+                            iocs.append(IOCRecord(
+                                ioc_type=IOCType.URL,
+                                ioc_value=url,
+                                source=IOCSource.URLHAUS,
+                                threat_type=ThreatType.MALWARE,
+                                risk_score=risk_score,
+                                confidence=0.90,
+                                detection_count=1,
+                                ioc_metadata={'urlhaus_threat': threat},
+                            ))
+                        
+                        except Exception as e:
+                            logger.debug(f"Error parsing URLhaus record: {e}")
+                            continue
+                    
+                    logger.info(f"✅ URLhaus (key #{self.urlhaus_key_index + 1}) fetched {len(iocs)} IOCs")
+                    return iocs
+                
+                else:
+                    status_code = response.status_code if response else "timeout"
+                    logger.warning(f"❌ URLhaus key #{self.urlhaus_key_index + 1}: HTTP {status_code}, rotating...")
+                    self._rotate_urlhaus_key()
                     continue
-                
-                try:
-                    url = parts[2].strip().strip('"')
-                    threat = parts[4].strip().strip('"') if len(parts) > 4 else 'malware'
-                    
-                    if not url:
-                        continue
-                    
-                    risk_score = calculate_risk_score(
-                        threat_type=ThreatType.MALWARE,
-                        source=IOCSource.URLHAUS,
-                        confidence=0.90
-                    )
-                    
-                    iocs.append(IOCRecord(
-                        ioc_type=IOCType.URL,
-                        ioc_value=url,
-                        source=IOCSource.URLHAUS,
-                        threat_type=ThreatType.MALWARE,
-                        risk_score=risk_score,
-                        confidence=0.90,
-                        detection_count=1,
-                        ioc_metadata={'urlhaus_threat': threat},
-                    ))
-                
-                except Exception as e:
-                    logger.debug(f"Error parsing URLhaus record: {e}")
-                    continue
             
-            logger.info(f"URLhaus fetched {len(iocs)} IOCs")
-            return iocs
+            except requests.Timeout:
+                logger.warning(f"❌ URLhaus key #{self.urlhaus_key_index + 1}: timeout, rotating...")
+                self._rotate_urlhaus_key()
+                continue
+            except Exception as e:
+                logger.warning(f"❌ URLhaus key #{self.urlhaus_key_index + 1}: {e}, rotating...")
+                self._rotate_urlhaus_key()
+                continue
         
-        except Exception as e:
-            logger.error(f"URLhaus collection error: {e}")
-            return iocs
+        # All keys failed
+        logger.error(f"URLhaus: All {len(self.urlhaus_api_keys)} API keys failed")
+        return iocs
     
     def fetch_phishtank_recent(self, limit: int = 100) -> List[IOCRecord]:
-        """Fetch recent phishing URLs from PhishTank (abuse.ch feed)."""
+        """Fetch recent phishing URLs from PhishTank with API key rotation."""
         iocs = []
+        
+        if not self.phishtank_api_keys:
+            logger.warning("PhishTank API key not configured")
+            return iocs
+        
         endpoint = f"{self.BASE_URL}/phish/recent/"
         
-        try:
-            params = {"limit": min(limit, 1000)}
-            headers = {}
-            if self.api_key:
-                headers["Auth-Key"] = self.api_key
-            response = self.http.get(endpoint, params=params, headers=headers)
-            
-            if not response or response.status_code != 200:
-                logger.error(f"PhishTank API error: {response.status_code if response else 'timeout'}")
-                return iocs
-            
-            data = response.json()
-            if data.get('query_status') != 'ok':
-                logger.warning(f"PhishTank query status: {data.get('query_status')}")
-                return iocs
-            
-            for phish_record in data.get('phishing', []):
-                try:
-                    url = phish_record.get('url', '')
-                    target = phish_record.get('target', 'Unknown')
-                    
-                    if not url:
+        # Try all PhishTank keys
+        attempts = len(self.phishtank_api_keys)
+        for attempt in range(attempts):
+            try:
+                current_key = self.phishtank_api_keys[self.phishtank_key_index]
+                params = {"limit": min(limit, 1000)}
+                headers = {"Auth-Key": current_key} if current_key else {}
+                
+                response = self.http.get(endpoint, params=params, headers=headers)
+                
+                # Only 200 = success
+                if response and response.status_code == 200:
+                    data = response.json()
+                    if data.get('query_status') != 'ok':
+                        logger.warning(f"PhishTank query status: {data.get('query_status')}, rotating...")
+                        self._rotate_phishtank_key()
                         continue
                     
-                    url_normalized = normalize_value(url, IOCType.URL)
-                    iocs.append(IOCRecord(
-                        ioc_type=IOCType.URL,
-                        ioc_value=url_normalized,
-                        source=IOCSource.PHISHTANK,
-                        threat_type=ThreatType.PHISHING,
-                        confidence=0.92,
-                        detection_count=1,
-                        threat_tags=[target] if target != 'Unknown' else [],
-                        ioc_metadata={'target': target},
-                    ))
+                    for phish_record in data.get('phishing', []):
+                        try:
+                            url = phish_record.get('url', '')
+                            target = phish_record.get('target', 'Unknown')
+                            
+                            if not url:
+                                continue
+                            
+                            url_normalized = normalize_value(url, IOCType.URL)
+                            iocs.append(IOCRecord(
+                                ioc_type=IOCType.URL,
+                                ioc_value=url_normalized,
+                                source=IOCSource.PHISHTANK,
+                                threat_type=ThreatType.PHISHING,
+                                confidence=0.92,
+                                detection_count=1,
+                                threat_tags=[target] if target != 'Unknown' else [],
+                                ioc_metadata={'target': target},
+                            ))
+                            
+                            # Extract domain
+                            domain_match = re.search(r'(?:https?://)?(?:www\.)?([^/:?#]+)', url)
+                            if domain_match:
+                                domain = domain_match.group(1)
+                                domain_normalized = normalize_value(domain, IOCType.DOMAIN)
+                                iocs.append(IOCRecord(
+                                    ioc_type=IOCType.DOMAIN,
+                                    ioc_value=domain_normalized,
+                                    source=IOCSource.PHISHTANK,
+                                    threat_type=ThreatType.PHISHING,
+                                    confidence=0.88,
+                                    detection_count=1,
+                                    threat_tags=[target] if target != 'Unknown' else [],
+                                ))
+                        
+                        except Exception as e:
+                            logger.debug(f"Error parsing PhishTank record: {e}")
+                            continue
                     
-                    # Extract domain
-                    domain_match = re.search(r'(?:https?://)?(?:www\.)?([^/:?#]+)', url)
-                    if domain_match:
-                        domain = domain_match.group(1)
-                        domain_normalized = normalize_value(domain, IOCType.DOMAIN)
-                        iocs.append(IOCRecord(
-                            ioc_type=IOCType.DOMAIN,
-                            ioc_value=domain_normalized,
-                            source=IOCSource.PHISHTANK,
-                            threat_type=ThreatType.PHISHING,
-                            confidence=0.88,
-                            detection_count=1,
-                            threat_tags=[target] if target != 'Unknown' else [],
-                        ))
+                    logger.info(f"✅ PhishTank (key #{self.phishtank_key_index + 1}) fetched {len(iocs)} IOCs")
+                    return iocs
                 
-                except Exception as e:
-                    logger.error(f"Error parsing PhishTank record: {e}")
+                else:
+                    status_code = response.status_code if response else "timeout"
+                    logger.warning(f"❌ PhishTank key #{self.phishtank_key_index + 1}: HTTP {status_code}, rotating...")
+                    self._rotate_phishtank_key()
                     continue
             
-            logger.info(f"PhishTank fetched {len(iocs)} IOCs")
-            return iocs
+            except requests.Timeout:
+                logger.warning(f"❌ PhishTank key #{self.phishtank_key_index + 1}: timeout, rotating...")
+                self._rotate_phishtank_key()
+                continue
+            except Exception as e:
+                logger.warning(f"❌ PhishTank key #{self.phishtank_key_index + 1}: {e}, rotating...")
+                self._rotate_phishtank_key()
+                continue
         
-        except Exception as e:
-            logger.error(f"PhishTank collection error: {e}")
-            return iocs
+        # All keys failed
+        logger.error(f"PhishTank: All {len(self.phishtank_api_keys)} API keys failed")
+        return iocs
 
 
 class AbuseIPDBCollector:
