@@ -23,13 +23,13 @@ logger = logging.getLogger(__name__)
 
 # API Key'ler .env dosyasından okunur (multiple keys for rotation)
 VIRUSTOTAL_API_KEYS = os.getenv("VIRUSTOTAL_API_KEYS", "").split(",") if os.getenv("VIRUSTOTAL_API_KEYS") else []
-VIRUSTOTAL_API_KEY = VIRUSTOTAL_API_KEYS[0] if VIRUSTOTAL_API_KEYS else os.getenv("VIRUSTOTAL_API_KEY", "")
+VIRUSTOTAL_API_KEYS = [k.strip() for k in VIRUSTOTAL_API_KEYS if k.strip()]
 
 GOOGLE_SAFE_BROWSING_KEYS = os.getenv("GOOGLE_SAFE_BROWSING_KEYS", "").split(",") if os.getenv("GOOGLE_SAFE_BROWSING_KEYS") else []
-GOOGLE_SAFE_BROWSING_KEY = GOOGLE_SAFE_BROWSING_KEYS[0] if GOOGLE_SAFE_BROWSING_KEYS else os.getenv("GOOGLE_SAFE_BROWSING_KEY", "")
+GOOGLE_SAFE_BROWSING_KEYS = [k.strip() for k in GOOGLE_SAFE_BROWSING_KEYS if k.strip()]
 
 ABUSEIPDB_API_KEYS = os.getenv("ABUSEIPDB_API_KEYS", "").split(",") if os.getenv("ABUSEIPDB_API_KEYS") else []
-ABUSEIPDB_API_KEY = ABUSEIPDB_API_KEYS[0] if ABUSEIPDB_API_KEYS else os.getenv("ABUSEIPDB_API_KEY", "")
+ABUSEIPDB_API_KEYS = [k.strip() for k in ABUSEIPDB_API_KEYS if k.strip()]
 
 # Cache depolama (in-memory)
 API_CACHE = {}
@@ -142,7 +142,8 @@ def _set_cached(cache_key, data):
 
 def check_virustotal(url, timeout=8):
     """
-    VirusTotal API v3 ile URL taraması (rate limited + cached).
+    VirusTotal API v3 ile URL taraması (key rotation + cached).
+    Sadece 200 = başarı, başka her şey = sonraki key'e geç.
     Döndürür: {"malicious": int, "suspicious": int, "clean": int, "status": str}
     """
     cache_key = f"vt_{hashlib.sha256(url.encode()).hexdigest()}"
@@ -152,7 +153,7 @@ def check_virustotal(url, timeout=8):
     if cached:
         return cached
     
-    if not VIRUSTOTAL_API_KEY:
+    if not VIRUSTOTAL_API_KEYS:
         return {
             "available": False,
             "status": "API key tanımlı değil",
@@ -160,121 +161,102 @@ def check_virustotal(url, timeout=8):
             "engines": []
         }
     
-    # Rate limit kontrol + API key rotation
-    if not _check_rate_limit("virustotal"):
-        # Rate limit aşıldıysa sonraki key'e geç
-        rotated_key = _rotate_api_key("virustotal")
-        if rotated_key:
-            logger.info("VirusTotal rate limit aşıldı, sonraki API key'e geçildi")
-        else:
-            return {
-                "available": True,
-                "status": "VirusTotal rate limit aşıldı (4 req/dakika) - başka key yok",
-                "malicious": 0, "suspicious": 0, "clean": 0,
-                "engines": [],
-                "rate_limited": True
-            }
-
-    try:
-        # URL'yi base64 ile encode et (VT API v3 gereksinimi)
-        import base64
-        url_id = base64.urlsafe_b64encode(url.encode()).decode().strip("=")
-
-        # Şu anda aktif olan API key'i kullan
-        current_key = _get_current_api_key("virustotal")
-        headers = {"x-apikey": current_key}
-
-        # Önce mevcut raporu kontrol et
-        api_url = f"https://www.virustotal.com/api/v3/urls/{url_id}"
-        resp = requests.get(api_url, headers=headers, timeout=timeout)
-
-        if resp.status_code == 404:
-            # Rapor yoksa yeni tarama başlat
-            scan_resp = requests.post(
-                "https://www.virustotal.com/api/v3/urls",
-                headers=headers,
-                data={"url": url},
-                timeout=timeout
-            )
-            if scan_resp.status_code == 200:
-                return {
+    # Tüm key'leri dene
+    attempts = len(VIRUSTOTAL_API_KEYS)
+    for attempt in range(attempts):
+        try:
+            import base64
+            url_id = base64.urlsafe_b64encode(url.encode()).decode().strip("=")
+            
+            current_key = _get_current_api_key("virustotal")
+            headers = {"x-apikey": current_key}
+            
+            api_url = f"https://www.virustotal.com/api/v3/urls/{url_id}"
+            resp = requests.get(api_url, headers=headers, timeout=timeout)
+            
+            # Sadece 200 = başarı
+            if resp.status_code == 200:
+                data = resp.json()
+                stats = data.get("data", {}).get("attributes", {}).get("last_analysis_stats", {})
+                results = data.get("data", {}).get("attributes", {}).get("last_analysis_results", {})
+                
+                malicious = stats.get("malicious", 0)
+                suspicious = stats.get("suspicious", 0)
+                harmless = stats.get("harmless", 0)
+                undetected = stats.get("undetected", 0)
+                
+                threat_engines = []
+                for engine_name, result in results.items():
+                    if result.get("category") in ("malicious", "suspicious"):
+                        threat_engines.append({
+                            "engine": engine_name,
+                            "result": result.get("result", ""),
+                            "category": result.get("category", "")
+                        })
+                
+                total = malicious + suspicious + harmless + undetected
+                if malicious > 0:
+                    status = f"🚨 {malicious}/{total} motor TEHLİKELİ olarak işaretledi"
+                elif suspicious > 0:
+                    status = f"⚠️ {suspicious}/{total} motor ŞÜPHELİ olarak işaretledi"
+                else:
+                    status = f"✅ {total} motorun hiçbiri tehdit tespit etmedi"
+                
+                result = {
                     "available": True,
-                    "status": "Tarama başlatıldı (sonuçlar birkaç dakika içinde hazır)",
-                    "malicious": 0, "suspicious": 0, "clean": 0,
-                    "engines": [],
-                    "scan_initiated": True
+                    "status": status,
+                    "malicious": malicious,
+                    "suspicious": suspicious,
+                    "clean": harmless,
+                    "total_engines": total,
+                    "engines": threat_engines[:10]
                 }
-            return {
-                "available": True,
-                "status": f"Tarama başlatılamadı (HTTP {scan_resp.status_code})",
-                "malicious": 0, "suspicious": 0, "clean": 0,
-                "engines": []
-            }
-
-        if resp.status_code != 200:
-            return {
-                "available": True,
-                "status": f"API hatası (HTTP {resp.status_code})",
-                "malicious": 0, "suspicious": 0, "clean": 0,
-                "engines": []
-            }
-
-        data = resp.json()
-        stats = data.get("data", {}).get("attributes", {}).get("last_analysis_stats", {})
-        results = data.get("data", {}).get("attributes", {}).get("last_analysis_results", {})
-
-        malicious = stats.get("malicious", 0)
-        suspicious = stats.get("suspicious", 0)
-        harmless = stats.get("harmless", 0)
-        undetected = stats.get("undetected", 0)
-
-        # Tehdit tespit eden motorları listele
-        threat_engines = []
-        for engine_name, result in results.items():
-            if result.get("category") in ("malicious", "suspicious"):
-                threat_engines.append({
-                    "engine": engine_name,
-                    "result": result.get("result", ""),
-                    "category": result.get("category", "")
-                })
-
-        total = malicious + suspicious + harmless + undetected
-        if malicious > 0:
-            status = f"🚨 {malicious}/{total} motor TEHLİKELİ olarak işaretledi"
-        elif suspicious > 0:
-            status = f"⚠️ {suspicious}/{total} motor ŞÜPHELİ olarak işaretledi"
-        else:
-            status = f"✅ {total} motorun hiçbiri tehdit tespit etmedi"
-
-        result = {
-            "available": True,
-            "status": status,
-            "malicious": malicious,
-            "suspicious": suspicious,
-            "clean": harmless,
-            "total_engines": total,
-            "engines": threat_engines[:10]  # En fazla 10 motor
-        }
+                _set_cached(cache_key, result)
+                return result
+            
+            elif resp.status_code == 404:
+                # Rapor yoksa yeni tarama başlat
+                scan_resp = requests.post(
+                    "https://www.virustotal.com/api/v3/urls",
+                    headers=headers,
+                    data={"url": url},
+                    timeout=timeout
+                )
+                if scan_resp.status_code == 200:
+                    return {
+                        "available": True,
+                        "status": "Tarama başlatıldı (sonuçlar birkaç dakika içinde hazır)",
+                        "malicious": 0, "suspicious": 0, "clean": 0,
+                        "engines": [],
+                        "scan_initiated": True
+                    }
+                else:
+                    logger.warning(f"VirusTotal key #{API_RATE_LIMITS['virustotal']['key_index']}: HTTP {scan_resp.status_code}, rotating...")
+                    _rotate_api_key("virustotal")
+                    continue
+            
+            else:
+                # Non-200 status = rotate
+                logger.warning(f"VirusTotal key #{API_RATE_LIMITS['virustotal']['key_index']}: HTTP {resp.status_code}, rotating...")
+                _rotate_api_key("virustotal")
+                continue
         
-        # Cache'ye koy
-        _set_cached(cache_key, result)
-        return result
-
-    except requests.Timeout:
-        return {
-            "available": True,
-            "status": "VirusTotal zaman aşımı",
-            "malicious": 0, "suspicious": 0, "clean": 0,
-            "engines": []
-        }
-    except Exception as e:
-        logger.error(f"VirusTotal hatası: {e}")
-        return {
-            "available": True,
-            "status": f"Bağlantı hatası: {str(e)[:50]}",
-            "malicious": 0, "suspicious": 0, "clean": 0,
-            "engines": []
-        }
+        except requests.Timeout:
+            logger.warning(f"VirusTotal key #{API_RATE_LIMITS['virustotal']['key_index']}: timeout, rotating...")
+            _rotate_api_key("virustotal")
+            continue
+        except Exception as e:
+            logger.warning(f"VirusTotal key #{API_RATE_LIMITS['virustotal']['key_index']}: {e}, rotating...")
+            _rotate_api_key("virustotal")
+            continue
+    
+    # Tüm key'ler başarısız
+    return {
+        "available": True,
+        "status": f"VirusTotal: Tüm {len(VIRUSTOTAL_API_KEYS)} API key başarısız",
+        "malicious": 0, "suspicious": 0, "clean": 0,
+        "engines": []
+    }
 
 
 # =========================================================
@@ -283,7 +265,8 @@ def check_virustotal(url, timeout=8):
 
 def check_google_safe_browsing(url, timeout=8):
     """
-    Google Safe Browsing API v4 ile kontrol (cached + rate limited).
+    Google Safe Browsing API v4 ile kontrol (key rotation + cached).
+    Sadece 200 = başarı, başka her şey = sonraki key'e geç.
     Döndürür: {"threat": bool, "threat_type": str, "status": str}
     """
     cache_key = f"gsb_{hashlib.sha256(url.encode()).hexdigest()}"
@@ -293,7 +276,7 @@ def check_google_safe_browsing(url, timeout=8):
     if cached:
         return cached
     
-    if not GOOGLE_SAFE_BROWSING_KEY:
+    if not GOOGLE_SAFE_BROWSING_KEYS:
         return {
             "available": False,
             "status": "API key tanımlı değil",
@@ -301,85 +284,86 @@ def check_google_safe_browsing(url, timeout=8):
             "threat_type": None
         }
     
-    # Rate limit kontrol
-    if not _check_rate_limit("google_safe"):
-        return {
-            "available": True,
-            "status": "Google Safe Browsing rate limit aşıldı",
-            "threat": False,
-            "threat_type": None,
-            "rate_limited": True
-        }
-
-    try:
-        api_url = f"https://safebrowsing.googleapis.com/v4/threatMatches:find?key={GOOGLE_SAFE_BROWSING_KEY}"
-
-        payload = {
-            "client": {
-                "clientId": "phishing-detector",
-                "clientVersion": "1.0.0"
-            },
-            "threatInfo": {
-                "threatTypes": [
-                    "MALWARE",
-                    "SOCIAL_ENGINEERING",
-                    "UNWANTED_SOFTWARE",
-                    "POTENTIALLY_HARMFUL_APPLICATION",
-                    "THREAT_TYPE_UNSPECIFIED"
-                ],
-                "platformTypes": ["ANY_PLATFORM"],
-                "threatEntryTypes": ["URL"],
-                "threatEntries": [{"url": url}]
+    # Tüm key'leri dene
+    attempts = len(GOOGLE_SAFE_BROWSING_KEYS)
+    for attempt in range(attempts):
+        try:
+            current_key = _get_current_api_key("google_safe")
+            api_url = f"https://safebrowsing.googleapis.com/v4/threatMatches:find?key={current_key}"
+            
+            payload = {
+                "client": {
+                    "clientId": "phishing-detector",
+                    "clientVersion": "1.0.0"
+                },
+                "threatInfo": {
+                    "threatTypes": [
+                        "MALWARE",
+                        "SOCIAL_ENGINEERING",
+                        "UNWANTED_SOFTWARE",
+                        "POTENTIALLY_HARMFUL_APPLICATION",
+                        "THREAT_TYPE_UNSPECIFIED"
+                    ],
+                    "platformTypes": ["ANY_PLATFORM"],
+                    "threatEntryTypes": ["URL"],
+                    "threatEntries": [{"url": url}]
+                }
             }
-        }
-
-        resp = requests.post(api_url, json=payload, timeout=timeout)
-
-        if resp.status_code != 200:
-            return {
-                "available": True,
-                "status": f"API hatası (HTTP {resp.status_code})",
-                "threat": False,
-                "threat_type": None
-            }
-
-        data = resp.json()
-        matches = data.get("matches", [])
-
-        if matches:
-            threat_type = matches[0].get("threatType", "UNKNOWN")
-            threat_names = {
-                "MALWARE": "Zararlı Yazılım",
-                "SOCIAL_ENGINEERING": "Sosyal Mühendislik (Phishing)",
-                "UNWANTED_SOFTWARE": "İstenmeyen Yazılım",
-                "POTENTIALLY_HARMFUL_APPLICATION": "Potansiyel Zararlı Uygulama",
-            }
-            result = {
-                "available": True,
-                "status": f"🚨 Google: {threat_names.get(threat_type, threat_type)} tespit edildi!",
-                "threat": True,
-                "threat_type": threat_names.get(threat_type, threat_type)
-            }
-            _set_cached(cache_key, result)
-            return result
-
-        result = {
-            "available": True,
-            "status": "✅ Google Safe Browsing: Temiz",
-            "threat": False,
-            "threat_type": None
-        }
-        _set_cached(cache_key, result)
-        return result
-
-    except Exception as e:
-        logger.error(f"Google Safe Browsing hatası: {e}")
-        return {
-            "available": True,
-            "status": f"Bağlantı hatası: {str(e)[:50]}",
-            "threat": False,
-            "threat_type": None
-        }
+            
+            resp = requests.post(api_url, json=payload, timeout=timeout)
+            
+            # Sadece 200 = başarı
+            if resp.status_code == 200:
+                data = resp.json()
+                matches = data.get("matches", [])
+                
+                if matches:
+                    threat_type = matches[0].get("threatType", "UNKNOWN")
+                    threat_names = {
+                        "MALWARE": "Zararlı Yazılım",
+                        "SOCIAL_ENGINEERING": "Sosyal Mühendislik (Phishing)",
+                        "UNWANTED_SOFTWARE": "İstenmeyen Yazılım",
+                        "POTENTIALLY_HARMFUL_APPLICATION": "Potansiyel Zararlı Uygulama",
+                    }
+                    result = {
+                        "available": True,
+                        "status": f"🚨 Google: {threat_names.get(threat_type, threat_type)} tespit edildi!",
+                        "threat": True,
+                        "threat_type": threat_names.get(threat_type, threat_type)
+                    }
+                    _set_cached(cache_key, result)
+                    return result
+                
+                result = {
+                    "available": True,
+                    "status": "✅ Google Safe Browsing: Temiz",
+                    "threat": False,
+                    "threat_type": None
+                }
+                _set_cached(cache_key, result)
+                return result
+            
+            else:
+                logger.warning(f"Google Safe Browsing key #{API_RATE_LIMITS['google_safe']['key_index']}: HTTP {resp.status_code}, rotating...")
+                _rotate_api_key("google_safe")
+                continue
+        
+        except requests.Timeout:
+            logger.warning(f"Google Safe Browsing key #{API_RATE_LIMITS['google_safe']['key_index']}: timeout, rotating...")
+            _rotate_api_key("google_safe")
+            continue
+        except Exception as e:
+            logger.warning(f"Google Safe Browsing key #{API_RATE_LIMITS['google_safe']['key_index']}: {e}, rotating...")
+            _rotate_api_key("google_safe")
+            continue
+    
+    # Tüm key'ler başarısız
+    return {
+        "available": True,
+        "status": f"Google Safe Browsing: Tüm {len(GOOGLE_SAFE_BROWSING_KEYS)} API key başarısız",
+        "threat": False,
+        "threat_type": None
+    }
 
 
 # =========================================================
@@ -388,7 +372,8 @@ def check_google_safe_browsing(url, timeout=8):
 
 def check_abuseipdb(url, timeout=8):
     """
-    AbuseIPDB ile domain/IP itibar kontrolü (cached + rate limited).
+    AbuseIPDB ile domain/IP itibar kontrolü (key rotation + cached).
+    Sadece 200 = başarı, başka her şey = sonraki key'e geç.
     Döndürür: {"abuse_score": int, "reports": int, "status": str}
     """
     cache_key = f"abuseipdb_{hashlib.sha256(url.encode()).hexdigest()}"
@@ -398,7 +383,7 @@ def check_abuseipdb(url, timeout=8):
     if cached:
         return cached
     
-    if not ABUSEIPDB_API_KEY:
+    if not ABUSEIPDB_API_KEYS:
         return {
             "available": False,
             "status": "API key tanımlı değil",
@@ -406,91 +391,90 @@ def check_abuseipdb(url, timeout=8):
             "total_reports": 0
         }
     
-    # Rate limit kontrol
-    if not _check_rate_limit("abuseipdb"):
-        return {
-            "available": True,
-            "status": "AbuseIPDB rate limit aşıldı (1500 req/gün)",
-            "abuse_score": 0,
-            "total_reports": 0,
-            "rate_limited": True
-        }
-
-    try:
-        # Domain'den IP çöz
-        parsed = urlparse(url if url.startswith("http") else "https://" + url)
-        hostname = parsed.netloc or parsed.path
-        hostname = hostname.replace("www.", "").split(":")[0]
-
+    # Tüm key'leri dene
+    attempts = len(ABUSEIPDB_API_KEYS)
+    for attempt in range(attempts):
         try:
-            ip_address = socket.gethostbyname(hostname)
-        except socket.gaierror:
-            return {
-                "available": True,
-                "status": "Domain IP'ye çözümlenemedi",
-                "abuse_score": 0,
-                "total_reports": 0
+            # Domain'den IP çöz
+            parsed = urlparse(url if url.startswith("http") else "https://" + url)
+            hostname = parsed.netloc or parsed.path
+            hostname = hostname.replace("www.", "").split(":")[0]
+            
+            try:
+                ip_address = socket.gethostbyname(hostname)
+            except socket.gaierror:
+                return {
+                    "available": True,
+                    "status": "Domain IP'ye çözümlenemedi",
+                    "abuse_score": 0,
+                    "total_reports": 0
+                }
+            
+            current_key = _get_current_api_key("abuseipdb")
+            headers = {
+                "Key": current_key,
+                "Accept": "application/json"
             }
-
-        headers = {
-            "Key": ABUSEIPDB_API_KEY,
-            "Accept": "application/json"
-        }
-        params = {
-            "ipAddress": ip_address,
-            "maxAgeInDays": 90
-        }
-
-        resp = requests.get(
-            "https://api.abuseipdb.com/api/v2/check",
-            headers=headers, params=params, timeout=timeout
-        )
-
-        if resp.status_code != 200:
-            return {
-                "available": True,
-                "status": f"API hatası (HTTP {resp.status_code})",
-                "abuse_score": 0,
-                "total_reports": 0
+            params = {
+                "ipAddress": ip_address,
+                "maxAgeInDays": 90
             }
-
-        data = resp.json().get("data", {})
-        abuse_score = data.get("abuseConfidenceScore", 0)
-        total_reports = data.get("totalReports", 0)
-        country = data.get("countryCode", "??")
-        isp = data.get("isp", "Bilinmiyor")
-
-        if abuse_score >= 70:
-            status = f"🚨 AbuseIPDB: Yüksek risk skoru ({abuse_score}%) — {total_reports} rapor — {country}"
-        elif abuse_score >= 30:
-            status = f"⚠️ AbuseIPDB: Orta risk ({abuse_score}%) — {total_reports} rapor — {country}"
-        elif total_reports > 0:
-            status = f"ℹ️ AbuseIPDB: Düşük risk ({abuse_score}%) — {total_reports} rapor — ISP: {isp}"
-        else:
-            status = f"✅ AbuseIPDB: Temiz — ISP: {isp} — {country}"
-
-        result = {
-            "available": True,
-            "status": status,
-            "abuse_score": abuse_score,
-            "total_reports": total_reports,
-            "ip": ip_address,
-            "country": country,
-            "isp": isp
-        }
+            
+            resp = requests.get(
+                "https://api.abuseipdb.com/api/v2/check",
+                headers=headers, params=params, timeout=timeout
+            )
+            
+            # Sadece 200 = başarı
+            if resp.status_code == 200:
+                data = resp.json().get("data", {})
+                abuse_score = data.get("abuseConfidenceScore", 0)
+                total_reports = data.get("totalReports", 0)
+                country = data.get("countryCode", "??")
+                isp = data.get("isp", "Bilinmiyor")
+                
+                if abuse_score >= 70:
+                    status = f"🚨 AbuseIPDB: Yüksek risk skoru ({abuse_score}%) — {total_reports} rapor — {country}"
+                elif abuse_score >= 30:
+                    status = f"⚠️ AbuseIPDB: Orta risk ({abuse_score}%) — {total_reports} rapor — {country}"
+                elif total_reports > 0:
+                    status = f"ℹ️ AbuseIPDB: Düşük risk ({abuse_score}%) — {total_reports} rapor — ISP: {isp}"
+                else:
+                    status = f"✅ AbuseIPDB: Temiz — ISP: {isp} — {country}"
+                
+                result = {
+                    "available": True,
+                    "status": status,
+                    "abuse_score": abuse_score,
+                    "total_reports": total_reports,
+                    "ip": ip_address,
+                    "country": country,
+                    "isp": isp
+                }
+                _set_cached(cache_key, result)
+                return result
+            
+            else:
+                logger.warning(f"AbuseIPDB key #{API_RATE_LIMITS['abuseipdb']['key_index']}: HTTP {resp.status_code}, rotating...")
+                _rotate_api_key("abuseipdb")
+                continue
         
-        # Cache'ye koy
-        _set_cached(cache_key, result)
-        return result
-
-    except Exception as e:
-        logger.error(f"AbuseIPDB hatası: {e}")
-        return {
-            "available": True,
-            "status": f"Bağlantı hatası: {str(e)[:50]}",
-            "abuse_score": 0,
-            "total_reports": 0
-        }
+        except requests.Timeout:
+            logger.warning(f"AbuseIPDB key #{API_RATE_LIMITS['abuseipdb']['key_index']}: timeout, rotating...")
+            _rotate_api_key("abuseipdb")
+            continue
+        except Exception as e:
+            logger.warning(f"AbuseIPDB key #{API_RATE_LIMITS['abuseipdb']['key_index']}: {e}, rotating...")
+            _rotate_api_key("abuseipdb")
+            continue
+    
+    # Tüm key'ler başarısız
+    return {
+        "available": True,
+        "status": f"AbuseIPDB: Tüm {len(ABUSEIPDB_API_KEYS)} API key başarısız",
+        "abuse_score": 0,
+        "total_reports": 0
+    }
 
 
 # =========================================================
