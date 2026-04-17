@@ -532,14 +532,14 @@ class IOCCollectorEngine:
         
         # Abuse.ch
         if IOCSource.URLHAUS.value in include_sources:
-            collected.extend(self.abuse_ch.fetch_urlhaus_recent(limit=100))
+            collected.extend(self.abuse_ch.fetch_urlhaus_recent(limit=5000))
         
         if IOCSource.PHISHTANK.value in include_sources:
-            collected.extend(self.abuse_ch.fetch_phishtank_recent(limit=100))
+            collected.extend(self.abuse_ch.fetch_phishtank_recent(limit=5000))
         
         # AbuseIPDB
         if IOCSource.ABUSEIPDB.value in include_sources:
-            collected.extend(self.abuseipdb.fetch_blacklist(limit=100))
+            collected.extend(self.abuseipdb.fetch_blacklist(limit=5000))
         
         # Validate and deduplicate
         validated = self._validate_and_deduplicate(collected)
