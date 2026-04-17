@@ -22,12 +22,11 @@
 **API Base:** `http://104.248.45.198:5000/api/v1`
 
 ## Modules
-- 🎣 Phishing Detector
+- 🎣 Phishing Detector (URL tarama + SSL/Domain analizi)
 - 🕸️ Honeypot
-- 🛡️ Threat Responder
-- 🏛️ Infrastructure Guard
+- 📡 Breach Intelligence
 - 🔐 Password Shield
-- 🔓 Breach Intelligence
+- ⚡ Threat Responder
 
 ## Auto-Deploy
 Every push to `main` automatically deploys to Frankfurt server via GitHub Actions.
