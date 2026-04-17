@@ -140,6 +140,7 @@
                 <button type="button" class="tab-btn" data-tab="infra" role="tab">Altyapı</button>
                 <button type="button" class="tab-btn" data-tab="breach" role="tab">Sızıntı</button>
                 <button type="button" class="tab-btn" data-tab="shield" role="tab">Şifre</button>
+                <button type="button" class="tab-btn" data-tab="ioc" role="tab">İOC İstihbaratı</button>
                 <button type="button" class="tab-btn" data-tab="honeypot" role="tab">Tuzak</button>
                 <button type="button" class="tab-btn" data-tab="contact" role="tab">İletişim</button>
             </nav>
@@ -262,6 +263,47 @@
                 <div id="pwdOut" class="pwd-out" style="display:none;"></div>
                 <pre id="pwdMeta" class="json-out" style="display:none;"></pre>
             </article>
+        </div>
+
+        <div id="tab-panel-ioc" class="tab-panel">
+            <div class="grid-2">
+                <article class="card">
+                    <h2>IOC Listesi</h2>
+                    <p class="section-hint">Tehdit göstergeleri (IP, URL, Domain, Email, Hash) — Saatlik olarak güncellenir</p>
+                    <div class="field-row">
+                        <input type="text" id="iocSearch" placeholder="IOC ara (IP, domain, email...)" style="flex:1;">
+                        <button type="button" class="btn btn--secondary" onclick="searchIOC()">Ara</button>
+                    </div>
+                    <div id="iocResults" style="margin-top:1rem;max-height:400px;overflow-y:auto;"></div>
+                </article>
+                <article class="card">
+                    <h2>IOC İstatistikleri</h2>
+                    <p class="section-hint">Merkezi tehdit istihbarat veritabanından çekilen veriler</p>
+                    <div class="stat-group">
+                        <div class="stat-item">
+                            <strong>Toplam IOC:</strong>
+                            <span id="iocTotal" class="stat-number">—</span>
+                        </div>
+                        <div class="stat-item">
+                            <strong>Yüksek Risk:</strong>
+                            <span id="iocHighRisk" class="stat-number" style="color:#c53030;">—</span>
+                        </div>
+                        <div class="stat-item">
+                            <strong>Orta Risk:</strong>
+                            <span id="iocMediumRisk" class="stat-number" style="color:#b7791f;">—</span>
+                        </div>
+                        <div class="stat-item">
+                            <strong>Düşük Risk:</strong>
+                            <span id="iocLowRisk" class="stat-number" style="color:#1d7a5a;">—</span>
+                        </div>
+                        <div class="stat-item">
+                            <strong>Güncellenme:</strong>
+                            <span id="iocLastUpdate" class="stat-time">—</span>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn--ghost" onclick="loadIOCStats()" style="width:100%;margin-top:1rem;">Verileri yenile</button>
+                </article>
+            </div>
         </div>
 
         <div id="tab-panel-honeypot" class="tab-panel">
@@ -693,6 +735,77 @@
                     '</div></div>';
             });
         }
+
+        // IOC Collector Functions
+        async function loadIOCStats() {
+            const statsIds = ['iocTotal', 'iocHighRisk', 'iocMediumRisk', 'iocLowRisk', 'iocLastUpdate'];
+            statsIds.forEach(id => document.getElementById(id).textContent = '⏳');
+            try {
+                const res = await fetch('/api/v2/honeypot/ioc/stats');
+                const data = await res.json();
+                
+                document.getElementById('iocTotal').textContent = (data.total_iocs || 0).toLocaleString('tr-TR');
+                document.getElementById('iocHighRisk').textContent = (data.high_risk_count || 0).toLocaleString('tr-TR');
+                document.getElementById('iocMediumRisk').textContent = (data.medium_risk_count || 0).toLocaleString('tr-TR');
+                document.getElementById('iocLowRisk').textContent = (data.low_risk_count || 0).toLocaleString('tr-TR');
+                
+                const lastUpdate = data.last_update ? new Date(data.last_update).toLocaleString('tr-TR') : 'Bilinmiyor';
+                document.getElementById('iocLastUpdate').textContent = lastUpdate;
+            } catch (e) {
+                document.getElementById('iocTotal').textContent = '—';
+                document.getElementById('iocHighRisk').textContent = '—';
+                document.getElementById('iocMediumRisk').textContent = '—';
+                document.getElementById('iocLowRisk').textContent = '—';
+                document.getElementById('iocLastUpdate').textContent = 'Hata';
+            }
+        }
+
+        async function searchIOC() {
+            const query = document.getElementById('iocSearch').value.trim();
+            const resultsDiv = document.getElementById('iocResults');
+            
+            if (!query || query.length < 3) {
+                resultsDiv.innerHTML = '<p style="color:var(--text-muted);">En az 3 karakter girin.</p>';
+                return;
+            }
+
+            resultsDiv.innerHTML = '<p>Aranıyor…</p>';
+            
+            try {
+                const res = await fetch('/api/v2/honeypot/ioc/search?query=' + encodeURIComponent(query));
+                const data = await res.json();
+                
+                if (!data.results || data.results.length === 0) {
+                    resultsDiv.innerHTML = '<p style="color:var(--text-muted);">Sonuç bulunamadı.</p>';
+                    return;
+                }
+
+                let html = '';
+                data.results.forEach(ioc => {
+                    const riskColor = ioc.risk_score >= 80 ? C.danger : (ioc.risk_score >= 50 ? C.warn : C.ok);
+                    const riskLabel = ioc.risk_score >= 80 ? 'YÜKSEK' : (ioc.risk_score >= 50 ? 'ORTA' : 'DÜŞÜK');
+                    
+                    html += '<div class="result-item" style="border-left:4px solid ' + riskColor + ';">' +
+                            '<div style="font-weight:600; margin-bottom:0.25rem;">' + (ioc.value || '—') + '</div>' +
+                            '<div style="font-size:0.9rem; color:var(--text-muted); margin-bottom:0.5rem;">' +
+                            'Tür: ' + (ioc.type || '—') + ' | Risk: <span style="color:' + riskColor + ';">' + riskLabel + ' (' + ioc.risk_score + ')</span></div>' +
+                            '<div style="font-size:0.85rem; color:var(--text-muted);">Kaynak: ' + (ioc.source || '—') + ' | Tarih: ' + (new Date(ioc.created_at).toLocaleDateString('tr-TR') || '—') + '</div>' +
+                            '</div>';
+                });
+                
+                resultsDiv.innerHTML = html;
+            } catch (e) {
+                resultsDiv.innerHTML = '<p style="color:' + C.danger + ';">Hata: ' + e.message + '</p>';
+            }
+        }
+
+        // Initialize on page load
+        window.addEventListener('DOMContentLoaded', function() {
+            loadIOCStats();
+            loadHoneypotStats();
+            fetchStats();
+            loadLatest();
+        });
     </script>
 </body>
 </html>
