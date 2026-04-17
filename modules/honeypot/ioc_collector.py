@@ -419,8 +419,7 @@ class AbuseIPDBCollector:
     def fetch_blacklist(self, limit: int = 100) -> List[IOCRecord]:
         """
         Fetch recent malicious IPs from AbuseIPDB blacklist with key rotation.
-        
-        Returns: List of IOCRecord objects with IP IOCs.
+        Only 200 is success, anything else rotates to next key.
         """
         iocs = []
         endpoint = f"{self.BASE_URL}/blacklist"
@@ -446,12 +445,12 @@ class AbuseIPDBCollector:
                 
                 params = {
                     "limit": min(limit, 100000),
-                    "plaintext": 1,  # Get plaintext format
+                    "plaintext": 1,
                 }
                 
                 response = self.http.get(endpoint, headers=headers, params=params)
                 
-                # Success
+                # Only 200 is success
                 if response and response.status_code == 200:
                     # Parse plaintext IP list
                     text = response.text
@@ -485,44 +484,28 @@ class AbuseIPDBCollector:
                             ))
                         
                         except Exception as e:
-                            logger.debug(f"Error parsing AbuseIPDB IP: {e}")
+                            logger.debug(f"Error parsing IP: {e}")
                             continue
                     
                     logger.info(f"✅ AbuseIPDB fetched {len(iocs)} IOCs (key #{self.current_key_index + 1})")
                     return iocs
                 
-                # Quota exceeded (429) - try next key
-                elif response and response.status_code == 429:
-                    logger.warning(f"⚠️ 429 Quota exceeded for key #{self.current_key_index + 1}. Rotating to next key...")
-                    self.get_next_key()
-                    continue
-                
-                # Auth error (401) - try next key
-                elif response and response.status_code == 401:
-                    logger.warning(f"⚠️ 401 Auth failed for key #{self.current_key_index + 1}. Rotating to next key...")
-                    self.get_next_key()
-                    continue
-                
-                # Other errors including timeout
+                # Any non-200 status = rotate to next key
                 else:
                     status = response.status_code if response else 'timeout'
-                    logger.warning(f"⚠️ Key #{self.current_key_index + 1} error: {status}. Rotating to next key...")
-                    if attempt < max_retries:
-                        self.get_next_key()
-                        continue
-                    else:
-                        logger.error(f"❌ AbuseIPDB API error: {status}")
-                        return iocs
+                    logger.warning(f"⚠️ Key #{self.current_key_index + 1} returned {status}. Rotating...")
+                    self.get_next_key()
+                    continue
             
             except Exception as e:
-                logger.error(f"❌ AbuseIPDB request error (attempt {attempt}/{max_retries}): {e}")
+                logger.error(f"❌ Error (attempt {attempt}/{max_retries}): {e}")
                 if attempt < max_retries:
                     logger.info(f"Rotating to next key...")
                     self.get_next_key()
                     continue
                 return iocs
         
-        logger.error("❌ AbuseIPDB: All {max_retries} API keys exhausted")
+        logger.error(f"❌ All {max_retries} API keys exhausted")
         return iocs
     
     @staticmethod
