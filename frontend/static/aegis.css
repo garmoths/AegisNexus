@@ -1128,3 +1128,42 @@ textarea.field-full:focus {
 .footer-inner a {
   font-weight: 600;
 }
+
+/* IOC Statistics Styling */
+.stat-group {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1rem;
+  margin: 1.25rem 0;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
+  background: var(--primary-soft);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  text-align: center;
+}
+
+.stat-item strong {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+  letter-spacing: 0.5px;
+}
+
+.stat-number {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--primary);
+  font-family: "Courier New", monospace;
+}
+
+.stat-time {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  font-family: "Courier New", monospace;
+}
