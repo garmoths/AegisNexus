@@ -22,28 +22,22 @@ source venv/bin/activate
 git pull origin main
 ```
 
-### STEP 3: PostgreSQL Setup (AS ROOT/SUPERUSER)
+### STEP 3: PostgreSQL Setup (AS POSTGRES USER)
 
-This MUST run as `postgres` user or root with sudo:
+This MUST run as `postgres` user via sudo (no password needed with peer auth):
 
 ```bash
-# Option A: Run SQL script (recommended)
-sudo psql -U postgres -f scripts/db_setup.sql
+# RECOMMENDED (no password needed)
+sudo -u postgres psql -f scripts/db_setup.sql
 
-# Option B: Manual setup
+# OR if above doesn't work, use inline SQL
 sudo -u postgres psql << 'EOF'
--- Create database
-CREATE DATABASE phishing_db OWNER postgres ENCODING 'UTF8' LC_COLLATE 'en_US.UTF-8' LC_CTYPE 'en_US.UTF-8';
-
--- Connect to database
+CREATE DATABASE IF NOT EXISTS phishing_db OWNER postgres ENCODING 'UTF8';
 \c phishing_db
-
--- Grant permissions
 GRANT ALL PRIVILEGES ON SCHEMA public TO postgres;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO postgres;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO postgres;
-
--- Verify
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 \dt
 EOF
 ```
@@ -51,8 +45,13 @@ EOF
 Expected output:
 ```
 CREATE DATABASE
+GRANT
+ALTER
 CREATE EXTENSION
+(or similar confirmations)
 ```
+
+**Note:** If it asks for a password, see [POSTGRES_PASSWORD_FIX.md](POSTGRES_PASSWORD_FIX.md)
 
 ### STEP 4: Initialize Database Tables (AS APP USER)
 

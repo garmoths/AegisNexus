@@ -1,8 +1,9 @@
 -- PostgreSQL Setup Script for AegisNexus
--- Run as superuser (postgres): psql -U postgres -f scripts/db_setup.sql
+-- Run as postgres user: sudo -u postgres psql -f scripts/db_setup.sql
+-- OR: sudo -u postgres psql < scripts/db_setup.sql
 
 -- Create database if not exists
-CREATE DATABASE phishing_db OWNER postgres ENCODING 'UTF8' LC_COLLATE 'en_US.UTF-8' LC_CTYPE 'en_US.UTF-8';
+CREATE DATABASE IF NOT EXISTS phishing_db OWNER postgres ENCODING 'UTF8';
 
 -- Connect to database
 \c phishing_db
@@ -16,5 +17,7 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO postgres;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Verify setup
+SELECT 'Tables:' as info;
 \dt
-\l
+SELECT 'Extensions:' as info;
+\dx
