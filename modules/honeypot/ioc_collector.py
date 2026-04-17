@@ -16,7 +16,7 @@ import hashlib
 import logging
 import os
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Optional, Tuple, Any
 from dataclasses import dataclass, asdict
 from enum import Enum
@@ -105,7 +105,7 @@ class IOCRecord:
     
     def __post_init__(self):
         """Initialize datetime defaults."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         if self.first_seen is None:
             self.first_seen = now
         if self.last_seen is None:
@@ -458,11 +458,19 @@ class AbuseIPDBCollector:
                     if not self._is_valid_ip(ip):
                         continue
                     
+                    risk_score = calculate_risk_score(
+                        threat_type=ThreatType.BOTNET,
+                        source=IOCSource.ABUSEIPDB,
+                        confidence=0.95,
+                        detection_count=1
+                    )
+                    
                     iocs.append(IOCRecord(
                         ioc_type=IOCType.IP,
                         ioc_value=ip,
                         source=IOCSource.ABUSEIPDB,
-                        threat_type=ThreatType.BOTNET,  # Most common
+                        threat_type=ThreatType.BOTNET,
+                        risk_score=risk_score,
                         confidence=0.95,
                         detection_count=1,
                         ioc_metadata={'abuseipdb_reference': f"https://www.abuseipdb.com/check/{ip}"},
@@ -560,7 +568,7 @@ class IOCCollectorEngine:
                 if existing_idx is not None:
                     existing = unique_iocs[existing_idx]
                     existing.detection_count += 1
-                    existing.last_seen = datetime.utcnow()
+                    existing.last_seen = datetime.now(timezone.utc)
                     # Update risk score based on increased detection
                     existing.risk_score = calculate_risk_score(
                         existing.threat_type,
