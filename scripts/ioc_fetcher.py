@@ -87,8 +87,8 @@ class IOCFetcher:
     def fetch_iocs(self, sources=None):
         """Fetch IOCs from all configured sources."""
         if sources is None:
-            # URLhaus and PhishTank have API issues, use only AbuseIPDB
-            sources = ["abuseipdb"]
+            # Use all sources with proper rotation
+            sources = ["abuse_urlhaus", "abuse_phishtank", "abuseipdb"]
         
         try:
             logger.info(f"🔄 Starting IOC collection from: {', '.join(sources)}")
