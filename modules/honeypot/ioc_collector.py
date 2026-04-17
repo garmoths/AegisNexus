@@ -503,10 +503,16 @@ class AbuseIPDBCollector:
                     self.get_next_key()
                     continue
                 
-                # Other errors
+                # Other errors including timeout
                 else:
-                    logger.error(f"❌ AbuseIPDB API error: {response.status_code if response else 'timeout'}")
-                    return iocs
+                    status = response.status_code if response else 'timeout'
+                    logger.warning(f"⚠️ Key #{self.current_key_index + 1} error: {status}. Rotating to next key...")
+                    if attempt < max_retries:
+                        self.get_next_key()
+                        continue
+                    else:
+                        logger.error(f"❌ AbuseIPDB API error: {status}")
+                        return iocs
             
             except Exception as e:
                 logger.error(f"❌ AbuseIPDB request error (attempt {attempt}/{max_retries}): {e}")
