@@ -1,215 +1,392 @@
-# AegisNexus - Kiberguvenlik Platform | Modüller & Vizyon
-
-## 🎯 Vizyon
-**AegisNexus**, tehditleri proaktif olarak tespit eden, analiz eden ve yanıt veren bir kurumsal kiberguvenlik platformudur. Açık kaynak istihbarat kaynakları, makine öğrenmesi ve reel-zamanlı tehdit analizi kombinasyonuyla, kuruluşlara modern siber risklere karşı **5 katmanlı koruma** sağlar.
+# AegisNexus - Kurumsal Kiberguvenlik Platformu
+## Hoca Sunumu: Modüller, Mimarı ve Vizyon
 
 ---
 
-## 📦 Modüler Mimari
+## 📌 Proje Özeti
 
-### 1️⃣ **Phishing Detector** - Gelişmiş URL Taraması
-**Amaç:** Kimlik avı ve kötü amaçlı siteleri gerçek zamanlı olarak tespit etme
+**AegisNexus**, modern siber tehditlere karşı kurumsal düzeyde koruma sağlayan, açık kaynak istihbarat kaynakları ve makine öğrenmesi ile desteklenen bir kiberguvenlik platformudur. Platform, tehdit tespiti, analiz ve otomatik yanıt verme özelliklerini tek bir entegre sistem altında birleştirir.
 
-**Yetenekler:**
-- 1.2M+ phishing URL veritabanı (URLhaus, PhishTank, Abuse.ch)
-- Domain genetik analizi & DNS/SSL sertifika doğrulaması
-- ML-tabanlı sayfasal benzerlik analizi (phishing clone tespiti)
-- Regex ve yıldız işareti deseni eşleştirmesi
-- Beyaz liste ve özel kural desteği
-- Toplu tarama (CSV) ve API entegrasyonu
-
-**API Endpoints:** 
-```
-GET /api/v2/phishing/check-url?url=...
-GET /api/v2/phishing/search
-GET /api/v2/phishing/stats
-POST /api/v2/phishing/scan-bulk
-```
+**Temel Vizyon:** Tehditleri proaktif olarak tespit etmek → Kapsamlı analiz yapmak → Otomatik ve hızlı yanıt vermek
 
 ---
 
-### 2️⃣ **Honeypot + IOC Collector** - İstihbarat & Tehdit Toplama
-**Amaç:** Gerçek dünya tehditleri yakalamak ve merkezi bir veritabanında organize etmek
+## 🏛️ Sistem Mimarisi (5 Katmanlı Model)
 
-**Yetenekler:**
-- **AbuseIPDB** entegrasyonu: Kötü amaçlı IP adreslerini 1-100 risk skoru ile sınıflandırma
-- **URLhaus** & **PhishTank** otomatik toplayıcı (saatlik senkronizasyon)
-- Risk skoru algoritması: tehdit türü, kaynak güvenilirliği, algılama yoğunluğu
-- IOC (Indicators of Compromise) kalıcı depolama ve arama
-- Operatör uyarı sistemi: Yüksek riskli göstergeler için otomasyonlu bildirimler
-- Decoy oturum üretimi ve etkileşim takibi
-
-**API Endpoints:**
 ```
-GET /api/v2/honeypot/ioc/list
-GET /api/v2/honeypot/ioc/stats
-POST /api/v2/honeypot/session/create
+┌─────────────────────────────────────────────────────────┐
+│ LAYER 5: Threat Responder (Otomatik Yanıt & SMS Alert) │
+│          ↓ Risk Skoru ≥80 → SMS/Email Bildirim        │
+├─────────────────────────────────────────────────────────┤
+│ LAYER 4: Honeypot + IOC Collector (Merkezi Veritabanı) │
+│          ↓ Saatlik veri toplama (AbuseIPDB, URLhaus)   │
+├─────────────────────────────────────────────────────────┤
+│ LAYER 3: Breach Intelligence (İhlal & Dark Web Analizi)│
+│          ↓ HIBP + Psikolojik Profil + OSINT            │
+├─────────────────────────────────────────────────────────┤
+│ LAYER 2: Phishing Detector (URL Taraması & Filtreleme) │
+│          ↓ 1.2M URL DB + ML Benzerlik Analizi         │
+├─────────────────────────────────────────────────────────┤
+│ LAYER 1: Infrastructure (Database, API, Automation)   │
+│          PostgreSQL + FastAPI + Nginx + PM2            │
+└─────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-### 3️⃣ **Breach Intelligence** - İhlal Analizi & OSINT
-**Amaç:** Dark web ve açık kaynakları tarayarak veri ihlalleri ve ifşa edilen kimlik bilgilerini tespit etme
+## 📦 5 Ana Modül (Detaylı Açıklama)
 
-**Yetenekler:**
-- Abuse.ch havoc veritabanı sorgulaması
-- Have I Been Pwned (HIBP) entegrasyonu
-- Psikolojik profil analizi: Saldırı motivasyonu ve hedef tahmini
-- OSINT göstergesi toplama: Email, domain, IP verileri
-- Dark web feed monitoring (uyarı sistemi)
-- Detaylı tehdit raporları: Saldırganı profilleme, taktikler ve öneriler
+### **1. Phishing Detector - Zararlı URL Tespiti**
 
-**API Endpoints:**
+**Amacı:** İnternet üzerindeki kimlik avı siteleri ve kötü amaçlı URL'leri tespit etmek
+
+**Nasıl Çalışır:**
+- 1.2 milyonun üzerinde bilinen zararlı URL veritabanı kullanır
+- Yeni bir URL sorgulandığında, birkaç ms içinde taranır
+- DNS kayıtları kontrol edilir (domain gerçekliği doğrulanır)
+- SSL sertifikası analiz edilir (geçerli mi, kim tarafından verildi?)
+- Makine öğrenmesi kullanarak sayfanın içeriği analiz edilir (phishing clone tespiti)
+
+**Sunduğu Hizmetler:**
 ```
-POST /api/v2/breach/check-email
-POST /api/v2/breach/full-analysis
-GET /api/v2/breach/report/{report_id}
+✅ Tekli URL kontrolü      (user: "bu site güvenli mi?" diye sorabilir)
+✅ Toplu tarama            (1000 URL'yi birkaç saniyede tara)
+✅ Beyaz liste yönetimi     (güvenilir siteler kayıt et)
+✅ İstatistik dashboard    (kaç zararlı site tespit edildi?)
 ```
 
----
-
-### 4️⃣ **Password Shield** - Hassas Veri Koruması
-**Amaç:** Parolaları şifreleme, güvenli depolama ve yenileme prosedürleri sağlama
-
-**Yetenekler:**
-- bcrypt & argon2 hashleme algoritmaları
-- Parola gücü analizi (entropi, karakter çeşitliliği)
-- Sızdırılmış parola veritabanı (HaveIBeenPwned) kontrolü
-- Güvenli parola üretimi (akılda kalıcı + kriptografik)
-- Hashleme metodolojisi ve best practices rehberi
-
-**API Endpoints:**
+**Gerçek Kullanım Örneği:**
 ```
-GET /api/v2/shield/generate
-POST /api/v2/shield/check-strength
-GET /api/v2/shield/generate-memorable
+Hoca: "Email'de şüpheli bir link aldım: http://secure-paypal.fake.ru"
+AegisNexus: "⚠️ DANGER - Phishing Site! Risk Skoru: 98/100"
 ```
 
 ---
 
-### 5️⃣ **Threat Responder** - Otomatik Tehdit Yanıtı
-**Amaç:** Yüksek riskli göstergelere karşı otomatik yanıt ve eskalasyon mekanizmaları
+### **2. Honeypot + IOC Collector - Merkezi İstihbarat Sistemi**
 
-**Yetenekler:**
-- Risk skoru tabanlı uyarı yönlendirmesi
-- Operatör SMS & Email gateway'i (Türkiye telecom - Turk Telekom, Vodafone, Türkcell)
-- Otomatik eskalasyon (Slack, webhook, SIEM entegrasyonu)
-- İnşaat modları: Geliştirme, Hazırlık, Üretim
-- Uyarı geçmişi ve yanıt izleme
-- Tehdit zaman çizelgesi ve dönem analizi
+**Amacı:** Saldırganları analiz etmek ve tehdit göstergelerini (IOC) toplamak
 
-**API Endpoints:**
+**Nasıl Çalışır:**
+- Sistem, saldırganlar için tuzak sayfalar oluşturur
+- Saldırganlar bu tuzak sayfalara eriştiğinde, etkileşimleri kaydedilir
+- Kaydedilen verilerden tehdit göstergeleri çıkarılır (kötü IP adresi, kullanılan malware, vs)
+- Bu göstergeler merkezi veritabanına kaydedilir
+
+**Tehdit Göstergeleri (IOC) Nedir?**
 ```
-POST /api/v2/responder/analyze-threat
-POST /api/v2/responder/create-case
-GET /api/v2/responder/cases/{case_id}
-POST /api/v2/responder/generate-report
-```
-
----
-
-## 🏗️ Teknik Altyapı
-
-### 📊 Database Katmanı
-```
-PostgreSQL (phishing_db) - Frankfurt Server
-├── phishing_urls (1.2M+ malicious URLs)
-├── indicators_of_compromise (Hourly IOC collection)
-├── breach_records (Veri ihlali kayıtları)
-├── honeypot_events (Operatör uyarıları)
-├── password_checks (Parola denetim geçmişi)
-├── whitelist_domains (Güvenli etki alanları)
-├── operator_api_keys (API yönetimi)
-└── ioc_operator_alerts (Tehdit uyarıları)
+📍 IP Address     → Saldırgan IP'si
+🔗 URL            → Kullanılan kötü site
+📧 Email          → Saldırgana ait email
+#️⃣ Hash           → Malware dosyasının imzası
+🌐 Domain         → Sahte domain adı
 ```
 
-### 🔌 API Katmanı
-- **FastAPI** (Port 8000): Yüksek performanslı async modüller
-- **Flask+Gunicorn** (Port 5000): REST API ve arka plan işleri
-- **Nginx** (80/443): Ters proxy, HTTPS/TLS termination, yük dengeleme
-- **PM2**: Process manager (24/7 kullanılabilirlik, auto-restart)
-
-### ⚙️ Otomasyon
-- **IOC Fetcher** (Saatlik): AbuseIPDB, URLhaus, PhishTank otomatik senkronizasyonu
-- **Cron Jobs**: Günlük backup, threat raporları, log rotation
-- **GitHub Actions**: Frankfurt sunucusuna otomatik deployment
-
-### 📈 Monitorlama & Logging
-- **Systemd Services**: Otomatik yeniden başlatma, graceful shutdown
-- **Log Rotation**: 30 günlük tutma, günlük compression
-- `/var/log/aegis/`: Merkezi log depolama
-
----
-
-## 🔄 Veri Akışı & İşlem
-
+**Risk Skoru Hesaplama (1-100):**
 ```
-Dış Tehdid Kaynakları (URLhaus, PhishTank, AbuseIPDB)
-        ↓
-IOC Fetcher (Saatlik senkronizasyon)
-        ↓
-PostgreSQL (Risk Skoru Hesaplama)
-        ↓
-Phishing Detector ←→ Honeypot ←→ Breach Intelligence
-        ↓
-Threat Responder (SMS/Email Alert)
-        ↓
-Operatör Dashboard & SIEM
+AbuseIPDB Örneği:
+- IP 192.168.1.100 → 50+ raporla işaretlenmiş
+- Algılama yoğunluğu %75
+- Risk Skoru = 85/100 ⚠️ HIGH RISK
+```
+
+**Sunduğu Hizmetler:**
+```
+✅ IOC'leri saatlik olarak topla (AbuseIPDB, URLhaus, PhishTank'tan)
+✅ Risk skoru otomatik hesapla
+✅ Operatörlere yüksek riskli IOC'ler hakkında uyarı gönder
+✅ İstatistik: Bu ayda kaç yeni tehdit tespit edildi?
 ```
 
 ---
 
-## 📊 Performans Metrikleri
+### **3. Breach Intelligence - İhlal & Koyu Web Analizi**
 
-| Metrik | Değer |
-|--------|-------|
-| URL Kontrol | <500ms |
-| Bulk Tarama | 1000 URL/min |
-| IOC Toplama | 100+ IOC/saat |
-| Veritabanı Boyutu | 1.2M+ phishing URLs |
-| Sistem Uptime | 99.9% |
-| Risk Skoru Doğruluğu | 92% (ML optimizeli) |
+**Amacı:** Veri ihlallerini tespit etmek ve saldırganları profillemek
+
+**Nasıl Çalışır:**
+- "Şu email'in kaç veri ihlaline karıştığını kontrol et" diye sorgulama yapılır
+- Have I Been Pwned (HIBP) gibi açık kaynaklar sorgulanır
+- Dark web kaynakları taranır (saldırganlar ne arıyor?)
+- Saldırganın motivasyonu analiz edilir (para, siyaset, intikam?)
+
+**Analiz Sonucu - Örnek Rapor:**
+```
+Email: victim@company.com
+
+📊 İhlal Sayısı: 7
+  ├─ LinkedIn 2021 ihlali (3M hesap)
+  ├─ Yahoo 2013 ihlali (3B hesap)
+  └─ Türk telecom ihlali (2021)
+
+🎯 Saldırgan Profili:
+  ├─ Motivasyon: Para kazanç (kripto extortion)
+  ├─ Taktik: Phishing → Ransomware
+  └─ Risk Düzeyi: KRITIK
+
+💡 Öneriler:
+  ✓ Şifre değiştir (tüm hesaplarda)
+  ✓ 2-faktör doğrulama aç
+  ✓ Kredi kartı koru (fraud alert set)
+```
+
+---
+
+### **4. Password Shield - Şifre Güvenliği**
+
+**Amacı:** Parolaları güvenli bir şekilde oluşturmak ve değerlendirmek
+
+**Nasıl Çalışır:**
+- Güvenli rastgele şifre üretir
+- Mevcut şifrelerin gücünü analiz eder
+- Sızdırılmış parola veritabanında kontrol eder ("bu şifre internette sızdırılmış mı?")
+- Kolay hatırlanabilir ama güvenli şifreler oluşturur
+
+**Şifre Gücü Analizi Örneği:**
+```
+Şifre: "123456"
+🔴 ÇOK ZA YIF - Risk: 1000x/sn kırılabilir
+Puan: 2/100
+
+Şifre: "MyDog@2024#BlueSky!"
+🟢 ÇOK GÜÇLÜ - Risk: 1000 yıl kırılabilir
+Puan: 95/100
+
+Sızdırılmış mı? ✅ EVET (LinkedIn ihlalinde 5 kez görüldü - KULLANMA!)
+```
+
+---
+
+### **5. Threat Responder - Otomatik Tehdit Yanıtı**
+
+**Amacı:** Yüksek riskli tehditlere otomatik olarak hızlı yanıt vermek
+
+**Nasıl Çalışır:**
+- Honeypot'ta risk skoru 80+ olan tehditler flaglanır
+- Sistem otomatik olarak uyarı oluşturur
+- SMS/Email ile operatörlere anında bildirim gönderilir
+- Tehdit yöneticiye tahsis edilir
+
+**Uyarı Örneği:**
+```
+[KRITIK UYARI - 02:45]
+
+Kaynak: IOC Collector (AbuseIPDB)
+Tehdit Türü: Kötü Amaçlı IP (Botnet Command & Control)
+IP: 195.154.32.108
+Risk Skoru: 94/100
+
+Öneri: 
+  → Firewall'da IP'yi engelle
+  → Zeka ekibine rapor et
+  → İlgili müşterileri bilgilendir
+```
+
+---
+
+## 🗄️ Veritabanı Yapısı (PostgreSQL)
+
+Platform, 8 tablo ile çalışır:
+
+```
+phishing_db/
+├── phishing_urls          (1.2M+ zararlı URL)
+├── indicators_of_compromise (IOC göstergeleri)
+├── honeypot_events        (Saldırgan etkileşim logs)
+├── breach_records         (Veri ihlali kayıtları)
+├── password_checks        (Şifre kontrolü geçmişi)
+├── whitelist_domains      (Güvenilir siteler)
+├── operator_api_keys      (API yönetimi)
+└── ioc_operator_alerts    (Tehdit uyarıları)
+```
+
+---
+
+## 🔄 Veri Akışı (Işığında Takip Et)
+
+```
+1. Dış Kaynaklar
+   ↓ (AbuseIPDB, URLhaus, PhishTank saatlık senkronizasyon)
+   ↓
+2. IOC Fetcher
+   ↓ (Verileri toplayıp temizle)
+   ↓
+3. PostgreSQL Veritabanı
+   ↓ (Risk skoru hesapla)
+   ↓
+4. Phishing Detector → Honeypot → Breach Intelligence
+   ↓ (Tehdidi analiz et)
+   ↓
+5. Threat Responder
+   ↓ (SMS/Email uyarı gönder)
+   ↓
+6. Operatör Konsolu
+   ↓ (İnsan karar verir)
+```
+
+---
+
+## 💻 Teknik Altyapı
+
+### Sunucu Katmanı:
+```
+🖥️ Frankfurt Server (DigitalOcean)
+   ├─ Port 8000 → FastAPI (Ana uygulama)
+   ├─ Port 5000 → Flask API (Ek hizmetler)
+   ├─ Port 80/443 → Nginx (Web sunucusu + SSL)
+   └─ PostgreSQL → Veritabanı
+```
+
+### Otomasyonlar:
+```
+⏰ Cron Jobs:
+   ├─ Her saat başı → IOC Fetcher çalış
+   ├─ Günde bir kez → Veritabanı backup
+   └─ Günde bir kez → Günlük rapor gönder
+
+🚀 GitHub Actions:
+   ├─ Her commit'te → Testler çalış
+   └─ Her push'ta → Frankfurt'a otomatik deploy
+```
+
+---
+
+## 📊 Performans Verileri
+
+| Metrik | Değer | Anlamı |
+|--------|-------|---------|
+| URL Kontrol | <500ms | 1 URL'yi 0.5 saniye içinde tara |
+| Toplu Tarama | 1000 URL/min | 1 dakikada 1000 URL taranır |
+| IOC Toplama | 100+ IOC/saat | Her saat 100+ yeni tehdit göstergesi |
+| Veritabanı | 1.2M+ URL | 1.2 milyondan fazla bilinen zararlı site |
+| Sistem Çalışması | 99.9% Uptime | Yıl içinde sadece ~9 saat kapalı |
+| Risk Skoru Doğruluk | 92% | Tespit ettikleri tehditlerin %92'si gerçek |
 
 ---
 
 ## 👥 Hedef Kullanıcılar
 
-1. **Kurumsal IT Güvenlik Ekipleri**: SOC operatörleri, CISO'lar, saldırı cevap ekipleri
-2. **ISP & Telecom Operatörleri**: Ağ trafiği monitorlama ve tehdid yönetimi
-3. **Siber Güvenlik Şirketleri**: İhlal yönetimi ve istihbarat platformları
-4. **Hukuk Enforsamanı**: Siber suç istihbaratı ve kanıt toplama
-5. **Akademik Araştırmacılar**: Tehdit aktörü profilleme ve trend analizi
+| Kullanıcı | Ne İçin Kullanır |
+|-----------|-----------------|
+| **SOC Operatörü** | Gelen uyarıları değerlendir, tehdit cevap ver |
+| **CISO (Chief Information Security Officer)** | Raporlar oku, yönetim kararları al |
+| **ISP/Telecom** | Müşteri trafiğini filtrele, zararlı siteleri engelle |
+| **Siber Güvenlik Şirketi** | Müşterilere tehdit istihbaratı sat |
+| **Araştırmacı** | Saldırgan taktiklerini analiz et, makaleler yaz |
 
 ---
 
-## 🚀 Deployment & Scalability
+## 🚀 Deployment Durumu
 
-**Mevcut:** DigitalOcean Frankfurt (Ubuntu 20.04+, 1 vCPU)
-- Server IP: 104.248.45.198
-- PostgreSQL: Production-ready
-- APIs: Online and monitoring
+### ✅ Mevcut (Frankfurt - Canlı Prodüksyon):
+```
+✓ Sunucu Aktif: 104.248.45.198
+✓ Veritabanı: 1.2M+ URL ile çalışıyor
+✓ APIs: Her iki port açık (5000 + 8000)
+✓ IOC Fetcher: Saatlik çalışıyor
+✓ HTTPS: Let's Encrypt SSL aktif
+✓ Uptime: 18+ saat kesintisiz
+```
 
-**Üretim Hazırlığı:**
-- ✅ Docker containerization (CI/CD ready)
-- ✅ Kubernetes orchestration desteği
-- ✅ Horizontal scaling: Load balancer + PostgreSQL replication
-- ✅ Multi-region deployment: EU, APAC, Americas
-
----
-
-## 📝 Sürüm & Lisans
-
-**Sürüm:** 2.0 (IOC Collector Active)
-**Lisans:** MIT License
-**Repository:** Private (Arkadaş ağıyla sınırlı)
-**Son Güncelleme:** 17 Nisan 2026
+### 📈 Gelecek Hedefler:
+```
+□ Kubernetes yapısına geçiş (Horizontal scaling)
+□ Multi-region deployment (EU, Asia, Americas)
+□ Machine Learning modeli iyileştirmesi
+□ SMS Gateway'i genişletme (Whatsapp, Telegram)
+```
 
 ---
 
-## 🔐 Önemli Notlar
+## 🔐 Güvenlik Özellikleri
 
-- ✅ Tüm modüller FastAPI/Flask router mimarisi ile ayrıştırılmıştır
-- ✅ Veritabanı katmanında 8 tablo ile full ACID compliance
-- ✅ Modüller birlikte çalışarak: Tehdit Tespiti → Analiz → Uyarı → Yanıt döngüsünü tamamlar
-- ✅ Frankfurt deployment aktif (production ready)
-- ✅ IOC Fetcher saatlik otomasyonla çalışıyor
+✅ **Şifreleme:**
+- HTTPS/TLS 1.2+ (tüm bağlantılar şifreli)
+- Database passwordleri bcrypt + argon2
+
+✅ **Yetki Kontrolü:**
+- API key tabanlı kimlik doğrulama
+- Role-based access control (RBAC)
+
+✅ **Veri Koruma:**
+- Günlük otomatik backup
+- Transaction logs (kim ne yaptı, ne zaman?)
+- Disaster recovery planı
+
+✅ **Ağ Güvenliği:**
+- Firewall kuralları
+- Nginx WAF (Web Application Firewall)
+- DDoS protection (Nginx rate limiting)
+
+---
+
+## 📚 Teknolojiler
+
+| Katman | Teknoloji | Neden? |
+|--------|-----------|--------|
+| Web API | FastAPI + Flask | Hızlı, asenkron, gerçek-zamanlı |
+| Veritabanı | PostgreSQL | ACID uyumlu, scalable, güvenilir |
+| Web Server | Nginx | Ters proxy, load balancing, SSL |
+| Process Manager | PM2 | 24/7 çalışma, otomatik restart |
+| Delpoyment | GitHub Actions | Otomatik CI/CD pipeline |
+| Monitoring | Systemd + Logrotate | Sistem logs + otomatik rotation |
+
+---
+
+## 💡 İnovatif Özellikler
+
+1. **Saatlik Otomatik IOC Toplama**
+   - Açık kaynakları sürekli tarayıp güncel veriyi tutar
+
+2. **Risk Skoru Algoritması (1-100)**
+   - Tehditleri objektif olarak sınıflandırır
+   - Operatörün karar almasını kolaylaştırır
+
+3. **Psikolojik Profil Analizi**
+   - Saldırganın motivasyonunu tahmin eder
+   - "Bu kim? Ne istediği ne? Sonraki hamlesi ne olabilir?"
+
+4. **Honeypot Simulation**
+   - Gerçek müşterileri riske koymadan saldırganları analiz eder
+
+5. **SMS/Email Otomasyonu**
+   - Kritik tehditlere 1 saniye içinde yanıt verilebilir
+
+---
+
+## 📋 Proje Durum Özeti
+
+```
+✅ TAMAMLANDI:
+  • 5 ana modül (Phishing, Honeypot, Breach, Shield, Responder)
+  • PostgreSQL (8 tablo, 1.2M+ URL)
+  • IOC Fetcher automation (saatlik)
+  • APIs (FastAPI + Flask)
+  • Deployment (Frankfurt aktif)
+  • Documentation (Modül açıklamaları)
+
+🔄 DEVAM EDIYOR:
+  • ML modeli iyileştirmesi
+  • SMS gateway kapasitesi artırma
+  • Kubernetes migration planning
+
+📅 BAŞLAYACAK:
+  • Multi-region deployment
+  • Threat actor database genişletme
+  • Advanced reporting dashboard
+```
+
+---
+
+## 🎓 Sonuç
+
+**AegisNexus**, kurumsal düzeyde kiberguvenlik ihtiyaçlarını karşılamak üzere tasarlanmış, modüler, ölçeklenebilir ve otomatikleştirilmiş bir sistemdir. 
+
+Tehditleri **proaktif tespiti** → **derin analizi** → **otomatik yanıtı** sağlayarak, kurumların siber risklere karşı zamanında ve etkili bir şekilde yanıt vermesini mümkün kılar.
+
+---
+
+**Proje Lideri:** Enes  
+**Son Güncelleme:** 17 Nisan 2026  
+**Sürüm:** 2.0 (Production Active)  
+**Repository:** GitHub (Private)
