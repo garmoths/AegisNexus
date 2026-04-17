@@ -432,12 +432,47 @@ def list_collected_iocs(ioc_type: Optional[str] = None, limit: int = 100, min_co
 
 @router.get("/ioc/stats")
 def get_ioc_stats():
-    """IOC collector istatistikleri."""
-    return {
-        "status": "success",
-        "stats": honeypot_engine.ioc_stats(),
-        "module": "02_honeypot",
-    }
+    """IOC collector istatistikleri - veritabanından."""
+    try:
+        from app.database import get_db
+        db = next(get_db())
+        
+        # Veritabanından IOC istatistikleri
+        total = db.query(IndicatorOfCompromise).count()
+        high_risk = db.query(IndicatorOfCompromise).filter(IndicatorOfCompromise.risk_score >= 80).count()
+        medium_risk = db.query(IndicatorOfCompromise).filter(
+            (IndicatorOfCompromise.risk_score >= 50) & (IndicatorOfCompromise.risk_score < 80)
+        ).count()
+        low_risk = db.query(IndicatorOfCompromise).filter(IndicatorOfCompromise.risk_score < 50).count()
+        
+        from datetime import datetime
+        last_update = db.query(IndicatorOfCompromise.created_at).order_by(
+            IndicatorOfCompromise.created_at.desc()
+        ).first()
+        
+        return {
+            "status": "success",
+            "stats": {
+                "total_iocs": total,
+                "high_risk_count": high_risk,
+                "medium_risk_count": medium_risk,
+                "low_risk_count": low_risk,
+                "last_update": last_update[0] if last_update else None,
+            },
+            "module": "02_honeypot",
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "stats": {
+                "total_iocs": 0,
+                "high_risk_count": 0,
+                "medium_risk_count": 0,
+                "low_risk_count": 0,
+            },
+            "module": "02_honeypot",
+        }
 
 
 # ============================================================================
