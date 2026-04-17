@@ -261,6 +261,7 @@ class AbuseChCollector:
     
     def __init__(self):
         self.http = HTTPSession(timeout=ABUSE_CH_API_TIMEOUT)
+        self.api_key = os.getenv("URLHAUS_API_KEY", "")
     
     def fetch_urlhaus_recent(self, limit: int = 100) -> List[IOCRecord]:
         """
@@ -273,6 +274,8 @@ class AbuseChCollector:
         
         try:
             params = {"limit": min(limit, 1000)}
+            if self.api_key:
+                params["api_key"] = self.api_key
             response = self.http.get(endpoint, params=params)
             
             if not response or response.status_code != 200:
@@ -348,6 +351,8 @@ class AbuseChCollector:
         
         try:
             params = {"limit": min(limit, 1000)}
+            if self.api_key:
+                params["api_key"] = self.api_key
             response = self.http.get(endpoint, params=params)
             
             if not response or response.status_code != 200:
