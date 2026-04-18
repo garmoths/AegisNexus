@@ -24,11 +24,11 @@
                 </span>
             </a>
             <nav class="hero-topnav" aria-label="Site menüsü">
-                <a href="#top" id="navAnaSayfa">Ana sayfa</a>
-                <a href="#hakkimizda" id="navHakkimizda">Hakkımızda</a>
+                <a href="#" id="navAnaSayfa">Ana sayfa</a>
+                <a href="#" id="navHakkimizda">Hakkımızda</a>
+                <a href="#" id="navBlog">Blog</a>
+                <a href="#" id="navIletisim">İletişim</a>
                 <a href="https://api.aegisnexus.dev" target="_blank" id="navAPI">API</a>
-                <a href="#blog" id="navBlog">Blog</a>
-                <a href="#workspace" id="navIletisim">İletişim</a>
             </nav>
         </div>
         <div class="hero-inner">
@@ -136,6 +136,9 @@
                 <span class="logo-wordmark logo-wordmark--header">Aegis Nexus</span>
             </a>
             <nav class="main-nav" role="tablist" aria-label="Bölümler">
+                <button type="button" class="tab-btn" data-tab="home" role="tab">Ana Sayfa</button>
+                <button type="button" class="tab-btn" data-tab="about" role="tab">Hakkımızda</button>
+                <button type="button" class="tab-btn" data-tab="blog" role="tab">Blog</button>
                 <button type="button" class="tab-btn active" data-tab="threat" role="tab">Tehdit</button>
                 <button type="button" class="tab-btn" data-tab="infra" role="tab">Altyapı</button>
                 <button type="button" class="tab-btn" data-tab="breach" role="tab">Sızıntı</button>
@@ -148,6 +151,46 @@
     </header>
 
     <main class="main-content">
+
+        <div id="tab-panel-home" class="tab-panel">
+            <article class="card">
+                <h2>Ana Sayfa</h2>
+                <p class="section-hint">Aegis Nexus ile dijital dünyanızı güvenceye alın ve büyütün.</p>
+                <p>Aegis Nexus; oltalama tespiti, altyapı özeti, sızıntı farkındalığı ve güçlü parola üretimini tek çatıda toplar. Amacımız bireylerin ve işletmelerin dijital riskleri daha erken görmesidir.</p>
+                <div style="margin-top: 1.5rem;">
+                    <a href="#modules-overview" class="btn btn--primary" onclick="scrollToId('modules-overview')">Modülleri Gör</a>
+                </div>
+            </article>
+        </div>
+
+        <div id="tab-panel-about" class="tab-panel">
+            <article class="card">
+                <h2>Hakkımızda</h2>
+                <p class="section-hint">Aegis Nexus; oltalama tespiti, altyapı özeti, sızıntı farkındalığı ve güçlü parola üretimini tek çatıda toplar.</p>
+                <p>Amacımız bireylerin ve işletmelerin dijital riskleri daha erken görmesidir.</p>
+                <p>Platformumuz 6 modül ile kapsamlı bir siber güvenlik çözümü sunar:</p>
+                <ul style="margin-top: 1rem; line-height: 1.8;">
+                    <li><strong>Phishing Detector:</strong> Tehdit veritabanı ve URL tarama</li>
+                    <li><strong>Honeypot:</strong> Dolandırıcıları tersine mühendislik ile avlama</li>
+                    <li><strong>Breach Intelligence:</strong> Deep Web sızıntı takibi</li>
+                    <li><strong>Password Shield:</strong> Yüz yıllar süren şifreler</li>
+                    <li><strong>Infrastructure Guard:</strong> SSL ve altyapı analizi</li>
+                    <li><strong>Threat Responder:</strong> IOC'leri operatörlere uyarı</li>
+                </ul>
+            </article>
+        </div>
+
+        <div id="tab-panel-blog" class="tab-panel">
+            <article class="card">
+                <h2>Blog</h2>
+                <p class="section-hint">Yakında makaleler ve güvenlik ipuçları burada olacak.</p>
+                <p>Şu an blog içeriği hazırlanıyor. Yakında siber güvenlik hakkında makaleler, ipuçları ve rehberler burada yayınlanacak.</p>
+                <div style="margin-top: 1.5rem; padding: 2rem; background: var(--primary-soft); border-radius: var(--radius); text-align: center;">
+                    <span style="font-size: 3rem;">📝</span>
+                    <p style="margin-top: 1rem; color: var(--text-muted);">Yakında!</p>
+                </div>
+            </article>
+        </div>
 
         <div id="tab-panel-threat" class="tab-panel active">
             <div class="grid-2">
@@ -388,11 +431,11 @@
             var info = document.getElementById('heroCtaInfo');
             if (info) info.addEventListener('click', function(e) { prev(e); scrollToId('modules-overview'); });
             var na = document.getElementById('navAnaSayfa');
-            if (na) na.addEventListener('click', function(e) { prev(e); scrollToId('top'); });
+            if (na) na.addEventListener('click', function(e) { prev(e); switchToTab('home'); });
             var nh = document.getElementById('navHakkimizda');
-            if (nh) nh.addEventListener('click', function(e) { prev(e); scrollToId('hakkimizda'); });
+            if (nh) nh.addEventListener('click', function(e) { prev(e); switchToTab('about'); });
             var nb = document.getElementById('navBlog');
-            if (nb) nb.addEventListener('click', function(e) { prev(e); scrollToId('blog'); });
+            if (nb) nb.addEventListener('click', function(e) { prev(e); switchToTab('blog'); });
             var ni = document.getElementById('navIletisim');
             if (ni) ni.addEventListener('click', function(e) { prev(e); switchToTab('contact'); });
         }
