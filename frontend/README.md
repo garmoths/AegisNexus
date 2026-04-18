@@ -1,5 +1,8 @@
 # 🎨 Aegis Nexus Frontend
 
+**Git Branch:** `frontend` - Frontend geliştirme için özel branch
+**Son Güncelleme:** 2026-04-18 - İlk commit ve branch oluşturma
+
 ## 🧪 API Test Dashboard
 
 **File:** `api-test.html`
