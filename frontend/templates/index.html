@@ -128,6 +128,11 @@
     <div id="workspace">
     <header class="site-header">
         <div class="header-inner">
+            <button type="button" class="sidebar-toggle" id="sidebarToggle" aria-label="Menüyü aç">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 12h18M3 6h18M3 18h18"/>
+                </svg>
+            </button>
             <a href="#top" class="logo logo--with-mark">
                 <svg class="logo-icon logo-icon--header" width="36" height="36" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                     <path d="M12 2.2L4.2 5.1v6.1c0 4.4 2.9 8.1 7.8 9.3 4.9-1.2 7.8-4.9 7.8-9.3V5.1L12 2.2z" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round" fill="rgba(11,110,140,0.1)"/>
@@ -135,22 +140,53 @@
                 </svg>
                 <span class="logo-wordmark logo-wordmark--header">Aegis Nexus</span>
             </a>
-            <nav class="main-nav" role="tablist" aria-label="Bölümler">
-                <button type="button" class="tab-btn" data-tab="home" role="tab">Ana Sayfa</button>
-                <button type="button" class="tab-btn" data-tab="about" role="tab">Hakkımızda</button>
-                <button type="button" class="tab-btn" data-tab="blog" role="tab">Blog</button>
-                <button type="button" class="tab-btn active" data-tab="threat" role="tab">Tehdit</button>
-                <button type="button" class="tab-btn" data-tab="infra" role="tab">Altyapı</button>
-                <button type="button" class="tab-btn" data-tab="breach" role="tab">Sızıntı</button>
-                <button type="button" class="tab-btn" data-tab="shield" role="tab">Şifre</button>
-                <button type="button" class="tab-btn" data-tab="ioc" role="tab">İOC İstihbaratı</button>
-                <button type="button" class="tab-btn" data-tab="honeypot" role="tab">Tuzak</button>
-                <button type="button" class="tab-btn" data-tab="contact" role="tab">İletişim</button>
-            </nav>
         </div>
     </header>
 
-    <main class="main-content">
+    <div class="workspace-container">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h3>Modüller</h3>
+                <button type="button" class="sidebar-close" id="sidebarClose" aria-label="Menüyü kapat">×</button>
+            </div>
+            <nav class="sidebar-nav">
+                <button type="button" class="sidebar-item active" data-tab="home">
+                    <span>🏠</span> Ana Sayfa
+                </button>
+                <button type="button" class="sidebar-item" data-tab="about">
+                    <span>ℹ️</span> Hakkımızda
+                </button>
+                <button type="button" class="sidebar-item" data-tab="blog">
+                    <span>📝</span> Blog
+                </button>
+                <div class="sidebar-divider">Güvenlik Modülleri</div>
+                <button type="button" class="sidebar-item" data-tab="threat">
+                    <span>🔍</span> Tehdit
+                </button>
+                <button type="button" class="sidebar-item" data-tab="infra">
+                    <span>🌐</span> Altyapı
+                </button>
+                <button type="button" class="sidebar-item" data-tab="breach">
+                    <span>📧</span> Sızıntı
+                </button>
+                <button type="button" class="sidebar-item" data-tab="shield">
+                    <span>🔐</span> Şifre
+                </button>
+                <button type="button" class="sidebar-item" data-tab="ioc">
+                    <span>🎯</span> IOC İstihbaratı
+                </button>
+                <button type="button" class="sidebar-item" data-tab="honeypot">
+                    <span>🎪</span> Tuzak
+                </button>
+                <button type="button" class="sidebar-item" data-tab="contact">
+                    <span>📧</span> İletişim
+                </button>
+            </nav>
+        </aside>
+
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
 
         <div id="tab-panel-home" class="tab-panel">
             <article class="card">
@@ -383,6 +419,7 @@
         </div>
     </main>
     </div>
+    </div>
 
     <footer class="site-footer">
         <div class="footer-inner">
@@ -424,6 +461,48 @@
             scrollToWorkspace();
         }
 
+        // Sidebar functions
+        function openSidebar() {
+            document.getElementById('sidebar').classList.add('is-open');
+            document.getElementById('sidebarOverlay').classList.add('is-open');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeSidebar() {
+            document.getElementById('sidebar').classList.remove('is-open');
+            document.getElementById('sidebarOverlay').classList.remove('is-open');
+            document.body.style.overflow = '';
+        }
+
+        function wireSidebar() {
+            var toggle = document.getElementById('sidebarToggle');
+            if (toggle) toggle.addEventListener('click', function(e) {
+                e.preventDefault();
+                openSidebar();
+            });
+
+            var close = document.getElementById('sidebarClose');
+            if (close) close.addEventListener('click', function(e) {
+                e.preventDefault();
+                closeSidebar();
+            });
+
+            var overlay = document.getElementById('sidebarOverlay');
+            if (overlay) overlay.addEventListener('click', function(e) {
+                e.preventDefault();
+                closeSidebar();
+            });
+
+            document.querySelectorAll('.sidebar-item').forEach(function(item) {
+                item.addEventListener('click', function() {
+                    var tab = this.getAttribute('data-tab');
+                    activateTab(tab);
+                    closeSidebar();
+                    scrollToWorkspace();
+                });
+            });
+        }
+
         function wireHeroNav() {
             function prev(e) { if (e) e.preventDefault(); }
             var cta = document.getElementById('heroCtaPanel');
@@ -444,11 +523,7 @@
             fetchStats();
             loadLatest();
             wireHeroNav();
-            document.querySelectorAll('.tab-btn').forEach(function(btn) {
-                btn.addEventListener('click', function() {
-                    activateTab(btn.getAttribute('data-tab'));
-                });
-            });
+            wireSidebar();
             document.querySelectorAll('.mod-card[data-goto-tab]').forEach(function(card) {
                 card.addEventListener('click', function() {
                     switchToTab(card.getAttribute('data-goto-tab'));
