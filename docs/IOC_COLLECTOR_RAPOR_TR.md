@@ -21,7 +21,7 @@ AegisNexus projesinin **Honeypot modülüne** enterprise-grade **IOC Collector (
 
 ✅ **6 yeni REST API endpoint** ile erişilebilir.
 
-✅ **Threat Responder modülüne** entegre olarak operatörlere SMS uyarıları gönderebilir.
+✅ **Cyber Guardian modülüne** entegre olarak operatörlere SMS uyarıları gönderebilir.
 
 ---
 
@@ -283,9 +283,9 @@ Hesaplama:
 
 ---
 
-## 🔗 THREAT RESPONDER ENTEGRASYONU
+## 🔗 CYBER GUARDIAN ENTEGRASYONU
 
-IOC Collector'dan gelen veriler **Threat Responder modülüne** aktarılacak:
+IOC Collector'dan gelen veriler **Cyber Guardian modülüne** aktarılacak:
 
 ### Realtime SMS Uyarıları (80+ Risk)
 ```
@@ -381,7 +381,7 @@ python app/main.py  # Restart with new models
 
 ---
 
-## 📈 FAZA 2: THREAT RESPONDER SMS GATEWAY
+## 📈 FAZA 2: CYBER GUARDIAN SMS GATEWAY
 
 Yapılacaklar:
 1. Honeypot'tan IOC'leri consume et
@@ -413,7 +413,7 @@ Yapılacaklar:
 - [x] Syntax check geçildi
 - [x] GitHub'a commit/push edildi
 - [ ] Frankfurt'a deploy (Faza 2)
-- [ ] Threat Responder integrasyon (Faza 2)
+- [ ] Cyber Guardian integrasyon (Faza 2)
 - [ ] SMS operatörleri entegrasyonu (Faza 2)
 
 ---
