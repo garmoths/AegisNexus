@@ -438,7 +438,7 @@ def _format_urlscan_result(data):
 
 def check_urlscan(url, timeout=12):
     """
-    urlscan.io API ile URL taraması (key rotation + cached).
+    urlscan.io API ile URL taraması (key rotation + cached + polling).
     """
     cache_key = f"urlscan_{hashlib.sha256(url.encode()).hexdigest()}"
     
@@ -462,26 +462,9 @@ def check_urlscan(url, timeout=12):
             current_key = _get_current_api_key("urlscan")
             headers = {"API-Key": current_key, "Content-Type": "application/json"}
             
-            search_resp = requests.get(
-                "https://urlscan.io/api/v1/search/",
-                headers={"API-Key": current_key},
-                params={"q": f'url:"{url}"', "size": 1},
-                timeout=timeout
-            )
-            last_status_code = search_resp.status_code
-            
-            if search_resp.status_code == 200:
-                search_data = search_resp.json()
-                results = search_data.get("results", [])
-                if results:
-                    result_url = results[0].get("result")
-                    if result_url:
-                        result_resp = requests.get(result_url, headers={"API-Key": current_key}, timeout=timeout)
-                        last_status_code = result_resp.status_code
-                        if result_resp.status_code == 200:
-                            formatted = _format_urlscan_result(result_resp.json())
-                            _set_cached(cache_key, formatted)
-                            return formatted
+            # URL validation (HTTPs protokolü zorunlu)
+            if not url.startswith("http://") and not url.startswith("https://"):
+                url = "https://" + url
             
             scan_resp = requests.post(
                 "https://urlscan.io/api/v1/scan/",
@@ -492,13 +475,31 @@ def check_urlscan(url, timeout=12):
             last_status_code = scan_resp.status_code
             
             if scan_resp.status_code == 200:
+                scan_data = scan_resp.json()
+                scan_uuid = scan_data.get("uuid")
+                api_url = f"https://urlscan.io/api/v1/result/{scan_uuid}/"
+                
+                # Polling - 60 saniye içinde sonuçları bekle
+                for poll_attempt in range(10):
+                    import time
+                    time.sleep(6)
+                    
+                    result_resp = requests.get(api_url, headers={"API-Key": current_key}, timeout=timeout)
+                    if result_resp.status_code == 200:
+                        formatted = _format_urlscan_result(result_resp.json())
+                        _set_cached(cache_key, formatted)
+                        logger.debug(f"✅ URLScan results received after {poll_attempt} attempts")
+                        return formatted
+                
+                # Polling timeout - sonuç henüz hazır değil
                 return {
                     "available": True,
                     "status": "urlscan.io: Tarama başlatıldı (sonuçlar birkaç dakika içinde hazır)",
                     "scan_initiated": True,
                     "malicious": False,
                     "score": 0,
-                    "categories": []
+                    "categories": [],
+                    "scan_uuid": scan_uuid
                 }
             
             logger.warning(f"urlscan.io key #{API_RATE_LIMITS['urlscan']['key_index']}: HTTP {scan_resp.status_code}, rotating (attempt {attempt + 1}/{attempts})...")
