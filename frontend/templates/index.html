@@ -600,6 +600,11 @@
                         const vtColor = vt.malicious > 0 ? C.danger : (vt.suspicious > 0 ? C.warn : C.ok);
                         threatHtml += '<div><span style="color:var(--text-muted);">VirusTotal:</span> <span style="color:' + vtColor + ';">' + vt.status + '</span></div>';
                     }
+                    if (data.threat_intel.urlscan && data.threat_intel.urlscan.available) {
+                        const us = data.threat_intel.urlscan;
+                        const usColor = us.malicious ? C.danger : ((us.score && us.score > 0) ? C.warn : C.ok);
+                        threatHtml += '<div><span style="color:var(--text-muted);">urlscan.io:</span> <span style="color:' + usColor + ';">' + us.status + '</span></div>';
+                    }
                     if (data.threat_intel.google_safe_browsing && data.threat_intel.google_safe_browsing.available) {
                         const gsb = data.threat_intel.google_safe_browsing;
                         const gsbColor = gsb.threat ? C.danger : C.ok;
