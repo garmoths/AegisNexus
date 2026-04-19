@@ -757,9 +757,12 @@ def calculate_safety_score(input_url, db: Session = None):
             risks.extend(threat_result["findings"])
         else:
             # VirusTotal temiz (penalty 0) + SSL geçerli = BONUS +25
-            if check_ssl_certificate(domain)["valid"] and not check_ssl_certificate(domain)["expired"]:
-                score += 25  # VirusTotal + SSL bonus
-                risks.append("✅ VirusTotal temiz + SSL geçerli = Yüksek güvenlik")
+            vt_status = threat_result.get("virustotal") or {}
+            if vt_status.get("available") and vt_status.get("malicious", 0) == 0 and vt_status.get("suspicious", 0) == 0:
+                ssl_status = check_ssl_certificate(domain)
+                if ssl_status["valid"] and not ssl_status["expired"]:
+                    score += 25  # VirusTotal + SSL bonus
+                    risks.append("✅ VirusTotal temiz + SSL geçerli = Yüksek güvenlik")
         sources.extend(threat_result["sources"])
     except Exception as e:
         logger.error(f"Threat Intelligence hatası: {e}")
@@ -807,6 +810,7 @@ def calculate_safety_score(input_url, db: Session = None):
     if threat_result:
         result["threat_intel"] = {
             "virustotal": threat_result.get("virustotal"),
+            "urlscan": threat_result.get("urlscan"),
             "google_safe_browsing": threat_result.get("google_safe_browsing"),
             "abuseipdb": threat_result.get("abuseipdb"),
         }

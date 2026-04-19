@@ -43,6 +43,10 @@ ABUSEIPDB_API_KEYS = _parse_api_keys(os.getenv("ABUSEIPDB_API_KEYS", ""))
 if not ABUSEIPDB_API_KEYS:
     ABUSEIPDB_API_KEYS = _parse_api_keys(os.getenv("ABUSEIPDB_API_KEY", ""))
 
+URLSCAN_API_KEYS = _parse_api_keys(os.getenv("URLSCAN_API_KEYS", ""))
+if not URLSCAN_API_KEYS:
+    URLSCAN_API_KEYS = _parse_api_keys(os.getenv("URLSCAN_API_KEY", ""))
+
 # Cache depolama (in-memory)
 API_CACHE = {}
 CACHE_TTL = 3600  # 1 saat
@@ -52,6 +56,7 @@ API_RATE_LIMITS = {
     "virustotal": {"requests": [], "limit": 4, "window": 60, "key_index": 0},  # 4 req/min
     "abuseipdb": {"requests": [], "limit": 1500, "window": 86400, "key_index": 0},  # 1500 req/day
     "google_safe": {"requests": [], "limit": 10000, "window": 86400, "key_index": 0},  # 10000 req/day
+    "urlscan": {"requests": [], "limit": 30, "window": 60, "key_index": 0},  # 30 req/min
 }
 
 
@@ -90,6 +95,16 @@ def _rotate_api_key(api_name):
             return ABUSEIPDB_API_KEYS[next_idx]
         return ABUSEIPDB_API_KEYS[0] if ABUSEIPDB_API_KEYS else None
     
+    elif api_name == "urlscan":
+        if len(URLSCAN_API_KEYS) > 1:
+            current_idx = API_RATE_LIMITS[api_name]["key_index"]
+            next_idx = (current_idx + 1) % len(URLSCAN_API_KEYS)
+            API_RATE_LIMITS[api_name]["key_index"] = next_idx
+            API_RATE_LIMITS[api_name]["requests"] = []
+            logger.info(f"Rotated urlscan.io key: {current_idx} → {next_idx}")
+            return URLSCAN_API_KEYS[next_idx]
+        return URLSCAN_API_KEYS[0] if URLSCAN_API_KEYS else None
+    
     return None
 
 
@@ -104,6 +119,9 @@ def _get_current_api_key(api_name):
     elif api_name == "abuseipdb":
         idx = API_RATE_LIMITS[api_name]["key_index"]
         return ABUSEIPDB_API_KEYS[idx] if idx < len(ABUSEIPDB_API_KEYS) else None
+    elif api_name == "urlscan":
+        idx = API_RATE_LIMITS[api_name]["key_index"]
+        return URLSCAN_API_KEYS[idx] if idx < len(URLSCAN_API_KEYS) else None
     return None
 
 
@@ -390,7 +408,126 @@ def check_google_safe_browsing(url, timeout=8):
 
 
 # =========================================================
-# 3. ABUSEIPDB API
+# 3. URLSCAN.IO
+# =========================================================
+
+def _format_urlscan_result(data):
+    verdicts = data.get("verdicts", {})
+    overall = verdicts.get("overall", {}) if isinstance(verdicts, dict) else {}
+    malicious = bool(overall.get("malicious", False))
+    score = overall.get("score", 0) or 0
+    categories = overall.get("categories", []) if isinstance(overall.get("categories", []), list) else []
+    report_url = data.get("task", {}).get("reportURL")
+    
+    if malicious:
+        status = "🚨 urlscan.io: Zararlı olarak işaretlendi"
+    elif score and score > 0:
+        status = f"⚠️ urlscan.io: Şüpheli skor ({score})"
+    else:
+        status = "✅ urlscan.io: Temiz"
+    
+    return {
+        "available": True,
+        "status": status,
+        "malicious": malicious,
+        "score": score,
+        "categories": categories,
+        "report_url": report_url,
+    }
+
+
+def check_urlscan(url, timeout=12):
+    """
+    urlscan.io API ile URL taraması (key rotation + cached).
+    """
+    cache_key = f"urlscan_{hashlib.sha256(url.encode()).hexdigest()}"
+    
+    cached = _get_cached(cache_key)
+    if cached:
+        return cached
+    
+    if not URLSCAN_API_KEYS:
+        return {
+            "available": False,
+            "status": "API key tanımlı değil",
+            "malicious": False,
+            "score": 0,
+            "categories": []
+        }
+    
+    attempts = len(URLSCAN_API_KEYS)
+    last_status_code = None
+    for attempt in range(attempts):
+        try:
+            current_key = _get_current_api_key("urlscan")
+            headers = {"API-Key": current_key, "Content-Type": "application/json"}
+            
+            search_resp = requests.get(
+                "https://urlscan.io/api/v1/search/",
+                headers={"API-Key": current_key},
+                params={"q": f'url:"{url}"', "size": 1},
+                timeout=timeout
+            )
+            last_status_code = search_resp.status_code
+            
+            if search_resp.status_code == 200:
+                search_data = search_resp.json()
+                results = search_data.get("results", [])
+                if results:
+                    result_url = results[0].get("result")
+                    if result_url:
+                        result_resp = requests.get(result_url, headers={"API-Key": current_key}, timeout=timeout)
+                        last_status_code = result_resp.status_code
+                        if result_resp.status_code == 200:
+                            formatted = _format_urlscan_result(result_resp.json())
+                            _set_cached(cache_key, formatted)
+                            return formatted
+            
+            scan_resp = requests.post(
+                "https://urlscan.io/api/v1/scan/",
+                headers=headers,
+                json={"url": url, "visibility": "public"},
+                timeout=timeout
+            )
+            last_status_code = scan_resp.status_code
+            
+            if scan_resp.status_code == 200:
+                return {
+                    "available": True,
+                    "status": "urlscan.io: Tarama başlatıldı (sonuçlar birkaç dakika içinde hazır)",
+                    "scan_initiated": True,
+                    "malicious": False,
+                    "score": 0,
+                    "categories": []
+                }
+            
+            logger.warning(f"urlscan.io key #{API_RATE_LIMITS['urlscan']['key_index']}: HTTP {scan_resp.status_code}, rotating (attempt {attempt + 1}/{attempts})...")
+            _rotate_api_key("urlscan")
+        
+        except requests.Timeout:
+            logger.warning(f"urlscan.io key #{API_RATE_LIMITS['urlscan']['key_index']}: timeout (attempt {attempt + 1}/{attempts}), rotating...")
+            _rotate_api_key("urlscan")
+            continue
+        except Exception as e:
+            logger.warning(f"urlscan.io key #{API_RATE_LIMITS['urlscan']['key_index']}: {e} (attempt {attempt + 1}/{attempts}), rotating...")
+            _rotate_api_key("urlscan")
+            continue
+    
+    status_detail = f"urlscan.io: Tüm {len(URLSCAN_API_KEYS)} API key başarısız"
+    if last_status_code is not None:
+        status_detail += f" (son HTTP {last_status_code})"
+    
+    return {
+        "available": False if last_status_code in (401, 403) else True,
+        "status": status_detail,
+        "malicious": False,
+        "score": 0,
+        "categories": []
+    }
+
+
+# =========================================================
+# 4. ABUSEIPDB API
 # =========================================================
 
 def check_abuseipdb(url, timeout=8):
@@ -513,6 +650,7 @@ def run_threat_intelligence(url):
     """
     results = {
         "virustotal": None,
+        "urlscan": None,
         "google_safe_browsing": None,
         "abuseipdb": None,
         "total_penalty": 0,
@@ -540,6 +678,24 @@ def run_threat_intelligence(url):
                 results["findings"].append(f"⚠️ VirusTotal: {vt['suspicious']} motor şüpheli olarak işaretledi")
     except Exception as e:
         logger.error(f"VT err: {e}")
+    
+    # --- urlscan.io ---
+    try:
+        urlscan = check_urlscan(url)
+        results["urlscan"] = urlscan
+        if urlscan.get("available"):
+            results["sources"].append({
+                "name": "urlscan.io",
+                "status": urlscan["status"]
+            })
+            if urlscan.get("malicious"):
+                results["total_penalty"] += 30
+                results["findings"].append("🛡️ urlscan.io: Zararlı olarak işaretlendi")
+            elif urlscan.get("score", 0) and urlscan.get("score", 0) > 0:
+                results["total_penalty"] += 10
+                results["findings"].append(f"⚠️ urlscan.io: Şüpheli skor ({urlscan.get('score')})")
+    except Exception as e:
+        logger.error(f"urlscan err: {e}")
 
     # --- Google Safe Browsing ---
     try:

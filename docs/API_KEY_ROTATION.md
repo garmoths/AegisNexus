@@ -4,6 +4,7 @@
 - **VirusTotal**: 4 requests/minute limit (çok dar!)
 - **Google Safe Browsing**: 10,000 requests/day
 - **AbuseIPDB**: 1,500 requests/day
+- **urlscan.io**: plan bazlı limit (free tier dar)
 
 Sistem high-traffic altında bu limitlerde takılı kalıyor.
 
@@ -41,6 +42,9 @@ GOOGLE_SAFE_BROWSING_KEYS=key1,key2
 
 # AbuseIPDB
 ABUSEIPDB_API_KEYS=key1,key2
+
+# urlscan.io
+URLSCAN_API_KEYS=key1,key2
 ```
 
 #### 3. Sunucuyu Restart Et
