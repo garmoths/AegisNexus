@@ -646,11 +646,13 @@ def check_abuseipdb(url, timeout=8):
 def run_threat_intelligence(url):
     """
     Tüm harici API'leri paralel olmayan şekilde çalıştırır.
-    Her API bağımsız çalışır, biri hata verse diğerleri etkilenmez.
+    PRIMARY: URLScan.io (reliyable)
+    FALLBACK: VirusTotal (single key, limited)
+    SECONDARY: Google Safe Browsing, AbuseIPDB
     """
     results = {
-        "virustotal": None,
-        "urlscan": None,
+        "urlscan": None,           # PRIMARY
+        "virustotal": None,         # FALLBACK (single key)
         "google_safe_browsing": None,
         "abuseipdb": None,
         "total_penalty": 0,
@@ -658,7 +660,25 @@ def run_threat_intelligence(url):
         "sources": [],
     }
 
-    # --- VirusTotal ---
+    # --- URLScan.io (PRIMARY) ---
+    try:
+        urlscan = check_urlscan(url)
+        results["urlscan"] = urlscan
+        if urlscan.get("available"):
+            results["sources"].append({
+                "name": "urlscan.io",
+                "status": urlscan["status"]
+            })
+            if urlscan.get("malicious"):
+                results["total_penalty"] += 35
+                results["findings"].append("🛡️ urlscan.io: Zararlı olarak işaretlendi")
+            elif urlscan.get("score", 0) and urlscan.get("score", 0) > 0:
+                results["total_penalty"] += 15
+                results["findings"].append(f"⚠️ urlscan.io: Şüpheli skor ({urlscan.get('score')})")
+    except Exception as e:
+        logger.error(f"URLScan err: {e}")
+    
+    # --- VirusTotal (FALLBACK - single key) ---
     try:
         vt = check_virustotal(url)
         results["virustotal"] = vt
@@ -678,24 +698,6 @@ def run_threat_intelligence(url):
                 results["findings"].append(f"⚠️ VirusTotal: {vt['suspicious']} motor şüpheli olarak işaretledi")
     except Exception as e:
         logger.error(f"VT err: {e}")
-    
-    # --- urlscan.io ---
-    try:
-        urlscan = check_urlscan(url)
-        results["urlscan"] = urlscan
-        if urlscan.get("available"):
-            results["sources"].append({
-                "name": "urlscan.io",
-                "status": urlscan["status"]
-            })
-            if urlscan.get("malicious"):
-                results["total_penalty"] += 30
-                results["findings"].append("🛡️ urlscan.io: Zararlı olarak işaretlendi")
-            elif urlscan.get("score", 0) and urlscan.get("score", 0) > 0:
-                results["total_penalty"] += 10
-                results["findings"].append(f"⚠️ urlscan.io: Şüpheli skor ({urlscan.get('score')})")
-    except Exception as e:
-        logger.error(f"urlscan err: {e}")
 
     # --- Google Safe Browsing ---
     try:
