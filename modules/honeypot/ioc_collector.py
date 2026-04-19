@@ -63,6 +63,7 @@ class IOCSource(str, Enum):
     ABUSEIPDB = "abuseipdb"
     HONEYPOT = "honeypot"
     MISP = "misp"
+    ALIENVAULT_OTX = "alienvault_otx"
     SHODAN = "shodan"
 
 
@@ -799,3 +800,36 @@ __all__ = [
     'ThreatType',
     'IOCSource',
 ]
+
+
+class AlienVaultOTXCollector:
+    """AlienVault OTX IOC Collector"""
+    
+    def __init__(self, api_key: str = None):
+        from dotenv import load_dotenv
+        import os
+        load_dotenv()
+        self.api_key = api_key or os.getenv('ALIENVAULT_OTX_API_KEY')
+        self.base_url = "https://otx.alienvault.com/api/v1"
+        self.http = HTTPSession(timeout=10)
+        
+    def fetch_recent_pulses(self, limit: int = 100) -> List[IOCRecord]:
+        try:
+            headers = {'X-OTX-API-KEY': self.api_key}
+            endpoint = f"{self.base_url}/pulses/subscribed?limit={limit}"
+            logger.info(f"📥 Fetching OTX pulses")
+            response = self.http.get(endpoint, headers=headers)
+            if not response or response.status_code != 200:
+                logger.error(f"❌ OTX error: {response.status_code if response else 'timeout'}")
+                return []
+            iocs = []
+            for pulse in response.json().get('results', []):
+                for ind in pulse.get('indicators', []):
+                    ioc_type = IOCType.URL if ind['type'] == 'URL' else IOCType.DOMAIN if ind['type'] in ['domain', 'hostname'] else IOCType.IP if ind['type'] == 'IPv4' else IOCType.HASH if ind['type'] in ['MD5', 'SHA1', 'SHA256'] else None
+                    if ioc_type:
+                        iocs.append(IOCRecord(ioc_type=ioc_type, ioc_value=ind['indicator'], source=IOCSource.ALIENVAULT_OTX, threat_type=ThreatType.MALWARE, risk_score=75, confidence=0.8))
+            logger.info(f"✅ OTX fetched {len(iocs)} IOCs")
+            return iocs
+        except Exception as e:
+            logger.error(f"❌ OTX fetch failed: {str(e)}")
+            return []
