@@ -51,6 +51,10 @@ if not URLSCAN_API_KEYS:
 API_CACHE = {}
 CACHE_TTL = 3600  # 1 saat
 
+# VALIDATED CACHE - Sadece tüm API'ler başarılı olduğunda sakla
+VALIDATED_CACHE = {}
+VALIDATED_CACHE_TTL = 7200  # 2 saat (daha uzun, çünkü full scan)
+
 # Rate limiting depolama
 API_RATE_LIMITS = {
     "virustotal": {"requests": [], "limit": 4, "window": 60, "key_index": 0},  # 4 req/min
@@ -650,6 +654,9 @@ def run_threat_intelligence(url):
     PRIMARY: URLScan.io (reliyable)
     FALLBACK: VirusTotal (single key, limited)
     SECONDARY: Google Safe Browsing, AbuseIPDB
+    
+    validated=True ise: TÜM API'ler başarılı (200 status)
+    validated=False ise: En az bir API fail oldu (cache'e alınmaz)
     """
     results = {
         "urlscan": None,           # PRIMARY
@@ -659,7 +666,10 @@ def run_threat_intelligence(url):
         "total_penalty": 0,
         "findings": [],
         "sources": [],
+        "validated": False  # Başlangıç: invalid, tüm API'ler başarılı olursa True olur
     }
+
+    all_available = True
 
     # --- URLScan.io (PRIMARY) ---
     try:
@@ -676,8 +686,11 @@ def run_threat_intelligence(url):
             elif urlscan.get("score", 0) and urlscan.get("score", 0) > 0:
                 results["total_penalty"] += 15
                 results["findings"].append(f"⚠️ urlscan.io: Şüpheli skor ({urlscan.get('score')})")
+        else:
+            all_available = False
     except Exception as e:
         logger.error(f"URLScan err: {e}")
+        all_available = False
     
     # --- VirusTotal (FALLBACK - single key) ---
     try:
@@ -697,8 +710,11 @@ def run_threat_intelligence(url):
             elif vt.get("suspicious", 0) >= 1:
                 results["total_penalty"] += 10
                 results["findings"].append(f"⚠️ VirusTotal: {vt['suspicious']} motor şüpheli olarak işaretledi")
+        else:
+            all_available = False
     except Exception as e:
         logger.error(f"VT err: {e}")
+        all_available = False
 
     # --- Google Safe Browsing ---
     try:
@@ -712,8 +728,11 @@ def run_threat_intelligence(url):
             if gsb["threat"]:
                 results["total_penalty"] += 50
                 results["findings"].append(f"🛡️ {gsb['status']}")
+        else:
+            all_available = False
     except Exception as e:
         logger.error(f"GSB err: {e}")
+        all_available = False
 
     # --- AbuseIPDB ---
     try:
@@ -730,7 +749,14 @@ def run_threat_intelligence(url):
             elif aipdb["abuse_score"] >= 30:
                 results["total_penalty"] += 10
                 results["findings"].append(f"⚠️ AbuseIPDB: Orta suistimal skoru ({aipdb['abuse_score']}%)")
+        else:
+            all_available = False
     except Exception as e:
         logger.error(f"AIPDB err: {e}")
+        all_available = False
 
+    # Validated flag - tüm API'ler başarılıysa TRUE
+    results["validated"] = all_available
+    logger.debug(f"Threat Intel Result - Validated: {all_available}, Sources: {len(results['sources'])}")
+    
     return results
