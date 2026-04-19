@@ -17,19 +17,31 @@ from urllib.parse import urlparse, quote_plus
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
 from functools import wraps
+from pathlib import Path
 
-load_dotenv()
+BASE_DIR = Path(__file__).resolve().parents[2]
+load_dotenv(BASE_DIR / ".env")
 logger = logging.getLogger(__name__)
 
+def _parse_api_keys(raw_value: str) -> list[str]:
+    if not raw_value:
+        return []
+    normalized = raw_value.replace("\n", ",")
+    return [k.strip() for k in normalized.split(",") if k.strip()]
+
+
 # API Key'ler .env dosyasından okunur (multiple keys for rotation)
-VIRUSTOTAL_API_KEYS = os.getenv("VIRUSTOTAL_API_KEYS", "").split(",") if os.getenv("VIRUSTOTAL_API_KEYS") else []
-VIRUSTOTAL_API_KEYS = [k.strip() for k in VIRUSTOTAL_API_KEYS if k.strip()]
+VIRUSTOTAL_API_KEYS = _parse_api_keys(os.getenv("VIRUSTOTAL_API_KEYS", ""))
+if not VIRUSTOTAL_API_KEYS:
+    VIRUSTOTAL_API_KEYS = _parse_api_keys(os.getenv("VIRUSTOTAL_API_KEY", ""))
 
-GOOGLE_SAFE_BROWSING_KEYS = os.getenv("GOOGLE_SAFE_BROWSING_KEYS", "").split(",") if os.getenv("GOOGLE_SAFE_BROWSING_KEYS") else []
-GOOGLE_SAFE_BROWSING_KEYS = [k.strip() for k in GOOGLE_SAFE_BROWSING_KEYS if k.strip()]
+GOOGLE_SAFE_BROWSING_KEYS = _parse_api_keys(os.getenv("GOOGLE_SAFE_BROWSING_KEYS", ""))
+if not GOOGLE_SAFE_BROWSING_KEYS:
+    GOOGLE_SAFE_BROWSING_KEYS = _parse_api_keys(os.getenv("GOOGLE_SAFE_BROWSING_KEY", ""))
 
-ABUSEIPDB_API_KEYS = os.getenv("ABUSEIPDB_API_KEYS", "").split(",") if os.getenv("ABUSEIPDB_API_KEYS") else []
-ABUSEIPDB_API_KEYS = [k.strip() for k in ABUSEIPDB_API_KEYS if k.strip()]
+ABUSEIPDB_API_KEYS = _parse_api_keys(os.getenv("ABUSEIPDB_API_KEYS", ""))
+if not ABUSEIPDB_API_KEYS:
+    ABUSEIPDB_API_KEYS = _parse_api_keys(os.getenv("ABUSEIPDB_API_KEY", ""))
 
 # Cache depolama (in-memory)
 API_CACHE = {}
@@ -163,6 +175,7 @@ def check_virustotal(url, timeout=8):
     
     # Tüm key'leri dene
     attempts = len(VIRUSTOTAL_API_KEYS)
+    last_status_code = None
     for attempt in range(attempts):
         try:
             import base64
@@ -173,6 +186,7 @@ def check_virustotal(url, timeout=8):
             
             api_url = f"https://www.virustotal.com/api/v3/urls/{url_id}"
             resp = requests.get(api_url, headers=headers, timeout=timeout)
+            last_status_code = resp.status_code
             
             # Sadece 200 = başarı - immediately return!
             if resp.status_code == 200:
@@ -223,6 +237,7 @@ def check_virustotal(url, timeout=8):
                     data={"url": url},
                     timeout=timeout
                 )
+                last_status_code = scan_resp.status_code
                 if scan_resp.status_code == 200:
                     return {
                         "available": True,
@@ -253,9 +268,12 @@ def check_virustotal(url, timeout=8):
     
     # Tüm key'ler başarısız - return empty result
     logger.error(f"❌ VirusTotal: All {len(VIRUSTOTAL_API_KEYS)} keys exhausted")
+    status_detail = f"VirusTotal: Tüm {len(VIRUSTOTAL_API_KEYS)} API key başarısız"
+    if last_status_code is not None:
+        status_detail += f" (son HTTP {last_status_code})"
     return {
-        "available": True,
-        "status": f"VirusTotal: Tüm {len(VIRUSTOTAL_API_KEYS)} API key başarısız",
+        "available": False if last_status_code == 401 else True,
+        "status": status_detail,
         "malicious": 0, "suspicious": 0, "clean": 0,
         "engines": []
     }
