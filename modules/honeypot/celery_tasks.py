@@ -11,17 +11,7 @@ def fetch_urlhaus(self):
     try:
         from .ioc_collector import AbuseChCollector
         collector = AbuseChCollector()
-        result = collector.fetch_urlhaus_recent()
-        return {"status": "success", "count": len(result)}
-    except Exception as e:
-        self.retry(exc=e, countdown=60)
-
-@app.task(bind=True, max_retries=3)
-def fetch_phishtank(self):
-    try:
-        from .ioc_collector import AbuseChCollector
-        collector = AbuseChCollector()
-        result = collector.fetch_phishtank_recent()
+        result = collector.fetch_urlhaus_recent(limit=500)
         return {"status": "success", "count": len(result)}
     except Exception as e:
         self.retry(exc=e, countdown=60)
@@ -31,14 +21,13 @@ def fetch_otx(self):
     try:
         from .ioc_collector import AlienVaultOTXCollector
         collector = AlienVaultOTXCollector()
-        result = collector.fetch_recent_pulses()
+        result = collector.fetch_recent_pulses(limit=100)
         return {"status": "success", "count": len(result)}
     except Exception as e:
         self.retry(exc=e, countdown=60)
 
 @app.task
 def run_ioc_fetch():
-    """Tüm IOC tasks'ı parallel çalıştır"""
+    """Parallel IOC fetcher"""
     fetch_urlhaus.delay()
-    fetch_phishtank.delay()
     fetch_otx.delay()
