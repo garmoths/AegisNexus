@@ -174,7 +174,7 @@ a:hover {
 
 .hero-topbar {
   position: relative;
-  z-index: 2;
+  z-index: 100;
   max-width: 1240px;
   margin: 0 auto;
   padding: 1.15rem 1.5rem;
@@ -349,6 +349,7 @@ a:hover {
   display: flex;
   justify-content: center;
   align-items: flex-end;
+  z-index: 0;
 }
 
 .hero-figure img {
