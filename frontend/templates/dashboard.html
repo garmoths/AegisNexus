@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AegisNexus - Tehdit İstihbaratı Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #e2e8f0;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 20px;
+        }
+        
+        header h1 {
+            font-size: 2.5rem;
+            color: #22d3ee;
+            margin-bottom: 10px;
+            text-shadow: 0 0 20px rgba(34, 211, 238, 0.3);
+        }
+        
+        header p {
+            color: #94a3b8;
+            font-size: 1.1rem;
+        }
+        
+        .last-update {
+            text-align: center;
+            color: #64748b;
+            font-size: 0.9rem;
+            margin-bottom: 30px;
+        }
+        
+        /* Stats Cards */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #1e293b, #0f172a);
+            border: 1px solid #334155;
+            border-radius: 16px;
+            padding: 30px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+        }
+        
+        .stat-card h3 {
+            color: #94a3b8;
+            font-size: 0.9rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 15px;
+        }
+        
+        .stat-value {
+            font-size: 3rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #22d3ee, #3b82f6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .stat-card.danger .stat-value {
+            background: linear-gradient(135deg, #ef4444, #f97316);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .stat-card.success .stat-value {
+            background: linear-gradient(135deg, #22c55e, #84cc16);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        /* Charts Grid */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+        
+        .chart-card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 16px;
+            padding: 25px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+        }
+        
+        .chart-card h3 {
+            color: #e2e8f0;
+            font-size: 1.2rem;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #334155;
+        }
+        
+        canvas {
+            max-height: 300px;
+        }
+        
+        /* Loading State */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #64748b;
+        }
+        
+        .spinner {
+            border: 3px solid #334155;
+            border-top: 3px solid #22d3ee;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Error State */
+        .error {
+            text-align: center;
+            padding: 40px;
+            color: #ef4444;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+            header h1 {
+                font-size: 1.8rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🛡️ AegisNexus</h1>
+            <p>6 Katmanlı Güvenlik Kalkanı - Tehdit İstihbaratı Dashboard</p>
+        </header>
+        
+        <div class="last-update" id="lastUpdate">Yükleniyor...</div>
+        
+        <!-- Stats Cards -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>🔍 Toplam IoC</h3>
+                <div class="stat-value" id="iocCount">-</div>
+            </div>
+            <div class="stat-card danger">
+                <h3>⚠️ Yüksek Riskli IoC</h3>
+                <div class="stat-value" id="highRiskCount">-</div>
+            </div>
+            <div class="stat-card success">
+                <h3>🎣 Toplam Phishing URL</h3>
+                <div class="stat-value" id="phishingCount">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>📅 Bugün Eklenen IoC</h3>
+                <div class="stat-value" id="todayCount">-</div>
+            </div>
+        </div>
+        
+        <!-- Charts -->
+        <div class="charts-grid">
+            <div class="chart-card">
+                <h3>🎯 IoC Risk Dağılımı</h3>
+                <canvas id="riskChart"></canvas>
+            </div>
+            <div class="chart-card">
+                <h3>📈 Son 7 Gün IoC Artışı</h3>
+                <canvas id="weeklyChart"></canvas>
+            </div>
+            <div class="chart-card">
+                <h3>🔥 En Çok Görülen Tehditler</h3>
+                <canvas id="threatChart"></canvas>
+            </div>
+            <div class="chart-card">
+                <h3>🌐 En Çok Phishing Yapılan Domainler</h3>
+                <canvas id="domainChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // API Base URL - Backend adresini buraya yaz
+        const API_BASE = '/api/v2';
+        
+        // Chart instances
+        let riskChart, weeklyChart, threatChart, domainChart;
+        
+        // Sayfa yüklendiğinde
+        document.addEventListener('DOMContentLoaded', () => {
+            loadAllData();
+            // Her 30 saniyede bir güncelle
+            setInterval(loadAllData, 30000);
+        });
+        
+        // Tüm verileri yükle
+        async function loadAllData() {
+            try {
+                const [iocData, phishingData] = await Promise.all([
+                    fetch(`${API_BASE}/honeypot/ioc/stats`).then(r => r.json()),
+                    fetch(`${API_BASE}/phishing/stats`).then(r => r.json())
+                ]);
+                
+                updateStats(iocData, phishingData);
+                updateCharts(iocData, phishingData);
+                updateTimestamp();
+            } catch (error) {
+                console.error('Veri yükleme hatası:', error);
+                document.getElementById('lastUpdate').textContent = 
+                    '❌ Veri yüklenemedi. Backend çalışıyor mu?';
+            }
+        }
+        
+        // Sayaçları güncelle
+        function updateStats(iocData, phishingData) {
+            const iocStats = iocData.stats || iocData;
+            
+            animateValue('iocCount', parseInt(document.getElementById('iocCount').textContent.replace(/,/g, '')) || 0, iocStats.total_iocs || 0);
+            animateValue('highRiskCount', 0, iocStats.high_risk_count || 0);
+            animateValue('phishingCount', parseInt(document.getElementById('phishingCount').textContent.replace(/,/g, '')) || 0, phishingData.total_urls || phishingData.toplam_zararli_site || 0);
+            animateValue('todayCount', 0, iocData.today_added || 0);
+        }
+        
+        // Animasyonlu sayaç
+        function animateValue(id, start, end) {
+            const obj = document.getElementById(id);
+            const duration = 1000;
+            const range = end - start;
+            const minTimer = 50;
+            let stepTime = Math.abs(Math.floor(duration / (range / 50)));
+            stepTime = Math.max(stepTime, minTimer);
+            let startTime = new Date().getTime();
+            let endTime = startTime + duration;
+            let timer;
+            
+            function run() {
+                let now = new Date().getTime();
+                let remaining = Math.max((endTime - now) / duration, 0);
+                let value = Math.round(end - (remaining * range));
+                obj.textContent = value.toLocaleString('tr-TR');
+                if (value == end) {
+                    clearInterval(timer);
+                }
+            }
+            
+            timer = setInterval(run, stepTime);
+            run();
+        }
+        
+        // Zaman damgası güncelle
+        function updateTimestamp() {
+            const now = new Date();
+            document.getElementById('lastUpdate').textContent = 
+                `🕐 Son güncelleme: ${now.toLocaleString('tr-TR')}`;
+        }
+        
+        // Grafikleri güncelle
+        function updateCharts(iocData, phishingData) {
+            updateRiskChart(iocData.risk_distribution);
+            updateWeeklyChart(iocData.weekly_growth);
+            updateThreatChart(iocData.top_threats);
+            updateDomainChart(phishingData.top_domains);
+        }
+        
+        // Risk Dağılımı (Doughnut)
+        function updateRiskChart(data) {
+            const ctx = document.getElementById('riskChart').getContext('2d');
+            
+            if (riskChart) riskChart.destroy();
+            
+            riskChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: data.map(d => d.range),
+                    datasets: [{
+                        data: data.map(d => d.count),
+                        backgroundColor: [
+                            '#22c55e',  // Düşük
+                            '#84cc16',  // Orta-Düşük
+                            '#eab308',  // Orta
+                            '#f97316',  // Orta-Yüksek
+                            '#ef4444'   // Yüksek
+                        ],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: { color: '#e2e8f0', font: { size: 12 } }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Haftalık Artış (Line)
+        function updateWeeklyChart(data) {
+            const ctx = document.getElementById('weeklyChart').getContext('2d');
+            
+            if (weeklyChart) weeklyChart.destroy();
+            
+            weeklyChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(d => {
+                        const date = new Date(d.date);
+                        return `${date.getDate()}/${date.getMonth() + 1}`;
+                    }),
+                    datasets: [{
+                        label: 'IoC Sayısı',
+                        data: data.map(d => d.count),
+                        borderColor: '#22d3ee',
+                        backgroundColor: 'rgba(34, 211, 238, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        pointBackgroundColor: '#22d3ee',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        pointRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#94a3b8' },
+                            grid: { color: '#334155' }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            ticks: { color: '#94a3b8' },
+                            grid: { color: '#334155' }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Tehdit Tipleri (Bar)
+        function updateThreatChart(data) {
+            const ctx = document.getElementById('threatChart').getContext('2d');
+            
+            if (threatChart) threatChart.destroy();
+            
+            threatChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.map(t => t.type?.toUpperCase() || 'Bilinmiyor'),
+                    datasets: [{
+                        label: 'Sayı',
+                        data: data.map(t => t.count),
+                        backgroundColor: [
+                            '#ef4444', '#f97316', '#eab308', 
+                            '#22c55e', '#3b82f6', '#8b5cf6'
+                        ],
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#94a3b8' },
+                            grid: { display: false }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            ticks: { color: '#94a3b8' },
+                            grid: { color: '#334155' }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Domainler (Horizontal Bar)
+        function updateDomainChart(data) {
+            const ctx = document.getElementById('domainChart').getContext('2d');
+            
+            if (domainChart) domainChart.destroy();
+            
+            const top10 = data.slice(0, 10);
+            
+            domainChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: top10.map(d => d.domain.length > 20 ? d.domain.slice(0, 20) + '...' : d.domain),
+                    datasets: [{
+                        label: 'URL Sayısı',
+                        data: top10.map(d => d.count),
+                        backgroundColor: '#8b5cf6',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            ticks: { color: '#94a3b8' },
+                            grid: { color: '#334155' }
+                        },
+                        y: {
+                            ticks: { color: '#e2e8f0', font: { size: 11 } },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
