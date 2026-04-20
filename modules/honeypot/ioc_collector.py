@@ -301,89 +301,43 @@ class AbuseChCollector:
         return self.phishtank_api_keys[self.phishtank_key_index] if self.phishtank_api_keys else None
     
     def fetch_urlhaus_recent(self, limit: int = 100) -> List[IOCRecord]:
-        """
-        Fetch recent malicious URLs from URLhaus public CSV dump (no Auth-Key needed).
-        Downloads ZIP, extracts CSV, parses URLs.
-        """
+        """Fetch recent malicious URLs from URLhaus CSV recent dump."""
         iocs = []
-        
         try:
-            import io
-            import zipfile
-            
-            # Public endpoint - no Auth-Key required!
-            endpoint = "https://urlhaus.abuse.ch/downloads/csv/"
-            
-            logger.info(f"📥 Fetching URLhaus CSV from {endpoint}")
+            import io, csv
+            endpoint = "https://urlhaus.abuse.ch/downloads/csv_recent/"
+            logger.info("📥 Fetching URLhaus recent CSV")
             response = self.http.get(endpoint)
-            
-            # Only 200 = success
+
             if not response or response.status_code != 200:
-                status = response.status_code if response else "timeout"
-                logger.warning(f"❌ URLhaus CSV download failed: HTTP {status}")
-                return iocs
-            
-            # Extract ZIP and parse CSV
-            try:
-                zip_file = zipfile.ZipFile(io.BytesIO(response.content))
-                csv_content = zip_file.read(zip_file.namelist()[0]).decode('utf-8')
-            except Exception as e:
-                logger.warning(f"❌ URLhaus ZIP extraction failed: {e}")
-                return iocs
-            
-            # Parse CSV lines
-            lines = csv_content.strip().split('\n')
-            count = 0
-            for line in lines:
-                if count >= limit:
-                    break
-                
-                # Skip comments
-                if line.startswith('#'):
+                logger.error(f"❌ URLhaus error: {response.status_code if response else 'timeout'}")
+                return []
+
+            reader = csv.reader(io.StringIO(response.text))
+            for row in reader:
+                if not row or row[0].startswith("#"):
                     continue
-                
-                try:
-                    # CSV format: "id","dateadded","url","url_status","last_online","threat","tags","urlhaus_link","reporter"
-                    parts = [p.strip('"') for p in line.split('","')]
-                    
-                    if len(parts) < 7:
-                        continue
-                    
-                    url = parts[2].strip()
-                    threat = parts[5].strip() if len(parts) > 5 else 'malware'
-                    
-                    if not url or url.startswith('"'):
-                        continue
-                    
-                    risk_score = calculate_risk_score(
-                        threat_type=ThreatType.MALWARE,
-                        source=IOCSource.URLHAUS,
-                        confidence=0.90
-                    )
-                    
+                # CSV columns: id, dateadded, url, url_status, last_online, threat, tags, urlhaus_link, reporter
+                url = row[2] if len(row) > 2 else None
+                threat = row[5] if len(row) > 5 else ""
+                if url:
                     iocs.append(IOCRecord(
                         ioc_type=IOCType.URL,
                         ioc_value=url,
                         source=IOCSource.URLHAUS,
-                        threat_type=ThreatType.MALWARE,
-                        risk_score=risk_score,
-                        confidence=0.90,
-                        detection_count=1,
-                        ioc_metadata={'urlhaus_threat': threat},
+                        threat_type=ThreatType.PHISHING if "phishing" in threat.lower() else ThreatType.MALWARE,
+                        risk_score=80,
+                        confidence=0.9
                     ))
-                    count += 1
-                
-                except Exception as e:
-                    logger.debug(f"Error parsing URLhaus record: {e}")
-                    continue
-            
-            logger.info(f"✅ URLhaus CSV fetched {len(iocs)} IOCs")
+                if len(iocs) >= limit:
+                    break
+
+            logger.info(f"✅ URLhaus fetched {len(iocs)} recent URLs")
             return iocs
-        
         except Exception as e:
-            logger.error(f"❌ URLhaus CSV fetch error: {e}")
-            return iocs
-    
+            logger.error(f"❌ URLhaus fetch failed: {str(e)}")
+            return []
+
     def fetch_phishtank_recent(self, limit: int = 100) -> List[IOCRecord]:
         """Fetch recent phishing URLs from PhishTank with API key rotation."""
         iocs = []
@@ -802,34 +756,62 @@ __all__ = [
 ]
 
 
+
 class AlienVaultOTXCollector:
-    """AlienVault OTX IOC Collector"""
-    
+    """AlienVault OTX IOC Collector (requests.get)"""
+
     def __init__(self, api_key: str = None):
         from dotenv import load_dotenv
         import os
         load_dotenv()
         self.api_key = api_key or os.getenv('ALIENVAULT_OTX_API_KEY')
         self.base_url = "https://otx.alienvault.com/api/v1"
-        self.http = HTTPSession(timeout=10)
-        
+
     def fetch_recent_pulses(self, limit: int = 100) -> List[IOCRecord]:
         try:
+            import requests
             headers = {'X-OTX-API-KEY': self.api_key}
             endpoint = f"{self.base_url}/pulses/subscribed?limit={limit}"
-            logger.info(f"📥 Fetching OTX pulses")
-            response = self.http.get(endpoint, headers=headers)
-            if not response or response.status_code != 200:
-                logger.error(f"❌ OTX error: {response.status_code if response else 'timeout'}")
+            logger.info("📥 Fetching OTX pulses")
+            r = requests.get(endpoint, headers=headers, timeout=20)
+
+            if r.status_code != 200:
+                logger.error(f"❌ OTX error: {r.status_code}")
                 return []
+
+            data = r.json()
             iocs = []
-            for pulse in response.json().get('results', []):
-                for ind in pulse.get('indicators', []):
-                    ioc_type = IOCType.URL if ind['type'] == 'URL' else IOCType.DOMAIN if ind['type'] in ['domain', 'hostname'] else IOCType.IP if ind['type'] == 'IPv4' else IOCType.HASH if ind['type'] in ['MD5', 'SHA1', 'SHA256'] else None
-                    if ioc_type:
-                        iocs.append(IOCRecord(ioc_type=ioc_type, ioc_value=ind['indicator'], source=IOCSource.ALIENVAULT_OTX, threat_type=ThreatType.MALWARE, risk_score=75, confidence=0.8))
+            for pulse in data.get('results', []):
+                for indicator in pulse.get('indicators', []):
+                    t = indicator.get('type')
+                    if t == 'URL':
+                        ioc_type = IOCType.URL
+                    elif t in ['domain', 'hostname']:
+                        ioc_type = IOCType.DOMAIN
+                    elif t == 'IPv4':
+                        ioc_type = IOCType.IP
+                    elif t in ['MD5', 'SHA1', 'SHA256']:
+                        ioc_type = IOCType.HASH
+                    else:
+                        continue
+
+                    val = indicator.get('indicator')
+                    if not val:
+                        continue
+
+                    iocs.append(IOCRecord(
+                        ioc_type=ioc_type,
+                        ioc_value=val,
+                        source=IOCSource.ALIENVAULT_OTX,
+                        threat_type=ThreatType.MALWARE,
+                        risk_score=75,
+                        confidence=0.8,
+                        ioc_metadata={'pulse_id': pulse.get('id'), 'pulse_name': pulse.get('name')}
+                    ))
+
             logger.info(f"✅ OTX fetched {len(iocs)} IOCs")
             return iocs
         except Exception as e:
             logger.error(f"❌ OTX fetch failed: {str(e)}")
             return []
+
