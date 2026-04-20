@@ -461,6 +461,8 @@
             scrollToId('top');
         }
 
+        var dropdownTimeout = null;
+
         function wireHeroNav() {
             function prev(e) { if (e) e.preventDefault(); }
             var home = document.getElementById('navAnaSayfa');
@@ -474,7 +476,13 @@
                 e.preventDefault();
                 e.stopPropagation();
                 var menu = document.getElementById('dropdownMenu');
-                if (menu) menu.classList.toggle('is-open');
+                if (menu) {
+                    menu.classList.toggle('is-open');
+                    if (dropdownTimeout) {
+                        clearTimeout(dropdownTimeout);
+                        dropdownTimeout = null;
+                    }
+                }
             });
         }
 
@@ -483,10 +491,31 @@
             if (menu) menu.classList.remove('is-open');
         }
 
+        function scheduleDropdownClose() {
+            if (dropdownTimeout) {
+                clearTimeout(dropdownTimeout);
+            }
+            dropdownTimeout = setTimeout(function() {
+                closeDropdown();
+                dropdownTimeout = null;
+            }, 1000);
+        }
+
         document.addEventListener('click', function(e) {
             var dropdown = document.querySelector('.dropdown');
             if (dropdown && !dropdown.contains(e.target)) {
                 closeDropdown();
+            }
+        });
+
+        document.querySelector('.dropdown').addEventListener('mouseleave', function() {
+            scheduleDropdownClose();
+        });
+
+        document.querySelector('.dropdown').addEventListener('mouseenter', function() {
+            if (dropdownTimeout) {
+                clearTimeout(dropdownTimeout);
+                dropdownTimeout = null;
             }
         });
 
