@@ -430,55 +430,8 @@ def list_collected_iocs(ioc_type: Optional[str] = None, limit: int = 100, min_co
     }
 
 
-@router.get("/ioc/stats")
-def get_ioc_stats():
-    """IOC collector istatistikleri - veritabanından."""
-    try:
-        from app.database import SessionLocal
-        db = SessionLocal()
-        
-        # Veritabanından IOC istatistikleri
-        total = db.query(IndicatorOfCompromise).count()
-        high_risk = db.query(IndicatorOfCompromise).filter(IndicatorOfCompromise.risk_score >= 80).count()
-        medium_risk = db.query(IndicatorOfCompromise).filter(
-            (IndicatorOfCompromise.risk_score >= 50) & (IndicatorOfCompromise.risk_score < 80)
-        ).count()
-        low_risk = db.query(IndicatorOfCompromise).filter(IndicatorOfCompromise.risk_score < 50).count()
-        
-        from datetime import datetime
-        last_update = db.query(IndicatorOfCompromise.created_at).order_by(
-            IndicatorOfCompromise.created_at.desc()
-        ).first()
-        
-        db.close()
-        
-        return {
-            "status": "success",
-            "stats": {
-                "total_iocs": total,
-                "high_risk_count": high_risk,
-                "medium_risk_count": medium_risk,
-                "low_risk_count": low_risk,
-                "last_update": last_update[0] if last_update else None,
-            },
-            "module": "02_honeypot",
-        }
-    except Exception as e:
-        return {
-            "status": "error",
-            "error": str(e),
-            "stats": {
-                "total_iocs": 0,
-                "high_risk_count": 0,
-                "medium_risk_count": 0,
-                "low_risk_count": 0,
-            },
-            "module": "02_honeypot",
-        }
-
-
 # ============================================================================
-# ENTERPRISE IOC COLLECTOR ENDPOINTS (NEW)
+# ENTERPRISE IOC COLLECTOR ENDPOINTS
 # ============================================================================
 
 class IOCCollectorFetchRequest(BaseModel):
@@ -813,8 +766,20 @@ def get_ioc_statistics(db: Session = Depends(get_db)):
             IndicatorOfCompromise.source
         ).order_by(desc("count")).limit(10).all()
         
+        # Risk kategorilerine göre sayılar (frontend uyumluluğu için)
+        high_risk = sum(r["count"] for r in risk_distribution if "Yüksek" in r["range"])
+        medium_risk = sum(r["count"] for r in risk_distribution if "Orta" in r["range"] and "Yüksek" not in r["range"])
+        low_risk = sum(r["count"] for r in risk_distribution if "Düşük" in r["range"])
+        
         return {
             "status": "success",
+            "stats": {
+                "total_iocs": total,
+                "high_risk_count": high_risk,
+                "medium_risk_count": medium_risk,
+                "low_risk_count": low_risk,
+                "last_update": datetime.utcnow().isoformat()
+            },
             "total_records": total,
             "today_added": today_added,
             "weekly_growth": weekly_growth,
@@ -825,7 +790,16 @@ def get_ioc_statistics(db: Session = Depends(get_db)):
         }
     except Exception as e:
         logger.error(f"IoC stats error: {e}")
-        return {"status": "error", "message": str(e)}
+        return {
+            "status": "error",
+            "message": str(e),
+            "stats": {
+                "total_iocs": 0,
+                "high_risk_count": 0,
+                "medium_risk_count": 0,
+                "low_risk_count": 0
+            }
+        }
 
 
 @router.get("/phishing/stats")
@@ -874,6 +848,11 @@ def get_phishing_statistics(db: Session = Depends(get_db)):
         
         return {
             "status": "success",
+            "stats": {
+                "total_urls": total,
+                "daily_new": daily_new,
+                "last_update": datetime.utcnow().isoformat()
+            },
             "total_urls": total,
             "daily_new": daily_new,
             "top_domains": [{"domain": d[0], "count": d[1]} for d in top_domains],
@@ -892,4 +871,11 @@ def get_phishing_statistics(db: Session = Depends(get_db)):
         }
     except Exception as e:
         logger.error(f"Phishing stats error: {e}")
-        return {"status": "error", "message": str(e)}
+        return {
+            "status": "error",
+            "message": str(e),
+            "stats": {
+                "total_urls": 0,
+                "daily_new": 0
+            }
+        }
