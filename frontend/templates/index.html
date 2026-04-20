@@ -338,7 +338,10 @@
 
         <section id="blog" class="blog-section" aria-label="Blog">
             <div class="blog-inner">
-                <h2 class="blog-title">Blog</h2>
+                <h2 class="blog-title">
+                    Blog
+                    <span class="pulse-dot" title="Sistem aktif"></span>
+                </h2>
                 <div class="blog-grid">
                     <div class="blog-card blog-card--locked">
                         <div class="blog-card-icon">
@@ -389,17 +392,28 @@
     </main>
 
     <section class="contact-section">
-        <div class="contact-inner">
-            <h2 class="contact-heading">Bizimle Projeniz Hakkında Konuşun</h2>
-            <p class="contact-sub">Siber güvenlik çözümlerimiz hakkında bilgi almak veya iş birliği yapmak için bizimle iletişime geçin.</p>
-            <form class="contact-form" onsubmit="event.preventDefault(); submitContact();">
-                <div class="contact-form-row">
-                    <input type="text" id="contactName" placeholder="Adınız" class="contact-input">
-                    <input type="email" id="contactEmail" placeholder="E-posta adresiniz" class="contact-input">
+        <div class="contact-inner contact-split">
+            <div class="contact-left">
+                <h2 class="contact-heading">Bizimle Projeniz<br>Hakkında Konuşun</h2>
+                <p class="contact-sub">Siber güvenlik çözümlerimiz hakkında bilgi almak veya iş birliği yapmak için bizimle iletişime geçin.</p>
+                <div class="contact-email-block">
+                    <svg class="email-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                        <polyline points="22,6 12,13 2,6"/>
+                    </svg>
+                    <a href="mailto:hello@aegisnexus.com" class="contact-email">hello@aegisnexus.com</a>
                 </div>
-                <textarea id="contactMessage" placeholder="Mesajınız" class="contact-textarea" rows="4"></textarea>
-                <button type="submit" class="contact-submit">Gönder</button>
-            </form>
+            </div>
+            <div class="contact-right">
+                <form class="contact-form" onsubmit="event.preventDefault(); submitContact();">
+                    <div class="contact-form-row">
+                        <input type="text" id="contactName" placeholder="Adınız" class="contact-input glass-input">
+                        <input type="email" id="contactEmail" placeholder="E-posta adresiniz" class="contact-input glass-input">
+                    </div>
+                    <textarea id="contactMessage" placeholder="Mesajınız" class="contact-textarea glass-input" rows="4"></textarea>
+                    <button type="submit" class="contact-submit-neon">Gönder →</button>
+                </form>
+            </div>
         </div>
     </section>
 
