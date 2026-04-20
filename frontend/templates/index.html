@@ -27,12 +27,12 @@
                 <div class="dropdown">
                     <a href="#" id="navModules" class="dropdown-toggle">Platform Modülleri</a>
                     <div class="dropdown-menu" id="dropdownMenu">
-                        <a href="#" onclick="changePage('threat')">Tehdit</a>
-                        <a href="#" onclick="changePage('infra')">Altyapı</a>
-                        <a href="#" onclick="changePage('breach')">Sızıntı</a>
-                        <a href="#" onclick="changePage('shield')">Şifre</a>
-                        <a href="#" onclick="changePage('ioc')">İOC İstihbaratı</a>
-                        <a href="#" onclick="changePage('honeypot')">Tuzak</a>
+                        <a href="#" onclick="changePage('threat'); return false;">Tehdit</a>
+                        <a href="#" onclick="changePage('infra'); return false;">Altyapı</a>
+                        <a href="#" onclick="changePage('breach'); return false;">Sızıntı</a>
+                        <a href="#" onclick="changePage('shield'); return false;">Şifre</a>
+                        <a href="#" onclick="changePage('ioc'); return false;">İOC İstihbaratı</a>
+                        <a href="#" onclick="changePage('honeypot'); return false;">Tuzak</a>
                     </div>
                 </div>
                 <a href="https://api.aegisnexus.dev" target="_blank" id="navAPI">API</a>
@@ -49,8 +49,8 @@
                     <h1 class="hero-display">Aegis Nexus ile dijital dünyanızı güvenceye alın ve büyütün.</h1>
                     <p class="hero-tagline">Tehdit veritabanından aktif savunmaya, tam teşekküllü siber güvenlik ekosistemi.</p>
                     <div class="hero-cta">
-                        <a href="#" onclick="changePage('threat')" class="btn-hero-solid" id="heroCtaPanel">Hemen kontrol et</a>
-                        <a href="#" onclick="changePage('modules')" class="btn-hero-outline" id="heroCtaInfo">Daha fazla bilgi al</a>
+                        <a href="#" onclick="changePage('threat'); return false;" class="btn-hero-solid" id="heroCtaPanel">Hemen kontrol et</a>
+                        <a href="#" onclick="changePage('modules'); return false;" class="btn-hero-outline" id="heroCtaInfo">Daha fazla bilgi al</a>
                     </div>
                 </div>
                 <div class="hero-figure">
@@ -217,7 +217,6 @@
                 </div>
             </div>
         </section>
-    </main>
 
     <div id="addModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
         <div class="modal-content">
@@ -246,7 +245,7 @@
         <button type="button" class="tab-btn" data-tab="contact" role="tab">İletişim</button>
     </nav>
 
-    <main class="main-content">
+    <div class="main-content">
 
         <div id="tab-panel-threat" class="tab-panel active">
             <div class="grid-2">
@@ -437,8 +436,9 @@
                 </article>
             </div>
         </div>
-    </main>
     </div>
+    </div>
+    </main>
 
     <section class="contact-section">
         <div class="contact-inner">
@@ -510,12 +510,13 @@
             const hakkimizda = document.getElementById('hakkimizda');
             const blog = document.getElementById('blog');
             
-            if (pageName === '' || pageName === 'home') {
+            if (pageName === '' || pageName === 'home' || pageName === 'modules') {
                 // Ana sayfa: vitrini göster, mutfak'ı gizle
                 if (vitrinAlani) vitrinAlani.style.display = 'block';
                 if (mutfakAlani) mutfakAlani.style.display = 'none';
-                if (hakkimizda) hakkimizda.style.display = 'none';
-                if (blog) blog.style.display = 'none';
+                if (hakkimizda) hakkimizda.style.display = 'block';
+                if (blog) blog.style.display = 'block';
+                if (pageName === 'modules') scrollToId('modules-overview');
                 
             } else if (pageName === 'threat' || pageName === 'infra' || pageName === 'breach' || pageName === 'shield' || pageName === 'ioc' || pageName === 'honeypot' || pageName === 'contact') {
                 // Modüle tıklandığında: vitrini gizle, mutfak'ı aç
@@ -540,6 +541,12 @@
             // Vitrini tekrar göster
             const vitrinAlani = document.getElementById('vitrin-alani');
             if (vitrinAlani) vitrinAlani.style.display = 'block';
+            
+            // Hakkımızda ve blog'u tekrar göster
+            const hakkimizda = document.getElementById('hakkimizda');
+            const blog = document.getElementById('blog');
+            if (hakkimizda) hakkimizda.style.display = 'block';
+            if (blog) blog.style.display = 'block';
             
             // URL'yi ana dizine geri çek
             window.history.pushState({}, '', '/');
