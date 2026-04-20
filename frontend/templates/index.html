@@ -558,9 +558,10 @@
             riskText.innerHTML = 'Bekleyin…';
 
             try {
-                const res = await fetch('/api/v2/ai-analyzer/check-url?url=' + encodeURIComponent(url), {
-                    method: 'GET',
-                    headers: { 'Content-Type': 'application/json' }
+                const res = await fetch('/api/v2/phishing/check-url', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url })
                 });
                 const data = await res.json();
 
