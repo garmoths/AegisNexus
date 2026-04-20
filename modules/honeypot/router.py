@@ -742,3 +742,154 @@ async def get_iocs_by_risk_level(
     except Exception as e:
         logger.error(f"Risk level query error: {e}")
         return {"status": "error", "error": str(e)}
+
+
+# ==================== IOC STATS API ====================
+
+@router.get("/ioc/stats")
+def get_ioc_statistics(db: Session = Depends(get_db)):
+    """
+    IoC istatistikleri aggregation endpoint
+    """
+    from sqlalchemy import func, desc, cast, Date
+    from datetime import datetime, timedelta
+    
+    try:
+        # 1. Toplam kayıt
+        total = db.query(func.count(IndicatorOfCompromise.id)).scalar() or 0
+        
+        # 2. Bugün eklenen
+        today = datetime.utcnow().date()
+        today_added = db.query(func.count(IndicatorOfCompromise.id)).filter(
+            cast(IndicatorOfCompromise.created_at, Date) == today
+        ).scalar() or 0
+        
+        # 3. Son 7 gün günlük artış
+        weekly_growth = []
+        for i in range(7, -1, -1):
+            date = datetime.utcnow().date() - timedelta(days=i)
+            count = db.query(func.count(IndicatorOfCompromise.id)).filter(
+                cast(IndicatorOfCompromise.created_at, Date) == date
+            ).scalar() or 0
+            weekly_growth.append({"date": date.isoformat(), "count": count})
+        
+        # 4. Risk skoru dağılımı
+        risk_ranges = [
+            ("Düşük (0-20)", 0, 20),
+            ("Orta-Düşük (21-40)", 21, 40),
+            ("Orta (41-60)", 41, 60),
+            ("Orta-Yüksek (61-80)", 61, 80),
+            ("Yüksek (81-100)", 81, 100)
+        ]
+        risk_distribution = []
+        for label, min_val, max_val in risk_ranges:
+            count = db.query(func.count(IndicatorOfCompromise.id)).filter(
+                IndicatorOfCompromise.risk_score >= min_val,
+                IndicatorOfCompromise.risk_score <= max_val
+            ).scalar() or 0
+            risk_distribution.append({
+                "range": label,
+                "count": count,
+                "percentage": round((count / total * 100), 2) if total > 0 else 0
+            })
+        
+        # 5. En çok görülen tehdit tipleri
+        top_threats = db.query(
+            IndicatorOfCompromise.threat_type,
+            func.count(IndicatorOfCompromise.id).label("count")
+        ).filter(
+            IndicatorOfCompromise.threat_type.isnot(None)
+        ).group_by(
+            IndicatorOfCompromise.threat_type
+        ).order_by(desc("count")).limit(10).all()
+        
+        # 6. Kaynak dağılımı
+        sources = db.query(
+            IndicatorOfCompromise.source,
+            func.count(IndicatorOfCompromise.id).label("count")
+        ).filter(
+            IndicatorOfCompromise.source.isnot(None)
+        ).group_by(
+            IndicatorOfCompromise.source
+        ).order_by(desc("count")).limit(10).all()
+        
+        return {
+            "status": "success",
+            "total_records": total,
+            "today_added": today_added,
+            "weekly_growth": weekly_growth,
+            "risk_distribution": risk_distribution,
+            "top_threats": [{"type": t[0], "count": t[1]} for t in top_threats],
+            "source_breakdown": [{"source": s[0], "count": s[1]} for s in sources],
+            "last_updated": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"IoC stats error: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+@router.get("/phishing/stats")
+def get_phishing_statistics(db: Session = Depends(get_db)):
+    """
+    Phishing verileri aggregation endpoint
+    """
+    from app.models import PhishingURL
+    from sqlalchemy import func, desc, cast, Date
+    from datetime import datetime, timedelta
+    
+    try:
+        # 1. Toplam URL
+        total = db.query(func.count(PhishingURL.id)).scalar() or 0
+        
+        # 2. Bugün eklenen
+        today = datetime.utcnow().date()
+        daily_new = db.query(func.count(PhishingURL.id)).filter(
+            cast(PhishingURL.submission_time, Date) == today
+        ).scalar() or 0
+        
+        # 3. En çok phishing yapılan domainler
+        top_domains = db.query(
+            PhishingURL.domain_norm,
+            func.count(PhishingURL.id).label("count")
+        ).filter(
+            PhishingURL.domain_norm.isnot(None)
+        ).group_by(
+            PhishingURL.domain_norm
+        ).order_by(desc("count")).limit(20).all()
+        
+        # 4. Son 20 URL
+        recent = db.query(PhishingURL).order_by(
+            desc(PhishingURL.submission_time)
+        ).limit(20).all()
+        
+        # 5. Hedef kategorileri
+        categories = db.query(
+            PhishingURL.target,
+            func.count(PhishingURL.id).label("count")
+        ).filter(
+            PhishingURL.target.isnot(None)
+        ).group_by(
+            PhishingURL.target
+        ).order_by(desc("count")).limit(15).all()
+        
+        return {
+            "status": "success",
+            "total_urls": total,
+            "daily_new": daily_new,
+            "top_domains": [{"domain": d[0], "count": d[1]} for d in top_domains],
+            "recent_urls": [
+                {
+                    "url": r.url[:80] + "..." if len(r.url) > 80 else r.url,
+                    "domain": r.domain_norm,
+                    "target": r.target,
+                    "status": r.status,
+                    "time": r.submission_time.isoformat() if r.submission_time else None
+                }
+                for r in recent
+            ],
+            "threat_categories": [{"category": c[0], "count": c[1]} for c in categories],
+            "last_updated": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Phishing stats error: {e}")
+        return {"status": "error", "message": str(e)}
