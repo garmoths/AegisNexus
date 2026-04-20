@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 
 from app.database import Base, engine
 
@@ -56,6 +57,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 STATIC_DIR = BASE_DIR / "frontend" / "static"
 HTML_FILE = BASE_DIR / "frontend" / "templates" / "index.html"
 LLM_REPORT_FILE = BASE_DIR / "frontend" / "templates" / "llm_report.html"
+AI_ANALYZER_DEMO_FILE = BASE_DIR / "frontend" / "templates" / "ai-analyzer-demo.html"
+DASHBOARD_FILE = BASE_DIR / "frontend" / "templates" / "dashboard.html"
 
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
@@ -88,4 +91,24 @@ async def llm_report_page():
     return {
         "Hata": "llm_report.html bulunamadı.",
         "Aranan_Yol": str(LLM_REPORT_FILE),
+    }
+
+
+@app.get("/ai-analyzer-demo")
+async def ai_analyzer_demo_page():
+    if AI_ANALYZER_DEMO_FILE.exists():
+        return FileResponse(AI_ANALYZER_DEMO_FILE)
+    return {
+        "Hata": "ai-analyzer-demo.html bulunamadı.",
+        "Aranan_Yol": str(AI_ANALYZER_DEMO_FILE),
+    }
+
+
+@app.get("/dashboard")
+async def dashboard_page():
+    if DASHBOARD_FILE.exists():
+        return FileResponse(DASHBOARD_FILE)
+    return {
+        "Hata": "dashboard.html bulunamadı.",
+        "Aranan_Yol": str(DASHBOARD_FILE),
     }
