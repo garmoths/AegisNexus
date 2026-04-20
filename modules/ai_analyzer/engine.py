@@ -133,9 +133,10 @@ class AIAnalyzerEngine:
                 "urls_found": len(url_results)
             },
             "security_assessment": {
+                "risk_level": "high" if total_risk >= 70 else ("medium" if total_risk >= 40 else "low"),
+                "score": round(total_risk, 2),
                 "safety_status": safety_status,
                 "action_required": action_required,
-                "risk_score": round(total_risk, 2),
                 "is_phishing": llm_analysis.get("is_phishing", False),
                 "is_scam": llm_analysis.get("is_scam", False),
                 "threat_level": llm_analysis.get("threat_level", "unknown")
