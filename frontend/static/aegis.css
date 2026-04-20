@@ -1333,9 +1333,11 @@ textarea.field-full:focus {
   font-size: 0.875rem;
 }
 
-/* Alt bilgi - gizli */
+/* Alt bilgi - sayfaya entegre */
 .site-footer {
-  display: none;
+  background: transparent;
+  border-top: 1px solid rgba(0, 180, 216, 0.1);
+  padding: 2rem 1.5rem;
 }
 
 .footer-inner {
