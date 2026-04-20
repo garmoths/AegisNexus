@@ -1189,16 +1189,18 @@ textarea.field-full:focus {
 
 .dropdown-menu {
   position: absolute;
-  top: 100%;
+  top: calc(100% + 8px);
   left: 0;
-  min-width: 180px;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 0.5rem 0;
+  min-width: 160px;
+  background: #0d1117;
+  border: 1px solid rgba(0, 180, 216, 0.3);
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  padding: 10px 0;
   display: none;
-  z-index: 100;
+  z-index: 9999;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .dropdown:hover .dropdown-menu {
@@ -1211,11 +1213,19 @@ textarea.field-full:focus {
   color: var(--text);
   text-decoration: none;
   transition: background 0.15s, color 0.15s;
+  position: relative;
 }
 
 .dropdown-menu a:hover {
-  background: var(--primary-soft);
-  color: var(--primary);
+  background: rgba(0, 180, 216, 0.1);
+  color: #00b4d8;
+}
+
+.dropdown-menu a:hover::before {
+  content: "•";
+  position: absolute;
+  left: 0.5rem;
+  color: #00b4d8;
 }
 
 /* Dashboard Preview (Glassmorphism) */
