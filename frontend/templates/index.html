@@ -589,9 +589,15 @@
             try {
                 var res = await fetch('/api/v2/honeypot/stats');
                 var data = await res.json();
-                document.getElementById('hpStats').textContent = (data.honeypot_visits_recorded != null)
-                    ? data.honeypot_visits_recorded.toLocaleString('tr-TR') : '—';
-            } catch (e) { document.getElementById('hpStats').textContent = '—'; }
+                var hpStatsEl = document.getElementById('hpStats');
+                if (hpStatsEl) {
+                    hpStatsEl.textContent = (data.honeypot_visits_recorded != null)
+                        ? data.honeypot_visits_recorded.toLocaleString('tr-TR') : '—';
+                }
+            } catch (e) {
+                var hpStatsEl = document.getElementById('hpStats');
+                if (hpStatsEl) hpStatsEl.textContent = '—';
+            }
         }
 
         async function submitNewSite() {
