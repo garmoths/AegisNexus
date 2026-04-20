@@ -541,16 +541,17 @@
                 loadingDiv.style.display = 'none';
                 resultDiv.style.display = 'block';
 
-                riskLevel.innerText = 'Risk Seviyesi: ' + (data.security_assessment?.risk_level || 'Bilinmiyor');
-                riskLevel.className = 'score-line ' + (data.security_assessment?.risk_level === 'high' ? 'score-high' : (data.security_assessment?.risk_level === 'medium' ? 'score-med' : 'score-low'));
+                const assessment = data.security_assessment || {};
+                riskLevel.innerText = 'Risk Seviyesi: ' + (assessment.risk_level || 'Bilinmiyor').toUpperCase();
+                riskLevel.className = 'score-line ' + (assessment.risk_level === 'high' ? 'score-high' : (assessment.risk_level === 'medium' ? 'score-med' : 'score-low'));
 
-                securityScore.innerText = 'Güvenlik Skoru: ' + (data.security_assessment?.score || 0) + '/100';
+                securityScore.innerText = 'Güvenlik Skoru: ' + (assessment.score || 0) + '/100';
                 securityScore.className = 'risk-line';
 
-                detailedAnalysis.innerHTML = '<strong>Detaylı Analiz:</strong><br>' + (data.detailed_analysis?.summary || 'Analiz yok');
+                detailedAnalysis.innerHTML = '<strong>Detaylı Analiz:</strong><br>' + (data.summary || 'Analiz yok');
 
                 if (data.recommendations && data.recommendations.length) {
-                    recommendations.innerHTML = '<strong>Öneriler:</strong><ul>' + data.recommendations.map(r => '<li>' + r.text + '</li>').join('') + '</ul>';
+                    recommendations.innerHTML = '<strong>Öneriler:</strong><ul>' + data.recommendations.map(r => '<li>' + (r.action || r.description || r) + '</li>').join('') + '</ul>';
                 } else {
                     recommendations.innerHTML = '';
                 }
