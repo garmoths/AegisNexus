@@ -118,13 +118,13 @@
 
         <section id="workspace" class="workspace-section">
             <nav class="main-nav" role="tablist" aria-label="Modüller">
-                <button type="button" class="tab-btn active" data-tab="threat" role="tab">Tehdit</button>
-                <button type="button" class="tab-btn" data-tab="infra" role="tab">Altyapı</button>
-                <button type="button" class="tab-btn" data-tab="breach" role="tab">Sızıntı</button>
-                <button type="button" class="tab-btn" data-tab="shield" role="tab">Şifre</button>
-                <button type="button" class="tab-btn" data-tab="ioc" role="tab">İOC</button>
-                <button type="button" class="tab-btn" data-tab="honeypot" role="tab">Tuzak</button>
-                <button type="button" class="tab-btn" data-tab="contact" role="tab">İletişim</button>
+                <button type="button" class="tab-btn active" data-tab="threat" role="tab" onclick="activateTab('threat'); scrollToId('workspace'); return false;">Tehdit</button>
+                <button type="button" class="tab-btn" data-tab="infra" role="tab" onclick="activateTab('infra'); scrollToId('workspace'); return false;">Altyapı</button>
+                <button type="button" class="tab-btn" data-tab="breach" role="tab" onclick="activateTab('breach'); scrollToId('workspace'); return false;">Sızıntı</button>
+                <button type="button" class="tab-btn" data-tab="shield" role="tab" onclick="activateTab('shield'); scrollToId('workspace'); return false;">Şifre</button>
+                <button type="button" class="tab-btn" data-tab="ioc" role="tab" onclick="activateTab('ioc'); scrollToId('workspace'); return false;">İOC</button>
+                <button type="button" class="tab-btn" data-tab="honeypot" role="tab" onclick="activateTab('honeypot'); scrollToId('workspace'); return false;">Tuzak</button>
+                <button type="button" class="tab-btn" data-tab="contact" role="tab" onclick="activateTab('contact'); scrollToId('workspace'); return false;">İletişim</button>
             </nav>
 
             <div class="main-content">
