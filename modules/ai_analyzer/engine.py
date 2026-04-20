@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 import json
 
+from app.models import URLAnalizHistory
 from .llm_client import llm_client
 from .url_checker import URLSecurityChecker
 
