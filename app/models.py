@@ -157,7 +157,29 @@ class IOCOperatorAlert(Base):
     webhook_response_code = Column(Integer, nullable=True)  # HTTP status
     webhook_response_body = Column(Text, nullable=True)  # Error message if failed
     retry_count = Column(Integer, default=0)
+
+
+class URLAnalizHistory(Base):
+    """
+    URL Analiz Geçmişi - AI Analyzer tarafından yapılan analizlerin kaydı.
+    """
+    __tablename__ = "url_analiz_history"
+    
+    id = Column(BigInteger, primary_key=True, index=True)
+    
+    # Analiz edilen URL
+    url = Column(String(2000), index=True, nullable=False)
+    domain = Column(String(512), index=True, nullable=False)
+    
+    # Analiz sonucu
+    risk_level = Column(String(20), index=True, nullable=False)  # 'safe', 'low', 'medium', 'high'
+    is_phishing = Column(Boolean, index=True, default=False)
+    confidence = Column(Float, nullable=True)  # 0.0-1.0
+    
+    # Analiz detayları
+    analysis_result = Column(JSON, nullable=True)  # Tüm analiz sonuçları
+    llm_analysis = Column(Text, nullable=True)  # LLM analizi metni
+    url_checks = Column(JSON, nullable=True)  # URL kontrolleri sonuçları
     
     # Timestamps
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, index=True, nullable=False, default=lambda: datetime.now(timezone.utc))

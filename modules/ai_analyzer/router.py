@@ -8,6 +8,7 @@ from typing import Optional, List
 from sqlalchemy.orm import Session
 
 from shared.utils.db import get_db
+from app.models import URLAnalizHistory
 from .engine import AIAnalyzerEngine
 from .llm_client import llm_client
 
@@ -203,3 +204,71 @@ def get_analysis_examples():
         ],
         "module": "07_ai_analyzer"
     }
+
+
+@router.get("/history")
+async def get_analiz_history(
+    limit: int = 10,
+    db: Session = Depends(get_db)
+):
+    """
+    Son URL analizlerini getir.
+    """
+    try:
+        history = db.query(URLAnalizHistory).order_by(
+            URLAnalizHistory.created_at.desc()
+        ).limit(limit).all()
+        
+        return {
+            "data": [
+                {
+                    "id": h.id,
+                    "url": h.url,
+                    "domain": h.domain,
+                    "risk_level": h.risk_level,
+                    "is_phishing": h.is_phishing,
+                    "confidence": h.confidence,
+                    "created_at": h.created_at.isoformat() if h.created_at else None
+                }
+                for h in history
+            ],
+            "total": len(history),
+            "module": "07_ai_analyzer"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/history/{history_id}")
+async def get_analiz_detail(
+    history_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Analiz detaylarını getir.
+    """
+    try:
+        history = db.query(URLAnalizHistory).filter(
+            URLAnalizHistory.id == history_id
+        ).first()
+        
+        if not history:
+            raise HTTPException(status_code=404, detail="Analiz bulunamadı")
+        
+        return {
+            "id": history.id,
+            "url": history.url,
+            "domain": history.domain,
+            "risk_level": history.risk_level,
+            "is_phishing": history.is_phishing,
+            "confidence": history.confidence,
+            "analysis_result": history.analysis_result,
+            "llm_analysis": history.llm_analysis,
+            "url_checks": history.url_checks,
+            "created_at": history.created_at.isoformat() if history.created_at else None,
+            "module": "07_ai_analyzer"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

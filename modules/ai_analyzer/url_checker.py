@@ -142,6 +142,38 @@ class URLSecurityChecker:
         elif result["risk_score"] > 0:
             result["checks"].insert(0, f"ℹ️  Düşük risk: {result['risk_score']}/100")
         
+        # 14. Analizi database'e kaydet
+        if self.db:
+            try:
+                from urllib.parse import urlparse
+                parsed = urlparse(url)
+                domain = parsed.netloc
+                
+                # Risk level belirle
+                if result["risk_score"] >= 70:
+                    risk_level = "high"
+                elif result["risk_score"] >= 40:
+                    risk_level = "medium"
+                elif result["risk_score"] > 0:
+                    risk_level = "low"
+                else:
+                    risk_level = "safe"
+                
+                history = URLAnalizHistory(
+                    url=url,
+                    domain=domain,
+                    risk_level=risk_level,
+                    is_phishing=not result["is_safe"],
+                    confidence=result["risk_score"] / 100.0,
+                    analysis_result=result,
+                    url_checks=result.get("checks", [])
+                )
+                self.db.add(history)
+                self.db.commit()
+            except Exception as e:
+                print(f"Analiz kayıt hatası: {e}")
+                self.db.rollback()
+        
         return result
     
     def _is_valid_url(self, url: str) -> bool:
