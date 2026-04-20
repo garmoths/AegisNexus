@@ -551,7 +551,11 @@
                 detailedAnalysis.innerHTML = '<strong>Detaylı Analiz:</strong><br>' + (data.summary || 'Analiz yok');
 
                 if (data.recommendations && data.recommendations.length) {
-                    recommendations.innerHTML = '<strong>Öneriler:</strong><ul>' + data.recommendations.map(r => '<li>' + (r.action || r.description || r) + '</li>').join('') + '</ul>';
+                    recommendations.innerHTML = '<strong>Öneriler:</strong><ul>' + data.recommendations.map(r => {
+                        const action = r.action || '';
+                        const description = r.description || '';
+                        return '<li><strong>' + action + '</strong>: ' + description + '</li>';
+                    }).join('') + '</ul>';
                 } else {
                     recommendations.innerHTML = '';
                 }
