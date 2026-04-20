@@ -1198,12 +1198,12 @@ textarea.field-full:focus {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
   padding: 10px 0;
   display: none;
-  z-index: 9999;
+  z-index: 99999;
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
 }
 
-.dropdown:hover .dropdown-menu {
+.dropdown-menu.is-open {
   display: block;
 }
 

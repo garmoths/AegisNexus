@@ -27,7 +27,7 @@
                 <a href="#" id="navAnaSayfa">Ana sayfa</a>
                 <div class="dropdown">
                     <a href="#" id="navModules" class="dropdown-toggle">Platform Modülleri</a>
-                    <div class="dropdown-menu">
+                    <div class="dropdown-menu" id="dropdownMenu">
                         <a href="#" onclick="switchToTab('threat')">Tehdit</a>
                         <a href="#" onclick="switchToTab('infra')">Altyapı</a>
                         <a href="#" onclick="switchToTab('breach')">Sızıntı</a>
@@ -470,8 +470,25 @@
             var info = document.getElementById('heroCtaInfo');
             if (info) info.addEventListener('click', function(e) { prev(e); scrollToId('modules-overview'); });
             var modules = document.getElementById('navModules');
-            if (modules) modules.addEventListener('click', function(e) { prev(e); scrollToId('modules-overview'); });
+            if (modules) modules.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                var menu = document.getElementById('dropdownMenu');
+                if (menu) menu.classList.toggle('is-open');
+            });
         }
+
+        function closeDropdown() {
+            var menu = document.getElementById('dropdownMenu');
+            if (menu) menu.classList.remove('is-open');
+        }
+
+        document.addEventListener('click', function(e) {
+            var dropdown = document.querySelector('.dropdown');
+            if (dropdown && !dropdown.contains(e.target)) {
+                closeDropdown();
+            }
+        });
 
         function wireFooterNav() {
             var about = document.getElementById('footerAbout');
