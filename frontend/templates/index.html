@@ -307,13 +307,35 @@
         </div>
 
         <div id="tab-panel-honeypot" class="tab-panel">
-            <article class="card" style="max-width:40rem;">
-                <h2>Demo tuzak sayfası</h2>
-                <p class="section-hint">Eğitim amaçlı sahte giriş ekranı; yalnızca bu sunucuya teknik ziyaret kaydı düşer. Kötüye kullanmayın.</p>
-                <button type="button" class="btn btn--secondary" onclick="window.open('/honeypot/decoy','_blank')">Sayfayı aç</button>
-                <button type="button" class="btn btn--ghost" onclick="loadHoneypotStats()" style="margin-left:0.5rem;">Sayacı yenile</button>
-                <p class="stat-line" style="margin-top:1rem;">Kayıtlı ziyaret: <strong id="hpStats">—</strong></p>
-            </article>
+            <div class="grid-2">
+                <article class="card">
+                    <h2>Şüpheli Mesaj Analizi</h2>
+                    <p class="section-hint">AI ile phishing, dolandırıcılık ve sosyal mühendislik tespiti.</p>
+                    <textarea id="messageInput" class="field-full" placeholder="Şüpheli mesajı buraya yapıştırın... (e-posta, SMS, WhatsApp vb.)" rows="10"></textarea>
+                    <div class="field-row" style="margin-top:1rem;">
+                        <select id="messageContext" style="padding:0.65rem 0.85rem;border:1px solid var(--border);border-radius:8px;font-family:var(--font);">
+                            <option value="email">E-posta</option>
+                            <option value="sms">SMS</option>
+                            <option value="whatsapp">WhatsApp</option>
+                            <option value="social_media">Sosyal Medya</option>
+                        </select>
+                        <button type="button" class="btn btn--primary" onclick="analyzeMessage()">Analiz Et</button>
+                    </div>
+                </article>
+                <article class="card">
+                    <h2>AI Analiz Raporu</h2>
+                    <p class="section-hint">Yapay zeka tarafından oluşturulan güvenlik değerlendirmesi.</p>
+                    <div id="analysisResult" style="display:none;">
+                        <div id="riskLevel" class="score-line">—</div>
+                        <div id="securityScore" class="risk-line">—</div>
+                        <div id="detailedAnalysis" style="margin-top:1rem;"></div>
+                        <div id="recommendations" style="margin-top:1rem;"></div>
+                    </div>
+                    <div id="analysisLoading" style="display:none;padding:2rem;text-align:center;">
+                        <p>Analiz ediliyor…</p>
+                    </div>
+                </article>
+            </div>
         </div>
 
         <div id="tab-panel-contact" class="tab-panel">
@@ -488,6 +510,54 @@
                 else rep.textContent = data.error || JSON.stringify(data);
                 raw.textContent = JSON.stringify(data, null, 2);
             } catch (e) { rep.textContent = String(e); }
+        }
+
+        async function analyzeMessage() {
+            const message = document.getElementById('messageInput').value.trim();
+            const context = document.getElementById('messageContext').value;
+            const resultDiv = document.getElementById('analysisResult');
+            const loadingDiv = document.getElementById('analysisLoading');
+            const riskLevel = document.getElementById('riskLevel');
+            const securityScore = document.getElementById('securityScore');
+            const detailedAnalysis = document.getElementById('detailedAnalysis');
+            const recommendations = document.getElementById('recommendations');
+
+            if (!message || message.length < 10) {
+                alert('Lütfen en az 10 karakterlik bir mesaj girin.');
+                return;
+            }
+
+            resultDiv.style.display = 'none';
+            loadingDiv.style.display = 'block';
+
+            try {
+                const res = await fetch('/api/v2/ai-analyzer/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message, context })
+                });
+                const data = await res.json();
+
+                loadingDiv.style.display = 'none';
+                resultDiv.style.display = 'block';
+
+                riskLevel.innerText = 'Risk Seviyesi: ' + (data.security_assessment?.risk_level || 'Bilinmiyor');
+                riskLevel.className = 'score-line ' + (data.security_assessment?.risk_level === 'high' ? 'score-high' : (data.security_assessment?.risk_level === 'medium' ? 'score-med' : 'score-low'));
+
+                securityScore.innerText = 'Güvenlik Skoru: ' + (data.security_assessment?.score || 0) + '/100';
+                securityScore.className = 'risk-line';
+
+                detailedAnalysis.innerHTML = '<strong>Detaylı Analiz:</strong><br>' + (data.detailed_analysis?.summary || 'Analiz yok');
+
+                if (data.recommendations && data.recommendations.length) {
+                    recommendations.innerHTML = '<strong>Öneriler:</strong><ul>' + data.recommendations.map(r => '<li>' + r.text + '</li>').join('') + '</ul>';
+                } else {
+                    recommendations.innerHTML = '';
+                }
+            } catch (err) {
+                loadingDiv.style.display = 'none';
+                alert('Analiz başarısız: ' + err.message);
+            }
         }
 
         async function runPasswordGen() {
