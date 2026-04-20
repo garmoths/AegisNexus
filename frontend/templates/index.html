@@ -41,7 +41,8 @@
     </header>
 
     <main id="app-content">
-        <section id="hero-section" class="hero-landing" aria-label="Karşılama">
+        <div id="vitrin-alani">
+            <section id="hero-section" class="hero-landing" aria-label="Karşılama">
             <div class="hero-bg" aria-hidden="true"></div>
             <div class="hero-inner">
                 <div class="hero-copy">
@@ -165,6 +166,7 @@
                 </div>
             </div>
         </section>
+        </div>
 
         <section id="hakkimizda" class="about-section" aria-labelledby="aboutTitle">
             <div class="about-inner">
@@ -232,27 +234,17 @@
         </div>
     </div>
 
-    <div id="workspace" style="display:none;">
-    <header class="site-header">
-        <div class="header-inner">
-            <a href="#top" class="logo logo--with-mark">
-                <svg class="logo-icon logo-icon--header" width="36" height="36" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                    <path d="M12 2.2L4.2 5.1v6.1c0 4.4 2.9 8.1 7.8 9.3 4.9-1.2 7.8-4.9 7.8-9.3V5.1L12 2.2z" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round" fill="rgba(11,110,140,0.1)"/>
-                    <path d="M8.2 12.2l2.3 2.3 5.3-5.3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-                <span class="logo-wordmark logo-wordmark--header">Aegis Nexus</span>
-            </a>
-            <nav class="main-nav" role="tablist" aria-label="Bölümler">
-                <button type="button" class="tab-btn active" data-tab="threat" role="tab">Tehdit</button>
-                <button type="button" class="tab-btn" data-tab="infra" role="tab">Altyapı</button>
-                <button type="button" class="tab-btn" data-tab="breach" role="tab">Sızıntı</button>
-                <button type="button" class="tab-btn" data-tab="shield" role="tab">Şifre</button>
-                <button type="button" class="tab-btn" data-tab="ioc" role="tab">İOC İstihbaratı</button>
-                <button type="button" class="tab-btn" data-tab="honeypot" role="tab">Tuzak</button>
-                <button type="button" class="tab-btn" data-tab="contact" role="tab">İletişim</button>
-            </nav>
-        </div>
-    </header>
+    <div id="mutfak-alani" style="display:none;">
+    <nav class="main-nav" role="tablist" aria-label="Bölümler" style="padding: 1rem 0; margin-bottom: 1rem;">
+        <button type="button" class="tab-btn" onclick="vitrineDon()" style="margin-right: 1rem;">Ana Sayfa</button>
+        <button type="button" class="tab-btn active" data-tab="threat" role="tab">Tehdit</button>
+        <button type="button" class="tab-btn" data-tab="infra" role="tab">Altyapı</button>
+        <button type="button" class="tab-btn" data-tab="breach" role="tab">Sızıntı</button>
+        <button type="button" class="tab-btn" data-tab="shield" role="tab">Şifre</button>
+        <button type="button" class="tab-btn" data-tab="ioc" role="tab">İOC İstihbaratı</button>
+        <button type="button" class="tab-btn" data-tab="honeypot" role="tab">Tuzak</button>
+        <button type="button" class="tab-btn" data-tab="contact" role="tab">İletişim</button>
+    </nav>
 
     <main class="main-content">
 
@@ -513,41 +505,45 @@
             const url = '/' + pageName;
             window.history.pushState({}, '', url);
 
-            const mainArea = document.getElementById('app-content');
-            const heroSection = document.getElementById('hero-section');
-            const modulesStrip = document.getElementById('modules-overview');
+            const vitrinAlani = document.getElementById('vitrin-alani');
+            const mutfakAlani = document.getElementById('mutfak-alani');
             const hakkimizda = document.getElementById('hakkimizda');
             const blog = document.getElementById('blog');
             
             if (pageName === '' || pageName === 'home') {
-                // Ana sayfa: sadece hero ve modules-strip göster
-                if (heroSection) heroSection.style.display = 'block';
-                if (modulesStrip) modulesStrip.style.display = 'block';
+                // Ana sayfa: vitrini göster, mutfak'ı gizle
+                if (vitrinAlani) vitrinAlani.style.display = 'block';
+                if (mutfakAlani) mutfakAlani.style.display = 'none';
                 if (hakkimizda) hakkimizda.style.display = 'none';
                 if (blog) blog.style.display = 'none';
-                
-                // Workspace'i gizle
-                const workspace = document.getElementById('workspace');
-                if (workspace) workspace.style.display = 'none';
                 
             } else if (pageName === 'threat' || pageName === 'infra' || pageName === 'breach' || pageName === 'shield' || pageName === 'ioc' || pageName === 'honeypot' || pageName === 'contact') {
-                // Modüle tıklandığında: hero ve modules-strip gizle
-                if (heroSection) heroSection.style.display = 'none';
-                if (modulesStrip) modulesStrip.style.display = 'none';
+                // Modüle tıklandığında: vitrini gizle, mutfak'ı aç
+                if (vitrinAlani) vitrinAlani.style.display = 'none';
+                if (mutfakAlani) mutfakAlani.style.display = 'block';
                 if (hakkimizda) hakkimizda.style.display = 'none';
                 if (blog) blog.style.display = 'none';
                 
-                // Workspace'i göster
-                const workspace = document.getElementById('workspace');
-                if (workspace) {
-                    workspace.style.display = 'block';
-                    workspace.style.marginTop = '0';
-                    setTimeout(function() {
-                        activateTab(pageName);
-                    }, 100);
-                }
+                setTimeout(function() {
+                    activateTab(pageName);
+                }, 100);
             }
 
+            window.scrollTo(0, 0);
+        }
+
+        function vitrineDon() {
+            // Mutfağı gizle
+            const mutfakAlani = document.getElementById('mutfak-alani');
+            if (mutfakAlani) mutfakAlani.style.display = 'none';
+            
+            // Vitrini tekrar göster
+            const vitrinAlani = document.getElementById('vitrin-alani');
+            if (vitrinAlani) vitrinAlani.style.display = 'block';
+            
+            // URL'yi ana dizine geri çek
+            window.history.pushState({}, '', '/');
+            
             window.scrollTo(0, 0);
         }
 
@@ -560,7 +556,7 @@
         function wireHeroNav() {
             function prev(e) { if (e) e.preventDefault(); }
             var home = document.getElementById('navAnaSayfa');
-            if (home) home.addEventListener('click', function(e) { prev(e); changePage(''); });
+            if (home) home.addEventListener('click', function(e) { prev(e); vitrineDon(); });
             var modules = document.getElementById('navModules');
             if (modules) modules.addEventListener('click', function(e) {
                 e.preventDefault();
@@ -613,7 +609,7 @@
             var about = document.getElementById('footerAbout');
             if (about) about.addEventListener('click', function(e) {
                 e.preventDefault();
-                changePage('');
+                vitrineDon();
                 // Hakkımızda ve blog'u göster
                 setTimeout(function() {
                     var hakkimizda = document.getElementById('hakkimizda');
@@ -626,7 +622,7 @@
             var blog = document.getElementById('footerBlog');
             if (blog) blog.addEventListener('click', function(e) {
                 e.preventDefault();
-                changePage('');
+                vitrineDon();
                 // Hakkımızda ve blog'u göster
                 setTimeout(function() {
                     var hakkimizda = document.getElementById('hakkimizda');
