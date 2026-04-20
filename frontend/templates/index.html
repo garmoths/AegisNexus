@@ -24,6 +24,7 @@
                 </span>
             </a>
             <nav class="hero-topnav" aria-label="Site menüsü">
+                <a href="#" id="navAnaSayfa">Ana sayfa</a>
                 <a href="#" id="navModules">Platform Modülleri</a>
                 <a href="https://api.aegisnexus.dev" target="_blank" id="navAPI">API</a>
             </nav>
@@ -376,11 +377,18 @@
         function switchToTab(tab) {
             activateTab(tab);
             scrollToWorkspace();
-            window.history.pushState({ tab: tab }, '', '#' + tab);
+            window.history.pushState({ tab: tab }, '', '/' + tab);
+        }
+
+        function navigateToPage(page) {
+            window.history.pushState({ page: page }, '', '/' + page);
+            scrollToId('top');
         }
 
         function wireHeroNav() {
             function prev(e) { if (e) e.preventDefault(); }
+            var home = document.getElementById('navAnaSayfa');
+            if (home) home.addEventListener('click', function(e) { prev(e); navigateToPage(''); });
             var cta = document.getElementById('heroCtaPanel');
             if (cta) cta.addEventListener('click', function(e) { prev(e); switchToTab('threat'); });
             var info = document.getElementById('heroCtaInfo');
@@ -393,14 +401,12 @@
             var about = document.getElementById('footerAbout');
             if (about) about.addEventListener('click', function(e) {
                 e.preventDefault();
-                window.history.pushState({ page: 'about' }, '', '#about');
-                scrollToId('top');
+                navigateToPage('about');
             });
             var blog = document.getElementById('footerBlog');
             if (blog) blog.addEventListener('click', function(e) {
                 e.preventDefault();
-                window.history.pushState({ page: 'blog' }, '', '#blog');
-                scrollToId('top');
+                navigateToPage('blog');
             });
         }
 
@@ -410,11 +416,14 @@
                 scrollToWorkspace();
             } else if (event.state && event.state.page) {
                 scrollToId('top');
-            } else if (window.location.hash) {
-                var hash = window.location.hash.substring(1);
-                if (['threat', 'infra', 'breach', 'shield', 'ioc', 'honeypot', 'contact'].includes(hash)) {
-                    activateTab(hash);
-                    scrollToWorkspace();
+            } else {
+                var path = window.location.pathname;
+                if (path !== '/') {
+                    var tab = path.substring(1);
+                    if (['threat', 'infra', 'breach', 'shield', 'ioc', 'honeypot', 'contact'].includes(tab)) {
+                        activateTab(tab);
+                        scrollToWorkspace();
+                    }
                 }
             }
         };
@@ -434,11 +443,12 @@
                     switchToTab(btn.getAttribute('data-tab'));
                 });
             });
-            // Handle initial hash
-            if (window.location.hash) {
-                var hash = window.location.hash.substring(1);
-                if (['threat', 'infra', 'breach', 'shield', 'ioc', 'honeypot', 'contact'].includes(hash)) {
-                    activateTab(hash);
+            // Handle initial path
+            var path = window.location.pathname;
+            if (path !== '/') {
+                var tab = path.substring(1);
+                if (['threat', 'infra', 'breach', 'shield', 'ioc', 'honeypot', 'contact'].includes(tab)) {
+                    activateTab(tab);
                     scrollToWorkspace();
                 }
             }
