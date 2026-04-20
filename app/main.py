@@ -11,13 +11,14 @@ from app.database import Base, engine
 
 # Load environment variables
 load_dotenv()
-# Modüler yapı - 5 Katmanlı Güvenlik Kalkanı
+# Modüler yapı - 6 Katmanlı Güvenlik Kalkanı
 from modules import (
     phishing_detector_router,    # 01 - Phishing Detector
     honeypot_router,             # 02 - IP Avcısı
     breach_intel_router,         # 03 - Veri Radarı
     password_shield_router,      # 04 - Kriptografik Kalkan
     threat_responder_router,     # 05 - Tehdit Yanıtlayıcı
+    ai_analyzer_router,          # 06 - AI Güvenlik Asistanı
 )
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
@@ -61,12 +62,13 @@ if STATIC_DIR.exists():
 else:
     logger.warning("Static klasör yok: %s", STATIC_DIR)
 
-# 5 Modüler Router
+# 6 Modüler Router
 app.include_router(phishing_detector_router, prefix="/api/v2/phishing")
 app.include_router(honeypot_router, prefix="/api/v2/honeypot")
 app.include_router(breach_intel_router, prefix="/api/v2/breach")
 app.include_router(password_shield_router, prefix="/api/v2/shield")
 app.include_router(threat_responder_router, prefix="/api/v2/responder")
+app.include_router(ai_analyzer_router, prefix="/api/v2/ai-analyzer")
 
 
 @app.get("/")

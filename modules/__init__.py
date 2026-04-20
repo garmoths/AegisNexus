@@ -30,6 +30,9 @@ from .password_shield import router as password_shield_router
 # 05 - Threat Responder (Tehdit Yanıtlayıcı)
 from .threat_responder import router as threat_responder_router
 
+# 06 - AI Analyzer (AI Güvenlik Asistanı)
+from .ai_analyzer import router as ai_analyzer_router
+
 router = None  # Placeholder for direct router access
 
 __all__ = [
@@ -38,4 +41,5 @@ __all__ = [
     "breach_intel_router",
     "password_shield_router",
     "threat_responder_router",
+    "ai_analyzer_router",
 ]
