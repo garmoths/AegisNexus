@@ -49,15 +49,15 @@ def analyze_message(
 ):
     """
     🔍 **Tam AI Analizi**
-    
+
     Metni/mesajı analiz eder ve detaylı güvenlik raporu sunar.
-    
+
     **Özellikler:**
     - LLM tabanlı phishing/scam tespiti
     - URL güvenlik kontrolü (veritabanı + API)
     - Psikolojik manipülasyon analizi
     - Kişiselleştirilmiş öneriler
-    
+
     **Kullanım:**
     ```json
     {
@@ -68,15 +68,21 @@ def analyze_message(
     }
     ```
     """
+    import logging
+    logger = logging.getLogger(__name__)
+
     try:
+        logger.info(f"Analyzing message: {request.message[:50]}...")
         result = analyzer.analyze_message(
             message=request.message,
             context=request.context,
             sender=request.sender,
             subject=request.subject
         )
+        logger.info(f"Analysis completed successfully")
         return result
     except Exception as e:
+        logger.error(f"Analysis error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Analiz hatası: {str(e)}")
 
 @router.post("/quick-scan")
