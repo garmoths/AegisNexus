@@ -30,19 +30,10 @@ class QuickScanRequest(BaseModel):
 class URLCheckRequest(BaseModel):
     url: str = Field(..., description="Kontrol edilecek URL")
 
-class SecurityAssessment(BaseModel):
-    risk_level: str
-    score: float
-    is_phishing: bool
-    is_scam: bool
-    threat_level: str
-    safety_status: str
-    action_required: str
-
 class AnalysisResponse(BaseModel):
     analysis_id: str
     timestamp: str
-    security_assessment: SecurityAssessment
+    security_assessment: dict
     detailed_analysis: dict
     recommendations: List[dict]
     summary: str
