@@ -24,10 +24,7 @@
                 </span>
             </a>
             <nav class="hero-topnav" aria-label="Site menüsü">
-                <a href="#" id="navAnaSayfa">Ana sayfa</a>
-                <a href="#" id="navHakkimizda">Hakkımızda</a>
-                <a href="#" id="navBlog">Blog</a>
-                <a href="#" id="navIletisim">İletişim</a>
+                <a href="#" id="navModules">Platform Modülleri</a>
                 <a href="https://api.aegisnexus.dev" target="_blank" id="navAPI">API</a>
             </nav>
         </div>
@@ -128,11 +125,6 @@
     <div id="workspace">
     <header class="site-header">
         <div class="header-inner">
-            <button type="button" class="sidebar-toggle" id="sidebarToggle" aria-label="Menüyü aç">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M3 12h18M3 6h18M3 18h18"/>
-                </svg>
-            </button>
             <a href="#top" class="logo logo--with-mark">
                 <svg class="logo-icon logo-icon--header" width="36" height="36" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                     <path d="M12 2.2L4.2 5.1v6.1c0 4.4 2.9 8.1 7.8 9.3 4.9-1.2 7.8-4.9 7.8-9.3V5.1L12 2.2z" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round" fill="rgba(11,110,140,0.1)"/>
@@ -140,93 +132,19 @@
                 </svg>
                 <span class="logo-wordmark logo-wordmark--header">Aegis Nexus</span>
             </a>
+            <nav class="main-nav" role="tablist" aria-label="Bölümler">
+                <button type="button" class="tab-btn active" data-tab="threat" role="tab">Tehdit</button>
+                <button type="button" class="tab-btn" data-tab="infra" role="tab">Altyapı</button>
+                <button type="button" class="tab-btn" data-tab="breach" role="tab">Sızıntı</button>
+                <button type="button" class="tab-btn" data-tab="shield" role="tab">Şifre</button>
+                <button type="button" class="tab-btn" data-tab="ioc" role="tab">İOC İstihbaratı</button>
+                <button type="button" class="tab-btn" data-tab="honeypot" role="tab">Tuzak</button>
+                <button type="button" class="tab-btn" data-tab="contact" role="tab">İletişim</button>
+            </nav>
         </div>
     </header>
 
-    <div class="workspace-container">
-        <aside class="sidebar" id="sidebar">
-            <div class="sidebar-header">
-                <h3>Modüller</h3>
-                <button type="button" class="sidebar-close" id="sidebarClose" aria-label="Menüyü kapat">×</button>
-            </div>
-            <nav class="sidebar-nav">
-                <button type="button" class="sidebar-item active" data-tab="home">
-                    <span>🏠</span> Ana Sayfa
-                </button>
-                <button type="button" class="sidebar-item" data-tab="about">
-                    <span>ℹ️</span> Hakkımızda
-                </button>
-                <button type="button" class="sidebar-item" data-tab="blog">
-                    <span>📝</span> Blog
-                </button>
-                <div class="sidebar-divider">Güvenlik Modülleri</div>
-                <button type="button" class="sidebar-item" data-tab="threat">
-                    <span>🔍</span> Tehdit
-                </button>
-                <button type="button" class="sidebar-item" data-tab="infra">
-                    <span>🌐</span> Altyapı
-                </button>
-                <button type="button" class="sidebar-item" data-tab="breach">
-                    <span>📧</span> Sızıntı
-                </button>
-                <button type="button" class="sidebar-item" data-tab="shield">
-                    <span>🔐</span> Şifre
-                </button>
-                <button type="button" class="sidebar-item" data-tab="ioc">
-                    <span>🎯</span> IOC İstihbaratı
-                </button>
-                <button type="button" class="sidebar-item" data-tab="honeypot">
-                    <span>🎪</span> Tuzak
-                </button>
-                <button type="button" class="sidebar-item" data-tab="contact">
-                    <span>📧</span> İletişim
-                </button>
-            </nav>
-        </aside>
-
-        <div class="sidebar-overlay" id="sidebarOverlay"></div>
-
-        <main class="main-content">
-
-        <div id="tab-panel-home" class="tab-panel">
-            <article class="card">
-                <h2>Ana Sayfa</h2>
-                <p class="section-hint">Aegis Nexus ile dijital dünyanızı güvenceye alın ve büyütün.</p>
-                <p>Aegis Nexus; oltalama tespiti, altyapı özeti, sızıntı farkındalığı ve güçlü parola üretimini tek çatıda toplar. Amacımız bireylerin ve işletmelerin dijital riskleri daha erken görmesidir.</p>
-                <div style="margin-top: 1.5rem;">
-                    <a href="#modules-overview" class="btn btn--primary" onclick="scrollToId('modules-overview')">Modülleri Gör</a>
-                </div>
-            </article>
-        </div>
-
-        <div id="tab-panel-about" class="tab-panel">
-            <article class="card">
-                <h2>Hakkımızda</h2>
-                <p class="section-hint">Aegis Nexus; oltalama tespiti, altyapı özeti, sızıntı farkındalığı ve güçlü parola üretimini tek çatıda toplar.</p>
-                <p>Amacımız bireylerin ve işletmelerin dijital riskleri daha erken görmesidir.</p>
-                <p>Platformumuz 6 modül ile kapsamlı bir siber güvenlik çözümü sunar:</p>
-                <ul style="margin-top: 1rem; line-height: 1.8;">
-                    <li><strong>Phishing Detector:</strong> Tehdit veritabanı ve URL tarama</li>
-                    <li><strong>Honeypot:</strong> Dolandırıcıları tersine mühendislik ile avlama</li>
-                    <li><strong>Breach Intelligence:</strong> Deep Web sızıntı takibi</li>
-                    <li><strong>Password Shield:</strong> Yüz yıllar süren şifreler</li>
-                    <li><strong>Infrastructure Guard:</strong> SSL ve altyapı analizi</li>
-                    <li><strong>Threat Responder:</strong> IOC'leri operatörlere uyarı</li>
-                </ul>
-            </article>
-        </div>
-
-        <div id="tab-panel-blog" class="tab-panel">
-            <article class="card">
-                <h2>Blog</h2>
-                <p class="section-hint">Yakında makaleler ve güvenlik ipuçları burada olacak.</p>
-                <p>Şu an blog içeriği hazırlanıyor. Yakında siber güvenlik hakkında makaleler, ipuçları ve rehberler burada yayınlanacak.</p>
-                <div style="margin-top: 1.5rem; padding: 2rem; background: var(--primary-soft); border-radius: var(--radius); text-align: center;">
-                    <span style="font-size: 3rem;">📝</span>
-                    <p style="margin-top: 1rem; color: var(--text-muted);">Yakında!</p>
-                </div>
-            </article>
-        </div>
+    <main class="main-content">
 
         <div id="tab-panel-threat" class="tab-panel active">
             <div class="grid-2">
@@ -419,12 +337,11 @@
         </div>
     </main>
     </div>
-    </div>
 
     <footer class="site-footer">
         <div class="footer-inner">
             Aegis Nexus — farkındalık ve kontrol araçları.<br>
-            <a href="/api/health">Sağlık</a>
+            <a href="#" id="footerAbout">Hakkımızda</a> · <a href="#" id="footerBlog">Blog</a>
         </div>
     </footer>
 
@@ -459,48 +376,7 @@
         function switchToTab(tab) {
             activateTab(tab);
             scrollToWorkspace();
-        }
-
-        // Sidebar functions
-        function openSidebar() {
-            document.getElementById('sidebar').classList.add('is-open');
-            document.getElementById('sidebarOverlay').classList.add('is-open');
-            document.body.style.overflow = 'hidden';
-        }
-
-        function closeSidebar() {
-            document.getElementById('sidebar').classList.remove('is-open');
-            document.getElementById('sidebarOverlay').classList.remove('is-open');
-            document.body.style.overflow = '';
-        }
-
-        function wireSidebar() {
-            var toggle = document.getElementById('sidebarToggle');
-            if (toggle) toggle.addEventListener('click', function(e) {
-                e.preventDefault();
-                openSidebar();
-            });
-
-            var close = document.getElementById('sidebarClose');
-            if (close) close.addEventListener('click', function(e) {
-                e.preventDefault();
-                closeSidebar();
-            });
-
-            var overlay = document.getElementById('sidebarOverlay');
-            if (overlay) overlay.addEventListener('click', function(e) {
-                e.preventDefault();
-                closeSidebar();
-            });
-
-            document.querySelectorAll('.sidebar-item').forEach(function(item) {
-                item.addEventListener('click', function() {
-                    var tab = this.getAttribute('data-tab');
-                    activateTab(tab);
-                    closeSidebar();
-                    scrollToWorkspace();
-                });
-            });
+            window.history.pushState({ tab: tab }, '', '#' + tab);
         }
 
         function wireHeroNav() {
@@ -509,26 +385,63 @@
             if (cta) cta.addEventListener('click', function(e) { prev(e); switchToTab('threat'); });
             var info = document.getElementById('heroCtaInfo');
             if (info) info.addEventListener('click', function(e) { prev(e); scrollToId('modules-overview'); });
-            var na = document.getElementById('navAnaSayfa');
-            if (na) na.addEventListener('click', function(e) { prev(e); switchToTab('home'); });
-            var nh = document.getElementById('navHakkimizda');
-            if (nh) nh.addEventListener('click', function(e) { prev(e); switchToTab('about'); });
-            var nb = document.getElementById('navBlog');
-            if (nb) nb.addEventListener('click', function(e) { prev(e); switchToTab('blog'); });
-            var ni = document.getElementById('navIletisim');
-            if (ni) ni.addEventListener('click', function(e) { prev(e); switchToTab('contact'); });
+            var modules = document.getElementById('navModules');
+            if (modules) modules.addEventListener('click', function(e) { prev(e); scrollToId('modules-overview'); });
         }
+
+        function wireFooterNav() {
+            var about = document.getElementById('footerAbout');
+            if (about) about.addEventListener('click', function(e) {
+                e.preventDefault();
+                window.history.pushState({ page: 'about' }, '', '#about');
+                scrollToId('top');
+            });
+            var blog = document.getElementById('footerBlog');
+            if (blog) blog.addEventListener('click', function(e) {
+                e.preventDefault();
+                window.history.pushState({ page: 'blog' }, '', '#blog');
+                scrollToId('top');
+            });
+        }
+
+        window.onpopstate = function(event) {
+            if (event.state && event.state.tab) {
+                activateTab(event.state.tab);
+                scrollToWorkspace();
+            } else if (event.state && event.state.page) {
+                scrollToId('top');
+            } else if (window.location.hash) {
+                var hash = window.location.hash.substring(1);
+                if (['threat', 'infra', 'breach', 'shield', 'ioc', 'honeypot', 'contact'].includes(hash)) {
+                    activateTab(hash);
+                    scrollToWorkspace();
+                }
+            }
+        };
 
         window.onload = function() {
             fetchStats();
             loadLatest();
             wireHeroNav();
-            wireSidebar();
+            wireFooterNav();
             document.querySelectorAll('.mod-card[data-goto-tab]').forEach(function(card) {
                 card.addEventListener('click', function() {
                     switchToTab(card.getAttribute('data-goto-tab'));
                 });
             });
+            document.querySelectorAll('.tab-btn').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    switchToTab(btn.getAttribute('data-tab'));
+                });
+            });
+            // Handle initial hash
+            if (window.location.hash) {
+                var hash = window.location.hash.substring(1);
+                if (['threat', 'infra', 'breach', 'shield', 'ioc', 'honeypot', 'contact'].includes(hash)) {
+                    activateTab(hash);
+                    scrollToWorkspace();
+                }
+            }
         };
 
         function openModal() { document.getElementById('addModal').classList.add('is-open'); }
