@@ -145,7 +145,6 @@ class URLSecurityChecker:
         # 14. Analizi database'e kaydet
         if self.db:
             try:
-                from urllib.parse import urlparse
                 parsed = urlparse(url)
                 domain = parsed.netloc
                 
