@@ -232,7 +232,7 @@
         </div>
     </div>
 
-    <div id="workspace" style="display:none;">
+    <div id="workspace">
     <header class="site-header">
         <div class="header-inner">
             <a href="#top" class="logo logo--with-mark">
@@ -745,53 +745,21 @@
                         </div>
                     </section>
                 `;
-            } else if (pageName === 'threat') {
-                mainArea.innerHTML = '<div class="fade-in" style="padding: 2rem; text-align: center; color: var(--text);">Tehdit modülü yükleniyor...</div>';
-                setTimeout(function() {
-                    loadWorkspace('threat');
-                }, 100);
-            } else if (pageName === 'infra') {
-                mainArea.innerHTML = '<div class="fade-in" style="padding: 2rem; text-align: center; color: var(--text);">Altyapı modülü yükleniyor...</div>';
-                setTimeout(function() {
-                    loadWorkspace('infra');
-                }, 100);
-            } else if (pageName === 'breach') {
-                mainArea.innerHTML = '<div class="fade-in" style="padding: 2rem; text-align: center; color: var(--text);">Sızıntı modülü yükleniyor...</div>';
-                setTimeout(function() {
-                    loadWorkspace('breach');
-                }, 100);
-            } else if (pageName === 'shield') {
-                mainArea.innerHTML = '<div class="fade-in" style="padding: 2rem; text-align: center; color: var(--text);">Şifre modülü yükleniyor...</div>';
-                setTimeout(function() {
-                    loadWorkspace('shield');
-                }, 100);
-            } else if (pageName === 'ioc') {
-                mainArea.innerHTML = '<div class="fade-in" style="padding: 2rem; text-align: center; color: var(--text);">İOC modülü yükleniyor...</div>';
-                setTimeout(function() {
-                    loadWorkspace('ioc');
-                }, 100);
-            } else if (pageName === 'honeypot') {
-                mainArea.innerHTML = '<div class="fade-in" style="padding: 2rem; text-align: center; color: var(--text);">Tuzak modülü yükleniyor...</div>';
-                setTimeout(function() {
-                    loadWorkspace('honeypot');
-                }, 100);
-            } else if (pageName === 'contact') {
-                mainArea.innerHTML = '<div class="fade-in" style="padding: 2rem; text-align: center; color: var(--text);">İletişim modülü yükleniyor...</div>';
-                setTimeout(function() {
-                    loadWorkspace('contact');
-                }, 100);
+            } else if (pageName === 'threat' || pageName === 'infra' || pageName === 'breach' || pageName === 'shield' || pageName === 'ioc' || pageName === 'honeypot' || pageName === 'contact') {
+                const workspace = document.getElementById('workspace');
+                if (workspace) {
+                    mainArea.innerHTML = '<div class="fade-in">' + workspace.innerHTML + '</div>';
+                    setTimeout(function() {
+                        activateTab(pageName);
+                    }, 100);
+                }
             }
 
             window.scrollTo(0, 0);
         }
 
         function loadWorkspace(tab) {
-            const workspace = document.getElementById('workspace');
-            if (workspace) {
-                const mainArea = document.getElementById('app-content');
-                mainArea.innerHTML = '<div class="fade-in">' + workspace.innerHTML + '</div>';
-                activateTab(tab);
-            }
+            activateTab(tab);
         }
 
         var dropdownTimeout = null;
