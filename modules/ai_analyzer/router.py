@@ -12,7 +12,6 @@ from .engine import AIAnalyzerEngine
 from .llm_client import llm_client
 
 router = APIRouter(
-    prefix="/ai-analyzer",
     tags=["07-ai-analyzer"],
     responses={404: {"description": "Not found"}}
 )
