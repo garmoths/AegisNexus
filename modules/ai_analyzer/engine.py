@@ -98,13 +98,25 @@ class AIAnalyzerEngine:
         
         # Güvenlik skoru hesapla (0-100, düşük = güvenli)
         base_score = llm_analysis.get("confidence_score", 0)
-        
+
         # URL'lerden gelen risk
-        url_risk = sum(r["risk_score"] for r in url_results) / max(len(url_results), 1)
-        
+        url_risk = sum(r.get("risk_score", 0) for r in url_results) / max(len(url_results), 1)
+
         # Toplam risk skoru (100 = çok tehlikeli)
         total_risk = min((base_score + url_risk) / 2, 100)
-        
+
+        # Eğer skor 0 ise, threat_level'den hesapla
+        if total_risk == 0:
+            threat_level = llm_analysis.get("threat_level", "low")
+            if threat_level == "critical":
+                total_risk = 85
+            elif threat_level == "high":
+                total_risk = 70
+            elif threat_level == "medium":
+                total_risk = 45
+            else:
+                total_risk = 15
+
         # Güvenlik durumu
         if total_risk >= 70:
             safety_status = "TEHLİKELİ"
