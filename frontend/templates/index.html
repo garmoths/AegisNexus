@@ -313,9 +313,9 @@
                     <div id="loading" style="display:none;">Yükleniyor…</div>
                     <div id="result-area"></div>
                     <div class="pagination">
-                        <button type="button" class="btn btn--secondary btn--small" id="prevBtn" onclick="changePage(-1)" disabled>Önceki</button>
+                        <button type="button" class="btn btn--secondary btn--small" id="prevBtn" onclick="paginatePage(-1)" disabled>Önceki</button>
                         <span id="pageInfo">Sayfa 1 / 1</span>
-                        <button type="button" class="btn btn--secondary btn--small" id="nextBtn" onclick="changePage(1)">Sonraki</button>
+                        <button type="button" class="btn btn--secondary btn--small" id="nextBtn" onclick="paginatePage(1)">Sonraki</button>
                     </div>
                 </article>
             </div>
@@ -480,9 +480,13 @@
             });
         }
 
-        function scrollToWorkspace() {
-            var el = document.getElementById('workspace');
-            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        function paginatePage(dir) {
+            // Pagination için sayfa değiştirme (threat listesi)
+            var cur = currentPage || 1;
+            cur += dir;
+            if (cur < 1) cur = 1;
+            currentPage = cur;
+            searchData();
         }
 
         function scrollToId(id) {
@@ -491,9 +495,7 @@
         }
 
         function switchToTab(tab) {
-            activateTab(tab);
-            scrollToWorkspace();
-            window.history.pushState({ tab: tab }, '', '/' + tab);
+            changePage(tab);
         }
 
         function navigateToPage(page) {
@@ -642,19 +644,13 @@
         }
 
         window.onpopstate = function(event) {
-            if (event.state && event.state.tab) {
-                activateTab(event.state.tab);
-                scrollToWorkspace();
-            } else if (event.state && event.state.page) {
-                scrollToId('top');
+            var path = window.location.pathname;
+            if (path === '/' || path === '') {
+                vitrineDon();
             } else {
-                var path = window.location.pathname;
-                if (path !== '/') {
-                    var tab = path.substring(1);
-                    if (['threat', 'infra', 'breach', 'shield', 'ioc', 'honeypot', 'contact'].includes(tab)) {
-                        activateTab(tab);
-                        scrollToWorkspace();
-                    }
+                var tab = path.substring(1);
+                if (['threat', 'infra', 'breach', 'shield', 'ioc', 'honeypot', 'contact'].includes(tab)) {
+                    changePage(tab);
                 }
             }
         };
@@ -664,23 +660,18 @@
             loadLatest();
             wireHeroNav();
             wireFooterNav();
-            document.querySelectorAll('.mod-card[data-goto-tab]').forEach(function(card) {
-                card.addEventListener('click', function() {
-                    switchToTab(card.getAttribute('data-goto-tab'));
-                });
-            });
             document.querySelectorAll('.tab-btn').forEach(function(btn) {
                 btn.addEventListener('click', function() {
-                    switchToTab(btn.getAttribute('data-tab'));
+                    var tab = btn.getAttribute('data-tab');
+                    if (tab) changePage(tab);
                 });
             });
             // Handle initial path
             var path = window.location.pathname;
-            if (path !== '/') {
+            if (path !== '/' && path !== '') {
                 var tab = path.substring(1);
                 if (['threat', 'infra', 'breach', 'shield', 'ioc', 'honeypot', 'contact'].includes(tab)) {
-                    activateTab(tab);
-                    scrollToWorkspace();
+                    changePage(tab);
                 }
             }
         };
