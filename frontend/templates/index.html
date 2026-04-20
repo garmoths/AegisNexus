@@ -11,10 +11,9 @@
 </head>
 <body>
 
-    <section id="top" class="hero-landing" aria-label="Karşılama">
-        <div class="hero-bg" aria-hidden="true"></div>
+    <header class="site-header-fixed">
         <div class="hero-topbar">
-            <a href="#top" class="hero-brand-link" aria-label="Ana sayfa">
+            <a href="#" id="navAnaSayfa" class="hero-brand-link" aria-label="Ana sayfa">
                 <span class="logo-mark logo-mark--hero">
                     <svg class="logo-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                         <path d="M12 2.2L4.2 5.1v6.1c0 4.4 2.9 8.1 7.8 9.3 4.9-1.2 7.8-4.9 7.8-9.3V5.1L12 2.2z" stroke="#00b4d8" stroke-width="1.35" stroke-linejoin="round" fill="rgba(0, 180, 216, 0.14)"/>
@@ -28,182 +27,195 @@
                 <div class="dropdown">
                     <a href="#" id="navModules" class="dropdown-toggle">Platform Modülleri</a>
                     <div class="dropdown-menu" id="dropdownMenu">
-                        <a href="#" onclick="switchToTab('threat')">Tehdit</a>
-                        <a href="#" onclick="switchToTab('infra')">Altyapı</a>
-                        <a href="#" onclick="switchToTab('breach')">Sızıntı</a>
-                        <a href="#" onclick="switchToTab('shield')">Şifre</a>
-                        <a href="#" onclick="switchToTab('ioc')">İOC İstihbaratı</a>
-                        <a href="#" onclick="switchToTab('honeypot')">Tuzak</a>
+                        <a href="#" onclick="changePage('threat')">Tehdit</a>
+                        <a href="#" onclick="changePage('infra')">Altyapı</a>
+                        <a href="#" onclick="changePage('breach')">Sızıntı</a>
+                        <a href="#" onclick="changePage('shield')">Şifre</a>
+                        <a href="#" onclick="changePage('ioc')">İOC İstihbaratı</a>
+                        <a href="#" onclick="changePage('honeypot')">Tuzak</a>
                     </div>
                 </div>
                 <a href="https://api.aegisnexus.dev" target="_blank" id="navAPI">API</a>
             </nav>
         </div>
-        <div class="hero-inner">
-            <div class="hero-copy">
-                <h1 class="hero-display">Aegis Nexus ile dijital dünyanızı güvenceye alın ve büyütün.</h1>
-                <p class="hero-tagline">Tehdit veritabanından aktif savunmaya, tam teşekküllü siber güvenlik ekosistemi.</p>
-                <div class="hero-cta">
-                    <a href="#workspace" class="btn-hero-solid" id="heroCtaPanel">Hemen kontrol et</a>
-                    <a href="#modules-overview" class="btn-hero-outline" id="heroCtaInfo">Daha fazla bilgi al</a>
-                </div>
-            </div>
-            <div class="hero-figure">
-                <div class="dashboard-preview">
-                    <div class="glass-card glass-card--terminal">
-                        <div class="terminal-header">
-                            <div class="terminal-dots">
-                                <span class="dot dot--red"></span>
-                                <span class="dot dot--yellow"></span>
-                                <span class="dot dot--green"></span>
-                            </div>
-                            <span class="terminal-title">security-monitor.log</span>
-                        </div>
-                        <div class="terminal-body">
-                            <div class="terminal-line"><span class="terminal-time">14:32:15</span> <span class="terminal-success">[SUCCESS]</span> Threat blocked: phishing-site.com</div>
-                            <div class="terminal-line"><span class="terminal-time">14:32:18</span> <span class="terminal-warn">[WARNING]</span> Suspicious activity detected from 192.168.1.45</div>
-                            <div class="terminal-line"><span class="terminal-time">14:32:22</span> <span class="terminal-info">[INFO]</span> IOC updated: 2,847 indicators loaded</div>
-                            <div class="terminal-line"><span class="terminal-time">14:32:25</span> <span class="terminal-success">[SUCCESS]</span> Honeypot captured 3 new attacks</div>
-                            <div class="terminal-line"><span class="terminal-time">14:32:28</span> <span class="terminal-info">[INFO]</span> Shield generated 47 secure passwords</div>
-                            <div class="terminal-line"><span class="terminal-time">14:32:31</span> <span class="terminal-warn">[WARNING]</span> Breach detected: user@example.com in leak</div>
-                        </div>
-                    </div>
-                    <div class="glass-card glass-card--chart">
-                        <div class="chart-header">
-                            <span class="chart-title">Threat Analytics</span>
-                        </div>
-                        <div class="chart-body">
-                            <svg viewBox="0 0 200 100" class="chart-svg">
-                                <defs>
-                                    <linearGradient id="chartGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                                        <stop offset="0%" style="stop-color:#00b4d8;stop-opacity:0.4" />
-                                        <stop offset="100%" style="stop-color:#00b4d8;stop-opacity:0" />
-                                    </linearGradient>
-                                </defs>
-                                <path d="M0,80 L20,70 L40,75 L60,60 L80,65 L100,50 L120,55 L140,40 L160,45 L180,30 L200,35 L200,100 L0,100 Z" fill="url(#chartGradient)" />
-                                <path d="M0,80 L20,70 L40,75 L60,60 L80,65 L100,50 L120,55 L140,40 L160,45 L180,30 L200,35" fill="none" stroke="#00b4d8" stroke-width="2" />
-                                <circle cx="20" cy="70" r="3" fill="#00b4d8" />
-                                <circle cx="60" cy="60" r="3" fill="#00b4d8" />
-                                <circle cx="100" cy="50" r="3" fill="#00b4d8" />
-                                <circle cx="140" cy="40" r="3" fill="#00b4d8" />
-                                <circle cx="180" cy="30" r="3" fill="#00b4d8" />
-                            </svg>
-                            <div class="chart-stats">
-                                <div class="chart-stat">
-                                    <span class="stat-value">2,847</span>
-                                    <span class="stat-label">IOCs</span>
-                                </div>
-                                <div class="chart-stat">
-                                    <span class="stat-value">156</span>
-                                    <span class="stat-label">Threats</span>
-                                </div>
-                            </div>
-                        </div>
+    </header>
+
+    <main id="app-content">
+        <section id="top" class="hero-landing" aria-label="Karşılama">
+            <div class="hero-bg" aria-hidden="true"></div>
+            <div class="hero-inner">
+                <div class="hero-copy">
+                    <h1 class="hero-display">Aegis Nexus ile dijital dünyanızı güvenceye alın ve büyütün.</h1>
+                    <p class="hero-tagline">Tehdit veritabanından aktif savunmaya, tam teşekküllü siber güvenlik ekosistemi.</p>
+                    <div class="hero-cta">
+                        <a href="#" onclick="changePage('threat')" class="btn-hero-solid" id="heroCtaPanel">Hemen kontrol et</a>
+                        <a href="#" onclick="changePage('modules')" class="btn-hero-outline" id="heroCtaInfo">Daha fazla bilgi al</a>
                     </div>
                 </div>
+                <div class="hero-figure">
+                    <div class="dashboard-preview">
+                        <div class="glass-card glass-card--terminal">
+                            <div class="terminal-header">
+                                <div class="terminal-dots">
+                                    <span class="dot dot--red"></span>
+                                    <span class="dot dot--yellow"></span>
+                                    <span class="dot dot--green"></span>
+                                </div>
+                                <span class="terminal-title">security-monitor.log</span>
+                            </div>
+                            <div class="terminal-body">
+                                <div class="terminal-line"><span class="terminal-time">14:32:15</span> <span class="terminal-success">[SUCCESS]</span> Threat blocked: phishing-site.com</div>
+                                <div class="terminal-line"><span class="terminal-time">14:32:18</span> <span class="terminal-warn">[WARNING]</span> Suspicious activity detected from 192.168.1.45</div>
+                                <div class="terminal-line"><span class="terminal-time">14:32:22</span> <span class="terminal-info">[INFO]</span> IOC updated: 2,847 indicators loaded</div>
+                                <div class="terminal-line"><span class="terminal-time">14:32:25</span> <span class="terminal-success">[SUCCESS]</span> Honeypot captured 3 new attacks</div>
+                                <div class="terminal-line"><span class="terminal-time">14:32:28</span> <span class="terminal-info">[INFO]</span> Shield generated 47 secure passwords</div>
+                                <div class="terminal-line"><span class="terminal-time">14:32:31</span> <span class="terminal-warn">[WARNING]</span> Breach detected: user@example.com in leak</div>
+                            </div>
+                        </div>
+                        <div class="glass-card glass-card--chart">
+                            <div class="chart-header">
+                                <span class="chart-title">Threat Analytics</span>
+                            </div>
+                            <div class="chart-body">
+                                <svg viewBox="0 0 200 100" class="chart-svg">
+                                    <defs>
+                                        <linearGradient id="chartGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                                            <stop offset="0%" style="stop-color:#00b4d8;stop-opacity:0.4" />
+                                            <stop offset="100%" style="stop-color:#00b4d8;stop-opacity:0" />
+                                        </linearGradient>
+                                    </defs>
+                                    <path d="M0,80 L20,70 L40,75 L60,60 L80,65 L100,50 L120,55 L140,40 L160,45 L180,30 L200,35 L200,100 L0,100 Z" fill="url(#chartGradient)" />
+                                    <path d="M0,80 L20,70 L40,75 L60,60 L80,65 L100,50 L120,55 L140,40 L160,45 L180,30 L200,35" fill="none" stroke="#00b4d8" stroke-width="2" />
+                                    <circle cx="20" cy="70" r="3" fill="#00b4d8" />
+                                    <circle cx="60" cy="60" r="3" fill="#00b4d8" />
+                                    <circle cx="100" cy="50" r="3" fill="#00b4d8" />
+                                    <circle cx="140" cy="40" r="3" fill="#00b4d8" />
+                                    <circle cx="180" cy="30" r="3" fill="#00b4d8" />
+                                </svg>
+                                <div class="chart-stats">
+                                    <div class="chart-stat">
+                                        <span class="stat-value">2,847</span>
+                                        <span class="stat-label">IOCs</span>
+                                    </div>
+                                    <div class="chart-stat">
+                                        <span class="stat-value">156</span>
+                                        <span class="stat-label">Threats</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-        </div>
-        <div class="hero-wave" aria-hidden="true">
-            <svg viewBox="0 0 1440 120" preserveAspectRatio="none">
-                <path fill="#111827" d="M0,40 C180,100 360,0 540,50 C720,100 900,20 1080,55 C1260,90 1350,70 1440,45 L1440,120 L0,120 Z"></path>
-                <path fill="#0a0e14" opacity="0.95" d="M0,65 C200,110 400,30 600,70 C800,110 1000,40 1200,75 C1320,95 1400,85 1440,80 L1440,120 L0,120 Z"></path>
-            </svg>
-        </div>
-    </section>
-
-    <section id="modules-overview" class="modules-strip" aria-labelledby="modTitle">
-        <div class="modules-strip-inner">
-            <h2 id="modTitle" class="modules-strip-title">Platform modülleri</h2>
-            <p class="modules-strip-sub">Bir modüle dokunun; aşağıdaki çalışma alanında ilgili sekme açılır.</p>
-            <div class="modules-grid">
-                <button type="button" class="mod-card" data-goto-tab="threat">
-                    <span class="mod-card-icon" aria-hidden="true">
-                        <svg class="mod-svg" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 14h28v6H10zM10 24h28v6H10zM10 34h28v6H10z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="38" cy="12" r="5" stroke="currentColor" stroke-width="2"/><path d="M41 15l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-                    </span>
-                    <h3>Tehdit veritabanı</h3>
-                    <p>URL analizi ve kayıtlı oltalama listesi.</p>
-                </button>
-                <button type="button" class="mod-card" data-goto-tab="infra">
-                    <span class="mod-card-icon" aria-hidden="true">
-                        <svg class="mod-svg" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M24 6v36M24 6l-6 10h12L24 6z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 18c4-4 10-6 14-6s10 2 14 6M14 24c3-3 6-4 10-4s7 1 10 4M18 30c2-2 4-3 6-3s4 1 6 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-                    </span>
-                    <h3>Altyapı analizi</h3>
-                    <p>SSL, yönlendirme ve port özeti.</p>
-                </button>
-                <button type="button" class="mod-card" data-goto-tab="breach">
-                    <span class="mod-card-icon" aria-hidden="true">
-                        <svg class="mod-svg" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="8" y="16" width="32" height="22" rx="2" stroke="currentColor" stroke-width="2"/><path d="M8 20l16 11 16-11" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M33 9c-1.7 0-3 1.6-3 3.5 0 2.2 2.2 4.2 3 6.5.8-2.3 3-4.3 3-6.5C36 10.6 34.7 9 33 9z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
-                    </span>
-                    <h3>Sızıntı istihbaratı</h3>
-                    <p>E-postanın bilinen sızıntılarda aranması.</p>
-                </button>
-                <button type="button" class="mod-card" data-goto-tab="shield">
-                    <span class="mod-card-icon" aria-hidden="true">
-                        <svg class="mod-svg" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="18" cy="18" r="6" stroke="currentColor" stroke-width="2"/><path d="M22 22h14v6h-4v4h-4v4h-4v4H14V22h8z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M24 28h6M27 25v6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-                    </span>
-                    <h3>Kriptografik kalkan</h3>
-                    <p>Güçlü rastgele şifre üretimi.</p>
-                </button>
-                <button type="button" class="mod-card" data-goto-tab="honeypot">
-                    <span class="mod-card-icon" aria-hidden="true">
-                        <svg class="mod-svg" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M24 4l18 10v14c0 11-7.7 20.3-18 23-10.3-2.7-18-12-18-23V14L24 4z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M16 22h16M20 18v12M28 18v12M16 26h16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-                    </span>
-                    <h3>Aktif savunma</h3>
-                    <p>Demo tuzak sayfası ve ziyaret kaydı.</p>
-                </button>
-            </div>
-        </div>
-    </section>
-
-    <section id="hakkimizda" class="about-section" aria-labelledby="aboutTitle">
-        <div class="about-inner">
-            <div class="about-icon">
-                <svg width="120" height="120" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 2.2L4.2 5.1v6.1c0 4.4 2.9 8.1 7.8 9.3 4.9-1.2 7.8-4.9 7.8-9.3V5.1L12 2.2z" stroke="#00b4d8" stroke-width="1.35" stroke-linejoin="round" fill="rgba(0, 180, 216, 0.14)"/>
-                    <path d="M8.2 12.2l2.3 2.3 5.3-5.3" stroke="#00b4d8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <div class="hero-wave" aria-hidden="true">
+                <svg viewBox="0 0 1440 120" preserveAspectRatio="none">
+                    <path fill="#111827" d="M0,40 C180,100 360,0 540,50 C720,100 900,20 1080,55 C1260,90 1350,70 1440,45 L1440,120 L0,120 Z"></path>
+                    <path fill="#0a0e14" opacity="0.95" d="M0,65 C200,110 400,30 600,70 C800,110 1000,40 1200,75 C1320,95 1400,85 1440,80 L1440,120 L0,120 Z"></path>
                 </svg>
             </div>
-            <div class="about-content">
-                <h2 id="aboutTitle" class="about-title">Hakkımızda</h2>
-                <p class="about-text">Aegis Nexus; oltalama tespiti, altyapı özeti, sızıntı farkındalığı ve güçlü parola üretimini tek çatıda toplar. Amacımız bireylerin ve işletmelerin dijital riskleri daha erken görmesidir.</p>
-            </div>
-        </div>
-    </section>
+        </section>
 
-    <section id="blog" class="blog-section" aria-label="Blog">
-        <div class="blog-inner">
-            <h2 class="blog-title">Blog</h2>
-            <div class="blog-grid">
-                <div class="blog-card blog-card--locked">
-                    <div class="blog-card-icon">
-                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                        </svg>
-                    </div>
-                    <div class="blog-card-text">DECRYPTING...</div>
-                </div>
-                <div class="blog-card blog-card--locked">
-                    <div class="blog-card-icon">
-                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                        </svg>
-                    </div>
-                    <div class="blog-card-text">ACCESSING DATABASE...</div>
-                </div>
-                <div class="blog-card blog-card--locked">
-                    <div class="blog-card-icon">
-                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                        </svg>
-                    </div>
-                    <div class="blog-card-text">LOADING MODULES...</div>
+        <section id="modules-overview" class="modules-strip" aria-labelledby="modTitle">
+            <div class="modules-strip-inner">
+                <h2 id="modTitle" class="modules-strip-title">Platform modülleri</h2>
+                <p class="modules-strip-sub">Bir modüle dokunun; ilgili sayfa açılır.</p>
+                <div class="modules-grid">
+                    <button type="button" class="mod-card" onclick="changePage('threat')">
+                        <span class="mod-card-icon" aria-hidden="true">
+                            <svg class="mod-svg" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 14h28v6H10zM10 24h28v6H10zM10 34h28v6H10z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="38" cy="12" r="5" stroke="currentColor" stroke-width="2"/><path d="M41 15l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                        </span>
+                        <h3>Tehdit veritabanı</h3>
+                        <p>URL analizi ve kayıtlı oltalama listesi.</p>
+                    </button>
+                    <button type="button" class="mod-card" onclick="changePage('infra')">
+                        <span class="mod-card-icon" aria-hidden="true">
+                            <svg class="mod-svg" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M24 6v36M24 6l-6 10h12L24 6z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 18c4-4 10-6 14-6s10 2 14 6M14 24c3-3 6-4 10-4s7 1 10 4M18 30c2-2 4-3 6-3s4 1 6 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                        </span>
+                        <h3>Altyapı analizi</h3>
+                        <p>SSL, yönlendirme ve port özeti.</p>
+                    </button>
+                    <button type="button" class="mod-card" onclick="changePage('breach')">
+                        <span class="mod-card-icon" aria-hidden="true">
+                            <svg class="mod-svg" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="8" y="16" width="32" height="22" rx="2" stroke="currentColor" stroke-width="2"/><path d="M8 20l16 11 16-11" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M33 9c-1.7 0-3 1.6-3 3.5 0 2.2 2.2 4.2 3 6.5.8-2.3 3-4.3 3-6.5C36 10.6 34.7 9 33 9z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                        </span>
+                        <h3>Sızıntı istihbaratı</h3>
+                        <p>E-postanın bilinen sızıntılarda aranması.</p>
+                    </button>
+                    <button type="button" class="mod-card" onclick="changePage('shield')">
+                        <span class="mod-card-icon" aria-hidden="true">
+                            <svg class="mod-svg" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="18" cy="18" r="6" stroke="currentColor" stroke-width="2"/><path d="M22 22h14v6h-4v4h-4v4h-4v4H14V22h8z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M24 28h6M27 25v6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                        </span>
+                        <h3>Kriptografik kalkan</h3>
+                        <p>Güçlü rastgele şifre üretimi.</p>
+                    </button>
+                    <button type="button" class="mod-card" onclick="changePage('ioc')">
+                        <span class="mod-card-icon" aria-hidden="true">
+                            <svg class="mod-svg" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="16" stroke="currentColor" stroke-width="2"/><path d="M24 12v12l8 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                        </span>
+                        <h3>İOC İstihbaratı</h3>
+                        <p>Tehdit göstergeleri ve istatistikler.</p>
+                    </button>
+                    <button type="button" class="mod-card" onclick="changePage('honeypot')">
+                        <span class="mod-card-icon" aria-hidden="true">
+                            <svg class="mod-svg" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M24 4l18 10v14c0 11-7.7 20.3-18 23-10.3-2.7-18-12-18-23V14L24 4z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M16 22h16M20 18v12M28 18v12M16 26h16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                        </span>
+                        <h3>Aktif savunma</h3>
+                        <p>Demo tuzak sayfası ve ziyaret kaydı.</p>
+                    </button>
                 </div>
             </div>
-        </div>
-    </section>
+        </section>
+
+        <section id="hakkimizda" class="about-section" aria-labelledby="aboutTitle">
+            <div class="about-inner">
+                <div class="about-icon">
+                    <svg width="120" height="120" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2.2L4.2 5.1v6.1c0 4.4 2.9 8.1 7.8 9.3 4.9-1.2 7.8-4.9 7.8-9.3V5.1L12 2.2z" stroke="#00b4d8" stroke-width="1.35" stroke-linejoin="round" fill="rgba(0, 180, 216, 0.14)"/>
+                        <path d="M8.2 12.2l2.3 2.3 5.3-5.3" stroke="#00b4d8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </div>
+                <div class="about-content">
+                    <h2 id="aboutTitle" class="about-title">Hakkımızda</h2>
+                    <p class="about-text">Aegis Nexus; oltalama tespiti, altyapı özeti, sızıntı farkındalığı ve güçlü parola üretimini tek çatıda toplar. Amacımız bireylerin ve işletmelerin dijital riskleri daha erken görmesidir.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="blog" class="blog-section" aria-label="Blog">
+            <div class="blog-inner">
+                <h2 class="blog-title">Blog</h2>
+                <div class="blog-grid">
+                    <div class="blog-card blog-card--locked">
+                        <div class="blog-card-icon">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                            </svg>
+                        </div>
+                        <div class="blog-card-text">DECRYPTING...</div>
+                    </div>
+                    <div class="blog-card blog-card--locked">
+                        <div class="blog-card-icon">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                            </svg>
+                        </div>
+                        <div class="blog-card-text">ACCESSING DATABASE...</div>
+                    </div>
+                    <div class="blog-card blog-card--locked">
+                        <div class="blog-card-icon">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                            </svg>
+                        </div>
+                        <div class="blog-card-text">LOADING MODULES...</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
 
     <div id="addModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
         <div class="modal-content">
@@ -220,7 +232,7 @@
         </div>
     </div>
 
-    <div id="workspace">
+    <div id="workspace" style="display:none;">
     <header class="site-header">
         <div class="header-inner">
             <a href="#top" class="logo logo--with-mark">
@@ -497,16 +509,297 @@
             scrollToId('top');
         }
 
+        function changePage(pageName) {
+            const url = '/' + pageName;
+            window.history.pushState({}, '', url);
+
+            const mainArea = document.getElementById('app-content');
+            
+            if (pageName === '' || pageName === 'home') {
+                mainArea.innerHTML = `
+                    <section id="top" class="hero-landing fade-in" aria-label="Karşılama">
+                        <div class="hero-bg" aria-hidden="true"></div>
+                        <div class="hero-inner">
+                            <div class="hero-copy">
+                                <h1 class="hero-display">Aegis Nexus ile dijital dünyanızı güvenceye alın ve büyütün.</h1>
+                                <p class="hero-tagline">Tehdit veritabanından aktif savunmaya, tam teşekküllü siber güvenlik ekosistemi.</p>
+                                <div class="hero-cta">
+                                    <a href="#" onclick="changePage('threat')" class="btn-hero-solid">Hemen kontrol et</a>
+                                    <a href="#" onclick="changePage('modules')" class="btn-hero-outline">Daha fazla bilgi al</a>
+                                </div>
+                            </div>
+                            <div class="hero-figure">
+                                <div class="dashboard-preview">
+                                    <div class="glass-card glass-card--terminal">
+                                        <div class="terminal-header">
+                                            <div class="terminal-dots">
+                                                <span class="dot dot--red"></span>
+                                                <span class="dot dot--yellow"></span>
+                                                <span class="dot dot--green"></span>
+                                            </div>
+                                            <span class="terminal-title">security-monitor.log</span>
+                                        </div>
+                                        <div class="terminal-body">
+                                            <div class="terminal-line"><span class="terminal-time">14:32:15</span> <span class="terminal-success">[SUCCESS]</span> Threat blocked: phishing-site.com</div>
+                                            <div class="terminal-line"><span class="terminal-time">14:32:18</span> <span class="terminal-warn">[WARNING]</span> Suspicious activity detected from 192.168.1.45</div>
+                                            <div class="terminal-line"><span class="terminal-time">14:32:22</span> <span class="terminal-info">[INFO]</span> IOC updated: 2,847 indicators loaded</div>
+                                            <div class="terminal-line"><span class="terminal-time">14:32:25</span> <span class="terminal-success">[SUCCESS]</span> Honeypot captured 3 new attacks</div>
+                                            <div class="terminal-line"><span class="terminal-time">14:32:28</span> <span class="terminal-info">[INFO]</span> Shield generated 47 secure passwords</div>
+                                            <div class="terminal-line"><span class="terminal-time">14:32:31</span> <span class="terminal-warn">[WARNING]</span> Breach detected: user@example.com in leak</div>
+                                        </div>
+                                    </div>
+                                    <div class="glass-card glass-card--chart">
+                                        <div class="chart-header">
+                                            <span class="chart-title">Threat Analytics</span>
+                                        </div>
+                                        <div class="chart-body">
+                                            <svg viewBox="0 0 200 100" class="chart-svg">
+                                                <defs>
+                                                    <linearGradient id="chartGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                                                        <stop offset="0%" style="stop-color:#00b4d8;stop-opacity:0.4" />
+                                                        <stop offset="100%" style="stop-color:#00b4d8;stop-opacity:0" />
+                                                    </linearGradient>
+                                                </defs>
+                                                <path d="M0,80 L20,70 L40,75 L60,60 L80,65 L100,50 L120,55 L140,40 L160,45 L180,30 L200,35 L200,100 L0,100 Z" fill="url(#chartGradient)" />
+                                                <path d="M0,80 L20,70 L40,75 L60,60 L80,65 L100,50 L120,55 L140,40 L160,45 L180,30 L200,35" fill="none" stroke="#00b4d8" stroke-width="2" />
+                                                <circle cx="20" cy="70" r="3" fill="#00b4d8" />
+                                                <circle cx="60" cy="60" r="3" fill="#00b4d8" />
+                                                <circle cx="100" cy="50" r="3" fill="#00b4d8" />
+                                                <circle cx="140" cy="40" r="3" fill="#00b4d8" />
+                                                <circle cx="180" cy="30" r="3" fill="#00b4d8" />
+                                            </svg>
+                                            <div class="chart-stats">
+                                                <div class="chart-stat">
+                                                    <span class="stat-value">2,847</span>
+                                                    <span class="stat-label">IOCs</span>
+                                                </div>
+                                                <div class="chart-stat">
+                                                    <span class="stat-value">156</span>
+                                                    <span class="stat-label">Threats</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="hero-wave" aria-hidden="true">
+                            <svg viewBox="0 0 1440 120" preserveAspectRatio="none">
+                                <path fill="#111827" d="M0,40 C180,100 360,0 540,50 C720,100 900,20 1080,55 C1260,90 1350,70 1440,45 L1440,120 L0,120 Z"></path>
+                                <path fill="#0a0e14" opacity="0.95" d="M0,65 C200,110 400,30 600,70 C800,110 1000,40 1200,75 C1320,95 1400,85 1440,80 L1440,120 L0,120 Z"></path>
+                            </svg>
+                        </div>
+                    </section>
+
+                    <section id="modules-overview" class="modules-strip fade-in" aria-labelledby="modTitle">
+                        <div class="modules-strip-inner">
+                            <h2 id="modTitle" class="modules-strip-title">Platform modülleri</h2>
+                            <p class="modules-strip-sub">Bir modüle dokunun; ilgili sayfa açılır.</p>
+                            <div class="modules-grid">
+                                <button type="button" class="mod-card" onclick="changePage('threat')">
+                                    <span class="mod-card-icon" aria-hidden="true">
+                                        <svg class="mod-svg" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 14h28v6H10zM10 24h28v6H10zM10 34h28v6H10z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="38" cy="12" r="5" stroke="currentColor" stroke-width="2"/><path d="M41 15l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                                    </span>
+                                    <h3>Tehdit veritabanı</h3>
+                                    <p>URL analizi ve kayıtlı oltalama listesi.</p>
+                                </button>
+                                <button type="button" class="mod-card" onclick="changePage('infra')">
+                                    <span class="mod-card-icon" aria-hidden="true">
+                                        <svg class="mod-svg" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M24 6v36M24 6l-6 10h12L24 6z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 18c4-4 10-6 14-6s10 2 14 6M14 24c3-3 6-4 10-4s7 1 10 4M18 30c2-2 4-3 6-3s4 1 6 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                                    </span>
+                                    <h3>Altyapı analizi</h3>
+                                    <p>SSL, yönlendirme ve port özeti.</p>
+                                </button>
+                                <button type="button" class="mod-card" onclick="changePage('breach')">
+                                    <span class="mod-card-icon" aria-hidden="true">
+                                        <svg class="mod-svg" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="8" y="16" width="32" height="22" rx="2" stroke="currentColor" stroke-width="2"/><path d="M8 20l16 11 16-11" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M33 9c-1.7 0-3 1.6-3 3.5 0 2.2 2.2 4.2 3 6.5.8-2.3 3-4.3 3-6.5C36 10.6 34.7 9 33 9z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                    </span>
+                                    <h3>Sızıntı istihbaratı</h3>
+                                    <p>E-postanın bilinen sızıntılarda aranması.</p>
+                                </button>
+                                <button type="button" class="mod-card" onclick="changePage('shield')">
+                                    <span class="mod-card-icon" aria-hidden="true">
+                                        <svg class="mod-svg" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="18" cy="18" r="6" stroke="currentColor" stroke-width="2"/><path d="M22 22h14v6h-4v4h-4v4h-4v4H14V22h8z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M24 28h6M27 25v6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                                    </span>
+                                    <h3>Kriptografik kalkan</h3>
+                                    <p>Güçlü rastgele şifre üretimi.</p>
+                                </button>
+                                <button type="button" class="mod-card" onclick="changePage('ioc')">
+                                    <span class="mod-card-icon" aria-hidden="true">
+                                        <svg class="mod-svg" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="16" stroke="currentColor" stroke-width="2"/><path d="M24 12v12l8 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                                    </span>
+                                    <h3>İOC İstihbaratı</h3>
+                                    <p>Tehdit göstergeleri ve istatistikler.</p>
+                                </button>
+                                <button type="button" class="mod-card" onclick="changePage('honeypot')">
+                                    <span class="mod-card-icon" aria-hidden="true">
+                                        <svg class="mod-svg" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M24 4l18 10v14c0 11-7.7 20.3-18 23-10.3-2.7-18-12-18-23V14L24 4z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M16 22h16M20 18v12M28 18v12M16 26h16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                                    </span>
+                                    <h3>Aktif savunma</h3>
+                                    <p>Demo tuzak sayfası ve ziyaret kaydı.</p>
+                                </button>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section id="hakkimizda" class="about-section fade-in" aria-labelledby="aboutTitle">
+                        <div class="about-inner">
+                            <div class="about-icon">
+                                <svg width="120" height="120" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M12 2.2L4.2 5.1v6.1c0 4.4 2.9 8.1 7.8 9.3 4.9-1.2 7.8-4.9 7.8-9.3V5.1L12 2.2z" stroke="#00b4d8" stroke-width="1.35" stroke-linejoin="round" fill="rgba(0, 180, 216, 0.14)"/>
+                                    <path d="M8.2 12.2l2.3 2.3 5.3-5.3" stroke="#00b4d8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                            </div>
+                            <div class="about-content">
+                                <h2 id="aboutTitle" class="about-title">Hakkımızda</h2>
+                                <p class="about-text">Aegis Nexus; oltalama tespiti, altyapı özeti, sızıntı farkındalığı ve güçlü parola üretimini tek çatıda toplar. Amacımız bireylerin ve işletmelerin dijital riskleri daha erken görmesidir.</p>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section id="blog" class="blog-section fade-in" aria-label="Blog">
+                        <div class="blog-inner">
+                            <h2 class="blog-title">Blog</h2>
+                            <div class="blog-grid">
+                                <div class="blog-card blog-card--locked">
+                                    <div class="blog-card-icon">
+                                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                                            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                                        </svg>
+                                    </div>
+                                    <div class="blog-card-text">DECRYPTING...</div>
+                                </div>
+                                <div class="blog-card blog-card--locked">
+                                    <div class="blog-card-icon">
+                                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                                            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                                        </svg>
+                                    </div>
+                                    <div class="blog-card-text">ACCESSING DATABASE...</div>
+                                </div>
+                                <div class="blog-card blog-card--locked">
+                                    <div class="blog-card-icon">
+                                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                                            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                                        </svg>
+                                    </div>
+                                    <div class="blog-card-text">LOADING MODULES...</div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                `;
+            } else if (pageName === 'modules') {
+                mainArea.innerHTML = `
+                    <section id="modules-overview" class="modules-strip fade-in" aria-labelledby="modTitle">
+                        <div class="modules-strip-inner">
+                            <h2 id="modTitle" class="modules-strip-title">Platform modülleri</h2>
+                            <p class="modules-strip-sub">Bir modüle dokunun; ilgili sayfa açılır.</p>
+                            <div class="modules-grid">
+                                <button type="button" class="mod-card" onclick="changePage('threat')">
+                                    <span class="mod-card-icon" aria-hidden="true">
+                                        <svg class="mod-svg" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 14h28v6H10zM10 24h28v6H10zM10 34h28v6H10z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="38" cy="12" r="5" stroke="currentColor" stroke-width="2"/><path d="M41 15l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                                    </span>
+                                    <h3>Tehdit veritabanı</h3>
+                                    <p>URL analizi ve kayıtlı oltalama listesi.</p>
+                                </button>
+                                <button type="button" class="mod-card" onclick="changePage('infra')">
+                                    <span class="mod-card-icon" aria-hidden="true">
+                                        <svg class="mod-svg" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M24 6v36M24 6l-6 10h12L24 6z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 18c4-4 10-6 14-6s10 2 14 6M14 24c3-3 6-4 10-4s7 1 10 4M18 30c2-2 4-3 6-3s4 1 6 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                                    </span>
+                                    <h3>Altyapı analizi</h3>
+                                    <p>SSL, yönlendirme ve port özeti.</p>
+                                </button>
+                                <button type="button" class="mod-card" onclick="changePage('breach')">
+                                    <span class="mod-card-icon" aria-hidden="true">
+                                        <svg class="mod-svg" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="8" y="16" width="32" height="22" rx="2" stroke="currentColor" stroke-width="2"/><path d="M8 20l16 11 16-11" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M33 9c-1.7 0-3 1.6-3 3.5 0 2.2 2.2 4.2 3 6.5.8-2.3 3-4.3 3-6.5C36 10.6 34.7 9 33 9z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                    </span>
+                                    <h3>Sızıntı istihbaratı</h3>
+                                    <p>E-postanın bilinen sızıntılarda aranması.</p>
+                                </button>
+                                <button type="button" class="mod-card" onclick="changePage('shield')">
+                                    <span class="mod-card-icon" aria-hidden="true">
+                                        <svg class="mod-svg" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="18" cy="18" r="6" stroke="currentColor" stroke-width="2"/><path d="M22 22h14v6h-4v4h-4v4h-4v4H14V22h8z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M24 28h6M27 25v6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                                    </span>
+                                    <h3>Kriptografik kalkan</h3>
+                                    <p>Güçlü rastgele şifre üretimi.</p>
+                                </button>
+                                <button type="button" class="mod-card" onclick="changePage('ioc')">
+                                    <span class="mod-card-icon" aria-hidden="true">
+                                        <svg class="mod-svg" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="16" stroke="currentColor" stroke-width="2"/><path d="M24 12v12l8 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                                    </span>
+                                    <h3>İOC İstihbaratı</h3>
+                                    <p>Tehdit göstergeleri ve istatistikler.</p>
+                                </button>
+                                <button type="button" class="mod-card" onclick="changePage('honeypot')">
+                                    <span class="mod-card-icon" aria-hidden="true">
+                                        <svg class="mod-svg" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M24 4l18 10v14c0 11-7.7 20.3-18 23-10.3-2.7-18-12-18-23V14L24 4z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M16 22h16M20 18v12M28 18v12M16 26h16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                                    </span>
+                                    <h3>Aktif savunma</h3>
+                                    <p>Demo tuzak sayfası ve ziyaret kaydı.</p>
+                                </button>
+                            </div>
+                        </div>
+                    </section>
+                `;
+            } else if (pageName === 'threat') {
+                mainArea.innerHTML = '<div class="fade-in" style="padding: 2rem; text-align: center; color: var(--text);">Tehdit modülü yükleniyor...</div>';
+                setTimeout(function() {
+                    loadWorkspace('threat');
+                }, 100);
+            } else if (pageName === 'infra') {
+                mainArea.innerHTML = '<div class="fade-in" style="padding: 2rem; text-align: center; color: var(--text);">Altyapı modülü yükleniyor...</div>';
+                setTimeout(function() {
+                    loadWorkspace('infra');
+                }, 100);
+            } else if (pageName === 'breach') {
+                mainArea.innerHTML = '<div class="fade-in" style="padding: 2rem; text-align: center; color: var(--text);">Sızıntı modülü yükleniyor...</div>';
+                setTimeout(function() {
+                    loadWorkspace('breach');
+                }, 100);
+            } else if (pageName === 'shield') {
+                mainArea.innerHTML = '<div class="fade-in" style="padding: 2rem; text-align: center; color: var(--text);">Şifre modülü yükleniyor...</div>';
+                setTimeout(function() {
+                    loadWorkspace('shield');
+                }, 100);
+            } else if (pageName === 'ioc') {
+                mainArea.innerHTML = '<div class="fade-in" style="padding: 2rem; text-align: center; color: var(--text);">İOC modülü yükleniyor...</div>';
+                setTimeout(function() {
+                    loadWorkspace('ioc');
+                }, 100);
+            } else if (pageName === 'honeypot') {
+                mainArea.innerHTML = '<div class="fade-in" style="padding: 2rem; text-align: center; color: var(--text);">Tuzak modülü yükleniyor...</div>';
+                setTimeout(function() {
+                    loadWorkspace('honeypot');
+                }, 100);
+            } else if (pageName === 'contact') {
+                mainArea.innerHTML = '<div class="fade-in" style="padding: 2rem; text-align: center; color: var(--text);">İletişim modülü yükleniyor...</div>';
+                setTimeout(function() {
+                    loadWorkspace('contact');
+                }, 100);
+            }
+
+            window.scrollTo(0, 0);
+        }
+
+        function loadWorkspace(tab) {
+            const workspace = document.getElementById('workspace');
+            if (workspace) {
+                const mainArea = document.getElementById('app-content');
+                mainArea.innerHTML = '<div class="fade-in">' + workspace.innerHTML + '</div>';
+                activateTab(tab);
+            }
+        }
+
         var dropdownTimeout = null;
 
         function wireHeroNav() {
             function prev(e) { if (e) e.preventDefault(); }
             var home = document.getElementById('navAnaSayfa');
-            if (home) home.addEventListener('click', function(e) { prev(e); navigateToPage(''); });
-            var cta = document.getElementById('heroCtaPanel');
-            if (cta) cta.addEventListener('click', function(e) { prev(e); switchToTab('threat'); });
-            var info = document.getElementById('heroCtaInfo');
-            if (info) info.addEventListener('click', function(e) { prev(e); scrollToId('modules-overview'); });
+            if (home) home.addEventListener('click', function(e) { prev(e); changePage(''); });
             var modules = document.getElementById('navModules');
             if (modules) modules.addEventListener('click', function(e) {
                 e.preventDefault();
@@ -559,12 +852,14 @@
             var about = document.getElementById('footerAbout');
             if (about) about.addEventListener('click', function(e) {
                 e.preventDefault();
-                navigateToPage('about');
+                changePage('');
+                scrollToId('hakkimizda');
             });
             var blog = document.getElementById('footerBlog');
             if (blog) blog.addEventListener('click', function(e) {
                 e.preventDefault();
-                navigateToPage('blog');
+                changePage('');
+                scrollToId('blog');
             });
         }
 

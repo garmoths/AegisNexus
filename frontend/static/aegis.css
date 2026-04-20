@@ -185,6 +185,37 @@ a:hover {
   gap: 1rem;
 }
 
+.site-header-fixed {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 99999;
+  background: rgba(10, 14, 20, 0.95);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+}
+
+.site-header-fixed .hero-topbar {
+  max-width: 1240px;
+  margin: 0 auto;
+}
+
+#app-content {
+  margin-top: 80px;
+  min-height: calc(100vh - 80px);
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .hero-brand-link {
   color: #fff;
   text-decoration: none;
