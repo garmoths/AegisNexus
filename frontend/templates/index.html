@@ -49,8 +49,8 @@
                     <h1 class="hero-display">Aegis Nexus ile dijital dünyanızı güvenceye alın ve büyütün.</h1>
                     <p class="hero-tagline">Tehdit veritabanından aktif savunmaya, tam teşekküllü siber güvenlik ekosistemi.</p>
                     <div class="hero-cta">
-                        <a href="#" onclick="changePage('threat'); return false;" class="btn-hero-solid" id="heroCtaPanel">Hemen kontrol et</a>
-                        <a href="#" onclick="changePage('modules'); return false;" class="btn-hero-outline" id="heroCtaInfo">Daha fazla bilgi al</a>
+                        <a href="#workspace" onclick="changePage('threat'); return false;" class="btn-hero-solid" id="heroCtaPanel">Hemen kontrol et</a>
+                        <a href="#workspace" onclick="scrollToId('workspace'); return false;" class="btn-hero-outline" id="heroCtaInfo">Workspace'e git</a>
                     </div>
                 </div>
                 <div class="hero-figure">
@@ -116,57 +116,210 @@
             </div>
         </section>
 
-        <section id="modules-overview" class="modules-strip" aria-labelledby="modTitle">
-            <div class="modules-strip-inner">
-                <h2 id="modTitle" class="modules-strip-title">Platform modülleri</h2>
-                <p class="modules-strip-sub">Bir modüle dokunun; ilgili sayfa açılır.</p>
-                <div class="modules-grid">
-                    <button type="button" class="mod-card" onclick="changePage('threat')">
-                        <span class="mod-card-icon" aria-hidden="true">
-                            <svg class="mod-svg" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 14h28v6H10zM10 24h28v6H10zM10 34h28v6H10z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="38" cy="12" r="5" stroke="currentColor" stroke-width="2"/><path d="M41 15l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-                        </span>
-                        <h3>Tehdit veritabanı</h3>
-                        <p>URL analizi ve kayıtlı oltalama listesi.</p>
-                    </button>
-                    <button type="button" class="mod-card" onclick="changePage('infra')">
-                        <span class="mod-card-icon" aria-hidden="true">
-                            <svg class="mod-svg" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M24 6v36M24 6l-6 10h12L24 6z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 18c4-4 10-6 14-6s10 2 14 6M14 24c3-3 6-4 10-4s7 1 10 4M18 30c2-2 4-3 6-3s4 1 6 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-                        </span>
-                        <h3>Altyapı analizi</h3>
-                        <p>SSL, yönlendirme ve port özeti.</p>
-                    </button>
-                    <button type="button" class="mod-card" onclick="changePage('breach')">
-                        <span class="mod-card-icon" aria-hidden="true">
-                            <svg class="mod-svg" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="8" y="16" width="32" height="22" rx="2" stroke="currentColor" stroke-width="2"/><path d="M8 20l16 11 16-11" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M33 9c-1.7 0-3 1.6-3 3.5 0 2.2 2.2 4.2 3 6.5.8-2.3 3-4.3 3-6.5C36 10.6 34.7 9 33 9z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
-                        </span>
-                        <h3>Sızıntı istihbaratı</h3>
-                        <p>E-postanın bilinen sızıntılarda aranması.</p>
-                    </button>
-                    <button type="button" class="mod-card" onclick="changePage('shield')">
-                        <span class="mod-card-icon" aria-hidden="true">
-                            <svg class="mod-svg" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="18" cy="18" r="6" stroke="currentColor" stroke-width="2"/><path d="M22 22h14v6h-4v4h-4v4h-4v4H14V22h8z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M24 28h6M27 25v6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-                        </span>
-                        <h3>Kriptografik kalkan</h3>
-                        <p>Güçlü rastgele şifre üretimi.</p>
-                    </button>
-                    <button type="button" class="mod-card" onclick="changePage('ioc')">
-                        <span class="mod-card-icon" aria-hidden="true">
-                            <svg class="mod-svg" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="16" stroke="currentColor" stroke-width="2"/><path d="M24 12v12l8 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-                        </span>
-                        <h3>İOC İstihbaratı</h3>
-                        <p>Tehdit göstergeleri ve istatistikler.</p>
-                    </button>
-                    <button type="button" class="mod-card" onclick="changePage('honeypot')">
-                        <span class="mod-card-icon" aria-hidden="true">
-                            <svg class="mod-svg" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M24 4l18 10v14c0 11-7.7 20.3-18 23-10.3-2.7-18-12-18-23V14L24 4z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M16 22h16M20 18v12M28 18v12M16 26h16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-                        </span>
-                        <h3>Aktif savunma</h3>
-                        <p>Demo tuzak sayfası ve ziyaret kaydı.</p>
-                    </button>
+        <section id="workspace" class="workspace-section">
+            <nav class="main-nav" role="tablist" aria-label="Modüller">
+                <button type="button" class="tab-btn active" data-tab="threat" role="tab">Tehdit</button>
+                <button type="button" class="tab-btn" data-tab="infra" role="tab">Altyapı</button>
+                <button type="button" class="tab-btn" data-tab="breach" role="tab">Sızıntı</button>
+                <button type="button" class="tab-btn" data-tab="shield" role="tab">Şifre</button>
+                <button type="button" class="tab-btn" data-tab="ioc" role="tab">İOC</button>
+                <button type="button" class="tab-btn" data-tab="honeypot" role="tab">Tuzak</button>
+                <button type="button" class="tab-btn" data-tab="contact" role="tab">İletişim</button>
+            </nav>
+
+            <div class="main-content">
+
+                <div id="tab-panel-threat" class="tab-panel active">
+                    <div class="grid-2">
+                        <article class="card">
+                            <h2>URL analizi</h2>
+                            <p class="section-hint">Yerel liste, bağlantı ve içerik sinyalleri birleşir. Sonuç tavsiye niteliğindedir.</p>
+                            <div class="field-row">
+                                <input type="text" id="manualUrlInput" placeholder="https://… veya alan adı">
+                                <button type="button" class="btn btn--primary" onclick="checkManualURL()">Kontrol et</button>
+                            </div>
+                            <div id="manualResultArea" style="display:none;">
+                                <div id="scoreText" class="score-line">…</div>
+                                <div id="riskText" class="risk-line">…</div>
+                                <div id="aiPanels" style="display:none;">
+                                    <div class="ai-grid">
+                                        <div id="aiNlpBox" class="ai-box">
+                                            <div class="ai-label">İçerik riski</div>
+                                            <div id="aiNlpScore" class="ai-value">–</div>
+                                        </div>
+                                        <div id="aiMlBox" class="ai-box">
+                                            <div class="ai-label">ML skoru</div>
+                                            <div id="aiMlScore" class="ai-value">–</div>
+                                        </div>
+                                        <div id="aiBrandBox" class="ai-box">
+                                            <div class="ai-label">Marka taklidi</div>
+                                            <div id="aiBrandStatus" class="ai-value">–</div>
+                                        </div>
+                                    </div>
+                                    <div id="aiThreatIntel" class="sources-box" style="display:none;">
+                                        <strong style="color:var(--text);">Harici servisler</strong>
+                                        <div id="aiThreatList" style="margin-top:0.35rem;"></div>
+                                    </div>
+                                    <div id="aiCredBox" class="alert" style="display:none;background:var(--danger-soft);border-color:#f0b4b4;color:var(--danger);margin-bottom:0.5rem;">
+                                        Olası kimlik bilgisi toplama
+                                    </div>
+                                    <div id="aiScriptBox" class="alert" style="display:none;background:var(--warn-soft);border-color:#e8d48b;color:var(--warn);margin-bottom:0.5rem;">
+                                        Şüpheli betik kalıbı: <span id="aiScriptCount">0</span>
+                                    </div>
+                                </div>
+                                <div id="sourcesArea" class="sources-box" style="display:none;">
+                                    <div class="ai-label" style="margin-bottom:0.25rem;">Kaynaklar</div>
+                                    <div id="sourcesList"></div>
+                                </div>
+                                <ul id="detailsList"></ul>
+                            </div>
+                        </article>
+
+                        <article class="card">
+                            <div class="toolbar">
+                                <h2 class="card-title-lg" style="border:none;padding:0;margin:0;">Tehdit listesi</h2>
+                                <span class="spacer"></span>
+                                <button type="button" class="btn btn--ghost btn--small" onclick="openModal()">+ Ekle</button>
+                            </div>
+                            <p class="section-hint">Veritabanındaki kayıtlar. Arama en az 3 karakter.</p>
+                            <div class="field-row">
+                                <input type="text" id="urlInput" placeholder="Ara…">
+                                <select id="limitSelect">
+                                    <option value="10">10</option>
+                                    <option value="20" selected>20</option>
+                                    <option value="50">50</option>
+                                </select>
+                                <button type="button" class="btn btn--primary" onclick="searchData()">Ara</button>
+                            </div>
+                            <p class="stat-line">Toplam kayıt: <strong id="total-count">…</strong></p>
+                            <div id="loading" style="display:none;">Yükleniyor…</div>
+                            <div id="result-area"></div>
+                            <div class="pagination">
+                                <button type="button" class="btn btn--secondary btn--small" id="prevBtn" onclick="paginatePage(-1)" disabled>Önceki</button>
+                                <span id="pageInfo">Sayfa 1 / 1</span>
+                                <button type="button" class="btn btn--secondary btn--small" id="nextBtn" onclick="paginatePage(1)">Sonraki</button>
+                            </div>
+                        </article>
+                    </div>
+                </div>
+
+                <div id="tab-panel-infra" class="tab-panel">
+                    <article class="card" style="max-width:40rem;">
+                        <h2>Altyapı özeti</h2>
+                        <p class="section-hint">SSL, yönlendirme ve birkaç yaygın port. Yalnızca izniniz olan adresler.</p>
+                        <div class="field-row">
+                            <input type="text" id="infraUrl" placeholder="alan adı veya https://…">
+                            <button type="button" class="btn btn--primary" onclick="runInfraReport()">Rapor</button>
+                        </div>
+                        <pre id="infraOut" class="json-out" style="display:none;"></pre>
+                    </article>
+                </div>
+
+                <div id="tab-panel-breach" class="tab-panel">
+                    <article class="card" style="max-width:40rem;">
+                        <h2>E-posta — bilinen sızıntılar</h2>
+                        <p class="section-hint">Have I Been Pwned verisi. <a href="https://haveibeenpwned.com/" target="_blank" rel="noopener noreferrer">haveibeenpwned.com</a> — API anahtarı .env içinde gerekir.</p>
+                        <div class="field-row">
+                            <input type="email" id="breachEmail" placeholder="e-posta">
+                            <button type="button" class="btn btn--primary" onclick="runBreachLookup()">Sorgula</button>
+                        </div>
+                        <div id="breachReport" style="display:none;margin-top:1rem;color:var(--text);line-height:1.5;"></div>
+                        <pre id="breachRaw" class="json-out" style="display:none;"></pre>
+                    </article>
+                </div>
+
+                <div id="tab-panel-shield" class="tab-panel">
+                    <article class="card" style="max-width:36rem;">
+                        <h2>Güçlü şifre</h2>
+                        <p class="section-hint">Rastgele üretim. Parolayı güvenli yerde saklayın.</p>
+                        <label class="stat-line">Uzunluk <input type="number" id="pwdLen" value="20" min="8" max="128" style="width:5rem;margin-left:0.5rem;padding:0.35rem;border:1px solid var(--border);border-radius:6px;"></label>
+                        <div class="check-row">
+                            <label><input type="checkbox" id="pwdLower" checked> a–z</label>
+                            <label><input type="checkbox" id="pwdUpper" checked> A–Z</label>
+                            <label><input type="checkbox" id="pwdDigit" checked> 0–9</label>
+                            <label><input type="checkbox" id="pwdSym" checked> sembol</label>
+                        </div>
+                        <button type="button" class="btn btn--primary" onclick="runPasswordGen()">Üret</button>
+                        <div id="pwdOut" class="pwd-out" style="display:none;"></div>
+                        <pre id="pwdMeta" class="json-out" style="display:none;"></pre>
+                    </article>
+                </div>
+
+                <div id="tab-panel-ioc" class="tab-panel">
+                    <div class="grid-2">
+                        <article class="card">
+                            <h2>IOC Listesi</h2>
+                            <p class="section-hint">Tehdit göstergeleri (IP, URL, Domain, Email, Hash) — Saatlik olarak güncellenir</p>
+                            <div class="field-row">
+                                <input type="text" id="iocSearch" placeholder="IOC ara (IP, domain, email...)" style="flex:1;">
+                                <button type="button" class="btn btn--secondary" onclick="searchIOC()">Ara</button>
+                            </div>
+                            <div id="iocResults" style="margin-top:1rem;max-height:400px;overflow-y:auto;"></div>
+                        </article>
+                        <article class="card">
+                            <h2>IOC İstatistikleri</h2>
+                            <p class="section-hint">Merkezi tehdit istihbarat veritabanından çekilen veriler</p>
+                            <div class="stat-group">
+                                <div class="stat-item">
+                                    <strong>Toplam IOC:</strong>
+                                    <span id="iocTotal" class="stat-number">—</span>
+                                </div>
+                                <div class="stat-item">
+                                    <strong>Yüksek Risk:</strong>
+                                    <span id="iocHighRisk" class="stat-number" style="color:#c53030;">—</span>
+                                </div>
+                                <div class="stat-item">
+                                    <strong>Orta Risk:</strong>
+                                    <span id="iocMediumRisk" class="stat-number" style="color:#b7791f;">—</span>
+                                </div>
+                                <div class="stat-item">
+                                    <strong>Düşük Risk:</strong>
+                                    <span id="iocLowRisk" class="stat-number" style="color:#1d7a5a;">—</span>
+                                </div>
+                                <div class="stat-item">
+                                    <strong>Güncellenme:</strong>
+                                    <span id="iocLastUpdate" class="stat-time">—</span>
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn--ghost" onclick="loadIOCStats()" style="width:100%;margin-top:1rem;">Verileri yenile</button>
+                        </article>
+                    </div>
+                </div>
+
+                <div id="tab-panel-honeypot" class="tab-panel">
+                    <article class="card" style="max-width:40rem;">
+                        <h2>Demo tuzak sayfası</h2>
+                        <p class="section-hint">Eğitim amaçlı sahte giriş ekranı; yalnızca bu sunucuya teknik ziyaret kaydı düşer. Kötüye kullanmayın.</p>
+                        <button type="button" class="btn btn--secondary" onclick="window.open('/honeypot/decoy','_blank')">Sayfayı aç</button>
+                        <button type="button" class="btn btn--ghost" onclick="loadHoneypotStats()" style="margin-left:0.5rem;">Sayacı yenile</button>
+                        <p class="stat-line" style="margin-top:1rem;">Kayıtlı ziyaret: <strong id="hpStats">—</strong></p>
+                    </article>
+                </div>
+
+                <div id="tab-panel-contact" class="tab-panel">
+                    <div class="contact-grid">
+                        <article class="card">
+                            <h2>Bize ulaşın</h2>
+                            <p class="section-hint">Öneri, iş birliği veya teknik sorular.</p>
+                            <ul class="contact-list">
+                                <li><strong>E-posta:</strong> <a id="contactMail" href="mailto:destek@orneksite.com">destek@orneksite.com</a> <span class="section-hint">(örnek — kendi adresinizle değiştirin)</span></li>
+                                <li><strong>API özeti:</strong> <a href="/api/meta">/api/meta</a></li>
+                                <li><strong>Durum:</strong> <a href="/api/health">/api/health</a></li>
+                            </ul>
+                        </article>
+                        <article class="card">
+                            <h2>Mesaj gönder</h2>
+                            <p class="section-hint">Form sunucu günlüğüne yazılır; otomatik e-posta gönderilmez.</p>
+                            <input type="text" id="contactName" placeholder="Adınız" style="width:100%;margin-bottom:0.5rem;padding:0.65rem 0.85rem;border:1px solid var(--border);border-radius:8px;font-family:var(--font);">
+                            <input type="email" id="contactEmail" placeholder="E-postanız" style="width:100%;margin-bottom:0.5rem;padding:0.65rem 0.85rem;border:1px solid var(--border);border-radius:8px;font-family:var(--font);">
+                            <textarea id="contactMessage" class="field-full" placeholder="Mesajınız (en az 10 karakter)"></textarea>
+                            <button type="button" class="btn btn--primary btn-block" onclick="submitContact()">Gönder</button>
+                            <div id="contactStatus" role="status"></div>
+                        </article>
+                    </div>
                 </div>
             </div>
         </section>
-        </div>
 
         <section id="hakkimizda" class="about-section" aria-labelledby="aboutTitle">
             <div class="about-inner">
@@ -233,211 +386,6 @@
         </div>
     </div>
 
-    <div id="mutfak-alani" style="display:none;">
-    <nav class="main-nav" role="tablist" aria-label="Bölümler" style="padding: 1rem 0; margin-bottom: 1rem;">
-        <button type="button" class="tab-btn" onclick="vitrineDon()" style="margin-right: 1rem;">Ana Sayfa</button>
-        <button type="button" class="tab-btn active" data-tab="threat" role="tab">Tehdit</button>
-        <button type="button" class="tab-btn" data-tab="infra" role="tab">Altyapı</button>
-        <button type="button" class="tab-btn" data-tab="breach" role="tab">Sızıntı</button>
-        <button type="button" class="tab-btn" data-tab="shield" role="tab">Şifre</button>
-        <button type="button" class="tab-btn" data-tab="ioc" role="tab">İOC İstihbaratı</button>
-        <button type="button" class="tab-btn" data-tab="honeypot" role="tab">Tuzak</button>
-        <button type="button" class="tab-btn" data-tab="contact" role="tab">İletişim</button>
-    </nav>
-
-    <div class="main-content">
-
-        <div id="tab-panel-threat" class="tab-panel active">
-            <div class="grid-2">
-                <article class="card">
-                    <h2>URL analizi</h2>
-                    <p class="section-hint">Yerel liste, bağlantı ve içerik sinyalleri birleşir. Sonuç tavsiye niteliğindedir.</p>
-                    <div class="field-row">
-                        <input type="text" id="manualUrlInput" placeholder="https://… veya alan adı">
-                        <button type="button" class="btn btn--primary" onclick="checkManualURL()">Kontrol et</button>
-                    </div>
-                    <div id="manualResultArea" style="display:none;">
-                        <div id="scoreText" class="score-line">…</div>
-                        <div id="riskText" class="risk-line">…</div>
-                        <div id="aiPanels" style="display:none;">
-                            <div class="ai-grid">
-                                <div id="aiNlpBox" class="ai-box">
-                                    <div class="ai-label">İçerik riski</div>
-                                    <div id="aiNlpScore" class="ai-value">–</div>
-                                </div>
-                                <div id="aiMlBox" class="ai-box">
-                                    <div class="ai-label">ML skoru</div>
-                                    <div id="aiMlScore" class="ai-value">–</div>
-                                </div>
-                                <div id="aiBrandBox" class="ai-box">
-                                    <div class="ai-label">Marka taklidi</div>
-                                    <div id="aiBrandStatus" class="ai-value">–</div>
-                                </div>
-                            </div>
-                            <div id="aiThreatIntel" class="sources-box" style="display:none;">
-                                <strong style="color:var(--text);">Harici servisler</strong>
-                                <div id="aiThreatList" style="margin-top:0.35rem;"></div>
-                            </div>
-                            <div id="aiCredBox" class="alert" style="display:none;background:var(--danger-soft);border-color:#f0b4b4;color:var(--danger);margin-bottom:0.5rem;">
-                                Olası kimlik bilgisi toplama
-                            </div>
-                            <div id="aiScriptBox" class="alert" style="display:none;background:var(--warn-soft);border-color:#e8d48b;color:var(--warn);margin-bottom:0.5rem;">
-                                Şüpheli betik kalıbı: <span id="aiScriptCount">0</span>
-                            </div>
-                        </div>
-                        <div id="sourcesArea" class="sources-box" style="display:none;">
-                            <div class="ai-label" style="margin-bottom:0.25rem;">Kaynaklar</div>
-                            <div id="sourcesList"></div>
-                        </div>
-                        <ul id="detailsList"></ul>
-                    </div>
-                </article>
-
-                <article class="card">
-                    <div class="toolbar">
-                        <h2 class="card-title-lg" style="border:none;padding:0;margin:0;">Tehdit listesi</h2>
-                        <span class="spacer"></span>
-                        <button type="button" class="btn btn--ghost btn--small" onclick="openModal()">+ Ekle</button>
-                    </div>
-                    <p class="section-hint">Veritabanındaki kayıtlar. Arama en az 3 karakter.</p>
-                    <div class="field-row">
-                        <input type="text" id="urlInput" placeholder="Ara…">
-                        <select id="limitSelect">
-                            <option value="10">10</option>
-                            <option value="20" selected>20</option>
-                            <option value="50">50</option>
-                        </select>
-                        <button type="button" class="btn btn--primary" onclick="searchData()">Ara</button>
-                    </div>
-                    <p class="stat-line">Toplam kayıt: <strong id="total-count">…</strong></p>
-                    <div id="loading" style="display:none;">Yükleniyor…</div>
-                    <div id="result-area"></div>
-                    <div class="pagination">
-                        <button type="button" class="btn btn--secondary btn--small" id="prevBtn" onclick="paginatePage(-1)" disabled>Önceki</button>
-                        <span id="pageInfo">Sayfa 1 / 1</span>
-                        <button type="button" class="btn btn--secondary btn--small" id="nextBtn" onclick="paginatePage(1)">Sonraki</button>
-                    </div>
-                </article>
-            </div>
-        </div>
-
-        <div id="tab-panel-infra" class="tab-panel">
-            <article class="card" style="max-width:40rem;">
-                <h2>Altyapı özeti</h2>
-                <p class="section-hint">SSL, yönlendirme ve birkaç yaygın port. Yalnızca izniniz olan adresler.</p>
-                <div class="field-row">
-                    <input type="text" id="infraUrl" placeholder="alan adı veya https://…">
-                    <button type="button" class="btn btn--primary" onclick="runInfraReport()">Rapor</button>
-                </div>
-                <pre id="infraOut" class="json-out" style="display:none;"></pre>
-            </article>
-        </div>
-
-        <div id="tab-panel-breach" class="tab-panel">
-            <article class="card" style="max-width:40rem;">
-                <h2>E-posta — bilinen sızıntılar</h2>
-                <p class="section-hint">Have I Been Pwned verisi. <a href="https://haveibeenpwned.com/" target="_blank" rel="noopener noreferrer">haveibeenpwned.com</a> — API anahtarı .env içinde gerekir.</p>
-                <div class="field-row">
-                    <input type="email" id="breachEmail" placeholder="e-posta">
-                    <button type="button" class="btn btn--primary" onclick="runBreachLookup()">Sorgula</button>
-                </div>
-                <div id="breachReport" style="display:none;margin-top:1rem;color:var(--text);line-height:1.5;"></div>
-                <pre id="breachRaw" class="json-out" style="display:none;"></pre>
-            </article>
-        </div>
-
-        <div id="tab-panel-shield" class="tab-panel">
-            <article class="card" style="max-width:36rem;">
-                <h2>Güçlü şifre</h2>
-                <p class="section-hint">Rastgele üretim. Parolayı güvenli yerde saklayın.</p>
-                <label class="stat-line">Uzunluk <input type="number" id="pwdLen" value="20" min="8" max="128" style="width:5rem;margin-left:0.5rem;padding:0.35rem;border:1px solid var(--border);border-radius:6px;"></label>
-                <div class="check-row">
-                    <label><input type="checkbox" id="pwdLower" checked> a–z</label>
-                    <label><input type="checkbox" id="pwdUpper" checked> A–Z</label>
-                    <label><input type="checkbox" id="pwdDigit" checked> 0–9</label>
-                    <label><input type="checkbox" id="pwdSym" checked> sembol</label>
-                </div>
-                <button type="button" class="btn btn--primary" onclick="runPasswordGen()">Üret</button>
-                <div id="pwdOut" class="pwd-out" style="display:none;"></div>
-                <pre id="pwdMeta" class="json-out" style="display:none;"></pre>
-            </article>
-        </div>
-
-        <div id="tab-panel-ioc" class="tab-panel">
-            <div class="grid-2">
-                <article class="card">
-                    <h2>IOC Listesi</h2>
-                    <p class="section-hint">Tehdit göstergeleri (IP, URL, Domain, Email, Hash) — Saatlik olarak güncellenir</p>
-                    <div class="field-row">
-                        <input type="text" id="iocSearch" placeholder="IOC ara (IP, domain, email...)" style="flex:1;">
-                        <button type="button" class="btn btn--secondary" onclick="searchIOC()">Ara</button>
-                    </div>
-                    <div id="iocResults" style="margin-top:1rem;max-height:400px;overflow-y:auto;"></div>
-                </article>
-                <article class="card">
-                    <h2>IOC İstatistikleri</h2>
-                    <p class="section-hint">Merkezi tehdit istihbarat veritabanından çekilen veriler</p>
-                    <div class="stat-group">
-                        <div class="stat-item">
-                            <strong>Toplam IOC:</strong>
-                            <span id="iocTotal" class="stat-number">—</span>
-                        </div>
-                        <div class="stat-item">
-                            <strong>Yüksek Risk:</strong>
-                            <span id="iocHighRisk" class="stat-number" style="color:#c53030;">—</span>
-                        </div>
-                        <div class="stat-item">
-                            <strong>Orta Risk:</strong>
-                            <span id="iocMediumRisk" class="stat-number" style="color:#b7791f;">—</span>
-                        </div>
-                        <div class="stat-item">
-                            <strong>Düşük Risk:</strong>
-                            <span id="iocLowRisk" class="stat-number" style="color:#1d7a5a;">—</span>
-                        </div>
-                        <div class="stat-item">
-                            <strong>Güncellenme:</strong>
-                            <span id="iocLastUpdate" class="stat-time">—</span>
-                        </div>
-                    </div>
-                    <button type="button" class="btn btn--ghost" onclick="loadIOCStats()" style="width:100%;margin-top:1rem;">Verileri yenile</button>
-                </article>
-            </div>
-        </div>
-
-        <div id="tab-panel-honeypot" class="tab-panel">
-            <article class="card" style="max-width:40rem;">
-                <h2>Demo tuzak sayfası</h2>
-                <p class="section-hint">Eğitim amaçlı sahte giriş ekranı; yalnızca bu sunucuya teknik ziyaret kaydı düşer. Kötüye kullanmayın.</p>
-                <button type="button" class="btn btn--secondary" onclick="window.open('/honeypot/decoy','_blank')">Sayfayı aç</button>
-                <button type="button" class="btn btn--ghost" onclick="loadHoneypotStats()" style="margin-left:0.5rem;">Sayacı yenile</button>
-                <p class="stat-line" style="margin-top:1rem;">Kayıtlı ziyaret: <strong id="hpStats">—</strong></p>
-            </article>
-        </div>
-
-        <div id="tab-panel-contact" class="tab-panel">
-            <div class="contact-grid">
-                <article class="card">
-                    <h2>Bize ulaşın</h2>
-                    <p class="section-hint">Öneri, iş birliği veya teknik sorular.</p>
-                    <ul class="contact-list">
-                        <li><strong>E-posta:</strong> <a id="contactMail" href="mailto:destek@orneksite.com">destek@orneksite.com</a> <span class="section-hint">(örnek — kendi adresinizle değiştirin)</span></li>
-                        <li><strong>API özeti:</strong> <a href="/api/meta">/api/meta</a></li>
-                        <li><strong>Durum:</strong> <a href="/api/health">/api/health</a></li>
-                    </ul>
-                </article>
-                <article class="card">
-                    <h2>Mesaj gönder</h2>
-                    <p class="section-hint">Form sunucu günlüğüne yazılır; otomatik e-posta gönderilmez.</p>
-                    <input type="text" id="contactName" placeholder="Adınız" style="width:100%;margin-bottom:0.5rem;padding:0.65rem 0.85rem;border:1px solid var(--border);border-radius:8px;font-family:var(--font);">
-                    <input type="email" id="contactEmail" placeholder="E-postanız" style="width:100%;margin-bottom:0.5rem;padding:0.65rem 0.85rem;border:1px solid var(--border);border-radius:8px;font-family:var(--font);">
-                    <textarea id="contactMessage" class="field-full" placeholder="Mesajınız (en az 10 karakter)"></textarea>
-                    <button type="button" class="btn btn--primary btn-block" onclick="submitContact()">Gönder</button>
-                    <div id="contactStatus" role="status"></div>
-                </article>
-            </div>
-        </div>
-    </div>
-    </div>
     </main>
 
     <section class="contact-section">
@@ -504,56 +452,23 @@
         }
 
         function changePage(pageName) {
+            // URL güncelle
             const url = '/' + pageName;
             window.history.pushState({}, '', url);
 
-            const vitrinAlani = document.getElementById('vitrin-alani');
-            const mutfakAlani = document.getElementById('mutfak-alani');
-            const hakkimizda = document.getElementById('hakkimizda');
-            const blog = document.getElementById('blog');
-            
-            if (pageName === '' || pageName === 'home' || pageName === 'modules') {
-                // Ana sayfa: vitrini göster, mutfak'ı gizle
-                if (vitrinAlani) vitrinAlani.style.display = 'block';
-                if (mutfakAlani) mutfakAlani.style.display = 'none';
-                if (hakkimizda) hakkimizda.style.display = 'block';
-                if (blog) blog.style.display = 'block';
-                if (pageName === 'modules') scrollToId('modules-overview');
-                
-            } else if (pageName === 'threat' || pageName === 'infra' || pageName === 'breach' || pageName === 'shield' || pageName === 'ioc' || pageName === 'honeypot' || pageName === 'contact') {
-                // Modüle tıklandığında: vitrini gizle, mutfak'ı aç
-                if (vitrinAlani) vitrinAlani.style.display = 'none';
-                if (mutfakAlani) mutfakAlani.style.display = 'block';
-                if (hakkimizda) hakkimizda.style.display = 'none';
-                if (blog) blog.style.display = 'none';
-                
-                setTimeout(function() {
-                    activateTab(pageName);
-                }, 100);
+            // Workspace sekmesine geç ve oraya scroll
+            if (['threat', 'infra', 'breach', 'shield', 'ioc', 'honeypot', 'contact'].includes(pageName)) {
+                activateTab(pageName);
+                scrollToId('workspace');
+            } else if (pageName === 'home' || pageName === '') {
+                scrollToId('top');
             }
-
-            window.scrollTo(0, 0);
         }
 
         function vitrineDon() {
-            // Mutfağı gizle
-            const mutfakAlani = document.getElementById('mutfak-alani');
-            if (mutfakAlani) mutfakAlani.style.display = 'none';
-            
-            // Vitrini tekrar göster
-            const vitrinAlani = document.getElementById('vitrin-alani');
-            if (vitrinAlani) vitrinAlani.style.display = 'block';
-            
-            // Hakkımızda ve blog'u tekrar göster
-            const hakkimizda = document.getElementById('hakkimizda');
-            const blog = document.getElementById('blog');
-            if (hakkimizda) hakkimizda.style.display = 'block';
-            if (blog) blog.style.display = 'block';
-            
-            // URL'yi ana dizine geri çek
+            // Ana sayfaya dön
             window.history.pushState({}, '', '/');
-            
-            window.scrollTo(0, 0);
+            scrollToId('top');
         }
 
         function loadWorkspace(tab) {
