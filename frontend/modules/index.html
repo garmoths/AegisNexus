@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AegisNexus Modules - Güvenlik Modülleri</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+            min-height: 100vh;
+            color: #e2e8f0;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+            animation: fadeInDown 0.8s ease-out;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #60a5fa, #a78bfa, #f472b6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            color: #94a3b8;
+            font-size: 1.1rem;
+        }
+
+        .modules-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 1.5rem;
+            animation: fadeInUp 0.8s ease-out;
+        }
+
+        .module-card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(148, 163, 184, 0.1);
+            border-radius: 1rem;
+            padding: 2rem;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .module-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #60a5fa, #a78bfa, #f472b6);
+            transform: scaleX(0);
+            transition: transform 0.3s ease;
+        }
+
+        .module-card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(148, 163, 184, 0.3);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .module-card:hover::before {
+            transform: scaleX(1);
+        }
+
+        .module-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .module-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            color: #f1f5f9;
+        }
+
+        .module-description {
+            color: #94a3b8;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            margin-bottom: 1.5rem;
+        }
+
+        .module-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+        }
+
+        .action-btn {
+            flex: 1;
+            min-width: 120px;
+            padding: 0.6rem 1rem;
+            border: none;
+            border-radius: 0.5rem;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            color: white;
+            text-decoration: none;
+            text-align: center;
+        }
+
+        .action-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px rgba(59, 130, 246, 0.4);
+        }
+
+        .action-btn.secondary {
+            background: rgba(148, 163, 184, 0.2);
+            color: #e2e8f0;
+        }
+
+        .action-btn.secondary:hover {
+            background: rgba(148, 163, 184, 0.3);
+            box-shadow: 0 5px 15px rgba(148, 163, 184, 0.2);
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 1rem;
+            font-size: 0.75rem;
+            font-weight: 500;
+            margin-bottom: 0.75rem;
+        }
+
+        .status-badge.active {
+            background: rgba(34, 197, 94, 0.2);
+            color: #4ade80;
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+
+        .status-badge.partial {
+            background: rgba(251, 191, 36, 0.2);
+            color: #fbbf24;
+            border: 1px solid rgba(251, 191, 36, 0.3);
+        }
+
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 1rem;
+            }
+
+            h1 {
+                font-size: 2rem;
+            }
+
+            .modules-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>AegisNexus Modules</h1>
+            <p class="subtitle">5 Katmanlı Güvenlik Kalkanı - Modern Güvenlik Modülleri</p>
+        </header>
+
+        <div class="modules-grid">
+            <!-- AI Analyzer -->
+            <div class="module-card">
+                <div class="module-icon">🤖</div>
+                <span class="status-badge active">Aktif</span>
+                <h3 class="module-title">AI Analyzer</h3>
+                <p class="module-description">LLM tabanlı phishing, dolandırıcılık ve sosyal mühendislik analizi. AI ile gelişmiş tehdit tespiti.</p>
+                <div class="module-actions">
+                    <button class="action-btn" onclick="window.open('https://aegisnexus.dev', '_blank')">Ana Sayfa</button>
+                    <button class="action-btn secondary" onclick="analyzeMessage()">Mesaj Analiz</button>
+                </div>
+            </div>
+
+            <!-- Phishing Detector -->
+            <div class="module-card">
+                <div class="module-icon">🎯</div>
+                <span class="status-badge active">Aktif</span>
+                <h3 class="module-title">Phishing Detector</h3>
+                <p class="module-description">Zararlı URL tespiti ve tehdit veritabanı. SSL/domain analizi ile kapsamlı koruma.</p>
+                <div class="module-actions">
+                    <button class="action-btn" onclick="checkURL()">URL Kontrol</button>
+                    <button class="action-btn secondary" onclick="window.open('https://aegisnexus.dev/dashboard', '_blank')">Dashboard</button>
+                </div>
+            </div>
+
+            <!-- Honeypot / IOC Collector -->
+            <div class="module-card">
+                <div class="module-icon">🕵️</div>
+                <span class="status-badge partial">Kısmen Aktif</span>
+                <h3 class="module-title">Honeypot & IOC</h3>
+                <p class="module-description">IP Avcısı ve Indicator of Compromise toplayıcı. Tersine mühendislik tuzakları.</p>
+                <div class="module-actions">
+                    <button class="action-btn" onclick="viewStats()">İstatistikler</button>
+                    <button class="action-btn secondary" onclick="searchIOC()">IOC Ara</button>
+                </div>
+            </div>
+
+            <!-- Breach Intelligence -->
+            <div class="module-card">
+                <div class="module-icon">📊</div>
+                <span class="status-badge partial">Kısmen Aktif</span>
+                <h3 class="module-title">Breach Intel</h3>
+                <p class="module-description">Veri sızıntısı istihbaratı ve Deep Web takibi. Zombie hesap tespiti ve KVKK raporları.</p>
+                <div class="module-actions">
+                    <button class="action-btn" onclick="checkEmail()">Email Kontrol</button>
+                    <button class="action-btn secondary" onclick="fullAnalysis()">Detaylı Analiz</button>
+                </div>
+            </div>
+
+            <!-- Password Shield -->
+            <div class="module-card">
+                <div class="module-icon">🔐</div>
+                <span class="status-badge partial">Kısmen Aktif</span>
+                <h3 class="module-title">Password Shield</h3>
+                <p class="module-description">Kırılması yüzyıllar süren kriptografik şifre üretimi. Güçlü şifre kontrolü.</p>
+                <div class="module-actions">
+                    <button class="action-btn" onclick="generatePassword()">Şifre Üret</button>
+                    <button class="action-btn secondary" onclick="checkStrength()">Güç Kontrol</button>
+                </div>
+            </div>
+
+            <!-- Threat Responder -->
+            <div class="module-card">
+                <div class="module-icon">🛡️</div>
+                <span class="status-badge partial">Kısmen Aktif</span>
+                <h3 class="module-title">Threat Responder</h3>
+                <p class="module-description">Siber zorbalık ve şantaj önleme. Tehdit analizi ve destek vakası yönetimi.</p>
+                <div class="module-actions">
+                    <button class="action-btn" onclick="analyzeThreat()">Tehdit Analiz</button>
+                    <button class="action-btn secondary" onclick="createCase()">Vaka Oluştur</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function analyzeMessage() {
+            const message = prompt('Analiz edilecek mesajı girin:');
+            if (!message) return;
+
+            try {
+                const res = await fetch('/api/v2/ai-analyzer/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message, context: 'email' })
+                });
+                const data = await res.json();
+                alert(`Risk Seviyesi: ${data.security_assessment.risk_level}\nSkor: ${data.security_assessment.score}/100`);
+            } catch (e) {
+                alert('Hata: ' + e.message);
+            }
+        }
+
+        async function checkURL() {
+            const url = prompt('Kontrol edilecek URL\'yi girin:');
+            if (!url) return;
+
+            try {
+                const res = await fetch('/api/v2/phishing/check-url', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url })
+                });
+                const data = await res.json();
+                alert(`Risk Skoru: ${data.risk_score}\nDurum: ${data.is_safe ? 'Güvenli' : 'Tehlikeli'}`);
+            } catch (e) {
+                alert('Hata: ' + e.message);
+            }
+        }
+
+        async function viewStats() {
+            try {
+                const res = await fetch('/api/v2/honeypot/stats');
+                const data = await res.json();
+                alert(`Toplam Ziyaret: ${data.honeypot_visits_recorded || 0}`);
+            } catch (e) {
+                alert('Hata: ' + e.message);
+            }
+        }
+
+        async function searchIOC() {
+            const query = prompt('IOC arama sorgusu:');
+            if (!query) return;
+
+            try {
+                const res = await fetch(`/api/v2/honeypot/ioc/search?q=${encodeURIComponent(query)}`);
+                const data = await res.json();
+                alert(`${data.total || 0} sonuç bulundu`);
+            } catch (e) {
+                alert('Hata: ' + e.message);
+            }
+        }
+
+        async function checkEmail() {
+            const email = prompt('Kontrol edilecek email\'i girin:');
+            if (!email) return;
+
+            try {
+                const res = await fetch('/api/v2/breach/check-email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+                const data = await res.json();
+                alert(`Breach Sayısı: ${data.breach_count || 0}`);
+            } catch (e) {
+                alert('Hata: ' + e.message);
+            }
+        }
+
+        async function fullAnalysis() {
+            alert('Bu özellik yakında eklenecek!');
+        }
+
+        async function generatePassword() {
+            try {
+                const res = await fetch('/api/v2/shield/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ length: 16 })
+                });
+                const data = await res.json();
+                alert(`Şifre: ${data.password}`);
+            } catch (e) {
+                alert('Hata: ' + e.message);
+            }
+        }
+
+        async function checkStrength() {
+            alert('Bu özellik yakında eklenecek!');
+        }
+
+        async function analyzeThreat() {
+            alert('Bu özellik yakında eklenecek!');
+        }
+
+        async function createCase() {
+            alert('Bu özellik yakında eklenecek!');
+        }
+    </script>
+</body>
+</html>
