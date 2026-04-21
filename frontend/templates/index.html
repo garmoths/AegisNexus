@@ -3,100 +3,938 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Aegis Nexus</title>
+    <title>Aegis Nexus - Kurumsal Kiberguvenlik Platformu</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/aegis.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* Navigation */
+        .nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+            padding: 1rem 2rem;
+            transition: all 0.3s ease;
+        }
+
+        .nav.scrolled {
+            background: rgba(15, 23, 42, 0.95);
+            padding: 0.75rem 2rem;
+        }
+
+        .nav-inner {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .nav-logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #60a5fa, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-decoration: none;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            list-style: none;
+        }
+
+        .nav-links a {
+            color: #94a3b8;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s ease;
+        }
+
+        .nav-links a:hover {
+            color: #60a5fa;
+        }
+
+        .nav-links a.active {
+            color: #60a5fa;
+        }
+
+        /* Hero Section */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8rem 2rem 4rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                radial-gradient(circle at 20% 50%, rgba(96, 165, 250, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(167, 139, 250, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 40% 20%, rgba(244, 114, 182, 0.1) 0%, transparent 40%);
+            animation: heroBg 20s ease-in-out infinite alternate;
+        }
+
+        @keyframes heroBg {
+            0% { transform: scale(1) rotate(0deg); }
+            100% { transform: scale(1.1) rotate(2deg); }
+        }
+
+        .hero-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4rem;
+            align-items: center;
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero-text {
+            animation: fadeInUp 1s ease-out;
+        }
+
+        .hero-badge {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            background: rgba(96, 165, 250, 0.1);
+            border: 1px solid rgba(96, 165, 250, 0.3);
+            border-radius: 2rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #60a5fa;
+            margin-bottom: 1.5rem;
+        }
+
+        .hero h1 {
+            font-size: 3.5rem;
+            font-weight: 800;
+            line-height: 1.2;
+            margin-bottom: 1.5rem;
+            background: linear-gradient(135deg, #ffffff 0%, #94a3b8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero p {
+            font-size: 1.25rem;
+            color: #94a3b8;
+            margin-bottom: 2rem;
+            max-width: 600px;
+        }
+
+        .hero-buttons {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .hero-btn {
+            padding: 1rem 2rem;
+            border-radius: 0.75rem;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .hero-btn-primary {
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            color: white;
+            border: none;
+        }
+
+        .hero-btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 40px rgba(59, 130, 246, 0.4);
+        }
+
+        .hero-btn-secondary {
+            background: rgba(148, 163, 184, 0.1);
+            color: #e2e8f0;
+            border: 1px solid rgba(148, 163, 184, 0.3);
+        }
+
+        .hero-btn-secondary:hover {
+            background: rgba(148, 163, 184, 0.2);
+            border-color: rgba(148, 163, 184, 0.5);
+        }
+
+        .hero-visual {
+            position: relative;
+            animation: fadeInRight 1s ease-out;
+        }
+
+        .hero-card {
+            background: rgba(30, 41, 59, 0.8);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 1.5rem;
+            padding: 2rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #60a5fa, #a78bfa, #f472b6);
+        }
+
+        .hero-stat {
+            display: flex;
+            justify-content: space-between;
+            padding: 1rem 0;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+        }
+
+        .hero-stat:last-child {
+            border-bottom: none;
+        }
+
+        .hero-stat-label {
+            color: #94a3b8;
+            font-size: 0.875rem;
+        }
+
+        .hero-stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #60a5fa;
+        }
+
+        /* Architecture Section */
+        .architecture {
+            padding: 6rem 2rem;
+            position: relative;
+        }
+
+        .section-container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: 4rem;
+        }
+
+        .section-badge {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            background: rgba(96, 165, 250, 0.1);
+            border: 1px solid rgba(96, 165, 250, 0.3);
+            border-radius: 2rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #60a5fa;
+            margin-bottom: 1rem;
+        }
+
+        .section-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, #ffffff 0%, #94a3b8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .section-subtitle {
+            font-size: 1.125rem;
+            color: #94a3b8;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .architecture-diagram {
+            background: rgba(30, 41, 59, 0.5);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 1.5rem;
+            padding: 3rem;
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 1rem;
+            position: relative;
+        }
+
+        .architecture-layer {
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            text-align: center;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .architecture-layer:hover {
+            transform: translateY(-5px);
+            border-color: rgba(96, 165, 250, 0.5);
+            box-shadow: 0 10px 40px rgba(96, 165, 250, 0.2);
+        }
+
+        .architecture-layer::after {
+            content: '↓';
+            position: absolute;
+            bottom: -1.5rem;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #60a5fa;
+            font-size: 1.5rem;
+        }
+
+        .architecture-layer:last-child::after {
+            content: '';
+        }
+
+        .layer-number {
+            font-size: 2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #60a5fa, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+        }
+
+        .layer-name {
+            font-weight: 600;
+            color: #e2e8f0;
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .layer-desc {
+            font-size: 0.75rem;
+            color: #94a3b8;
+            line-height: 1.4;
+        }
+
+        /* Modules Section */
+        .modules {
+            padding: 6rem 2rem;
+        }
+
+        .modules-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 2rem;
+        }
+
+        .module-card {
+            background: rgba(30, 41, 59, 0.5);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 1.5rem;
+            padding: 2rem;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .module-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #60a5fa, #a78bfa);
+            transform: scaleX(0);
+            transition: transform 0.3s ease;
+        }
+
+        .module-card:hover::before {
+            transform: scaleX(1);
+        }
+
+        .module-card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(96, 165, 250, 0.5);
+            box-shadow: 0 20px 40px rgba(96, 165, 250, 0.2);
+        }
+
+        .module-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .module-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            color: #e2e8f0;
+        }
+
+        .module-desc {
+            color: #94a3b8;
+            font-size: 0.95rem;
+            margin-bottom: 1.5rem;
+            line-height: 1.6;
+        }
+
+        .module-features {
+            list-style: none;
+        }
+
+        .module-features li {
+            padding: 0.5rem 0;
+            color: #94a3b8;
+            font-size: 0.875rem;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+        }
+
+        .module-features li:last-child {
+            border-bottom: none;
+        }
+
+        .module-features li::before {
+            content: '✓';
+            color: #60a5fa;
+            margin-right: 0.5rem;
+        }
+
+        /* Performance Section */
+        .performance {
+            padding: 6rem 2rem;
+            background: rgba(30, 41, 59, 0.3);
+        }
+
+        .performance-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 2rem;
+        }
+
+        .performance-card {
+            background: rgba(30, 41, 59, 0.5);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 1rem;
+            padding: 2rem;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .performance-card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(96, 165, 250, 0.5);
+        }
+
+        .performance-value {
+            font-size: 3rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #60a5fa, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+        }
+
+        .performance-label {
+            color: #94a3b8;
+            font-size: 1rem;
+        }
+
+        /* Contact Section */
+        .contact {
+            padding: 6rem 2rem;
+        }
+
+        .contact-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: rgba(30, 41, 59, 0.5);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 1.5rem;
+            padding: 3rem;
+        }
+
+        .contact-form {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .contact-input {
+            padding: 1rem;
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(148, 163, 184, 0.3);
+            border-radius: 0.75rem;
+            color: #e2e8f0;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .contact-input:focus {
+            outline: none;
+            border-color: #60a5fa;
+            box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.1);
+        }
+
+        .contact-input::placeholder {
+            color: #64748b;
+        }
+
+        .contact-textarea {
+            min-height: 150px;
+            resize: vertical;
+        }
+
+        .contact-submit {
+            padding: 1rem 2rem;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            color: white;
+            border: none;
+            border-radius: 0.75rem;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .contact-submit:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 40px rgba(59, 130, 246, 0.4);
+        }
+
+        /* Footer */
+        .footer {
+            padding: 3rem 2rem;
+            background: rgba(15, 23, 42, 0.5);
+            border-top: 1px solid rgba(148, 163, 184, 0.1);
+            text-align: center;
+        }
+
+        .footer-inner {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .footer-links {
+            display: flex;
+            gap: 2rem;
+            justify-content: center;
+            margin-bottom: 1rem;
+        }
+
+        .footer-links a {
+            color: #94a3b8;
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+
+        .footer-links a:hover {
+            color: #60a5fa;
+        }
+
+        .footer-text {
+            color: #64748b;
+            font-size: 0.875rem;
+        }
+
+        /* Animations */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeInRight {
+            from {
+                opacity: 0;
+                transform: translateX(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .reveal {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all 0.8s ease;
+        }
+
+        .reveal.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .hero-content {
+                grid-template-columns: 1fr;
+                gap: 2rem;
+            }
+
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+
+            .architecture-diagram {
+                grid-template-columns: 1fr;
+                gap: 2rem;
+            }
+
+            .architecture-layer::after {
+                content: '↓';
+                bottom: -2rem;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .nav-links {
+                display: none;
+            }
+
+            .hero {
+                padding: 6rem 1.5rem 2rem;
+            }
+
+            .hero h1 {
+                font-size: 2rem;
+            }
+
+            .hero-buttons {
+                flex-direction: column;
+            }
+
+            .architecture,
+            .modules,
+            .performance,
+            .contact {
+                padding: 4rem 1.5rem;
+            }
+        }
+    </style>
 </head>
 <body>
-
-    <section id="top" class="hero-landing" aria-label="Karşılama">
-        <div class="hero-bg" aria-hidden="true"></div>
-        <div class="hero-topbar">
-            <a href="#top" class="hero-brand-link" aria-label="Ana sayfa">
-                <span class="logo-mark logo-mark--hero">
-                    <svg class="logo-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                        <path d="M12 2.2L4.2 5.1v6.1c0 4.4 2.9 8.1 7.8 9.3 4.9-1.2 7.8-4.9 7.8-9.3V5.1L12 2.2z" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round" fill="rgba(255,255,255,0.14)"/>
-                        <path d="M8.2 12.2l2.3 2.3 5.3-5.3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                    <span class="logo-wordmark">Aegis Nexus</span>
-                </span>
-            </a>
-            <nav class="hero-topnav" aria-label="Site menüsü">
-                <a href="#top" id="navAnaSayfa">Ana sayfa</a>
-                <a href="#hakkimizda" id="navHakkimizda">Hakkımızda</a>
-                <a href="https://modules.aegisnexus.dev" target="_blank" id="navModules">Modüller</a>
-                <a href="https://api.aegisnexus.dev" target="_blank" id="navAPI">API</a>
-                <a href="#blog" id="navBlog">Blog</a>
-                <a href="#workspace" id="navIletisim">İletişim</a>
-            </nav>
+    <!-- Navigation -->
+    <nav class="nav" id="nav">
+        <div class="nav-inner">
+            <a href="#top" class="nav-logo">Aegis Nexus</a>
+            <ul class="nav-links">
+                <li><a href="#top" class="active">Ana Sayfa</a></li>
+                <li><a href="#architecture">Mimari</a></li>
+                <li><a href="#modules">Modüller</a></li>
+                <li><a href="https://modules.aegisnexus.dev" target="_blank">Uygulama</a></li>
+                <li><a href="#contact">İletişim</a></li>
+            </ul>
         </div>
-        <div class="hero-inner">
-            <div class="hero-copy">
-                <h1 class="hero-display">Aegis Nexus ile dijital dünyanızı güvenceye alın ve büyütün.</h1>
-                <p class="hero-tagline">Tehdit veritabanından aktif savunmaya, tam teşekküllü siber güvenlik ekosistemi.</p>
-                <div class="hero-cta">
-                    <a href="#workspace" class="btn-hero-solid" id="heroCtaPanel">Hemen kontrol et</a>
-                    <a href="#modules-overview" class="btn-hero-outline" id="heroCtaInfo">Daha fazla bilgi al</a>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero" id="top">
+        <div class="hero-bg"></div>
+        <div class="hero-content">
+            <div class="hero-text">
+                <span class="hero-badge">🚀 Kurumsal Kiberguvenlik Platformu</span>
+                <h1>Modern siber tehditlere karşı<br>proaktif koruma</h1>
+                <p>Tehditleri proaktif olarak tespit edin, derin analiz yapın ve otomatik yanıt verin. AegisNexus ile kurumunuzun siber güvenliğini bir sonraki seviyeye taşıyın.</p>
+                <div class="hero-buttons">
+                    <a href="#modules" class="hero-btn hero-btn-primary">
+                        <span>Modülleri Keşfet</span>
+                        <span>→</span>
+                    </a>
+                    <a href="https://modules.aegisnexus.dev" target="_blank" class="hero-btn hero-btn-secondary">
+                        <span>Uygulamayı Aç</span>
+                        <span>↗</span>
+                    </a>
                 </div>
             </div>
-            <div class="hero-figure">
-                <img src="/static/hero-visual.png" width="640" height="720" alt="" decoding="async" fetchpriority="high">
+            <div class="hero-visual">
+                <div class="hero-card">
+                    <div class="hero-stat">
+                        <span class="hero-stat-label">URL Kontrol Süresi</span>
+                        <span class="hero-stat-value">&lt;500ms</span>
+                    </div>
+                    <div class="hero-stat">
+                        <span class="hero-stat-label">Veritabanı</span>
+                        <span class="hero-stat-value">1.2M+ URL</span>
+                    </div>
+                    <div class="hero-stat">
+                        <span class="hero-stat-label">IOC Toplama</span>
+                        <span class="hero-stat-value">100+/saat</span>
+                    </div>
+                    <div class="hero-stat">
+                        <span class="hero-stat-label">Uptime</span>
+                        <span class="hero-stat-value">99.9%</span>
+                    </div>
+                    <div class="hero-stat">
+                        <span class="hero-stat-label">Risk Skoru Doğruluk</span>
+                        <span class="hero-stat-value">92%</span>
+                    </div>
+                </div>
             </div>
         </div>
-        <div class="hero-wave" aria-hidden="true">
-            <svg viewBox="0 0 1440 120" preserveAspectRatio="none">
-                <path fill="#ffffff" d="M0,40 C180,100 360,0 540,50 C720,100 900,20 1080,55 C1260,90 1350,70 1440,45 L1440,120 L0,120 Z"></path>
-                <path fill="#f0f4f8" opacity="0.95" d="M0,65 C200,110 400,30 600,70 C800,110 1000,40 1200,75 C1320,95 1400,85 1440,80 L1440,120 L0,120 Z"></path>
-            </svg>
+    </section>
+
+    <!-- Architecture Section -->
+    <section class="architecture" id="architecture">
+        <div class="section-container">
+            <div class="section-header reveal">
+                <span class="section-badge">Sistem Mimarisi</span>
+                <h2 class="section-title">5 Katmanlı Güvenlik Modeli</h2>
+                <p class="section-subtitle">Her katman, tehditleri farklı bir perspektiften analiz eder ve kapsamlı koruma sağlar.</p>
+            </div>
+            <div class="architecture-diagram reveal">
+                <div class="architecture-layer">
+                    <div class="layer-number">5</div>
+                    <div class="layer-name">Threat Responder</div>
+                    <div class="layer-desc">Otomatik Yanıt & SMS Alert</div>
+                </div>
+                <div class="architecture-layer">
+                    <div class="layer-number">4</div>
+                    <div class="layer-name">Honeypot + IOC</div>
+                    <div class="layer-desc">Merkezi Veritabanı</div>
+                </div>
+                <div class="architecture-layer">
+                    <div class="layer-number">3</div>
+                    <div class="layer-name">Breach Intel</div>
+                    <div class="layer-desc">İhlal & Dark Web Analizi</div>
+                </div>
+                <div class="architecture-layer">
+                    <div class="layer-number">2</div>
+                    <div class="layer-name">Phishing Detector</div>
+                    <div class="layer-desc">URL Taraması & Filtreleme</div>
+                </div>
+                <div class="architecture-layer">
+                    <div class="layer-number">1</div>
+                    <div class="layer-name">Infrastructure</div>
+                    <div class="layer-desc">Database, API, Automation</div>
+                </div>
+            </div>
         </div>
     </section>
 
-    <section id="hakkimizda" class="strip-muted" aria-labelledby="aboutTitle">
-        <div class="strip-inner">
-            <h2 id="aboutTitle" class="strip-heading">Hakkımızda</h2>
-            <p class="strip-text">Aegis Nexus; oltalama tespiti, altyapı özeti, sızıntı farkındalığı ve güçlü parola üretimini tek çatıda toplar. Amacımız bireylerin ve işletmelerin dijital riskleri daha erken görmesidir.</p>
+    <!-- Modules Section -->
+    <section class="modules" id="modules">
+        <div class="section-container">
+            <div class="section-header reveal">
+                <span class="section-badge">Güvenlik Modülleri</span>
+                <h2 class="section-title">5 Ana Modül</h2>
+                <p class="section-subtitle">Her modül, belirli bir tehdit türüne karşı uzmanlaşmış koruma sağlar.</p>
+            </div>
+            <div class="modules-grid">
+                <div class="module-card reveal">
+                    <div class="module-icon">🎯</div>
+                    <h3 class="module-title">Phishing Detector</h3>
+                    <p class="module-desc">1.2M+ URL veritabanı ile zararlı site tespiti. DNS, SSL ve ML analizi ile kapsamlı kontrol.</p>
+                    <ul class="module-features">
+                        <li>Tekli URL kontrolü</li>
+                        <li>Toplu tarama (1000 URL/dk)</li>
+                        <li>Beyaz liste yönetimi</li>
+                        <li>İstatistik dashboard</li>
+                    </ul>
+                </div>
+                <div class="module-card reveal">
+                    <div class="module-icon">🕵️</div>
+                    <h3 class="module-title">Honeypot + IOC</h3>
+                    <p class="module-desc">Saldırganları analiz et ve tehdit göstergelerini topla. AbuseIPDB, URLhaus'tan saatlik veri.</p>
+                    <ul class="module-features">
+                        <li>IOC saatlik toplama</li>
+                        <li>Risk skoru hesaplama</li>
+                        <li>Operatör uyarıları</li>
+                        <li>İstatistik raporları</li>
+                    </ul>
+                </div>
+                <div class="module-card reveal">
+                    <div class="module-icon">📊</div>
+                    <h3 class="module-title">Breach Intelligence</h3>
+                    <p class="module-desc">Veri ihlallerini tespit et ve saldırganları profil et. HIBP + Dark Web + Psikolojik analiz.</p>
+                    <ul class="module-features">
+                        <li>Email ihlal kontrolü</li>
+                        <li>Dark web taraması</li>
+                        <li>Saldırgan profili</li>
+                        <li>KVKK raporları</li>
+                    </ul>
+                </div>
+                <div class="module-card reveal">
+                    <div class="module-icon">🔐</div>
+                    <h3 class="module-title">Password Shield</h3>
+                    <p class="module-desc">Güvenli şifre üretimi ve güç analizi. Sızdırılmış parola kontrolü ve hatırlanabilir şifreler.</p>
+                    <ul class="module-features">
+                        <li>Rastgele şifre üret</li>
+                        <li>Şifre gücü analizi</li>
+                        <li>Sızdırılmış kontrolü</li>
+                        <li>Hatırlanabilir şifreler</li>
+                    </ul>
+                </div>
+                <div class="module-card reveal">
+                    <div class="module-icon">🛡️</div>
+                    <h3 class="module-title">Threat Responder</h3>
+                    <p class="module-desc">Yüksek riskli tehditlere otomatik yanıt. SMS/Email ile anında bildirim gönder.</p>
+                    <ul class="module-features">
+                        <li>Otomatik uyarı sistemi</li>
+                        <li>SMS/Email bildirim</li>
+                        <li>Tehdit yönetimi</li>
+                        <li>Operatör konsolu</li>
+                    </ul>
+                </div>
+                <div class="module-card reveal">
+                    <div class="module-icon">🤖</div>
+                    <h3 class="module-title">AI Analyzer</h3>
+                    <p class="module-desc">LLM tabanlı phishing ve sosyal mühendislik analizi. Gelişmiş tehdit tespiti.</p>
+                    <ul class="module-features">
+                        <li>Mesaj analizi</li>
+                        <li>URL güvenlik kontrolü</li>
+                        <li>Psikolojik analiz</li>
+                        <li>AI değerlendirmesi</li>
+                    </ul>
+                </div>
+            </div>
         </div>
     </section>
 
-    <section id="blog" class="strip-muted strip-muted--compact" aria-label="Blog">
-        <div class="strip-inner strip-inner--row">
-            <strong class="strip-label">Blog</strong>
-            <p class="strip-text strip-text--inline">Yakında makaleler ve güvenlik ipuçları burada olacak.</p>
+    <!-- Performance Section -->
+    <section class="performance" id="performance">
+        <div class="section-container">
+            <div class="section-header reveal">
+                <span class="section-badge">Performans Verileri</span>
+                <h2 class="section-title">Etkileyici Sonuçlar</h2>
+                <p class="section-subtitle">Kurumsal düzeyde performans ve güvenilirlik.</p>
+            </div>
+            <div class="performance-grid">
+                <div class="performance-card reveal">
+                    <div class="performance-value">&lt;500ms</div>
+                    <div class="performance-label">URL Kontrol</div>
+                </div>
+                <div class="performance-card reveal">
+                    <div class="performance-value">1000/dk</div>
+                    <div class="performance-label">Toplu Tarama</div>
+                </div>
+                <div class="performance-card reveal">
+                    <div class="performance-value">100+/saat</div>
+                    <div class="performance-label">IOC Toplama</div>
+                </div>
+                <div class="performance-card reveal">
+                    <div class="performance-value">1.2M+</div>
+                    <div class="performance-label">Veritabanı</div>
+                </div>
+                <div class="performance-card reveal">
+                    <div class="performance-value">99.9%</div>
+                    <div class="performance-label">Uptime</div>
+                </div>
+                <div class="performance-card reveal">
+                    <div class="performance-value">92%</div>
+                    <div class="performance-label">Doğruluk Oranı</div>
+                </div>
+            </div>
         </div>
     </section>
 
-    <section id="iletisim" class="strip-muted" aria-labelledby="contactTitle">
-        <div class="strip-inner">
-            <h2 id="contactTitle" class="strip-heading">İletişim</h2>
-            <p class="strip-text">Bizimle iletişime geçmek için aşağıdaki formu kullanın.</p>
-            <div style="max-width: 600px; margin: 2rem auto;">
-                <form onsubmit="submitContact(event)" style="display: flex; flex-direction: column; gap: 1rem;">
-                    <div>
-                        <input type="text" name="name" placeholder="Adınız" required style="width: 100%; padding: 0.75rem; border: 1px solid #e2e8f0; border-radius: 0.5rem; font-size: 1rem;">
-                    </div>
-                    <div>
-                        <input type="email" name="email" placeholder="E-posta" required style="width: 100%; padding: 0.75rem; border: 1px solid #e2e8f0; border-radius: 0.5rem; font-size: 1rem;">
-                    </div>
-                    <div>
-                        <textarea name="message" placeholder="Mesajınız" rows="4" required style="width: 100%; padding: 0.75rem; border: 1px solid #e2e8f0; border-radius: 0.5rem; font-size: 1rem; resize: vertical;"></textarea>
-                    </div>
-                    <button type="submit" style="padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: white; border: none; border-radius: 0.5rem; font-size: 1rem; font-weight: 500; cursor: pointer; transition: all 0.2s ease;">Gönder</button>
+    <!-- Contact Section -->
+    <section class="contact" id="contact">
+        <div class="section-container">
+            <div class="section-header reveal">
+                <span class="section-badge">İletişim</span>
+                <h2 class="section-title">Bizimle İletişime Geçin</h2>
+                <p class="section-subtitle">Sorularınız veya iş birliği teklifleriniz için formu kullanın.</p>
+            </div>
+            <div class="contact-container reveal">
+                <form class="contact-form" onsubmit="submitContact(event)">
+                    <input type="text" name="name" placeholder="Adınız" class="contact-input" required>
+                    <input type="email" name="email" placeholder="E-posta" class="contact-input" required>
+                    <textarea name="message" placeholder="Mesajınız" class="contact-input contact-textarea" required></textarea>
+                    <button type="submit" class="contact-submit">Gönder</button>
                 </form>
                 <div id="contactResult" style="margin-top: 1rem;"></div>
             </div>
         </div>
     </section>
 
-    <footer class="site-footer">
+    <!-- Footer -->
+    <footer class="footer">
         <div class="footer-inner">
-            Aegis Nexus — farkındalık ve kontrol araçları.<br>
-            <a href="/api/meta">Modül özeti</a> · <a href="/api/health">Sağlık</a>
+            <div class="footer-links">
+                <a href="https://modules.aegisnexus.dev" target="_blank">Modüller</a>
+                <a href="https://api.aegisnexus.dev" target="_blank">API</a>
+                <a href="/api/meta">Modül Özeti</a>
+                <a href="/api/health">Sağlık</a>
+            </div>
+            <p class="footer-text">Aegis Nexus — Kurumsal Kiberguvenlik Platformu © 2026</p>
         </div>
     </footer>
 
     <script>
+        // Navigation scroll effect
+        const nav = document.getElementById('nav');
+        window.addEventListener('scroll', () => {
+            if (window.scrollY > 50) {
+                nav.classList.add('scrolled');
+            } else {
+                nav.classList.remove('scrolled');
+            }
+        });
+
+        // Reveal on scroll
+        const reveals = document.querySelectorAll('.reveal');
+        const revealOnScroll = () => {
+            reveals.forEach(element => {
+                const elementTop = element.getBoundingClientRect().top;
+                const windowHeight = window.innerHeight;
+                if (elementTop < windowHeight - 100) {
+                    element.classList.add('active');
+                }
+            });
+        };
+        window.addEventListener('scroll', revealOnScroll);
+        revealOnScroll();
+
+        // Contact form
         async function submitContact(e) {
             e.preventDefault();
             const formData = new FormData(e.target);
@@ -109,10 +947,10 @@
                     body: JSON.stringify(data)
                 });
                 const result = await res.json();
-                document.getElementById('contactResult').innerHTML = '<div style="color: green;">Mesajınız gönderildi!</div>';
+                document.getElementById('contactResult').innerHTML = '<div style="color: #4ade80; text-align: center;">✅ Mesajınız gönderildi!</div>';
                 e.target.reset();
             } catch (err) {
-                document.getElementById('contactResult').innerHTML = '<div style="color: red;">Hata: ' + err.message + '</div>';
+                document.getElementById('contactResult').innerHTML = '<div style="color: #f87171; text-align: center;">❌ Hata: ' + err.message + '</div>';
             }
         }
     </script>
