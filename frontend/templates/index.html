@@ -3,11 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Aegis Nexus - Kurumsal Kiberguvenlik Platformu</title>
+    <title>Aegis Nexus - Enterprise Cybersecurity Platform</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --primary: #FF6B00;
+            --primary-dark: #E65A00;
+            --secondary: #0B1E3B;
+            --secondary-light: #1A3A5E;
+            --text-primary: #FFFFFF;
+            --text-secondary: #94A3B8;
+            --text-muted: #64748B;
+            --border: #E2E8F0;
+            --border-light: rgba(226, 232, 240, 0.1);
+            --bg-card: rgba(255, 255, 255, 0.05);
+            --bg-card-hover: rgba(255, 255, 255, 0.08);
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -20,8 +34,8 @@
 
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: #0f172a;
-            color: #e2e8f0;
+            background: #0B1E3B;
+            color: var(--text-primary);
             line-height: 1.6;
             overflow-x: hidden;
         }
@@ -33,15 +47,15 @@
             left: 0;
             right: 0;
             z-index: 1000;
-            background: rgba(15, 23, 42, 0.8);
+            background: rgba(11, 30, 59, 0.95);
             backdrop-filter: blur(20px);
-            border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+            border-bottom: 1px solid var(--border-light);
             padding: 1rem 2rem;
             transition: all 0.3s ease;
         }
 
         .nav.scrolled {
-            background: rgba(15, 23, 42, 0.95);
+            background: rgba(11, 30, 59, 0.98);
             padding: 0.75rem 2rem;
         }
 
@@ -54,13 +68,18 @@
         }
 
         .nav-logo {
-            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 1.25rem;
             font-weight: 700;
-            background: linear-gradient(135deg, #60a5fa, #a78bfa);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+            color: var(--text-primary);
             text-decoration: none;
+        }
+
+        .nav-logo svg {
+            width: 32px;
+            height: 32px;
         }
 
         .nav-links {
@@ -70,18 +89,21 @@
         }
 
         .nav-links a {
-            color: #94a3b8;
+            color: var(--text-secondary);
             text-decoration: none;
             font-weight: 500;
+            font-size: 0.875rem;
             transition: color 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         .nav-links a:hover {
-            color: #60a5fa;
+            color: var(--primary);
         }
 
         .nav-links a.active {
-            color: #60a5fa;
+            color: var(--primary);
         }
 
         /* Hero Section */
@@ -101,16 +123,7 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background: 
-                radial-gradient(circle at 20% 50%, rgba(96, 165, 250, 0.15) 0%, transparent 50%),
-                radial-gradient(circle at 80% 80%, rgba(167, 139, 250, 0.15) 0%, transparent 50%),
-                radial-gradient(circle at 40% 20%, rgba(244, 114, 182, 0.1) 0%, transparent 40%);
-            animation: heroBg 20s ease-in-out infinite alternate;
-        }
-
-        @keyframes heroBg {
-            0% { transform: scale(1) rotate(0deg); }
-            100% { transform: scale(1.1) rotate(2deg); }
+            background: radial-gradient(circle at 30% 50%, rgba(255, 107, 0, 0.05) 0%, transparent 50%);
         }
 
         .hero-content {
@@ -131,31 +144,31 @@
         .hero-badge {
             display: inline-block;
             padding: 0.5rem 1rem;
-            background: rgba(96, 165, 250, 0.1);
-            border: 1px solid rgba(96, 165, 250, 0.3);
+            background: rgba(255, 107, 0, 0.1);
+            border: 1px solid rgba(255, 107, 0, 0.3);
             border-radius: 2rem;
-            font-size: 0.875rem;
-            font-weight: 500;
-            color: #60a5fa;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--primary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
             margin-bottom: 1.5rem;
         }
 
         .hero h1 {
-            font-size: 3.5rem;
-            font-weight: 800;
+            font-size: 3rem;
+            font-weight: 700;
             line-height: 1.2;
             margin-bottom: 1.5rem;
-            background: linear-gradient(135deg, #ffffff 0%, #94a3b8 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+            color: var(--text-primary);
         }
 
         .hero p {
-            font-size: 1.25rem;
-            color: #94a3b8;
+            font-size: 1.125rem;
+            color: var(--text-secondary);
             margin-bottom: 2rem;
             max-width: 600px;
+            line-height: 1.8;
         }
 
         .hero-buttons {
@@ -164,38 +177,40 @@
         }
 
         .hero-btn {
-            padding: 1rem 2rem;
-            border-radius: 0.75rem;
+            padding: 0.875rem 2rem;
+            border-radius: 0.5rem;
             font-weight: 600;
-            font-size: 1rem;
+            font-size: 0.875rem;
             cursor: pointer;
             transition: all 0.3s ease;
             text-decoration: none;
             display: inline-flex;
             align-items: center;
             gap: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         .hero-btn-primary {
-            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            background: var(--primary);
             color: white;
             border: none;
         }
 
         .hero-btn-primary:hover {
+            background: var(--primary-dark);
             transform: translateY(-2px);
-            box-shadow: 0 10px 40px rgba(59, 130, 246, 0.4);
         }
 
         .hero-btn-secondary {
-            background: rgba(148, 163, 184, 0.1);
-            color: #e2e8f0;
-            border: 1px solid rgba(148, 163, 184, 0.3);
+            background: transparent;
+            color: var(--text-primary);
+            border: 1px solid var(--border-light);
         }
 
         .hero-btn-secondary:hover {
-            background: rgba(148, 163, 184, 0.2);
-            border-color: rgba(148, 163, 184, 0.5);
+            border-color: var(--primary);
+            color: var(--primary);
         }
 
         .hero-visual {
@@ -204,13 +219,11 @@
         }
 
         .hero-card {
-            background: rgba(30, 41, 59, 0.8);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(148, 163, 184, 0.2);
-            border-radius: 1.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border-light);
+            border-radius: 0.75rem;
             padding: 2rem;
             position: relative;
-            overflow: hidden;
         }
 
         .hero-card::before {
@@ -219,15 +232,15 @@
             top: 0;
             left: 0;
             right: 0;
-            height: 3px;
-            background: linear-gradient(90deg, #60a5fa, #a78bfa, #f472b6);
+            height: 2px;
+            background: var(--primary);
         }
 
         .hero-stat {
             display: flex;
             justify-content: space-between;
             padding: 1rem 0;
-            border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+            border-bottom: 1px solid var(--border-light);
         }
 
         .hero-stat:last-child {
@@ -235,14 +248,16 @@
         }
 
         .hero-stat-label {
-            color: #94a3b8;
-            font-size: 0.875rem;
+            color: var(--text-muted);
+            font-size: 0.8125rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         .hero-stat-value {
             font-size: 1.5rem;
             font-weight: 700;
-            color: #60a5fa;
+            color: var(--primary);
         }
 
         /* Architecture Section */
@@ -264,37 +279,36 @@
         .section-badge {
             display: inline-block;
             padding: 0.5rem 1rem;
-            background: rgba(96, 165, 250, 0.1);
-            border: 1px solid rgba(96, 165, 250, 0.3);
+            background: rgba(255, 107, 0, 0.1);
+            border: 1px solid rgba(255, 107, 0, 0.3);
             border-radius: 2rem;
-            font-size: 0.875rem;
-            font-weight: 500;
-            color: #60a5fa;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--primary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
             margin-bottom: 1rem;
         }
 
         .section-title {
-            font-size: 2.5rem;
+            font-size: 2.25rem;
             font-weight: 700;
             margin-bottom: 1rem;
-            background: linear-gradient(135deg, #ffffff 0%, #94a3b8 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+            color: var(--text-primary);
         }
 
         .section-subtitle {
-            font-size: 1.125rem;
-            color: #94a3b8;
+            font-size: 1rem;
+            color: var(--text-secondary);
             max-width: 600px;
             margin: 0 auto;
+            line-height: 1.8;
         }
 
         .architecture-diagram {
-            background: rgba(30, 41, 59, 0.5);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(148, 163, 184, 0.2);
-            border-radius: 1.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border-light);
+            border-radius: 0.75rem;
             padding: 3rem;
             display: grid;
             grid-template-columns: repeat(5, 1fr);
@@ -303,9 +317,9 @@
         }
 
         .architecture-layer {
-            background: rgba(15, 23, 42, 0.8);
-            border: 1px solid rgba(148, 163, 184, 0.2);
-            border-radius: 1rem;
+            background: var(--bg-card-hover);
+            border: 1px solid var(--border-light);
+            border-radius: 0.5rem;
             padding: 1.5rem;
             text-align: center;
             transition: all 0.3s ease;
@@ -313,9 +327,8 @@
         }
 
         .architecture-layer:hover {
-            transform: translateY(-5px);
-            border-color: rgba(96, 165, 250, 0.5);
-            box-shadow: 0 10px 40px rgba(96, 165, 250, 0.2);
+            transform: translateY(-3px);
+            border-color: var(--primary);
         }
 
         .architecture-layer::after {
@@ -324,8 +337,8 @@
             bottom: -1.5rem;
             left: 50%;
             transform: translateX(-50%);
-            color: #60a5fa;
-            font-size: 1.5rem;
+            color: var(--primary);
+            font-size: 1.25rem;
         }
 
         .architecture-layer:last-child::after {
@@ -333,26 +346,25 @@
         }
 
         .layer-number {
-            font-size: 2rem;
+            font-size: 1.75rem;
             font-weight: 700;
-            background: linear-gradient(135deg, #60a5fa, #a78bfa);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+            color: var(--primary);
             margin-bottom: 0.5rem;
         }
 
         .layer-name {
             font-weight: 600;
-            color: #e2e8f0;
+            color: var(--text-primary);
             margin-bottom: 0.5rem;
-            font-size: 0.875rem;
+            font-size: 0.8125rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         .layer-desc {
             font-size: 0.75rem;
-            color: #94a3b8;
-            line-height: 1.4;
+            color: var(--text-muted);
+            line-height: 1.5;
         }
 
         /* Modules Section */
@@ -363,18 +375,16 @@
         .modules-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-            gap: 2rem;
+            gap: 1.5rem;
         }
 
         .module-card {
-            background: rgba(30, 41, 59, 0.5);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(148, 163, 184, 0.2);
-            border-radius: 1.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border-light);
+            border-radius: 0.5rem;
             padding: 2rem;
             transition: all 0.3s ease;
             position: relative;
-            overflow: hidden;
         }
 
         .module-card::before {
@@ -383,8 +393,8 @@
             top: 0;
             left: 0;
             right: 0;
-            height: 3px;
-            background: linear-gradient(90deg, #60a5fa, #a78bfa);
+            height: 2px;
+            background: var(--primary);
             transform: scaleX(0);
             transition: transform 0.3s ease;
         }
@@ -394,26 +404,27 @@
         }
 
         .module-card:hover {
-            transform: translateY(-5px);
-            border-color: rgba(96, 165, 250, 0.5);
-            box-shadow: 0 20px 40px rgba(96, 165, 250, 0.2);
+            transform: translateY(-3px);
+            border-color: var(--primary);
         }
 
         .module-icon {
-            font-size: 3rem;
-            margin-bottom: 1rem;
+            width: 48px;
+            height: 48px;
+            margin-bottom: 1.5rem;
+            color: var(--primary);
         }
 
         .module-title {
-            font-size: 1.5rem;
+            font-size: 1.25rem;
             font-weight: 600;
             margin-bottom: 0.75rem;
-            color: #e2e8f0;
+            color: var(--text-primary);
         }
 
         .module-desc {
-            color: #94a3b8;
-            font-size: 0.95rem;
+            color: var(--text-secondary);
+            font-size: 0.875rem;
             margin-bottom: 1.5rem;
             line-height: 1.6;
         }
@@ -424,9 +435,9 @@
 
         .module-features li {
             padding: 0.5rem 0;
-            color: #94a3b8;
-            font-size: 0.875rem;
-            border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+            color: var(--text-muted);
+            font-size: 0.8125rem;
+            border-bottom: 1px solid var(--border-light);
         }
 
         .module-features li:last-child {
@@ -434,51 +445,49 @@
         }
 
         .module-features li::before {
-            content: '✓';
-            color: #60a5fa;
+            content: '→';
+            color: var(--primary);
             margin-right: 0.5rem;
         }
 
         /* Performance Section */
         .performance {
             padding: 6rem 2rem;
-            background: rgba(30, 41, 59, 0.3);
+            background: var(--bg-card);
         }
 
         .performance-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 2rem;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
         }
 
         .performance-card {
-            background: rgba(30, 41, 59, 0.5);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(148, 163, 184, 0.2);
-            border-radius: 1rem;
+            background: var(--bg-card-hover);
+            border: 1px solid var(--border-light);
+            border-radius: 0.5rem;
             padding: 2rem;
             text-align: center;
             transition: all 0.3s ease;
         }
 
         .performance-card:hover {
-            transform: translateY(-5px);
-            border-color: rgba(96, 165, 250, 0.5);
+            transform: translateY(-3px);
+            border-color: var(--primary);
         }
 
         .performance-value {
-            font-size: 3rem;
+            font-size: 2.5rem;
             font-weight: 700;
-            background: linear-gradient(135deg, #60a5fa, #a78bfa);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+            color: var(--primary);
             margin-bottom: 0.5rem;
         }
 
         .performance-label {
-            color: #94a3b8;
-            font-size: 1rem;
+            color: var(--text-muted);
+            font-size: 0.8125rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         /* Contact Section */
@@ -489,66 +498,65 @@
         .contact-container {
             max-width: 600px;
             margin: 0 auto;
-            background: rgba(30, 41, 59, 0.5);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(148, 163, 184, 0.2);
-            border-radius: 1.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border-light);
+            border-radius: 0.75rem;
             padding: 3rem;
         }
 
         .contact-form {
             display: flex;
             flex-direction: column;
-            gap: 1.5rem;
+            gap: 1.25rem;
         }
 
         .contact-input {
-            padding: 1rem;
-            background: rgba(15, 23, 42, 0.8);
-            border: 1px solid rgba(148, 163, 184, 0.3);
-            border-radius: 0.75rem;
-            color: #e2e8f0;
-            font-size: 1rem;
+            padding: 0.875rem 1rem;
+            background: var(--bg-card-hover);
+            border: 1px solid var(--border-light);
+            border-radius: 0.375rem;
+            color: var(--text-primary);
+            font-size: 0.875rem;
             transition: all 0.3s ease;
         }
 
         .contact-input:focus {
             outline: none;
-            border-color: #60a5fa;
-            box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.1);
+            border-color: var(--primary);
         }
 
         .contact-input::placeholder {
-            color: #64748b;
+            color: var(--text-muted);
         }
 
         .contact-textarea {
-            min-height: 150px;
+            min-height: 120px;
             resize: vertical;
         }
 
         .contact-submit {
-            padding: 1rem 2rem;
-            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            padding: 0.875rem 2rem;
+            background: var(--primary);
             color: white;
             border: none;
-            border-radius: 0.75rem;
-            font-size: 1rem;
+            border-radius: 0.375rem;
+            font-size: 0.875rem;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         .contact-submit:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 40px rgba(59, 130, 246, 0.4);
+            background: var(--primary-dark);
         }
 
         /* Footer */
         .footer {
             padding: 3rem 2rem;
-            background: rgba(15, 23, 42, 0.5);
-            border-top: 1px solid rgba(148, 163, 184, 0.1);
+            background: var(--bg-card);
+            border-top: 1px solid var(--border-light);
             text-align: center;
         }
 
@@ -565,18 +573,19 @@
         }
 
         .footer-links a {
-            color: #94a3b8;
+            color: var(--text-muted);
             text-decoration: none;
             transition: color 0.2s ease;
+            font-size: 0.8125rem;
         }
 
         .footer-links a:hover {
-            color: #60a5fa;
+            color: var(--primary);
         }
 
         .footer-text {
-            color: #64748b;
-            font-size: 0.875rem;
+            color: var(--text-muted);
+            font-size: 0.75rem;
         }
 
         /* Animations */
@@ -665,7 +674,13 @@
     <!-- Navigation -->
     <nav class="nav" id="nav">
         <div class="nav-inner">
-            <a href="#top" class="nav-logo">Aegis Nexus</a>
+            <a href="#top" class="nav-logo">
+                <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M16 3L5 8V15C5 21.5 9.5 27.5 16 29C22.5 27.5 27 21.5 27 15V8L16 3Z" stroke="#FF6B00" stroke-width="2" fill="none"/>
+                    <path d="M12 16L15 19L21 13" stroke="#FF6B00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Aegis Nexus
+            </a>
             <ul class="nav-links">
                 <li><a href="#top" class="active">Ana Sayfa</a></li>
                 <li><a href="#architecture">Mimari</a></li>
@@ -681,17 +696,21 @@
         <div class="hero-bg"></div>
         <div class="hero-content">
             <div class="hero-text">
-                <span class="hero-badge">🚀 Kurumsal Kiberguvenlik Platformu</span>
+                <span class="hero-badge">Enterprise Cybersecurity Platform</span>
                 <h1>Modern siber tehditlere karşı<br>proaktif koruma</h1>
                 <p>Tehditleri proaktif olarak tespit edin, derin analiz yapın ve otomatik yanıt verin. AegisNexus ile kurumunuzun siber güvenliğini bir sonraki seviyeye taşıyın.</p>
                 <div class="hero-buttons">
                     <a href="#modules" class="hero-btn hero-btn-primary">
                         <span>Modülleri Keşfet</span>
-                        <span>→</span>
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                            <path d="M6 3L11 8L6 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
                     </a>
                     <a href="https://modules.aegisnexus.dev" target="_blank" class="hero-btn hero-btn-secondary">
                         <span>Uygulamayı Aç</span>
-                        <span>↗</span>
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                            <path d="M8 3V13M3 8H13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
                     </a>
                 </div>
             </div>
@@ -770,7 +789,11 @@
             </div>
             <div class="modules-grid">
                 <div class="module-card reveal">
-                    <div class="module-icon">🎯</div>
+                    <svg class="module-icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M24 4L4 12V22C4 32.5 12 40 24 44C36 40 44 32.5 44 22V12L24 4Z" stroke="currentColor" stroke-width="2" fill="none"/>
+                        <circle cx="24" cy="24" r="8" stroke="currentColor" stroke-width="2" fill="none"/>
+                        <path d="M24 20V24L27 27" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
                     <h3 class="module-title">Phishing Detector</h3>
                     <p class="module-desc">1.2M+ URL veritabanı ile zararlı site tespiti. DNS, SSL ve ML analizi ile kapsamlı kontrol.</p>
                     <ul class="module-features">
@@ -781,7 +804,13 @@
                     </ul>
                 </div>
                 <div class="module-card reveal">
-                    <div class="module-icon">🕵️</div>
+                    <svg class="module-icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M24 4C13 4 4 13 4 24C4 35 13 44 24 44C35 44 44 35 44 24C44 13 35 4 24 4Z" stroke="currentColor" stroke-width="2" fill="none"/>
+                        <circle cx="24" cy="24" r="6" stroke="currentColor" stroke-width="2" fill="none"/>
+                        <path d="M24 18V24L28 28" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        <circle cx="32" cy="16" r="3" stroke="currentColor" stroke-width="2" fill="none"/>
+                        <circle cx="16" cy="32" r="3" stroke="currentColor" stroke-width="2" fill="none"/>
+                    </svg>
                     <h3 class="module-title">Honeypot + IOC</h3>
                     <p class="module-desc">Saldırganları analiz et ve tehdit göstergelerini topla. AbuseIPDB, URLhaus'tan saatlik veri.</p>
                     <ul class="module-features">
@@ -792,7 +821,15 @@
                     </ul>
                 </div>
                 <div class="module-card reveal">
-                    <div class="module-icon">📊</div>
+                    <svg class="module-icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="8" y="8" width="32" height="32" rx="4" stroke="currentColor" stroke-width="2" fill="none"/>
+                        <path d="M16 20H32" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        <path d="M16 28H32" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        <path d="M16 36H28" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        <circle cx="12" cy="20" r="2" stroke="currentColor" stroke-width="2" fill="none"/>
+                        <circle cx="12" cy="28" r="2" stroke="currentColor" stroke-width="2" fill="none"/>
+                        <circle cx="12" cy="36" r="2" stroke="currentColor" stroke-width="2" fill="none"/>
+                    </svg>
                     <h3 class="module-title">Breach Intelligence</h3>
                     <p class="module-desc">Veri ihlallerini tespit et ve saldırganları profil et. HIBP + Dark Web + Psikolojik analiz.</p>
                     <ul class="module-features">
@@ -803,7 +840,11 @@
                     </ul>
                 </div>
                 <div class="module-card reveal">
-                    <div class="module-icon">🔐</div>
+                    <svg class="module-icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="8" y="16" width="32" height="24" rx="4" stroke="currentColor" stroke-width="2" fill="none"/>
+                        <path d="M16 16V12C16 8 20 4 24 4C28 4 32 8 32 12V16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        <circle cx="24" cy="28" r="4" stroke="currentColor" stroke-width="2" fill="none"/>
+                    </svg>
                     <h3 class="module-title">Password Shield</h3>
                     <p class="module-desc">Güvenli şifre üretimi ve güç analizi. Sızdırılmış parola kontrolü ve hatırlanabilir şifreler.</p>
                     <ul class="module-features">
@@ -814,7 +855,11 @@
                     </ul>
                 </div>
                 <div class="module-card reveal">
-                    <div class="module-icon">🛡️</div>
+                    <svg class="module-icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M24 4L4 14V22C4 33 12 41 24 44C36 41 44 33 44 22V14L24 4Z" stroke="currentColor" stroke-width="2" fill="none"/>
+                        <path d="M24 18V30" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        <circle cx="24" cy="34" r="2" stroke="currentColor" stroke-width="2" fill="currentColor"/>
+                    </svg>
                     <h3 class="module-title">Threat Responder</h3>
                     <p class="module-desc">Yüksek riskli tehditlere otomatik yanıt. SMS/Email ile anında bildirim gönder.</p>
                     <ul class="module-features">
@@ -825,7 +870,13 @@
                     </ul>
                 </div>
                 <div class="module-card reveal">
-                    <div class="module-icon">🤖</div>
+                    <svg class="module-icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="24" cy="24" r="16" stroke="currentColor" stroke-width="2" fill="none"/>
+                        <path d="M24 12V24L32 28" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        <circle cx="32" cy="16" r="4" stroke="currentColor" stroke-width="2" fill="none"/>
+                        <circle cx="36" cy="20" r="2" stroke="currentColor" stroke-width="2" fill="currentColor"/>
+                        <circle cx="28" cy="20" r="2" stroke="currentColor" stroke-width="2" fill="currentColor"/>
+                    </svg>
                     <h3 class="module-title">AI Analyzer</h3>
                     <p class="module-desc">LLM tabanlı phishing ve sosyal mühendislik analizi. Gelişmiş tehdit tespiti.</p>
                     <ul class="module-features">
