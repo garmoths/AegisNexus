@@ -11,8 +11,10 @@
         :root {
             --primary: #FF6B00;
             --primary-dark: #E65A00;
+            --primary-glow: rgba(255, 107, 0, 0.15);
             --secondary: #0B1E3B;
             --secondary-light: #1A3A5E;
+            --secondary-dark: #061224;
             --text-primary: #FFFFFF;
             --text-secondary: #94A3B8;
             --text-muted: #64748B;
@@ -20,6 +22,10 @@
             --border-light: rgba(226, 232, 240, 0.1);
             --bg-card: rgba(255, 255, 255, 0.05);
             --bg-card-hover: rgba(255, 255, 255, 0.08);
+            --success: #4ade80;
+            --warning: #fbbf24;
+            --danger: #f87171;
+            --info: #60a5fa;
         }
 
         * {
@@ -30,18 +36,124 @@
 
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: #0B1E3B;
+            background: var(--secondary-dark);
             min-height: 100vh;
             color: var(--text-primary);
-            padding: 2rem;
+        }
+
+        /* Top Navigation */
+        .top-nav {
+            background: rgba(11, 30, 59, 0.95);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-light);
+            padding: 0 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 64px;
+        }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            text-decoration: none;
+            color: var(--text-primary);
+            cursor: pointer;
+        }
+
+        .nav-brand svg {
+            width: 32px;
+            height: 32px;
+            color: var(--primary);
+        }
+
+        .nav-brand span {
+            font-size: 1.125rem;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+
+        .nav-brand .brand-sub {
+            color: var(--primary);
+            font-weight: 400;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 0.25rem;
+        }
+
+        .nav-link {
+            padding: 0.5rem 1rem;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.8125rem;
+            font-weight: 500;
+            border-radius: 0.375rem;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+
+        .nav-link:hover, .nav-link.active {
+            color: var(--text-primary);
+            background: var(--bg-card-hover);
+        }
+
+        .nav-link.active {
+            color: var(--primary);
+        }
+
+        .nav-home {
+            display: flex;
+            align-items: center;
+            gap: 0.375rem;
+            padding: 0.5rem 1rem;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.8125rem;
+            font-weight: 500;
+            border-radius: 0.375rem;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+
+        .nav-home:hover {
+            color: var(--primary);
+            background: var(--bg-card-hover);
+        }
+
+        .nav-home svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        /* Page Container */
+        .page {
+            display: none;
+            animation: pageIn 0.5s ease-out;
+        }
+
+        .page.active {
+            display: block;
+        }
+
+        @keyframes pageIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         .container {
             max-width: 1400px;
             margin: 0 auto;
+            padding: 2rem;
         }
 
-        header {
+        /* Dashboard Header */
+        .dashboard-header {
             text-align: center;
             margin-bottom: 3rem;
             animation: fadeInDown 0.8s ease-out;
@@ -69,10 +181,11 @@
         .module-card {
             background: var(--bg-card);
             border: 1px solid var(--border-light);
-            border-radius: 0.5rem;
+            border-radius: 0.75rem;
             padding: 2rem;
             transition: all 0.3s ease;
             position: relative;
+            cursor: pointer;
         }
 
         .module-card::before {
@@ -81,15 +194,17 @@
             top: 0;
             left: 0;
             right: 0;
-            height: 2px;
-            background: var(--primary);
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary), var(--primary-dark));
             transform: scaleX(0);
             transition: transform 0.3s ease;
+            border-radius: 0.75rem 0.75rem 0 0;
         }
 
         .module-card:hover {
-            transform: translateY(-3px);
-            border-color: var(--primary);
+            transform: translateY(-4px);
+            border-color: rgba(255, 107, 0, 0.3);
+            box-shadow: 0 8px 32px rgba(255, 107, 0, 0.1);
         }
 
         .module-card:hover::before {
@@ -101,6 +216,11 @@
             height: 48px;
             margin-bottom: 1.5rem;
             color: var(--primary);
+            transition: transform 0.3s ease;
+        }
+
+        .module-card:hover .module-icon {
+            transform: scale(1.1);
         }
 
         .module-title {
@@ -157,6 +277,305 @@
             color: var(--primary);
         }
 
+        /* Module Detail Page */
+        .module-page {
+            padding: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .module-page-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 2rem;
+            margin-bottom: 3rem;
+            padding: 2.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border-light);
+            border-radius: 0.75rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .module-page-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary), var(--primary-dark));
+        }
+
+        .module-page-icon {
+            width: 64px;
+            height: 64px;
+            color: var(--primary);
+            flex-shrink: 0;
+        }
+
+        .module-page-info {
+            flex: 1;
+        }
+
+        .module-page-title {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .module-page-desc {
+            color: var(--text-secondary);
+            font-size: 1rem;
+            line-height: 1.7;
+            margin-bottom: 1rem;
+        }
+
+        .module-page-badges {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .feature-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.375rem;
+            padding: 0.375rem 0.875rem;
+            background: var(--bg-card-hover);
+            border: 1px solid var(--border-light);
+            border-radius: 2rem;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .feature-badge .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--primary);
+        }
+
+        /* Tool Cards */
+        .tools-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .tool-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-light);
+            border-radius: 0.75rem;
+            padding: 2rem;
+            transition: all 0.3s ease;
+        }
+
+        .tool-card:hover {
+            border-color: rgba(255, 107, 0, 0.2);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+        }
+
+        .tool-card-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .tool-card-title svg {
+            width: 20px;
+            height: 20px;
+            color: var(--primary);
+        }
+
+        .tool-input {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            background: var(--secondary-dark);
+            border: 1px solid var(--border-light);
+            border-radius: 0.5rem;
+            color: var(--text-primary);
+            font-size: 0.875rem;
+            margin-bottom: 0.75rem;
+            font-family: inherit;
+            transition: border-color 0.2s ease;
+        }
+
+        .tool-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-glow);
+        }
+
+        .tool-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        textarea.tool-input {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        select.tool-input {
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%2394A3B8' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 1rem center;
+        }
+
+        .tool-btn {
+            width: 100%;
+            padding: 0.875rem 1.5rem;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-family: inherit;
+        }
+
+        .tool-btn:hover {
+            background: var(--primary-dark);
+            transform: translateY(-1px);
+        }
+
+        .tool-btn:active {
+            transform: translateY(0);
+        }
+
+        .tool-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .tool-result {
+            margin-top: 1rem;
+            padding: 1.25rem;
+            background: var(--secondary-dark);
+            border: 1px solid var(--border-light);
+            border-radius: 0.5rem;
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+            white-space: pre-wrap;
+            word-break: break-word;
+            display: none;
+            animation: resultIn 0.3s ease-out;
+        }
+
+        .tool-result.visible {
+            display: block;
+        }
+
+        @keyframes resultIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .tool-result.success {
+            border-color: rgba(74, 222, 128, 0.3);
+        }
+
+        .tool-result.error {
+            border-color: rgba(248, 113, 113, 0.3);
+            color: var(--danger);
+        }
+
+        /* Stats Row */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-light);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Risk indicator */
+        .risk-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 2rem;
+            font-weight: 600;
+            font-size: 0.875rem;
+        }
+
+        .risk-indicator.low { background: rgba(74,222,128,0.1); color: var(--success); border: 1px solid rgba(74,222,128,0.3); }
+        .risk-indicator.medium { background: rgba(251,191,36,0.1); color: var(--warning); border: 1px solid rgba(251,191,36,0.3); }
+        .risk-indicator.high { background: rgba(248,113,113,0.1); color: var(--danger); border: 1px solid rgba(248,113,113,0.3); }
+        .risk-indicator.critical { background: rgba(220,38,38,0.15); color: #ef4444; border: 1px solid rgba(220,38,38,0.4); }
+
+        /* Loading spinner */
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255,255,255,0.2);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            margin-right: 0.5rem;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Checkbox group */
+        .checkbox-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 0.375rem;
+            color: var(--text-secondary);
+            font-size: 0.8125rem;
+            cursor: pointer;
+        }
+
+        .checkbox-label input {
+            accent-color: var(--primary);
+        }
+
         .status-badge {
             display: inline-block;
             padding: 0.25rem 0.75rem;
@@ -180,645 +599,222 @@
             border: 1px solid rgba(251, 191, 36, 0.3);
         }
 
-        /* Modal */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.8);
-            z-index: 1000;
-            align-items: center;
-            justify-content: center;
-            padding: 1rem;
-        }
-
-        .modal.active {
-            display: flex;
-        }
-
-        .modal-content {
-            background: var(--secondary);
-            border: 1px solid var(--border-light);
-            border-radius: 0.75rem;
-            padding: 2rem;
-            max-width: 500px;
-            width: 100%;
-        }
-
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1.5rem;
-        }
-
-        .modal-title {
-            font-size: 1.25rem;
-            font-weight: 600;
-            color: var(--text-primary);
-        }
-
-        .modal-close {
-            background: none;
-            border: none;
-            color: var(--text-muted);
-            font-size: 1.5rem;
-            cursor: pointer;
-            padding: 0;
-        }
-
-        .modal-close:hover {
-            color: var(--text-primary);
-        }
-
-        .modal-input {
-            width: 100%;
-            padding: 0.875rem 1rem;
-            background: var(--bg-card-hover);
-            border: 1px solid var(--border-light);
-            border-radius: 0.375rem;
-            color: var(--text-primary);
-            font-size: 0.875rem;
-            margin-bottom: 1rem;
-        }
-
-        .modal-input:focus {
-            outline: none;
-            border-color: var(--primary);
-        }
-
-        .modal-input::placeholder {
-            color: var(--text-muted);
-        }
-
-        .modal-textarea {
-            min-height: 120px;
-            resize: vertical;
-        }
-
-        .modal-submit {
-            width: 100%;
-            padding: 0.875rem 2rem;
-            background: var(--primary);
-            color: white;
-            border: none;
-            border-radius: 0.375rem;
-            font-size: 0.875rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .modal-submit:hover {
-            background: var(--primary-dark);
-        }
-
-        .modal-result {
-            margin-top: 1rem;
-            padding: 1rem;
-            background: var(--bg-card-hover);
-            border-radius: 0.375rem;
-            font-size: 0.875rem;
-            color: var(--text-secondary);
-            white-space: pre-wrap;
-        }
-
         @keyframes fadeInDown {
-            from {
-                opacity: 0;
-                transform: translateY(-20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         @media (max-width: 768px) {
-            body {
-                padding: 1rem;
-            }
+            .container { padding: 1rem; }
+            h1 { font-size: 2rem; }
+            .modules-grid { grid-template-columns: 1fr; }
+            .tools-grid { grid-template-columns: 1fr; }
+            .module-page-header { flex-direction: column; gap: 1rem; padding: 1.5rem; }
+            .top-nav { padding: 0 1rem; }
+            .nav-links { display: none; }
+            .stats-row { grid-template-columns: repeat(2, 1fr); }
+        }
 
-            h1 {
-                font-size: 2rem;
-            }
-
-            .modules-grid {
-                grid-template-columns: 1fr;
-            }
+        @media (max-width: 480px) {
+            .stats-row { grid-template-columns: 1fr; }
+            .modules-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>AegisNexus Modules</h1>
-            <p class="subtitle">Enterprise Security Dashboard - Professional Cybersecurity Modules</p>
-        </header>
+    <!-- Top Navigation -->
+    <nav class="top-nav">
+        <div class="nav-brand" onclick="navigate('home')">
+            <svg viewBox="0 0 48 48" fill="none"><path d="M24 4L4 14V22C4 33 12 41 24 44C36 41 44 33 44 22V14L24 4Z" stroke="currentColor" stroke-width="2" fill="none"/><path d="M24 16V24L30 28" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            <span>Aegis<span class="brand-sub">Nexus</span></span>
+        </div>
+        <div class="nav-links" id="navLinks">
+            <a class="nav-link" onclick="navigate('home')">Dashboard</a>
+            <a class="nav-link" onclick="navigate('ai-analyzer')">AI Analyzer</a>
+            <a class="nav-link" onclick="navigate('phishing-detector')">Phishing</a>
+            <a class="nav-link" onclick="navigate('honeypot-ioc')">Honeypot</a>
+            <a class="nav-link" onclick="navigate('breach-intel')">Breach</a>
+            <a class="nav-link" onclick="navigate('password-shield')">Password</a>
+            <a class="nav-link" onclick="navigate('threat-responder')">Threat</a>
+        </div>
+        <a class="nav-home" href="https://aegisnexus.dev">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+            Ana Sayfa
+        </a>
+    </nav>
 
-        <div class="modules-grid">
-            <!-- AI Analyzer -->
-            <div class="module-card">
-                <svg class="module-icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <circle cx="24" cy="24" r="16" stroke="currentColor" stroke-width="2" fill="none"/>
-                    <path d="M24 12V24L32 28" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                    <circle cx="32" cy="16" r="4" stroke="currentColor" stroke-width="2" fill="none"/>
-                    <circle cx="36" cy="20" r="2" stroke="currentColor" stroke-width="2" fill="currentColor"/>
-                    <circle cx="28" cy="20" r="2" stroke="currentColor" stroke-width="2" fill="currentColor"/>
-                </svg>
-                <span class="status-badge active">Active</span>
-                <h3 class="module-title">AI Analyzer</h3>
-                <p class="module-description">LLM-based phishing, fraud, and social engineering analysis. Advanced threat detection with AI.</p>
-                <div class="module-actions">
-                    <button class="action-btn" onclick="openModal('ai-analyze')">Analyze Message</button>
-                    <button class="action-btn secondary" onclick="openModal('ai-url')">Check URL</button>
-                </div>
+    <!-- HOME PAGE -->
+    <div id="page-home" class="page active">
+        <div class="container">
+            <div class="dashboard-header">
+                <h1>Security Modules</h1>
+                <p class="subtitle">Enterprise Cybersecurity Dashboard - 6 Layered Defense System</p>
             </div>
-
-            <!-- Phishing Detector -->
-            <div class="module-card">
-                <svg class="module-icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M24 4L4 12V22C4 32.5 12 40 24 44C36 40 44 32.5 44 22V12L24 4Z" stroke="currentColor" stroke-width="2" fill="none"/>
-                    <circle cx="24" cy="24" r="8" stroke="currentColor" stroke-width="2" fill="none"/>
-                    <path d="M24 20V24L27 27" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                </svg>
-                <span class="status-badge active">Active</span>
-                <h3 class="module-title">Phishing Detector</h3>
-                <p class="module-description">Malicious URL detection and threat database. SSL/domain analysis for comprehensive protection.</p>
-                <div class="module-actions">
-                    <button class="action-btn" onclick="openModal('phishing-check')">Check URL</button>
-                    <button class="action-btn secondary" onclick="openModal('phishing-extract')">Extract URLs</button>
+            <div class="modules-grid">
+                <div class="module-card" onclick="navigate('ai-analyzer')">
+                    <svg class="module-icon" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="16" stroke="currentColor" stroke-width="2" fill="none"/><path d="M24 12V24L32 28" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="32" cy="16" r="4" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="36" cy="20" r="2" stroke="currentColor" stroke-width="2" fill="currentColor"/><circle cx="28" cy="20" r="2" stroke="currentColor" stroke-width="2" fill="currentColor"/></svg>
+                    <span class="status-badge active">Active</span>
+                    <h3 class="module-title">AI Analyzer</h3>
+                    <p class="module-description">LLM-based phishing, fraud, and social engineering analysis. Advanced threat detection with AI.</p>
                 </div>
-            </div>
-
-            <!-- Honeypot / IOC Collector -->
-            <div class="module-card">
-                <svg class="module-icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M24 4C13 4 4 13 4 24C4 35 13 44 24 44C35 44 44 35 44 24C44 13 35 4 24 4Z" stroke="currentColor" stroke-width="2" fill="none"/>
-                    <circle cx="24" cy="24" r="6" stroke="currentColor" stroke-width="2" fill="none"/>
-                    <path d="M24 18V24L28 28" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                    <circle cx="32" cy="16" r="3" stroke="currentColor" stroke-width="2" fill="none"/>
-                    <circle cx="16" cy="32" r="3" stroke="currentColor" stroke-width="2" fill="none"/>
-                </svg>
-                <span class="status-badge partial">Partial</span>
-                <h3 class="module-title">Honeypot & IOC</h3>
-                <p class="module-description">IP Hunter and Indicator of Compromise collector. Reverse engineering traps.</p>
-                <div class="module-actions">
-                    <button class="action-btn" onclick="openModal('ioc-stats')">Statistics</button>
-                    <button class="action-btn secondary" onclick="openModal('ioc-search')">Search IOC</button>
+                <div class="module-card" onclick="navigate('phishing-detector')">
+                    <svg class="module-icon" viewBox="0 0 48 48" fill="none"><path d="M24 4L4 12V22C4 32.5 12 40 24 44C36 40 44 32.5 44 22V12L24 4Z" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="24" cy="24" r="8" stroke="currentColor" stroke-width="2" fill="none"/><path d="M24 20V24L27 27" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                    <span class="status-badge active">Active</span>
+                    <h3 class="module-title">Phishing Detector</h3>
+                    <p class="module-description">1.2M+ URL database. DNS, SSL and ML analysis for comprehensive protection.</p>
                 </div>
-            </div>
-
-            <!-- Breach Intelligence -->
-            <div class="module-card">
-                <svg class="module-icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <rect x="8" y="8" width="32" height="32" rx="4" stroke="currentColor" stroke-width="2" fill="none"/>
-                    <path d="M16 20H32" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                    <path d="M16 28H32" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                    <path d="M16 36H28" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                    <circle cx="12" cy="20" r="2" stroke="currentColor" stroke-width="2" fill="none"/>
-                    <circle cx="12" cy="28" r="2" stroke="currentColor" stroke-width="2" fill="none"/>
-                    <circle cx="12" cy="36" r="2" stroke="currentColor" stroke-width="2" fill="none"/>
-                </svg>
-                <span class="status-badge partial">Partial</span>
-                <h3 class="module-title">Breach Intel</h3>
-                <p class="module-description">Data breach intelligence and Deep Web tracking. Zombie account detection and KVKK reports.</p>
-                <div class="module-actions">
-                    <button class="action-btn" onclick="openModal('breach-check')">Check Email</button>
-                    <button class="action-btn secondary" onclick="openModal('breach-full')">Full Analysis</button>
+                <div class="module-card" onclick="navigate('honeypot-ioc')">
+                    <svg class="module-icon" viewBox="0 0 48 48" fill="none"><path d="M24 4C13 4 4 13 4 24C4 35 13 44 24 44C35 44 44 35 44 24C44 13 35 4 24 4Z" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="24" cy="24" r="6" stroke="currentColor" stroke-width="2" fill="none"/><path d="M24 18V24L28 28" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="32" cy="16" r="3" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="16" cy="32" r="3" stroke="currentColor" stroke-width="2" fill="none"/></svg>
+                    <span class="status-badge partial">Partial</span>
+                    <h3 class="module-title">Honeypot & IOC</h3>
+                    <p class="module-description">IP Hunter and IOC collector. AbuseIPDB, URLhaus hourly feeds.</p>
                 </div>
-            </div>
-
-            <!-- Password Shield -->
-            <div class="module-card">
-                <svg class="module-icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <rect x="8" y="16" width="32" height="24" rx="4" stroke="currentColor" stroke-width="2" fill="none"/>
-                    <path d="M16 16V12C16 8 20 4 24 4C28 4 32 8 32 12V16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                    <circle cx="24" cy="28" r="4" stroke="currentColor" stroke-width="2" fill="none"/>
-                </svg>
-                <span class="status-badge partial">Partial</span>
-                <h3 class="module-title">Password Shield</h3>
-                <p class="module-description">Cryptographic password generation that takes centuries to crack. Strong password validation.</p>
-                <div class="module-actions">
-                    <button class="action-btn" onclick="openModal('password-generate')">Generate</button>
-                    <button class="action-btn secondary" onclick="openModal('password-strength')">Check Strength</button>
+                <div class="module-card" onclick="navigate('breach-intel')">
+                    <svg class="module-icon" viewBox="0 0 48 48" fill="none"><rect x="8" y="8" width="32" height="32" rx="4" stroke="currentColor" stroke-width="2" fill="none"/><path d="M16 20H32" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16 28H32" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16 36H28" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="20" r="2" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="12" cy="28" r="2" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="12" cy="36" r="2" stroke="currentColor" stroke-width="2" fill="none"/></svg>
+                    <span class="status-badge partial">Partial</span>
+                    <h3 class="module-title">Breach Intel</h3>
+                    <p class="module-description">Data breach intelligence. HIBP + Dark Web + Psychological profiling.</p>
                 </div>
-            </div>
-
-            <!-- Threat Responder -->
-            <div class="module-card">
-                <svg class="module-icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M24 4L4 14V22C4 33 12 41 24 44C36 41 44 33 44 22V14L24 4Z" stroke="currentColor" stroke-width="2" fill="none"/>
-                    <path d="M24 18V30" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                    <circle cx="24" cy="34" r="2" stroke="currentColor" stroke-width="2" fill="currentColor"/>
-                </svg>
-                <span class="status-badge partial">Partial</span>
-                <h3 class="module-title">Threat Responder</h3>
-                <p class="module-description">Cyber extortion and blackmail prevention. Threat analysis and support case management.</p>
-                <div class="module-actions">
-                    <button class="action-btn" onclick="openModal('threat-analyze')">Analyze Threat</button>
-                    <button class="action-btn secondary" onclick="openModal('threat-case')">Create Case</button>
+                <div class="module-card" onclick="navigate('password-shield')">
+                    <svg class="module-icon" viewBox="0 0 48 48" fill="none"><rect x="8" y="16" width="32" height="24" rx="4" stroke="currentColor" stroke-width="2" fill="none"/><path d="M16 16V12C16 8 20 4 24 4C28 4 32 8 32 12V16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="24" cy="28" r="4" stroke="currentColor" stroke-width="2" fill="none"/></svg>
+                    <span class="status-badge partial">Partial</span>
+                    <h3 class="module-title">Password Shield</h3>
+                    <p class="module-description">Cryptographic password generation. Strength analysis and leaked checks.</p>
+                </div>
+                <div class="module-card" onclick="navigate('threat-responder')">
+                    <svg class="module-icon" viewBox="0 0 48 48" fill="none"><path d="M24 4L4 14V22C4 33 12 41 24 44C36 41 44 33 44 22V14L24 4Z" stroke="currentColor" stroke-width="2" fill="none"/><path d="M24 18V30" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="24" cy="34" r="2" stroke="currentColor" stroke-width="2" fill="currentColor"/></svg>
+                    <span class="status-badge partial">Partial</span>
+                    <h3 class="module-title">Threat Responder</h3>
+                    <p class="module-description">Automated threat response. SMS/Email alerts and case management.</p>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Modal -->
-    <div id="modal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 class="modal-title" id="modalTitle">Module</h3>
-                <button class="modal-close" onclick="closeModal()">×</button>
-            </div>
-            <div id="modalBody"></div>
-            <div id="modalResult" class="modal-result" style="display:none;"></div>
-        </div>
-    </div>
+    <!-- AI ANALYZER PAGE -->
+    <div id="page-ai-analyzer" class="page"><div class="module-page">
+        <div class="module-page-header"><svg class="module-page-icon" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="16" stroke="currentColor" stroke-width="2" fill="none"/><path d="M24 12V24L32 28" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="32" cy="16" r="4" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="36" cy="20" r="2" stroke="currentColor" stroke-width="2" fill="currentColor"/><circle cx="28" cy="20" r="2" stroke="currentColor" stroke-width="2" fill="currentColor"/></svg>
+            <div class="module-page-info"><h2 class="module-page-title">AI Analyzer</h2><p class="module-page-desc">LLM-powered phishing, social engineering, and fraud detection. Analyzes messages for manipulation techniques and threat patterns.</p>
+            <div class="module-page-badges"><span class="feature-badge"><span class="dot"></span>Message Analysis</span><span class="feature-badge"><span class="dot"></span>URL Check</span><span class="feature-badge"><span class="dot"></span>Quick Scan</span><span class="feature-badge"><span class="dot"></span>URL Extraction</span></div></div></div>
+        <div class="tools-grid">
+            <div class="tool-card"><h3 class="tool-card-title">Message Analysis</h3><textarea class="tool-input" id="aiMsg" placeholder="Enter suspicious message..."></textarea><select class="tool-input" id="aiCtx"><option value="email">Email</option><option value="sms">SMS</option><option value="whatsapp">WhatsApp</option><option value="social_media">Social Media</option></select><button class="tool-btn" onclick="apiCall('/api/v2/ai-analyzer/analyze','POST',{message:gv('aiMsg'),context:gv('aiCtx')},'aiRes',fmtAi)">Analyze</button><div class="tool-result" id="aiRes"></div></div>
+            <div class="tool-card"><h3 class="tool-card-title">URL Security Check</h3><input type="text" class="tool-input" id="aiUrl" placeholder="Enter URL..."><button class="tool-btn" onclick="apiCall('/api/v2/ai-analyzer/check-url','POST',{url:gv('aiUrl')},'aiUrlRes')">Check URL</button><div class="tool-result" id="aiUrlRes"></div></div>
+            <div class="tool-card"><h3 class="tool-card-title">Quick Scan</h3><input type="text" class="tool-input" id="aiQs" placeholder="Enter text or URL..."><button class="tool-btn" onclick="apiCall('/api/v2/ai-analyzer/quick-scan','POST',{content:gv('aiQs')},'aiQsRes')">Scan</button><div class="tool-result" id="aiQsRes"></div></div>
+            <div class="tool-card"><h3 class="tool-card-title">Extract URLs</h3><textarea class="tool-input" id="aiExt" placeholder="Enter text to extract URLs..."></textarea><button class="tool-btn" onclick="apiCall('/api/v2/ai-analyzer/extract-urls','POST',{text:gv('aiExt')},'aiExtRes')">Extract</button><div class="tool-result" id="aiExtRes"></div></div>
+        </div></div></div>
+
+    <!-- PHISHING DETECTOR PAGE -->
+    <div id="page-phishing-detector" class="page"><div class="module-page">
+        <div class="module-page-header"><svg class="module-page-icon" viewBox="0 0 48 48" fill="none"><path d="M24 4L4 12V22C4 32.5 12 40 24 44C36 40 44 32.5 44 22V12L24 4Z" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="24" cy="24" r="8" stroke="currentColor" stroke-width="2" fill="none"/><path d="M24 20V24L27 27" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            <div class="module-page-info"><h2 class="module-page-title">Phishing Detector</h2><p class="module-page-desc">1.2M+ URL threat database with DNS, SSL, and ML-based analysis. Bulk scanning and whitelist management.</p>
+            <div class="module-page-badges"><span class="feature-badge"><span class="dot"></span>URL Check</span><span class="feature-badge"><span class="dot"></span>Whitelist</span><span class="feature-badge"><span class="dot"></span>Search</span><span class="feature-badge"><span class="dot"></span>Statistics</span></div></div></div>
+        <div class="tools-grid">
+            <div class="tool-card"><h3 class="tool-card-title">Check URL</h3><input type="text" class="tool-input" id="phUrl" placeholder="Enter URL to check..."><button class="tool-btn" onclick="apiCall('/api/v2/phishing/check-url','POST',{url:gv('phUrl')},'phRes',v=>`Risk: ${v.risk_score||0}\nStatus: ${v.is_safe?'Safe':'Dangerous'}\nLevel: ${v.risk_level||'?'}`)">Check</button><div class="tool-result" id="phRes"></div></div>
+            <div class="tool-card"><h3 class="tool-card-title">Whitelist</h3><input type="text" class="tool-input" id="wlUrl" placeholder="Enter URL to whitelist..."><button class="tool-btn" onclick="apiCall('/api/v2/phishing/add-site','POST',{url:gv('wlUrl'),is_safe:true},'wlRes')">Add</button><div class="tool-result" id="wlRes"></div></div>
+            <div class="tool-card"><h3 class="tool-card-title">Search DB</h3><input type="text" class="tool-input" id="phSearch" placeholder="Search phishing DB..."><button class="tool-btn" onclick="apiCall('/api/v2/phishing/search?q='+encodeURIComponent(gv('phSearch')),'GET',null,'phSearchRes')">Search</button><div class="tool-result" id="phSearchRes"></div></div>
+            <div class="tool-card"><h3 class="tool-card-title">Statistics</h3><button class="tool-btn" onclick="apiCall('/api/v2/phishing/stats','GET',null,'phStatsRes',v=>{const s=v.stats||{};return `Total: ${s.total_urls||0}\nPhishing: ${s.phishing_count||0}\nSafe: ${s.safe_count||0}`})">Load Stats</button><div class="tool-result" id="phStatsRes"></div></div>
+        </div></div></div>
+
+    <!-- HONEYPOT & IOC PAGE -->
+    <div id="page-honeypot-ioc" class="page"><div class="module-page">
+        <div class="module-page-header"><svg class="module-page-icon" viewBox="0 0 48 48" fill="none"><path d="M24 4C13 4 4 13 4 24C4 35 13 44 24 44C35 44 44 35 44 24C44 13 35 4 24 4Z" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="24" cy="24" r="6" stroke="currentColor" stroke-width="2" fill="none"/><path d="M24 18V24L28 28" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="32" cy="16" r="3" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="16" cy="32" r="3" stroke="currentColor" stroke-width="2" fill="none"/></svg>
+            <div class="module-page-info"><h2 class="module-page-title">Honeypot & IOC</h2><p class="module-page-desc">IP Hunter and IOC collector. AbuseIPDB, URLhaus hourly feeds. Decoy systems and risk scoring.</p>
+            <div class="module-page-badges"><span class="feature-badge"><span class="dot"></span>IOC Stats</span><span class="feature-badge"><span class="dot"></span>IOC Search</span><span class="feature-badge"><span class="dot"></span>Decoy</span><span class="feature-badge"><span class="dot"></span>Honeypot Stats</span></div></div></div>
+        <div class="tools-grid">
+            <div class="tool-card"><h3 class="tool-card-title">IOC Statistics</h3><button class="tool-btn" onclick="apiCall('/api/v2/honeypot/ioc/stats','GET',null,'iocStRes',v=>{const s=v.stats||{};return `Total: ${s.total_iocs||0}\nHigh: ${s.high_risk_count||0}\nMedium: ${s.medium_risk_count||0}\nLow: ${s.low_risk_count||0}`})">Load</button><div class="tool-result" id="iocStRes"></div></div>
+            <div class="tool-card"><h3 class="tool-card-title">Search IOC</h3><input type="text" class="tool-input" id="iocQ" placeholder="Search IOC..."><button class="tool-btn" onclick="apiCall('/api/v2/honeypot/ioc/search?q='+encodeURIComponent(gv('iocQ')),'GET',null,'iocSRes')">Search</button><div class="tool-result" id="iocSRes"></div></div>
+            <div class="tool-card"><h3 class="tool-card-title">Honeypot Stats</h3><button class="tool-btn" onclick="apiCall('/api/v2/honeypot/stats','GET',null,'hpStRes')">Load</button><div class="tool-result" id="hpStRes"></div></div>
+            <div class="tool-card"><h3 class="tool-card-title">Create Decoy</h3><input type="text" class="tool-input" id="decType" placeholder="Type (ssh, http)..."><input type="text" class="tool-input" id="decPort" placeholder="Port..."><button class="tool-btn" onclick="apiCall('/api/v2/honeypot/decoy','POST',{type:gv('decType'),port:parseInt(gv('decPort'))||0},'decRes')">Create</button><div class="tool-result" id="decRes"></div></div>
+        </div></div></div>
+
+    <!-- BREACH INTEL PAGE -->
+    <div id="page-breach-intel" class="page"><div class="module-page">
+        <div class="module-page-header"><svg class="module-page-icon" viewBox="0 0 48 48" fill="none"><rect x="8" y="8" width="32" height="32" rx="4" stroke="currentColor" stroke-width="2" fill="none"/><path d="M16 20H32" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16 28H32" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16 36H28" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            <div class="module-page-info"><h2 class="module-page-title">Breach Intelligence</h2><p class="module-page-desc">Data breach detection. HIBP, Dark Web, zombie detection, attacker profiling, KVKK reports.</p>
+            <div class="module-page-badges"><span class="feature-badge"><span class="dot"></span>Email Check</span><span class="feature-badge"><span class="dot"></span>Full Analysis</span><span class="feature-badge"><span class="dot"></span>Zombie Detector</span><span class="feature-badge"><span class="dot"></span>KVKK Report</span></div></div></div>
+        <div class="tools-grid">
+            <div class="tool-card"><h3 class="tool-card-title">Email Check</h3><input type="email" class="tool-input" id="brEmail" placeholder="Enter email..."><button class="tool-btn" onclick="apiCall('/api/v2/breach/check-email','POST',{email:gv('brEmail')},'brRes',v=>`Breaches: ${v.breach_count||0}\nStatus: ${v.ok?'Found':'Not found'}`)">Check</button><div class="tool-result" id="brRes"></div></div>
+            <div class="tool-card"><h3 class="tool-card-title">Full Analysis</h3><input type="email" class="tool-input" id="brFull" placeholder="Enter email..."><button class="tool-btn" onclick="apiCall('/api/v2/breach/full-analysis','POST',{email:gv('brFull')},'brFullRes')">Analyze</button><div class="tool-result" id="brFullRes"></div></div>
+            <div class="tool-card"><h3 class="tool-card-title">Zombie Detector</h3><input type="email" class="tool-input" id="brZombie" placeholder="Enter email..."><button class="tool-btn" onclick="apiCall('/api/v2/breach/zombie-detector','POST',{email:gv('brZombie')},'brZombieRes')">Detect</button><div class="tool-result" id="brZombieRes"></div></div>
+            <div class="tool-card"><h3 class="tool-card-title">KVKK Report</h3><input type="email" class="tool-input" id="brKvkk" placeholder="Enter email..."><button class="tool-btn" onclick="apiCall('/api/v2/breach/generate-kvkk-report','POST',{email:gv('brKvkk')},'brKvkkRes')">Generate</button><div class="tool-result" id="brKvkkRes"></div></div>
+        </div></div></div>
+
+    <!-- PASSWORD SHIELD PAGE -->
+    <div id="page-password-shield" class="page"><div class="module-page">
+        <div class="module-page-header"><svg class="module-page-icon" viewBox="0 0 48 48" fill="none"><rect x="8" y="16" width="32" height="24" rx="4" stroke="currentColor" stroke-width="2" fill="none"/><path d="M16 16V12C16 8 20 4 24 4C28 4 32 8 32 12V16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="24" cy="28" r="4" stroke="currentColor" stroke-width="2" fill="none"/></svg>
+            <div class="module-page-info"><h2 class="module-page-title">Password Shield</h2><p class="module-page-desc">Cryptographic password generation. Strength analysis, leaked checks, and memorable passwords.</p>
+            <div class="module-page-badges"><span class="feature-badge"><span class="dot"></span>Generate</span><span class="feature-badge"><span class="dot"></span>Strength</span><span class="feature-badge"><span class="dot"></span>Memorable</span><span class="feature-badge"><span class="dot"></span>Categories</span></div></div></div>
+        <div class="tools-grid">
+            <div class="tool-card"><h3 class="tool-card-title">Generate Password</h3><input type="number" class="tool-input" id="pwLen" value="16" min="8" max="64"><div class="checkbox-group"><label class="checkbox-label"><input type="checkbox" id="pwLo" checked> Lower</label><label class="checkbox-label"><input type="checkbox" id="pwUp" checked> Upper</label><label class="checkbox-label"><input type="checkbox" id="pwDi" checked> Digits</label><label class="checkbox-label"><input type="checkbox" id="pwSy" checked> Symbols</label></div><button class="tool-btn" onclick="apiCall('/api/v2/shield/generate','POST',{length:parseInt(gv('pwLen'))||16,lowercase:document.getElementById('pwLo').checked,uppercase:document.getElementById('pwUp').checked,digits:document.getElementById('pwDi').checked,symbols:document.getElementById('pwSy').checked},'pwGenRes',v=>`Password: ${v.password}\nStrength: ${v.meta?.strength||'?'}\nEntropy: ${v.meta?.entropy||'?'}`)">Generate</button><div class="tool-result" id="pwGenRes"></div></div>
+            <div class="tool-card"><h3 class="tool-card-title">Check Strength</h3><input type="text" class="tool-input" id="pwStr" placeholder="Enter password..."><button class="tool-btn" onclick="apiCall('/api/v2/shield/check-strength','POST',{password:gv('pwStr')},'pwStrRes')">Check</button><div class="tool-result" id="pwStrRes"></div></div>
+            <div class="tool-card"><h3 class="tool-card-title">Memorable Password</h3><input type="number" class="tool-input" id="pwMemN" value="4" min="3" max="8"><button class="tool-btn" onclick="apiCall('/api/v2/shield/generate-memorable','POST',{word_count:parseInt(gv('pwMemN'))||4},'pwMemRes')">Generate</button><div class="tool-result" id="pwMemRes"></div></div>
+            <div class="tool-card"><h3 class="tool-card-title">Categories & Stats</h3><button class="tool-btn" onclick="apiCall('/api/v2/shield/categories','GET',null,'pwCatRes')">Categories</button><div class="tool-result" id="pwCatRes"></div><button class="tool-btn" style="margin-top:0.75rem" onclick="apiCall('/api/v2/shield/stats','GET',null,'pwStatsRes')">Stats</button><div class="tool-result" id="pwStatsRes"></div></div>
+        </div></div></div>
+
+    <!-- THREAT RESPONDER PAGE -->
+    <div id="page-threat-responder" class="page"><div class="module-page">
+        <div class="module-page-header"><svg class="module-page-icon" viewBox="0 0 48 48" fill="none"><path d="M24 4L4 14V22C4 33 12 41 24 44C36 41 44 33 44 22V14L24 4Z" stroke="currentColor" stroke-width="2" fill="none"/><path d="M24 18V30" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="24" cy="34" r="2" stroke="currentColor" stroke-width="2" fill="currentColor"/></svg>
+            <div class="module-page-info"><h2 class="module-page-title">Threat Responder</h2><p class="module-page-desc">Automated threat response. SMS/Email alerts, case management, and threat analysis.</p>
+            <div class="module-page-badges"><span class="feature-badge"><span class="dot"></span>Analyze</span><span class="feature-badge"><span class="dot"></span>Create Case</span><span class="feature-badge"><span class="dot"></span>Report</span><span class="feature-badge"><span class="dot"></span>Resources</span></div></div></div>
+        <div class="tools-grid">
+            <div class="tool-card"><h3 class="tool-card-title">Analyze Threat</h3><textarea class="tool-input" id="thData" placeholder="Enter threat data..."></textarea><button class="tool-btn" onclick="apiCall('/api/v2/responder/analyze-threat','POST',{threat_data:gv('thData')},'thRes')">Analyze</button><div class="tool-result" id="thRes"></div></div>
+            <div class="tool-card"><h3 class="tool-card-title">Create Case</h3><input type="text" class="tool-input" id="thTitle" placeholder="Case title..."><textarea class="tool-input" id="thDesc" placeholder="Description..."></textarea><button class="tool-btn" onclick="apiCall('/api/v2/responder/create-case','POST',{title:gv('thTitle'),description:gv('thDesc')},'thCaseRes',v=>`Case ID: ${v.case_id||'Created'}`)">Create</button><div class="tool-result" id="thCaseRes"></div></div>
+            <div class="tool-card"><h3 class="tool-card-title">Generate Report</h3><input type="text" class="tool-input" id="thCaseId" placeholder="Case ID..."><button class="tool-btn" onclick="apiCall('/api/v2/responder/generate-report','POST',{case_id:gv('thCaseId')},'thRepRes')">Generate</button><div class="tool-result" id="thRepRes"></div></div>
+            <div class="tool-card"><h3 class="tool-card-title">Resources</h3><button class="tool-btn" onclick="apiCall('/api/v2/responder/resources','GET',null,'thResRes')">Load</button><div class="tool-result" id="thResRes"></div></div>
+        </div></div></div>
 
     <script>
-        function openModal(type) {
-            const modal = document.getElementById('modal');
-            const modalTitle = document.getElementById('modalTitle');
-            const modalBody = document.getElementById('modalBody');
-            const modalResult = document.getElementById('modalResult');
-            
-            modalResult.style.display = 'none';
-            
-            switch(type) {
-                case 'ai-analyze':
-                    modalTitle.textContent = 'AI Message Analysis';
-                    modalBody.innerHTML = `
-                        <textarea class="modal-input modal-textarea" id="aiMessage" placeholder="Enter the message to analyze..."></textarea>
-                        <select class="modal-input" id="aiContext">
-                            <option value="email">Email</option>
-                            <option value="sms">SMS</option>
-                            <option value="whatsapp">WhatsApp</option>
-                            <option value="social_media">Social Media</option>
-                        </select>
-                        <button class="modal-submit" onclick="analyzeMessage()">Analyze</button>
-                    `;
-                    break;
-                case 'ai-url':
-                    modalTitle.textContent = 'AI URL Check';
-                    modalBody.innerHTML = `
-                        <input type="text" class="modal-input" id="aiUrl" placeholder="Enter URL to check...">
-                        <button class="modal-submit" onclick="checkAIUrl()">Check URL</button>
-                    `;
-                    break;
-                case 'phishing-check':
-                    modalTitle.textContent = 'Phishing URL Check';
-                    modalBody.innerHTML = `
-                        <input type="text" class="modal-input" id="phishingUrl" placeholder="Enter URL to check...">
-                        <button class="modal-submit" onclick="checkPhishingURL()">Check URL</button>
-                    `;
-                    break;
-                case 'phishing-extract':
-                    modalTitle.textContent = 'Extract URLs';
-                    modalBody.innerHTML = `
-                        <textarea class="modal-input modal-textarea" id="extractText" placeholder="Enter text to extract URLs from..."></textarea>
-                        <button class="modal-submit" onclick="extractURLs()">Extract URLs</button>
-                    `;
-                    break;
-                case 'ioc-stats':
-                    modalTitle.textContent = 'IOC Statistics';
-                    modalBody.innerHTML = `
-                        <button class="modal-submit" onclick="viewIOCStats()">View Statistics</button>
-                    `;
-                    break;
-                case 'ioc-search':
-                    modalTitle.textContent = 'Search IOC';
-                    modalBody.innerHTML = `
-                        <input type="text" class="modal-input" id="iocQuery" placeholder="Enter IOC search query...">
-                        <button class="modal-submit" onclick="searchIOC()">Search</button>
-                    `;
-                    break;
-                case 'breach-check':
-                    modalTitle.textContent = 'Breach Email Check';
-                    modalBody.innerHTML = `
-                        <input type="email" class="modal-input" id="breachEmail" placeholder="Enter email to check...">
-                        <button class="modal-submit" onclick="checkBreachEmail()">Check Email</button>
-                    `;
-                    break;
-                case 'breach-full':
-                    modalTitle.textContent = 'Full Breach Analysis';
-                    modalBody.innerHTML = `
-                        <input type="email" class="modal-input" id="fullBreachEmail" placeholder="Enter email for full analysis...">
-                        <button class="modal-submit" onclick="fullBreachAnalysis()">Full Analysis</button>
-                    `;
-                    break;
-                case 'password-generate':
-                    modalTitle.textContent = 'Generate Password';
-                    modalBody.innerHTML = `
-                        <input type="number" class="modal-input" id="pwdLength" value="16" min="8" max="64">
-                        <label style="color:var(--text-secondary); font-size:0.875rem; margin-bottom:0.5rem; display:block;">
-                            <input type="checkbox" id="pwdLower" checked> Lowercase
-                        </label>
-                        <label style="color:var(--text-secondary); font-size:0.875rem; margin-bottom:0.5rem; display:block;">
-                            <input type="checkbox" id="pwdUpper" checked> Uppercase
-                        </label>
-                        <label style="color:var(--text-secondary); font-size:0.875rem; margin-bottom:0.5rem; display:block;">
-                            <input type="checkbox" id="pwdDigits" checked> Digits
-                        </label>
-                        <label style="color:var(--text-secondary); font-size:0.875rem; margin-bottom:0.5rem; display:block;">
-                            <input type="checkbox" id="pwdSymbols" checked> Symbols
-                        </label>
-                        <button class="modal-submit" onclick="generatePassword()">Generate</button>
-                    `;
-                    break;
-                case 'password-strength':
-                    modalTitle.textContent = 'Check Password Strength';
-                    modalBody.innerHTML = `
-                        <input type="text" class="modal-input" id="strengthPassword" placeholder="Enter password to check...">
-                        <button class="modal-submit" onclick="checkPasswordStrength()">Check Strength</button>
-                    `;
-                    break;
-                case 'threat-analyze':
-                    modalTitle.textContent = 'Analyze Threat';
-                    modalBody.innerHTML = `
-                        <textarea class="modal-input modal-textarea" id="threatData" placeholder="Enter threat data to analyze..."></textarea>
-                        <button class="modal-submit" onclick="analyzeThreat()">Analyze</button>
-                    `;
-                    break;
-                case 'threat-case':
-                    modalTitle.textContent = 'Create Support Case';
-                    modalBody.innerHTML = `
-                        <input type="text" class="modal-input" id="caseTitle" placeholder="Case title...">
-                        <textarea class="modal-input modal-textarea" id="caseDescription" placeholder="Case description..."></textarea>
-                        <button class="modal-submit" onclick="createCase()">Create Case</button>
-                    `;
-                    break;
-            }
-            
-            modal.classList.add('active');
+    function gv(id) { return document.getElementById(id)?.value || ''; }
+    function $(id) { return document.getElementById(id); }
+    function fmtAi(v) { const a=v.security_assessment||{}; return `Risk: ${a.risk_level||'Unknown'}\nScore: ${a.score||0}/100\n\n${v.summary||'No analysis'}`; }
+
+    async function apiCall(url, method, body, resultId, fmt) {
+        const el = $(resultId);
+        if (!el) return;
+        el.className = 'tool-result visible';
+        el.innerHTML = '<span class="spinner"></span> Processing...';
+        try {
+            const opts = { method, headers: { 'Content-Type': 'application/json' } };
+            if (body && method !== 'GET') opts.body = JSON.stringify(body);
+            const res = await fetch(url, opts);
+            const data = await res.json();
+            el.className = 'tool-result visible success';
+            el.textContent = fmt ? fmt(data) : JSON.stringify(data, null, 2);
+        } catch (e) {
+            el.className = 'tool-result visible error';
+            el.textContent = 'Error: ' + e.message;
         }
+    }
 
-        function closeModal() {
-            document.getElementById('modal').classList.remove('active');
-        }
+    function navigate(page) {
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        const target = $('page-' + page);
+        if (target) target.classList.add('active');
+        else $('page-home').classList.add('active');
 
-        function showModalResult(result) {
-            const modalResult = document.getElementById('modalResult');
-            modalResult.style.display = 'block';
-            modalResult.textContent = result;
-        }
-
-        async function analyzeMessage() {
-            const message = document.getElementById('aiMessage').value;
-            const context = document.getElementById('aiContext').value;
-            
-            if (!message || message.length < 10) {
-                showModalResult('Please enter at least 10 characters.');
-                return;
-            }
-
-            try {
-                const res = await fetch('/api/v2/ai-analyzer/analyze', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message, context })
-                });
-                const data = await res.json();
-                const assessment = data.security_assessment || {};
-                showModalResult(`Risk Level: ${assessment.risk_level || 'Unknown'}\nScore: ${assessment.score || 0}/100\n\n${data.summary || 'No analysis available'}`);
-            } catch (e) {
-                showModalResult('Error: ' + e.message);
-            }
-        }
-
-        async function checkAIUrl() {
-            const url = document.getElementById('aiUrl').value;
-            if (!url) {
-                showModalResult('Please enter a URL.');
-                return;
-            }
-
-            try {
-                const res = await fetch('/api/v2/ai-analyzer/check-url', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url })
-                });
-                const data = await res.json();
-                showModalResult(JSON.stringify(data, null, 2));
-            } catch (e) {
-                showModalResult('Error: ' + e.message);
-            }
-        }
-
-        async function checkPhishingURL() {
-            const url = document.getElementById('phishingUrl').value;
-            if (!url) {
-                showModalResult('Please enter a URL.');
-                return;
-            }
-
-            try {
-                const res = await fetch('/api/v2/phishing/check-url', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url })
-                });
-                const data = await res.json();
-                showModalResult(`Risk Score: ${data.risk_score}\nStatus: ${data.is_safe ? 'Safe' : 'Dangerous'}\nRisk Level: ${data.risk_level}`);
-            } catch (e) {
-                showModalResult('Error: ' + e.message);
-            }
-        }
-
-        async function extractURLs() {
-            const text = document.getElementById('extractText').value;
-            if (!text) {
-                showModalResult('Please enter text.');
-                return;
-            }
-
-            try {
-                const res = await fetch('/api/v2/ai-analyzer/extract-urls', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text })
-                });
-                const data = await res.json();
-                showModalResult(JSON.stringify(data, null, 2));
-            } catch (e) {
-                showModalResult('Error: ' + e.message);
-            }
-        }
-
-        async function viewIOCStats() {
-            try {
-                const res = await fetch('/api/v2/honeypot/ioc/stats');
-                const data = await res.json();
-                const stats = data.stats || {};
-                showModalResult(`Total IOCs: ${stats.total_iocs || 0}\nHigh Risk: ${stats.high_risk_count || 0}\nMedium Risk: ${stats.medium_risk_count || 0}\nLow Risk: ${stats.low_risk_count || 0}\nLast Update: ${stats.last_update || 'Unknown'}`);
-            } catch (e) {
-                showModalResult('Error: ' + e.message);
-            }
-        }
-
-        async function searchIOC() {
-            const query = document.getElementById('iocQuery').value;
-            if (!query || query.length < 3) {
-                showModalResult('Please enter at least 3 characters.');
-                return;
-            }
-
-            try {
-                const res = await fetch(`/api/v2/honeypot/ioc/search?q=${encodeURIComponent(query)}`);
-                const data = await res.json();
-                showModalResult(`${data.total || 0} results found\n\n${JSON.stringify(data.results || [], null, 2).slice(0, 500)}`);
-            } catch (e) {
-                showModalResult('Error: ' + e.message);
-            }
-        }
-
-        async function checkBreachEmail() {
-            const email = document.getElementById('breachEmail').value;
-            if (!email) {
-                showModalResult('Please enter an email.');
-                return;
-            }
-
-            try {
-                const res = await fetch('/api/v2/breach/check-email', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email })
-                });
-                const data = await res.json();
-                showModalResult(`Breach Count: ${data.breach_count || 0}\nStatus: ${data.ok ? 'Found in breaches' : 'Not found'}`);
-            } catch (e) {
-                showModalResult('Error: ' + e.message);
-            }
-        }
-
-        async function fullBreachAnalysis() {
-            const email = document.getElementById('fullBreachEmail').value;
-            if (!email) {
-                showModalResult('Please enter an email.');
-                return;
-            }
-
-            try {
-                const res = await fetch('/api/v2/breach/full-analysis', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email })
-                });
-                const data = await res.json();
-                showModalResult(JSON.stringify(data, null, 2));
-            } catch (e) {
-                showModalResult('Error: ' + e.message);
-            }
-        }
-
-        async function generatePassword() {
-            const length = parseInt(document.getElementById('pwdLength').value) || 16;
-            const lowercase = document.getElementById('pwdLower').checked;
-            const uppercase = document.getElementById('pwdUpper').checked;
-            const digits = document.getElementById('pwdDigits').checked;
-            const symbols = document.getElementById('pwdSymbols').checked;
-
-            try {
-                const res = await fetch('/api/v2/shield/generate', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ length, lowercase, uppercase, digits, symbols })
-                });
-                const data = await res.json();
-                showModalResult(`Password: ${data.password}\n\nStrength: ${data.meta?.strength || 'Unknown'}\nEntropy: ${data.meta?.entropy || 'Unknown'}`);
-            } catch (e) {
-                showModalResult('Error: ' + e.message);
-            }
-        }
-
-        async function checkPasswordStrength() {
-            const password = document.getElementById('strengthPassword').value;
-            if (!password) {
-                showModalResult('Please enter a password.');
-                return;
-            }
-
-            try {
-                const res = await fetch('/api/v2/shield/check-strength', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ password })
-                });
-                const data = await res.json();
-                showModalResult(JSON.stringify(data, null, 2));
-            } catch (e) {
-                showModalResult('Error: ' + e.message);
-            }
-        }
-
-        async function analyzeThreat() {
-            const threatData = document.getElementById('threatData').value;
-            if (!threatData) {
-                showModalResult('Please enter threat data.');
-                return;
-            }
-
-            try {
-                const res = await fetch('/api/v2/threat-responder/analyze-threat', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ threat_data: threatData })
-                });
-                const data = await res.json();
-                showModalResult(JSON.stringify(data, null, 2));
-            } catch (e) {
-                showModalResult('Error: ' + e.message);
-            }
-        }
-
-        async function createCase() {
-            const title = document.getElementById('caseTitle').value;
-            const description = document.getElementById('caseDescription').value;
-            
-            if (!title || !description) {
-                showModalResult('Please fill in all fields.');
-                return;
-            }
-
-            try {
-                const res = await fetch('/api/v2/threat-responder/create-case', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ title, description })
-                });
-                const data = await res.json();
-                showModalResult(`Case Created: ${data.case_id || 'Unknown'}`);
-            } catch (e) {
-                showModalResult('Error: ' + e.message);
-            }
-        }
-
-        // Close modal on outside click
-        document.getElementById('modal').addEventListener('click', function(e) {
-            if (e.target === this) closeModal();
+        document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+        document.querySelectorAll('.nav-link').forEach(l => {
+            if (l.textContent.trim().toLowerCase().includes(page === 'home' ? 'dashboard' : page.split('-')[0])) l.classList.add('active');
         });
 
-        // Close modal on escape key
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') closeModal();
-        });
+        history.pushState(null, '', '/' + (page === 'home' ? '' : page));
+        window.scrollTo(0, 0);
+    }
+
+    window.addEventListener('popstate', () => {
+        const path = window.location.pathname.slice(1) || 'home';
+        navigate(path);
+    });
+
+    window.addEventListener('load', () => {
+        const path = window.location.pathname.slice(1) || 'home';
+        navigate(path);
+    });
     </script>
 </body>
 </html>
