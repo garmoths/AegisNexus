@@ -117,11 +117,19 @@ class AIAnalyzerEngine:
             else:
                 total_risk = 15
 
-        # Güvenlik durumu
-        if total_risk >= 70:
+        # Güvenlik durumu - eğer LLM phishing/scam dediyse direkt TEHLİKELİ
+        is_phishing_flag = llm_analysis.get("is_phishing", False)
+        is_scam_flag = llm_analysis.get("is_scam", False)
+        threat_level_str = llm_analysis.get("threat_level", "low")
+        
+        if is_phishing_flag or is_scam_flag or threat_level_str in ("critical", "high"):
             safety_status = "TEHLİKELİ"
             action_required = "ACİL"
-        elif total_risk >= 40:
+            total_risk = max(total_risk, 75)  # Override to minimum 75
+        elif total_risk >= 50:
+            safety_status = "TEHLİKELİ"
+            action_required = "DİKKAT"
+        elif total_risk >= 25:
             safety_status = "ŞÜPHELİ"
             action_required = "DİKKAT"
         else:
@@ -145,7 +153,7 @@ class AIAnalyzerEngine:
                 "urls_found": len(url_results)
             },
             "security_assessment": {
-                "risk_level": "high" if total_risk >= 70 else ("medium" if total_risk >= 40 else "low"),
+                "risk_level": "critical" if is_phishing_flag or is_scam_flag or threat_level_str == "critical" else ("high" if total_risk >= 60 else ("medium" if total_risk >= 25 else "low")),
                 "score": round(total_risk, 2),
                 "safety_status": safety_status,
                 "action_required": action_required,
@@ -201,10 +209,12 @@ class AIAnalyzerEngine:
                 })
         
         # Genel öneriler
-        if llm_analysis.get("is_phishing"):
+        if llm_analysis.get("is_phishing") or llm_analysis.get("is_scam"):
             recommendations.append({
-                "priority": "HIGH",
-                "action": "KİMLİK AVI TESPİTİ",
+                "priority": "CRITICAL",
+                "action": "🚨 KİMLİK AVI TESPİT EDİLDİ",
+                "description": "Bu mesaj %100 phishing/scam özellikleri taşıyor! KESİNLİKLE linke tıklamayın, bilgi girmeyin, yanıt vermeyin."
+            })
                 "description": "Bu mesaj kimlik avı (phishing) özellikleri taşıyor. "
                             "Kullanıcı adı, şifre veya kredi kartı bilgisi istiyorsa ASLA paylaşmayın."
             })
@@ -242,10 +252,15 @@ class AIAnalyzerEngine:
         """Kısa ve öz güvenlik özeti oluştur"""
 
         # Tehdit durumu
-        if total_risk >= 70:
+        is_phishing_flag = llm_analysis.get("is_phishing", False)
+        is_scam_flag = llm_analysis.get("is_scam", False)
+        threat_level_str = llm_analysis.get("threat_level", "low")
+        
+        if is_phishing_flag or is_scam_flag or threat_level_str in ("critical", "high") or total_risk >= 50:
             status = "⚠️ TEHLİKELİ"
             action = "Hemen silin ve göndereni engelleyin"
-        elif total_risk >= 40:
+            total_risk = max(total_risk, 75)
+        elif total_risk >= 25:
             status = "⚡ ŞÜPHELİ"
             action = "Göndereni doğrulamadan işlem yapmayın"
         else:
@@ -254,7 +269,7 @@ class AIAnalyzerEngine:
 
         # Tehditler
         threats = llm_analysis.get("identified_threats", [])
-        threat_text = ", ".join(threats[:3]) if threats else "Tehdit tespit edilmedi"
+        threat_text = ", ".join(threats[:3]) if threats and len(threats) > 0 else "Tehdit tespit edilmedi"
 
         # URL durumu
         url_count = len(url_results)
