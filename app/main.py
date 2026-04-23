@@ -60,10 +60,18 @@ LLM_REPORT_FILE = BASE_DIR / "frontend" / "templates" / "llm_report.html"
 AI_ANALYZER_DEMO_FILE = BASE_DIR / "frontend" / "templates" / "ai-analyzer-demo.html"
 DASHBOARD_FILE = BASE_DIR / "frontend" / "templates" / "dashboard.html"
 
+REACT_BUILD_DIR = BASE_DIR / "frontend-react" / "dist"
+
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 else:
     logger.warning("Static klasör yok: %s", STATIC_DIR)
+
+if REACT_BUILD_DIR.exists():
+    app.mount("/react", StaticFiles(directory=str(REACT_BUILD_DIR), html=True), name="react")
+    logger.info("React build mount edildi: %s", REACT_BUILD_DIR)
+else:
+    logger.warning("React build klasörü yok: %s", REACT_BUILD_DIR)
 
 # 6 Modüler Router
 app.include_router(phishing_detector_router, prefix="/api/v2/phishing")
@@ -72,6 +80,15 @@ app.include_router(breach_intel_router, prefix="/api/v2/breach")
 app.include_router(password_shield_router, prefix="/api/v2/shield")
 app.include_router(threat_responder_router, prefix="/api/v2/responder")
 app.include_router(ai_analyzer_router, prefix="/api/v2/ai-analyzer")
+
+
+@app.get("/app")
+async def read_react_app():
+    """React SPA uygulaması"""
+    react_index = REACT_BUILD_DIR / "index.html"
+    if react_index.exists():
+        return FileResponse(react_index)
+    return {"Hata": "React build index.html bulunamadı."}
 
 
 @app.get("/")
@@ -112,3 +129,5 @@ async def dashboard_page():
         "Hata": "dashboard.html bulunamadı.",
         "Aranan_Yol": str(DASHBOARD_FILE),
     }
+
+
