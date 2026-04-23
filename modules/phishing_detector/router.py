@@ -257,10 +257,30 @@ def fetch_all_phishing_data(db: Session = Depends(get_db)):
 
 
 @router.get("/history")
-def get_phishing_scan_history(limit: int = 50, days: int = 30):
-    """URL tarama geçmişini getir (cache_db'den)"""
+def get_phishing_scan_history(limit: int = 50, days: int = 30, db: Session = Depends(get_db)):
+    """URL tarama geçmişini getir (gerçek PhishingURL tablosundan)"""
     try:
-        history = get_phishing_history(limit=limit, days=days)
+        # Use real PhishingURL table for recent phishing data
+        cutoff_date = datetime.now() - timedelta(days=days)
+        
+        items = db.query(PhishingURL).filter(
+            PhishingURL.created_at >= cutoff_date
+        ).order_by(PhishingURL.created_at.desc()).limit(limit).all()
+        
+        history = []
+        for item in items:
+            history.append({
+                'url': item.url,
+                'domain': item.domain_norm or item.url,
+                'risk_score': 85,  # Default high risk for known phishing
+                'risk_level': 'high',
+                'is_safe': False,
+                'sources': ['phishfeed'],  # Default source
+                'checked_at': item.created_at.isoformat() if item.created_at else datetime.now().isoformat(),
+                'phish_id': item.phish_id,
+                'target': item.target or 'Phishing'
+            })
+        
         return {
             "history": history,
             "limit": limit,
@@ -269,31 +289,65 @@ def get_phishing_scan_history(limit: int = 50, days: int = 30):
         }
     except Exception as e:
         logger.error(f"History fetch error: {e}")
-        return {
-            "history": [],
-            "limit": limit,
-            "days": days,
-            "module": "01_phishing_detector"
-        }
+        # Fallback to cache if main DB fails
+        try:
+            history = get_phishing_history(limit=limit, days=days)
+            return {
+                "history": history,
+                "limit": limit,
+                "days": days,
+                "module": "01_phishing_detector"
+            }
+        except:
+            return {
+                "history": [],
+                "limit": limit,
+                "days": days,
+                "module": "01_phishing_detector"
+            }
 
 
 @router.get("/latest")
-def get_latest_phishing_urls(limit: int = 20):
-    """Son phishing URL'leri getir (cache_db'den)"""
+def get_latest_phishing_urls(limit: int = 20, db: Session = Depends(get_db)):
+    """Son phishing URL'leri getir (gerçek PhishingURL tablosundan)"""
     try:
-        latest = get_latest_phishing(limit=limit)
+        # Use real PhishingURL table instead of cache
+        items = db.query(PhishingURL).order_by(PhishingURL.id.desc()).limit(limit).all()
+        
+        latest = []
+        for item in items:
+            latest.append({
+                'url': item.url,
+                'domain': item.domain_norm or item.url,
+                'risk_score': 85,  # Default high risk for known phishing
+                'submission_time': item.created_at.isoformat() if item.created_at else datetime.now().isoformat(),
+                'target': item.target or 'Phishing',
+                'phish_id': item.phish_id,
+                'status': item.status
+            })
+        
         return {
             "latest": latest,
             "limit": limit,
+            "total": db.query(PhishingURL).count(),
             "module": "01_phishing_detector"
         }
     except Exception as e:
         logger.error(f"Latest fetch error: {e}")
-        return {
-            "latest": [],
-            "limit": limit,
-            "module": "01_phishing_detector"
-        }
+        # Fallback to cache if main DB fails
+        try:
+            latest = get_latest_phishing(limit=limit)
+            return {
+                "latest": latest,
+                "limit": limit,
+                "module": "01_phishing_detector"
+            }
+        except:
+            return {
+                "latest": [],
+                "limit": limit,
+                "module": "01_phishing_detector"
+            }
 
 
 @router.get("/threat-types")
