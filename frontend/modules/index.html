@@ -1167,6 +1167,13 @@
             });
             const data = await res.json();
             displayPhishResult(data);
+            
+            // Refresh history and other components after successful scan
+            setTimeout(() => {
+                loadPhishingHistory();
+                loadThreatFeed();
+                loadThreatTypes();
+            }, 500);
         } catch (e) {
             result.innerHTML = `<div class="tool-result visible error">Hata: ${e.message}</div>`;
         } finally {
@@ -1179,8 +1186,9 @@
         const result = $('phResult');
         const score = data.risk_score || 0;
         const riskLevel = data.risk_level || 'unknown';
-        const riskMap = { low: 'dusuk', medium: 'orta', high: 'yuksek', critical: 'kritik' };
+        const riskMap = { low: 'dusuk', medium: 'orta', high: 'yuksek', critical: 'kritik', safe: 'guvenli' };
         const riskClass = riskMap[riskLevel] || 'bilinmeyen';
+        const analysis = data.analysis || {};
 
         result.innerHTML = `
             <div class="phish-result-card">
@@ -1199,17 +1207,57 @@
                     ${data.sources?.includes('abuseipdb') ? '<span class="source-tag abuse">AbuseIPDB</span>' : ''}
                     ${data.sources?.includes('urlscan') ? '<span class="source-tag urlscan">URLScan</span>' : ''}
                 </div>
+                
+                ${analysis.summary ? `
+                    <div class="analysis-summary" style="margin:1rem 0;padding:1rem;background:rgba(255,255,255,0.05);border-radius:8px">
+                        <h4 style="font-size:0.875rem;font-weight:600;margin-bottom:0.5rem">Analiz Özeti</h4>
+                        <p style="font-size:0.8125rem;line-height:1.5;color:var(--text-secondary)">${analysis.summary}</p>
+                    </div>
+                ` : ''}
+                
+                ${analysis.threat_details && analysis.threat_details.length > 0 ? `
+                    <div class="threat-details" style="margin:1rem 0">
+                        <h4 style="font-size:0.875rem;font-weight:600;margin-bottom:0.5rem">Tehdit Detayları</h4>
+                        <div style="font-size:0.8125rem;line-height:1.4">
+                            ${analysis.threat_details.map(detail => `<div style="margin:0.25rem 0">• ${detail}</div>`).join('')}
+                        </div>
+                    </div>
+                ` : ''}
+                
+                ${analysis.recommendations && analysis.recommendations.length > 0 ? `
+                    <div class="recommendations" style="margin:1rem 0">
+                        <h4 style="font-size:0.875rem;font-weight:600;margin-bottom:0.5rem">Öneriler</h4>
+                        <div style="font-size:0.8125rem;line-height:1.4">
+                            ${analysis.recommendations.map(rec => `<div style="margin:0.25rem 0">${rec}</div>`).join('')}
+                        </div>
+                    </div>
+                ` : ''}
+                
+                <div class="scan-meta" style="margin-top:1rem;padding-top:1rem;border-top:1px solid rgba(255,255,255,0.1)">
+                    <div style="font-size:0.75rem;color:var(--text-muted)">
+                        🕐 ${new Date().toLocaleString('tr')} • 🔍 ${data.sources?.length || 0} kaynak kontrol edildi
+                    </div>
+                </div>
             </div>
         `;
     }
 
     async function loadPhishingHistory() {
+        const grid = $('phHistory');
+        grid.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text-muted)"><span class="spinner"></span> Yükleniyor...</div>';
+        
         try {
             const res = await fetch('/api/v2/phishing/history?limit=12');
             const data = await res.json();
-            const grid = $('phHistory');
+            
             grid.innerHTML = '';
-            data.history?.slice(0, 12).forEach(item => {
+            
+            if (!data.history || data.history.length === 0) {
+                grid.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text-muted)">📝 Henüz tarama geçmişi bulunmuyor</div>';
+                return;
+            }
+            
+            data.history.slice(0, 12).forEach(item => {
                 const card = document.createElement('div');
                 card.className = 'history-card';
                 const domain = new URL(item.url).hostname;
@@ -1227,20 +1275,31 @@
                     $('phUrl').value = item.url;
                     startPhishScan();
                 };
+                card.style.cursor = 'pointer';
                 grid.appendChild(card);
             });
         } catch (e) {
             console.warn('History load failed:', e);
+            grid.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--danger)">❌ Tarama geçmişi yüklenemedi</div>';
         }
     }
 
     async function loadThreatFeed() {
+        const feed = $('phFeed');
+        feed.innerHTML = '<div style="text-align:center;padding:1rem;color:var(--text-muted)"><span class="spinner"></span> Yükleniyor...</div>';
+        
         try {
             const res = await fetch('/api/v2/phishing/latest?limit=8');
             const data = await res.json();
-            const feed = $('phFeed');
+            
             feed.innerHTML = '';
-            data.latest?.slice(0, 8).forEach(item => {
+            
+            if (!data.latest || data.latest.length === 0) {
+                feed.innerHTML = '<div style="text-align:center;padding:1rem;color:var(--text-muted)">📊 Henüz tehdit verisi bulunmuyor</div>';
+                return;
+            }
+            
+            data.latest.slice(0, 8).forEach(item => {
                 const div = document.createElement('div');
                 div.className = 'threat-feed-item';
                 const domain = new URL(item.url).hostname;
@@ -1255,30 +1314,57 @@
             });
         } catch (e) {
             console.warn('Threat feed load failed:', e);
+            feed.innerHTML = '<div style="text-align:center;padding:1rem;color:var(--danger)">❌ Tehdit verileri yüklenemedi</div>';
         }
     }
 
     async function loadThreatTypes() {
+        const svg = $('donutSvg');
+        const legend = $('donutLegend');
+        
+        // Show loading state
+        svg.innerHTML = '<text x="90" y="90" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="14">Yükleniyor...</text>';
+        legend.innerHTML = '<div style="text-align:center;color:var(--text-muted);font-size:0.875rem">Veri yükleniyor...</div>';
+        
         try {
             const res = await fetch('/api/v2/phishing/threat-types');
             const data = await res.json();
             renderDonutChart(data.types || {});
         } catch (e) {
             console.warn('Threat types load failed:', e);
+            svg.innerHTML = '<text x="90" y="90" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="14">Hata</text>';
+            legend.innerHTML = '<div style="text-align:center;color:var(--danger);font-size:0.875rem">❌ Grafik yüklenemedi</div>';
         }
     }
 
     function renderDonutChart(data) {
         const svg = $('donutSvg');
         const legend = $('donutLegend');
+        
+        // Clear previous content
+        svg.innerHTML = '';
+        legend.innerHTML = '';
+        
         const total = Object.values(data).reduce((a,b) => a+b, 0);
         $('donutTotal').textContent = total;
 
+        // Add background circle
+        const bgCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        bgCircle.setAttribute('cx', '90');
+        bgCircle.setAttribute('cy', '90');
+        bgCircle.setAttribute('r', '70');
+        bgCircle.setAttribute('fill', 'none');
+        bgCircle.setAttribute('stroke', 'rgba(255,255,255,0.05)');
+        bgCircle.setAttribute('stroke-width', '24');
+        svg.appendChild(bgCircle);
+
         const colors = ['#FF6B00', '#4ade80', '#60a5fa', '#fbbf24', '#f87171'];
         let offset = 0;
-        svg.innerHTML = '<circle cx="90" cy="90" r="70" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="24"/>';
 
-        Object.entries(data).forEach(([type, count], i) => {
+        // Sort data by count for better visualization
+        const sortedData = Object.entries(data).sort(([,a], [,b]) => b - a);
+
+        sortedData.forEach(([type, count], i) => {
             const percent = count / total;
             const length = 2 * Math.PI * 70;
             const dashLength = length * percent;
@@ -1294,15 +1380,28 @@
             circle.setAttribute('stroke-dasharray', `${dashLength} ${length}`);
             circle.setAttribute('stroke-dashoffset', dashOffset);
             circle.setAttribute('transform', 'rotate(-90 90 90)');
+            circle.style.transition = 'stroke-dasharray 0.5s ease-in-out';
             svg.appendChild(circle);
 
             const item = document.createElement('div');
             item.className = 'legend-item';
-            item.innerHTML = `<div class="legend-dot" style="background:${colors[i % colors.length]}"></div><span>${type}</span>`;
+            item.innerHTML = `
+                <div class="legend-dot" style="background:${colors[i % colors.length]}"></div>
+                <div class="legend-info">
+                    <span class="legend-label">${type}</span>
+                    <span class="legend-count">${count} (${Math.round(percent * 100)}%)</span>
+                </div>
+            `;
             legend.appendChild(item);
 
             offset += percent;
         });
+
+        // Add empty state if no data
+        if (total === 0) {
+            svg.innerHTML = '<text x="90" y="90" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="14">Veri Yok</text>';
+            legend.innerHTML = '<div style="color:rgba(255,255,255,0.5);font-size:0.875rem;text-align:center;padding:1rem">Henüz tehdit verisi bulunmuyor</div>';
+        }
     }
 
     function loadHomeStats() {

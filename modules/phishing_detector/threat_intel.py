@@ -777,6 +777,13 @@ def run_threat_intelligence(url):
     results["risk_score"] = risk_score
     results["risk_level"] = risk_level
     results["is_safe"] = is_safe
+    
+    # Detaylı analiz sonuçları
+    results["analysis"] = {
+        "summary": generate_analysis_summary(results),
+        "recommendations": generate_recommendations(results),
+        "threat_details": extract_threat_details(results)
+    }
 
     # Validated flag - tüm API'ler başarılıysa TRUE
     results["validated"] = all_available
@@ -798,3 +805,99 @@ def run_threat_intelligence(url):
         logger.error(f"Failed to cache URL to DB: {e}")
     
     return results
+
+
+def generate_analysis_summary(results):
+    """Detaylı analiz özeti oluştur"""
+    score = results.get("risk_score", 0)
+    level = results.get("risk_level", "unknown")
+    findings = results.get("findings", [])
+    sources = results.get("sources", [])
+    
+    if level == "safe":
+        return f"✅ URL güvenli görünüyor. {len(sources)} güvenlik kaynağı tarafından kontrol edildi ve herhangi bir tehdit tespit edilmedi."
+    elif level == "low":
+        return f"⚠️ Düşük risk seviyesi. {len(sources)} kaynaktan {len(findings)} şüpheli bulgu tespit edildi. Dikkatli olunması önerilir."
+    elif level == "medium":
+        return f"🔴 Orta risk seviyesi. {len(sources)} kaynaktan {len(findings)} bulgu tespit edildi. URL potansiyel tehdit içerebilir."
+    elif level == "high":
+        return f"🚨 Yüksek risk seviyesi! {len(sources)} kaynaktan {len(findings)} tehlikeli bulgu tespit edildi. Bu URL'den kaçınılmalıdır."
+    elif level == "critical":
+        return f"💀 KRİTİK TEHDİT! {len(sources)} kaynaktan {len(findings)} tehlikeli bulgu tespit edildi. URL kesinlikle güvenli değildir."
+    else:
+        return f"❓ Analiz yapılamadı. {len(sources)} kaynak kontrol edildi ancak skor hesaplanamadı."
+
+
+def generate_recommendations(results):
+    """Güvenlik önerileri oluştur"""
+    level = results.get("risk_level", "unknown")
+    score = results.get("risk_score", 0)
+    
+    if level == "safe":
+        return [
+            "✅ URL güvenli görünmektedir",
+            "📧 E-postada gelen linkler için yine de dikkatli olun",
+            "🔒 Her zaman HTTPS bağlantısını kontrol edin"
+        ]
+    elif level == "low":
+        return [
+            "⚠️ URL'ye dikkatli yaklaşın",
+            "🔍 Ek güvenlik kontrolü yapın",
+            "📧 Gönderenin doğruluğunu teyit edin"
+        ]
+    elif level == "medium":
+        return [
+            "🚫 Bu URL'ye tıklamaktan kaçının",
+            "🔒 Antivirüs programınızı güncelleyin",
+            "📞 Şüpheli durumda IT departmanınıza bildirin"
+        ]
+    elif level in ["high", "critical"]:
+        return [
+            "🛑 KESİNLİKLE TIKLAMAYIN!",
+            "🗑️ E-postayı hemen silin",
+            "🚨 IT güvenlik ekibine bildirin",
+            "🔒 Şifrelerinizi değiştirin",
+            "📱 Cihazınızda virüs taraması yapın"
+        ]
+    else:
+        return [
+            "❓ Analiz tamamlanamadı",
+            "🔄 Daha sonra tekrar deneyin",
+            "🔍 Manuel kontrol yapın"
+        ]
+
+
+def extract_threat_details(results):
+    """Tehdit detaylarını çıkar"""
+    details = []
+    
+    # VirusTotal detayları
+    vt = results.get("virustotal", {})
+    if vt.get("available"):
+        if vt.get("malicious", 0) > 0:
+            details.append(f"🛡️ VirusTotal: {vt['malicious']}/{vt.get('total', 0)} motor tehlikeli")
+        if vt.get("suspicious", 0) > 0:
+            details.append(f"⚠️ VirusTotal: {vt['suspicious']} motor şüpheli")
+    
+    # Google Safe Browsing detayları
+    gsb = results.get("google_safe_browsing", {})
+    if gsb.get("available") and gsb.get("threat"):
+        details.append(f"🔍 Google: {gsb.get('threat_type', 'Bilinmeyen tehdit')}")
+    
+    # AbuseIPDB detayları
+    abuse = results.get("abuseipdb", {})
+    if abuse.get("available"):
+        if abuse.get("abuse_score", 0) > 0:
+            details.append(f"📊 AbuseIPDB: %{abuse['abuse_score']} suistimal skoru")
+        if abuse.get("total_reports", 0) > 0:
+            details.append(f"📝 AbuseIPDB: {abuse['total_reports']} rapor")
+    
+    # URLScan detayları
+    urlscan = results.get("urlscan", {})
+    if urlscan.get("available"):
+        if urlscan.get("malicious"):
+            details.append("⚡ URLScan: Zararlı olarak işaretlendi")
+        elif urlscan.get("score", 0) > 0:
+            details.append(f"📈 URLScan: Şüpheli skor {urlscan['score']}")
+    
+    return details
