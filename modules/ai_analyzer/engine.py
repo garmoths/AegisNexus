@@ -238,7 +238,7 @@ class AIAnalyzerEngine:
             })
         
         # Güvenli ise
-        if ml_conf < 15 and not recommendations:
+        if ml_conf < 12 and not recommendations:
             recommendations.append({
                 "priority": "LOW",
                 "action": "GÜVENLİ",
