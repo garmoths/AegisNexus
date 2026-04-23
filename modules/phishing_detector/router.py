@@ -17,7 +17,7 @@ from app.models import PhishingURL
 from .scanner import calculate_safety_score
 from .url_normalize import normalize_url_record
 from .fetch_all_sources import fetch_all_sources
-from .cache_db import get_phishing_history, get_latest_phishing, get_threat_type_distribution, get_phishing_stats
+from .cache_db import get_phishing_history, get_latest_phishing, get_threat_type_distribution, get_phishing_stats, save_check_url_result
 
 logger = logging.getLogger(__name__)
 
