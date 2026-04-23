@@ -19,6 +19,8 @@ from datetime import datetime, timedelta
 from functools import wraps
 from pathlib import Path
 
+from .cache_db import write_phishing_url, write_ioc
+
 BASE_DIR = Path(__file__).resolve().parents[2]
 load_dotenv(BASE_DIR / ".env")
 logger = logging.getLogger(__name__)
@@ -755,8 +757,44 @@ def run_threat_intelligence(url):
         logger.error(f"AIPDB err: {e}")
         all_available = False
 
+    # Risk skorunu ve seviyesini hesapla
+    risk_score = min(100, results["total_penalty"])
+    
+    if risk_score >= 70:
+        risk_level = "critical"
+    elif risk_score >= 50:
+        risk_level = "high"
+    elif risk_score >= 30:
+        risk_level = "medium"
+    elif risk_score >= 10:
+        risk_level = "low"
+    else:
+        risk_level = "safe"
+    
+    is_safe = risk_score < 30
+    
+    # Sonuçları ekle
+    results["risk_score"] = risk_score
+    results["risk_level"] = risk_level
+    results["is_safe"] = is_safe
+
     # Validated flag - tüm API'ler başarılıysa TRUE
     results["validated"] = all_available
     logger.debug(f"Threat Intel Result - Validated: {all_available}, Sources: {len(results['sources'])}")
+    
+    # Cache'e yaz - persistent storage
+    try:
+        sources_list = [s.get("name", "").lower() for s in results["sources"]]
+        write_phishing_url(
+            url=url,
+            risk_score=results["risk_score"],
+            risk_level=results["risk_level"],
+            is_safe=results["is_safe"],
+            sources=sources_list,
+            raw_data=results
+        )
+        logger.debug(f"URL cached to persistent DB: {url}")
+    except Exception as e:
+        logger.error(f"Failed to cache URL to DB: {e}")
     
     return results
