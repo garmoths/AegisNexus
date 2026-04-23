@@ -179,8 +179,11 @@ class AIAnalyzerEngine:
         """Kişiselleştirilmiş öneriler"""
         recommendations = []
         
-        # Tehlike seviyesine göre
-        if total_risk >= 70:
+        # Tehlike seviyesine gore
+        ml_conf = llm_analysis.get("confidence_score", 0)
+        is_phishing_flag = llm_analysis.get("is_phishing", False)
+
+        if is_phishing_flag or ml_conf >= 50:
             recommendations.append({
                 "priority": "CRITICAL",
                 "action": "MESAJI SİLİN",
@@ -191,7 +194,7 @@ class AIAnalyzerEngine:
                 "action": "HİÇBİR LİNKE TIKLAMAYIN",
                 "description": "Mesajdaki tüm linkler tehlikeli olabilir."
             })
-        elif total_risk >= 40:
+        elif ml_conf >= 20:
             recommendations.append({
                 "priority": "MEDIUM",
                 "action": "DİKKATLİ OLUN",
@@ -209,7 +212,7 @@ class AIAnalyzerEngine:
                 })
         
         # Genel öneriler
-        if llm_analysis.get("is_phishing") or llm_analysis.get("is_scam"):
+        if is_phishing_flag or llm_analysis.get("is_scam", False) or ml_conf >= 50:
             recommendations.append({
                 "priority": "CRITICAL",
                 "action": "🚨 KİMLİK AVI TESPİT EDİLDİ",
@@ -235,7 +238,7 @@ class AIAnalyzerEngine:
             })
         
         # Güvenli ise
-        if total_risk < 20 and not recommendations:
+        if ml_conf < 15 and not recommendations:
             recommendations.append({
                 "priority": "LOW",
                 "action": "GÜVENLİ",
@@ -283,7 +286,7 @@ Tehditler: {threat_text}
 
 Aksiyon: {action}
 
-AI Değerlendirmesi: {llm_analysis.get("explanation", "Analiz yok")[:200]}..."""
+ML Analizi: {llm_analysis.get("explanation", "Analiz yok")[:200]}..."""
 
         return summary
 
