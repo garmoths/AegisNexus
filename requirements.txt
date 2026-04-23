@@ -17,7 +17,8 @@ certifi==2026.1.4
 # Configuration
 python-dotenv==1.2.1
 
-# LLM & AI
+# LLM & AI - DeepSeek (OpenAI-compatible SDK ile)
+openai==1.55.0
 groq==1.0.0
 
 # Web Scraping (if needed)
@@ -25,4 +26,5 @@ beautifulsoup4==4.14.3
 lxml==6.0.2
 
 # Telegram Integration (optional - currently unused)
+# telethon>=1.34
 # telethon>=1.34

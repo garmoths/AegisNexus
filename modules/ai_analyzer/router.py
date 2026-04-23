@@ -176,8 +176,9 @@ def health_check():
             "full_analysis"
         ],
         "llm_available": bool(
-            llm_client.openai_key or llm_client.claude_key
-        )
+            llm_client._deepseek_client or llm_client._groq_client
+        ),
+        "primary_llm": "deepseek" if llm_client._deepseek_client else "groq" if llm_client._groq_client else "none"
     }
 
 @router.get("/examples")

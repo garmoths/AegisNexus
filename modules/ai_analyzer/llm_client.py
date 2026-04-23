@@ -1,234 +1,293 @@
 """
-LLM Client - OpenAI/Claude/Gemini API Entegrasyonu
+LLM Client - DeepSeek API + Groq (Llama) Çift Motorlu Yapı
+Eski OpenAI/Claude/Gemini bağlantıları KALDIRILDI.
+DeepSeek birincil, Groq (Llama) ikincil motor.
 """
 import os
 import json
-import requests
-from typing import Dict, List, Optional
-from datetime import datetime
+import re
+import logging
+from typing import Dict, Optional
 
+logger = logging.getLogger(__name__)
+
+# DeepSeek SDK (OpenAI-compatible)
 try:
-    from google import genai
-    GENAI_AVAILABLE = True
+    from openai import OpenAI as DeepSeekClient
+    DEEPSEEK_AVAILABLE = True
 except ImportError:
-    GENAI_AVAILABLE = False
+    DeepSeekClient = None
+    DEEPSEEK_AVAILABLE = False
+
+# Groq SDK
+try:
+    from groq import Groq
+    GROQ_AVAILABLE = True
+except ImportError:
+    Groq = None
+    GROQ_AVAILABLE = False
+
 
 class LLMClient:
-    """LLM API client for security analysis - OpenAI, Claude, Gemini"""
-    
+    """
+    LLM API client for security analysis.
+
+    Motor stratejisi (fallback zinciri):
+    1. DeepSeek (birincil - en güncel/doğru)
+    2. Groq/Llama (ikincil - en hızlı, düşük maliyetli)
+    3. Local pattern matching (son çare)
+    """
+
     def __init__(self):
-        self.openai_key = os.getenv("OPENAI_API_KEY", "")
-        self.claude_key = os.getenv("CLAUDE_API_KEY", "")
-        self.gemini_key = os.getenv("GEMINI_API_KEY", "") or os.getenv("GOOGLE_GEMINI_KEY", "")
+        # DeepSeek (birincil)
+        self.deepseek_api_key = os.getenv("DEEPSEEK_API_KEY", "")
+        self.deepseek_base_url = os.getenv(
+            "DEEPSEEK_BASE_URL",
+            "https://api.deepseek.com"
+        )
+        self.deepseek_model = os.getenv(
+            "DEEPSEEK_MODEL",
+            "deepseek-chat"
+        )
+
+        # Groq (ikincil - hızlı yedek)
         self.groq_key = os.getenv("GROQ_API_KEY", "")
+        self.groq_model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+
+        # Local LLM (opsiyonel - ollama vb.)
         self.use_local = os.getenv("USE_LOCAL_LLM", "false").lower() == "true"
-        
+        self.local_base_url = os.getenv("LOCAL_LLM_URL", "http://localhost:11434/v1")
+        self.local_model = os.getenv("LOCAL_LLM_MODEL", "llama3.2")
+
+        # İstemci bağlantıları
+        self._deepseek_client = None
+        self._groq_client = None
+        self._local_client = None
+
+        self._init_clients()
+
+    def _init_clients(self):
+        """API istemcilerini başlat"""
+        if self.deepseek_api_key and DeepSeekClient is not None:
+            self._deepseek_client = DeepSeekClient(
+                api_key=self.deepseek_api_key,
+                base_url=self.deepseek_base_url
+            )
+            logger.info("DeepSeek istemcisi başlatıldı")
+
+        if self.groq_key and Groq is not None:
+            self._groq_client = Groq(api_key=self.groq_key)
+            logger.info("Groq istemcisi başlatıldı")
+
+        if self.use_local and DeepSeekClient is not None:
+            self._local_client = DeepSeekClient(
+                api_key="ollama",
+                base_url=self.local_base_url
+            )
+            logger.info(f"Local LLM istemcisi başlatıldı: {self.local_base_url}")
+
     def analyze_text(self, text: str, context: str = "email") -> Dict:
         """
         Metin analizi - Phishing/dolandırıcılık tespiti
         
         Args:
             text: Analiz edilecek metin
-            context: email, sms, whatsapp, vs.
+            context: email, sms, whatsapp, social_media, unknown
+
+        Returns:
+            Güvenlik analizi sonucu (Dict)
         """
         prompt = self._build_security_prompt(text, context)
-        
-        # Önce Groq dene (Llama 3.1 - hızlı ve ucuz)
-        if self.groq_key:
-            return self._call_groq(prompt)
-        # Sonra Gemini
-        elif self.gemini_key:
-            return self._call_gemini(prompt)
-        # Sonra Claude
-        elif self.claude_key:
-            return self._call_claude(prompt)
-        # Sonra OpenAI
-        elif self.openai_key:
-            return self._call_openai(prompt)
-        # Fallback: Local pattern matching
-        else:
-            return self._local_analysis(text)
-    
+
+        # 1. DeepSeek (birincil)
+        if self._deepseek_client:
+            result = self._call_deepseek(prompt)
+            if result:
+                result["analysis_provider"] = "deepseek"
+                return result
+
+        # 2. Groq (ikincil)
+        if self._groq_client:
+            result = self._call_groq(prompt)
+            if result:
+                result["analysis_provider"] = "groq"
+                return result
+
+        # 3. Local LLM (opsiyonel)
+        if self._local_client:
+            result = self._call_local(prompt)
+            if result:
+                result["analysis_provider"] = "local_llm"
+                return result
+
+        # 4. Fallback: Local pattern matching
+        result = self._local_analysis(text)
+        result["analysis_provider"] = "local_pattern_matching"
+        return result
+
+    # ──────────────────────────────────────────
+    # DeepSeek
+    # ──────────────────────────────────────────
+
+    def _call_deepseek(self, prompt: str) -> Optional[Dict]:
+        """DeepSeek API çağrısı (birincil motor)"""
+        try:
+            response = self._deepseek_client.chat.completions.create(
+                model=self.deepseek_model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are a cybersecurity expert specializing in phishing detection, "
+                            "social engineering analysis, and threat intelligence. "
+                            "Analyze messages and return structured JSON only."
+                        )
+                    },
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.1,
+                max_tokens=2048,
+                response_format={"type": "json_object"}
+            )
+                
+            content = response.choices[0].message.content
+            if content:
+                return self._parse_json_response(content)
+
+            logger.warning("DeepSeek boş yanıt döndü")
+            return None
+
+        except Exception as e:
+            logger.error(f"DeepSeek API hatası: {e}")
+            return None
+
+    # ──────────────────────────────────────────
+    # Groq (Llama)
+    # ──────────────────────────────────────────
+
+    def _call_groq(self, prompt: str) -> Optional[Dict]:
+        """Groq API çağrısı (Llama - hızlı yedek)"""
+        try:
+            response = self._groq_client.chat.completions.create(
+                model=self.groq_model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are a cybersecurity expert. Analyze messages for phishing, "
+                            "scams, and social engineering. Return ONLY valid JSON."
+                        )
+                    },
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.1,
+                max_tokens=2048
+            )
+                
+            content = response.choices[0].message.content
+            if content:
+                return self._parse_json_response(content)
+
+            logger.warning("Groq boş yanıt döndü")
+            return None
+
+        except Exception as e:
+            logger.error(f"Groq API hatası: {e}")
+            return None
+
+    # ──────────────────────────────────────────
+    # Local LLM (Ollama vb.)
+    # ──────────────────────────────────────────
+
+    def _call_local(self, prompt: str) -> Optional[Dict]:
+        """Local LLM çağrısı (opsiyonel)"""
+        try:
+            response = self._local_client.chat.completions.create(
+                model=self.local_model,
+                messages=[
+                    {"role": "system", "content": "You are a cybersecurity expert. Return JSON only."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.1,
+                max_tokens=2048
+            )
+                
+            content = response.choices[0].message.content
+            if content:
+                return self._parse_json_response(content)
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Local LLM hatası: {e}")
+            return None
+
+    # ──────────────────────────────────────────
+    # Prompt Builder
+    # ──────────────────────────────────────────
+
     def _build_security_prompt(self, text: str, context: str) -> str:
         """Güvenlik analizi prompt'u oluştur"""
-        return f"""You are a cybersecurity expert analyzing {context} messages for phishing, scams, and social engineering attempts.
-
-Analyze the following message and provide a detailed security assessment:
-
-MESSAGE:
-{text}
-
-Provide your analysis in this exact JSON format:
-{{
-    "threat_level": "low|medium|high|critical",
-    "is_phishing": true|false,
-    "is_scam": true|false,
-    "confidence_score": 0-100,
-    "identified_threats": ["list", "of", "threats"],
-    "suspicious_elements": ["suspicious", "elements", "found"],
-    "url_analysis": [
-        {{
-            "url": "extracted_url",
-            "is_suspicious": true|false,
-            "reason": "why suspicious"
-        }}
-    ],
-    "psychological_triggers": ["urgency", "fear", "greed", "authority", "etc"],
-    "recommendations": ["action", "items"],
-    "explanation": "Detailed explanation in Turkish"
-}}
-
-Be thorough but concise. Focus on actionable insights."""
-
-    def _call_claude(self, prompt: str) -> Dict:
-        """Claude API çağrısı"""
-        try:
-            headers = {
-                "x-api-key": self.claude_key,
-                "Content-Type": "application/json"
-            }
-            
-            data = {
-                "model": "claude-3-haiku-20240307",
-                "max_tokens": 2000,
-                "messages": [{"role": "user", "content": prompt}]
-            }
-            
-            response = requests.post(
-                "https://api.anthropic.com/v1/messages",
-                headers=headers,
-                json=data,
-                timeout=30
+        return json.dumps({
+            "task": "cybersecurity_message_analysis",
+            "context": context,
+            "message": text,
+            "analysis_fields": [
+                "threat_level",
+                "is_phishing",
+                "is_scam",
+                "confidence_score",
+                "identified_threats",
+                "suspicious_elements",
+                "url_analysis",
+                "psychological_triggers",
+                "recommendations",
+                "explanation"
+            ],
+            "instructions": (
+                f"Analyze this {context} message for phishing, scams, "
+                "and social engineering. Return ONLY valid JSON with the above fields. "
+                "Be thorough but concise. Focus on actionable insights. "
+                "Provide explanation in Turkish."
             )
-            
-            if response.status_code == 200:
-                result = response.json()
-                content = result["content"][0]["text"]
-                # JSON çıkarma
-                return self._extract_json(content)
-            else:
-                return self._local_analysis(prompt)
-                
-        except Exception as e:
-            print(f"Claude API error: {e}")
-            return self._local_analysis(prompt)
-    
-    def _call_groq(self, prompt: str) -> Dict:
-        """Groq API çağrısı (Llama 3.1 - hızlı!)"""
+        })
+
+    def _parse_json_response(self, content: str) -> Optional[Dict]:
+        """LLM yanıtından JSON çıkar"""
         try:
-            headers = {
-                "Authorization": f"Bearer {self.groq_key}",
-                "Content-Type": "application/json"
-            }
-            
-            data = {
-                "model": "llama-3.1-8b-instant",  # Hızlı ve ucuz
-                "messages": [
-                    {"role": "system", "content": "You are a cybersecurity expert."},
-                    {"role": "user", "content": prompt}
-                ],
-                "temperature": 0.3,
-                "max_tokens": 2000
-            }
-            
-            response = requests.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                headers=headers,
-                json=data,
-                timeout=10  # Groq çok hızlı!
+            return json.loads(content)
+        except json.JSONDecodeError:
+            pass
+
+        try:
+            json_match = re.search(
+                r'```(?:json)?\s*\n?({.*?})\n?\s*```',
+                content, re.DOTALL
             )
-            
-            if response.status_code == 200:
-                result = response.json()
-                content = result["choices"][0]["message"]["content"]
-                return self._extract_json(content)
-            else:
-                print(f"Groq API error: {response.status_code}")
-                return self._local_analysis(prompt)
-                
-        except Exception as e:
-            print(f"Groq API error: {e}")
-            return self._local_analysis(prompt)
-    
-    def _call_openai(self, prompt: str) -> Dict:
-        """OpenAI API çağrısı"""
+            if json_match:
+                return json.loads(json_match.group(1))
+        except (json.JSONDecodeError, AttributeError):
+            pass
+
         try:
-            headers = {
-                "Authorization": f"Bearer {self.openai_key}",
-                "Content-Type": "application/json"
-            }
-            
-            data = {
-                "model": "gpt-3.5-turbo",
-                "messages": [
-                    {"role": "system", "content": "You are a cybersecurity expert."},
-                    {"role": "user", "content": prompt}
-                ],
-                "temperature": 0.3,
-                "max_tokens": 2000
-            }
-            
-            response = requests.post(
-                "https://api.openai.com/v1/chat/completions",
-                headers=headers,
-                json=data,
-                timeout=30
-            )
-            
-            if response.status_code == 200:
-                result = response.json()
-                content = result["choices"][0]["message"]["content"]
-                return self._extract_json(content)
-            else:
-                return self._local_analysis(prompt)
-                
-        except Exception as e:
-            print(f"OpenAI API error: {e}")
-            return self._local_analysis(prompt)
-    
-    def _call_gemini(self, prompt: str) -> Dict:
-        """Gemini API çağrısı (Google GenAI SDK)"""
-        try:
-            if not GENAI_AVAILABLE:
-                print("Google GenAI SDK not installed")
-                return self._local_analysis(prompt)
-            
-            # Yeni SDK ile client oluştur
-            client = genai.Client(api_key=self.gemini_key)
-            
-            # Gemini Pro model ile generate (stabil sürüm)
-            response = client.models.generate_content(
-                model="gemini-pro",
-                contents=prompt
-            )
-            
-            # Yanıtı parse et
-            content = response.text
-            return self._extract_json(content)
-                
-        except Exception as e:
-            print(f"Gemini API error: {e}")
-            return self._local_analysis(prompt)
-    
-    def _extract_json(self, text: str) -> Dict:
-        """Metinden JSON çıkar"""
-        try:
-            # JSON bloğu bul
-            start = text.find("{")
-            end = text.rfind("}") + 1
+            start = content.find('{')
+            end = content.rfind('}') + 1
             if start >= 0 and end > start:
-                json_str = text[start:end]
-                return json.loads(json_str)
-            else:
-                return self._local_analysis(text)
-        except:
-            return self._local_analysis(text)
-    
+                return json.loads(content[start:end])
+        except (json.JSONDecodeError, IndexError):
+            pass
+
+        logger.warning("LLM yanıtından JSON çıkarılamadı")
+        return None
+
+    # ──────────────────────────────────────────
+    # Yerel Analiz (Fallback)
+    # ──────────────────────────────────────────
+
     def _local_analysis(self, text: str) -> Dict:
-        """Yerel pattern matching (API yoksa)"""
+        """Yerel pattern matching (hiçbir API yoksa)"""
         text_lower = text.lower()
-        
-        # Tehlike anahtar kelimeleri
+
         phishing_keywords = [
             "hesabınız", "şifreniz", "parolanız", "kredi kartı", "banka",
             "account", "password", "verify", "confirm", "suspended", "limited",
@@ -240,8 +299,7 @@ Be thorough but concise. Focus on actionable insights."""
         urgent_keywords = ["acil", "hemen", "şimdi", "24 saat", "süre doluyor", "limited time"]
         fear_keywords = ["hesabınız kapatılacak", "engellenecek", "suspended", "terminate"]
         authority_keywords = ["banka", "devlet", "polis", "jandarma", "güvenlik", "security"]
-        
-        # Skor hesapla
+
         score = 0
         found_threats = []
         suspicious_elements = []
@@ -250,8 +308,7 @@ Be thorough but concise. Focus on actionable insights."""
             if kw in text_lower:
                 score += 10
                 suspicious_elements.append(f"Anahtar kelime: '{kw}'")
-        
-        # Psikolojik tetikleyiciler
+
         psychological = []
         if any(k in text_lower for k in urgent_keywords):
             score += 15
@@ -266,13 +323,17 @@ Be thorough but concise. Focus on actionable insights."""
         if any(k in text_lower for k in authority_keywords):
             score += 10
             psychological.append("authority")
-        
-        # URL kontrolü
-        import re
-        urls = re.findall(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', text)
+
+        urls = re.findall(
+            r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+',
+            text
+        )
         url_analysis = []
         for url in urls:
-            is_suspicious = any(x in url.lower() for x in ['.tk', '.ml', '.ga', '.cf', 'bit.ly', 'tinyurl', 'short'])
+            is_suspicious = any(
+                x in url.lower()
+                for x in ['.tk', '.ml', '.ga', '.cf', 'bit.ly', 'tinyurl', 'short']
+            )
             url_analysis.append({
                 "url": url,
                 "is_suspicious": is_suspicious,
@@ -281,8 +342,7 @@ Be thorough but concise. Focus on actionable insights."""
             if is_suspicious:
                 score += 25
                 found_threats.append("Şüpheli URL yapısı")
-        
-        # Sonuç
+
         if score >= 70:
             threat_level = "critical"
         elif score >= 50:
@@ -297,17 +357,24 @@ Be thorough but concise. Focus on actionable insights."""
             "is_phishing": score >= 50,
             "is_scam": score >= 40,
             "confidence_score": min(score, 100),
-            "identified_threats": found_threats if found_threats else ["Belirgin tehdit tespit edilmedi"],
-            "suspicious_elements": suspicious_elements if suspicious_elements else ["Şüpheli öğe bulunamadı"],
-            "url_analysis": url_analysis if url_analysis else [],
+            "identified_threats": found_threats or ["Belirgin tehdit tespit edilmedi"],
+            "suspicious_elements": suspicious_elements or ["Şüpheli öğe bulunamadı"],
+            "url_analysis": url_analysis or [],
             "psychological_triggers": psychological,
             "recommendations": [
-                "Linke tıklamayın" if urls else "",
-                "Göndereni doğrulayın",
-                "Bankanızı arayın" if "banka" in text_lower else "",
-                "Şüpheli ise silin"
+                item for item in [
+                    "Linke tıklamayın" if urls else "",
+                    "Göndereni doğrulayın",
+                    "Bankanızı arayın" if "banka" in text_lower else "",
+                    "Şüpheli ise silin"
+                ] if item
             ],
-            "explanation": f"Metin {score}/100 risk skoru ile analiz edildi. {len(found_threats)} tehdit tespit edildi." if found_threats else "Metin güvenli görünüyor.",
+            "explanation": (
+                f"Metin {score}/100 risk skoru ile analiz edildi. "
+                f"{len(found_threats)} tehdit tespit edildi."
+                if found_threats
+                else "Metin güvenli görünüyor."
+            ),
             "analysis_method": "local_pattern_matching"
         }
 
