@@ -396,8 +396,24 @@ function HoneypotIOC() {
       try{const r=await fetch(`${API}/honeypot/ioc/stats`);const d=await r.json();setIocStats(d)}catch{}
     }
   }
-  async function loadIoCList(){try{const r=await fetch(`${API}/honeypot/ioc/list-collected?limit=25`);const d=await r.json();setIocList(d.iocs||d.data||d.results||d.indicators||[])}catch{}}
-  async function handleSearch(){if(!searchQuery)return;setSearching(true);try{const r=await fetch(`${API}/honeypot/ioc/search?q=${encodeURIComponent(searchQuery)}`);const d=await r.json();setSearchResults(d.results||d.data||d.iocs||[]);setActiveTab('search-results')}catch{};setSearching(false)}
+  async function loadIoCList(){
+    try{
+      // Fetch from all risk levels to get a good mix
+      const levels=['critical','high','medium','low'];
+      let allIocs=[];
+      for(const level of levels){
+        try{
+          const r=await fetch(`${API}/honeypot/ioc/by-risk-score?level=${level}&limit=8`);
+          const d=await r.json();
+          if(d.iocs) allIocs=[...allIocs,...d.iocs];
+        }catch(e){}
+      }
+      setIocList(allIocs.length>0?allIocs:(d.iocs||d.data||d.results||d.indicators||[]))
+    }catch(e){
+      try{const r=await fetch(`${API}/honeypot/ioc/list?limit=25`);const d=await r.json();setIocList(d.data||d.iocs||[])}catch{}
+    }
+  }
+  async function handleSearch(){if(!searchQuery)return;setSearching(true);try{const r=await fetch(`${API}/honeypot/ioc/search?q=${encodeURIComponent(searchQuery)}`);const d=await r.json();if(d.status==='success'||d.results){setSearchResults(d.results||d.data||d.iocs||[]);setActiveTab('search-results')}else{showToast('Arama sonucu bulunamadi veya hata: '+d.message,'error')}}catch(e){showToast('Arama hatasi: '+e.message,'error')};setSearching(false)}
 
   const statsData=iocStats?.stats||iocStats||{}
   const riskDist=statsData?.risk_distribution||iocStats?.risk_distribution||[]
@@ -433,7 +449,7 @@ function HoneypotIOC() {
         </Card>
         <Card><h3 style={{ fontSize:15, fontWeight:700, color:'#fff', marginBottom:12, display:'flex', gap:8, alignItems:'center' }}><span>🔎</span> IOC Sorgula</h3>
           <div style={{ display:'flex', gap:8 }}><input value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} placeholder="IP, domain, URL veya hash..." style={{ flex:1, padding:'12px 16px', borderRadius:theme.radiusSm, background:theme.bg, border:`1px solid ${theme.border}`, color:'#fff', fontSize:13, outline:'none' }} onKeyDown={e=>e.key==='Enter'&&handleSearch()}/><GlowButton onClick={handleSearch} loading={searching}>Ara</GlowButton></div>
-          {activeTab==='search-results'&&<div style={{ marginTop:16, maxHeight:300, overflowY:'auto' }}><p style={{ fontSize:12, color:theme.textMuted, marginBottom:8 }}>{searchResults.length} sonuc bulundu</p>{searchResults.length>0?searchResults.slice(0,15).map((item,i)=><div key={i} style={{ padding:'10px', marginBottom:6, background:theme.surface, borderRadius:theme.radiusSm, border:`1px solid ${theme.border}`, fontSize:12 }}><div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}><span style={{ color:theme.primary, fontFamily:theme.mono, fontSize:11 }}>{item.value||item.ioc_value||item.ioc||item.indicator}</span><span style={{ padding:'2px 8px', borderRadius:'10px', fontSize:10, background:theme.accentDim, color:theme.accent }}>{item.ioc_type||item.type||'unknown'}</span></div><p style={{ color:theme.textMuted, marginTop:4, fontSize:11 }}>Risk: {item.risk_score||'N/A'} • Kaynak: {item.source||'N/A'}</p></div>):<p style={{ color:theme.textMuted, fontSize:13, textAlign:'center' }}>Sonuc bulunamadi</p>}</div>}
+          {activeTab==='search-results'&&<div style={{ marginTop:16, maxHeight:300, overflowY:'auto' }}><p style={{ fontSize:12, color:theme.textMuted, marginBottom:8 }}>{searchResults.length} sonuc bulundu</p>{searchResults.length>0?searchResults.slice(0,15).map((item,i)=><div key={i} style={{ padding:'10px', marginBottom:6, background:theme.surface, borderRadius:theme.radiusSm, border:`1px solid ${theme.border}`, fontSize:12 }}><div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}><span style={{ color:theme.primary, fontFamily:theme.mono, fontSize:11 }}>{item.value||item.ioc_value||item.ioc||item.indicator}</span><span style={{ padding:'2px 8px', borderRadius:'10px', fontSize:10, background:theme.accentDim, color:theme.accent }}>{item.ioc_type||item.type||item.threat_type||'unknown'}</span></div><p style={{ color:theme.textMuted, marginTop:4, fontSize:11 }}>Risk: {item.risk_score||'N/A'} • Kaynak: {item.source||'N/A'} • Tespit: {(item.detection_count||0)+'kez'}</p></div>):<p style={{ color:theme.textMuted, fontSize:13, textAlign:'center' }}>Sonuc bulunamadi</p>}</div>}
         </Card>
       </div>
     </div>
