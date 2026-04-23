@@ -215,9 +215,6 @@ class AIAnalyzerEngine:
                 "action": "🚨 KİMLİK AVI TESPİT EDİLDİ",
                 "description": "Bu mesaj %100 phishing/scam özellikleri taşıyor! KESİNLİKLE linke tıklamayın, bilgi girmeyin, yanıt vermeyin."
             })
-                "description": "Bu mesaj kimlik avı (phishing) özellikleri taşıyor. "
-                            "Kullanıcı adı, şifre veya kredi kartı bilgisi istiyorsa ASLA paylaşmayın."
-            })
         
         # Psikolojik tetikleyiciler
         triggers = llm_analysis.get("psychological_triggers", [])
