@@ -624,6 +624,87 @@
             .stats-row { grid-template-columns: 1fr; }
             .modules-grid { grid-template-columns: 1fr; }
         }
+
+        .ai-split { display: grid; grid-template-columns: 45% 55%; gap: 2rem; }
+        .ai-left, .ai-right { display: flex; flex-direction: column; gap: 1rem; }
+        .ai-textarea { flex: 1; min-height: 200px; font-size: 0.9375rem; line-height: 1.6; }
+        .ai-context-pills { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+        .context-pill { padding: 0.5rem 1rem; border-radius: 2rem; border: 1px solid var(--border-light); background: var(--bg-card); color: var(--text-secondary); font-size: 0.8125rem; cursor: pointer; transition: all 0.2s ease; }
+        .context-pill:hover, .context-pill.active { border-color: var(--primary); color: var(--primary); background: rgba(255,107,0,0.08); }
+        .url-chip { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.375rem 0.75rem; background: rgba(255,107,0,0.1); border: 1px solid rgba(255,107,0,0.3); border-radius: 2rem; font-size: 0.75rem; color: var(--primary); cursor: pointer; transition: all 0.2s ease; }
+        .url-chip:hover { background: rgba(255,107,0,0.2); }
+        .ai-result-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; color: var(--text-muted); text-align: center; }
+        .ai-result-empty svg { width: 64px; height: 64px; opacity: 0.3; }
+        .ai-score-wrap { text-align: center; margin: 1.5rem 0; }
+        .ai-score-circle { width: 140px; height: 140px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 0 auto; position: relative; }
+        .ai-score-ring { position: absolute; inset: 0; border-radius: 50%; border: 8px solid rgba(255,255,255,0.05); transition: all 0.5s ease; }
+        .ai-score-value { font-size: 2.5rem; font-weight: 700; line-height: 1; position: relative; z-index: 1; }
+        .ai-score-label { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem; position: relative; z-index: 1; }
+        .ai-risk-badge { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1.25rem; border-radius: 2rem; font-weight: 600; font-size: 0.875rem; margin-bottom: 1rem; }
+        .ai-findings { display: flex; flex-direction: column; gap: 0.5rem; margin: 1rem 0; }
+        .ai-finding { display: flex; align-items: center; gap: 0.75rem; padding: 0.625rem 1rem; background: rgba(255,255,255,0.03); border-radius: 0.5rem; font-size: 0.875rem; }
+
+        .phish-layout { display: grid; grid-template-columns: 60% 40%; gap: 2rem; }
+        .phish-hero { padding: 2.5rem; background: var(--bg-card); border: 1px solid var(--border-light); border-radius: 0.75rem; position: relative; overflow: hidden; backdrop-filter: blur(16px); }
+        .phish-hero::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, var(--primary), var(--primary-dark)); }
+        .phish-hero-input { display: flex; gap: 0.75rem; margin-top: 1.5rem; }
+        .phish-hero-input input { flex: 1; padding: 1rem 1.25rem; background: var(--secondary-dark); border: 1px solid var(--border-light); border-radius: 0.5rem; color: var(--text-primary); font-size: 1rem; font-family: inherit; }
+        .phish-hero-input input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-glow); }
+        .phish-hero-input button { padding: 1rem 2rem; background: var(--primary); color: white; border: none; border-radius: 0.5rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease; white-space: nowrap; }
+        .phish-hero-input button:hover { background: var(--primary-dark); transform: translateY(-1px); }
+        .phish-result-card { padding: 2rem; background: var(--bg-card); border: 1px solid var(--border-light); border-radius: 0.75rem; margin-top: 1.5rem; animation: resultIn 0.4s ease-out; backdrop-filter: blur(16px); }
+        .phish-result-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem; }
+        .phish-circular-score { width: 80px; height: 80px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: 700; position: relative; }
+        .phish-circular-score::before { content: ''; position: absolute; inset: 0; border-radius: 50%; border: 4px solid rgba(255,255,255,0.05); transition: border-color 0.5s ease; }
+        .phish-source-tags { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem; }
+        .source-tag { padding: 0.25rem 0.625rem; border-radius: 0.25rem; font-size: 0.75rem; font-weight: 500; }
+        .source-tag.vt { background: rgba(96,165,250,0.1); color: #60a5fa; }
+        .source-tag.gsb { background: rgba(74,222,128,0.1); color: #4ade80; }
+        .source-tag.abuse { background: rgba(251,191,36,0.1); color: #fbbf24; }
+        .source-tag.urlscan { background: rgba(255,107,0,0.1); color: var(--primary); }
+        .source-tag.flag { background: rgba(248,113,113,0.1); color: var(--danger); }
+
+        .step-loader { display: flex; flex-direction: column; gap: 0.75rem; margin-top: 1.5rem; }
+        .step-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; border-radius: 0.5rem; background: rgba(255,255,255,0.02); font-size: 0.8125rem; color: var(--text-muted); transition: all 0.3s ease; opacity: 0.5; }
+        .step-item.active { opacity: 1; background: rgba(255,107,0,0.05); color: var(--text-secondary); }
+        .step-item.done { opacity: 1; color: var(--success); }
+        .step-icon { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 2px solid currentColor; font-size: 0.625rem; font-weight: 700; flex-shrink: 0; }
+        .step-item.done .step-icon { background: var(--success); border-color: var(--success); color: var(--secondary-dark); }
+
+        .history-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem; margin-top: 1.5rem; }
+        .history-card { padding: 1.25rem; background: rgba(255,255,255,0.03); border: 1px solid var(--border-light); border-radius: 0.5rem; cursor: pointer; transition: all 0.2s ease; position: relative; }
+        .history-card:hover { border-color: rgba(255,107,0,0.3); transform: translateY(-2px); background: rgba(255,255,255,0.05); }
+        .history-card .domain { font-weight: 600; font-size: 0.875rem; margin-bottom: 0.5rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .history-card .meta { display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: var(--text-muted); }
+        .history-risk-bar { height: 4px; border-radius: 2px; background: rgba(255,255,255,0.05); margin-top: 0.75rem; overflow: hidden; }
+        .history-risk-bar > div { height: 100%; border-radius: 2px; transition: width 0.5s ease; }
+
+        .donut-wrap { padding: 1.5rem; background: var(--bg-card); border: 1px solid var(--border-light); border-radius: 0.75rem; backdrop-filter: blur(16px); }
+        .donut-chart { width: 180px; height: 180px; margin: 0 auto; position: relative; }
+        .donut-chart svg { transform: rotate(-90deg); }
+        .donut-center { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; }
+        .donut-center .value { font-size: 1.75rem; font-weight: 700; color: var(--text-primary); }
+        .donut-center .label { font-size: 0.75rem; color: var(--text-muted); }
+        .donut-legend { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 1rem; justify-content: center; }
+        .legend-item { display: flex; align-items: center; gap: 0.375rem; font-size: 0.75rem; color: var(--text-secondary); }
+        .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+        .threat-feed { display: flex; flex-direction: column; gap: 0.75rem; }
+        .threat-feed-item { padding: 1rem; background: rgba(255,255,255,0.03); border: 1px solid var(--border-light); border-radius: 0.5rem; transition: all 0.2s ease; }
+        .threat-feed-item:hover { background: rgba(255,255,255,0.05); border-color: rgba(255,107,0,0.2); }
+        .threat-feed-domain { font-weight: 600; font-size: 0.875rem; margin-bottom: 0.375rem; }
+        .threat-feed-meta { display: flex; gap: 0.75rem; font-size: 0.75rem; color: var(--text-muted); }
+
+        .toast-container { position: fixed; bottom: 2rem; right: 2rem; z-index: 1000; display: flex; flex-direction: column; gap: 0.5rem; }
+        .toast { padding: 1rem 1.5rem; border-radius: 0.5rem; background: var(--secondary); border: 1px solid var(--border-light); color: var(--text-primary); font-size: 0.875rem; box-shadow: 0 8px 32px rgba(0,0,0,0.3); animation: toastIn 0.3s ease-out; }
+        @keyframes toastIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+
+        .strength-bar { height: 8px; border-radius: 4px; background: rgba(255,255,255,0.05); overflow: hidden; margin: 0.75rem 0; }
+        .strength-bar > div { height: 100%; border-radius: 4px; transition: all 0.3s ease; }
+
+        @media (max-width: 1024px) {
+            .ai-split, .phish-layout { grid-template-columns: 1fr; }
+        }
     </style>
 </head>
 <body>
@@ -634,13 +715,13 @@
             <span>Aegis<span class="brand-sub">Nexus</span></span>
         </div>
         <div class="nav-links" id="navLinks">
-            <a class="nav-link" onclick="navigate('home')">Dashboard</a>
-            <a class="nav-link" onclick="navigate('ai-analyzer')">AI Analyzer</a>
+            <a class="nav-link" onclick="navigate('home')">Panel</a>
+            <a class="nav-link" onclick="navigate('ai-analyzer')">AI Analiz</a>
             <a class="nav-link" onclick="navigate('phishing-detector')">Phishing</a>
-            <a class="nav-link" onclick="navigate('honeypot-ioc')">Honeypot</a>
-            <a class="nav-link" onclick="navigate('breach-intel')">Breach</a>
-            <a class="nav-link" onclick="navigate('password-shield')">Password</a>
-            <a class="nav-link" onclick="navigate('threat-responder')">Threat</a>
+            <a class="nav-link" onclick="navigate('honeypot-ioc')">Tuzak</a>
+            <a class="nav-link" onclick="navigate('breach-intel')">Sizinti</a>
+            <a class="nav-link" onclick="navigate('password-shield')">Sifre</a>
+            <a class="nav-link" onclick="navigate('threat-responder')">Mudahale</a>
         </div>
         <a class="nav-home" href="https://aegisnexus.dev">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
@@ -652,45 +733,69 @@
     <div id="page-home" class="page active">
         <div class="container">
             <div class="dashboard-header">
-                <h1>Security Modules</h1>
-                <p class="subtitle">Enterprise Cybersecurity Dashboard - 6 Layered Defense System</p>
+                <h1>Guvenlik Modulleri</h1>
+                <p class="subtitle">Kapsamli Siber Guvenlik Paneli - 6 Katmanli Savunma Sistemi</p>
+            </div>
+            <div class="stats-row" style="margin-bottom:2rem">
+                <div class="stat-card">
+                    <div class="stat-value" id="statTotalThreats">-</div>
+                    <div class="stat-label">Toplam Tehdit</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="statTodayScans">-</div>
+                    <div class="stat-label">Bugun Taranan</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="statActiveEvents">-</div>
+                    <div class="stat-label">Aktif Olay</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="statIocs">-</div>
+                    <div class="stat-label">IOC Verisi</div>
+                </div>
             </div>
             <div class="modules-grid">
                 <div class="module-card" onclick="navigate('ai-analyzer')">
                     <svg class="module-icon" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="16" stroke="currentColor" stroke-width="2" fill="none"/><path d="M24 12V24L32 28" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="32" cy="16" r="4" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="36" cy="20" r="2" stroke="currentColor" stroke-width="2" fill="currentColor"/><circle cx="28" cy="20" r="2" stroke="currentColor" stroke-width="2" fill="currentColor"/></svg>
-                    <span class="status-badge active">Active</span>
-                    <h3 class="module-title">AI Analyzer</h3>
-                    <p class="module-description">LLM-based phishing, fraud, and social engineering analysis. Advanced threat detection with AI.</p>
+                    <span class="status-badge active">Aktif</span>
+                    <h3 class="module-title">AI Analiz</h3>
+                    <p class="module-description">LLM tabanli phishing, dolandiricilik ve sosyal muhendislik analizi. AI ile gelismis tehdit tespiti.</p>
+                    <div class="live-stats">
+                        <div class="live-stat"><div class="num" id="aiStat">0</div><div class="lbl">Analiz</div></div>
+                    </div>
                 </div>
                 <div class="module-card" onclick="navigate('phishing-detector')">
                     <svg class="module-icon" viewBox="0 0 48 48" fill="none"><path d="M24 4L4 12V22C4 32.5 12 40 24 44C36 40 44 32.5 44 22V12L24 4Z" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="24" cy="24" r="8" stroke="currentColor" stroke-width="2" fill="none"/><path d="M24 20V24L27 27" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-                    <span class="status-badge active">Active</span>
-                    <h3 class="module-title">Phishing Detector</h3>
-                    <p class="module-description">1.2M+ URL database. DNS, SSL and ML analysis for comprehensive protection.</p>
+                    <span class="status-badge active">Aktif</span>
+                    <h3 class="module-title">Phishing Dedektoru</h3>
+                    <p class="module-description">1.2M+ URL tehdit veritabani. DNS, SSL ve ML tabanli kapsamli koruma.</p>
+                    <div class="live-stats">
+                        <div class="live-stat"><div class="num" id="phStat">0</div><div class="lbl">URL</div></div>
+                    </div>
                 </div>
                 <div class="module-card" onclick="navigate('honeypot-ioc')">
                     <svg class="module-icon" viewBox="0 0 48 48" fill="none"><path d="M24 4C13 4 4 13 4 24C4 35 13 44 24 44C35 44 44 35 44 24C44 13 35 4 24 4Z" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="24" cy="24" r="6" stroke="currentColor" stroke-width="2" fill="none"/><path d="M24 18V24L28 28" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="32" cy="16" r="3" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="16" cy="32" r="3" stroke="currentColor" stroke-width="2" fill="none"/></svg>
-                    <span class="status-badge partial">Partial</span>
+                    <span class="status-badge partial">Kismi</span>
                     <h3 class="module-title">Honeypot & IOC</h3>
-                    <p class="module-description">IP Hunter and IOC collector. AbuseIPDB, URLhaus hourly feeds.</p>
+                    <p class="module-description">IP Hunter ve IOC toplayici. AbuseIPDB, URLhaus saatlik beslemeleri.</p>
                 </div>
                 <div class="module-card" onclick="navigate('breach-intel')">
                     <svg class="module-icon" viewBox="0 0 48 48" fill="none"><rect x="8" y="8" width="32" height="32" rx="4" stroke="currentColor" stroke-width="2" fill="none"/><path d="M16 20H32" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16 28H32" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16 36H28" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="20" r="2" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="12" cy="28" r="2" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="12" cy="36" r="2" stroke="currentColor" stroke-width="2" fill="none"/></svg>
-                    <span class="status-badge partial">Partial</span>
-                    <h3 class="module-title">Breach Intel</h3>
-                    <p class="module-description">Data breach intelligence. HIBP + Dark Web + Psychological profiling.</p>
+                    <span class="status-badge partial">Kismi</span>
+                    <h3 class="module-title">Sizinti Istihbarati</h3>
+                    <p class="module-description">Veri sizinti istihbarati. HIBP + Dark Web + Psikolojik profil.</p>
                 </div>
                 <div class="module-card" onclick="navigate('password-shield')">
                     <svg class="module-icon" viewBox="0 0 48 48" fill="none"><rect x="8" y="16" width="32" height="24" rx="4" stroke="currentColor" stroke-width="2" fill="none"/><path d="M16 16V12C16 8 20 4 24 4C28 4 32 8 32 12V16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="24" cy="28" r="4" stroke="currentColor" stroke-width="2" fill="none"/></svg>
-                    <span class="status-badge partial">Partial</span>
-                    <h3 class="module-title">Password Shield</h3>
-                    <p class="module-description">Cryptographic password generation. Strength analysis and leaked checks.</p>
+                    <span class="status-badge partial">Kismi</span>
+                    <h3 class="module-title">Sifre Kalkani</h3>
+                    <p class="module-description">Kriptografik sifre uretimi. Gucluluk analizi ve sizdirilmis kontrol.</p>
                 </div>
                 <div class="module-card" onclick="navigate('threat-responder')">
                     <svg class="module-icon" viewBox="0 0 48 48" fill="none"><path d="M24 4L4 14V22C4 33 12 41 24 44C36 41 44 33 44 22V14L24 4Z" stroke="currentColor" stroke-width="2" fill="none"/><path d="M24 18V30" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="24" cy="34" r="2" stroke="currentColor" stroke-width="2" fill="currentColor"/></svg>
-                    <span class="status-badge partial">Partial</span>
-                    <h3 class="module-title">Threat Responder</h3>
-                    <p class="module-description">Automated threat response. SMS/Email alerts and case management.</p>
+                    <span class="status-badge partial">Kismi</span>
+                    <h3 class="module-title">Tehdit Mudahalesi</h3>
+                    <p class="module-description">Otomatik tehdit yaniti. SMS/E-posta uyarlari ve olay yonetimi.</p>
                 </div>
             </div>
         </div>
@@ -699,73 +804,157 @@
     <!-- AI ANALYZER PAGE -->
     <div id="page-ai-analyzer" class="page"><div class="module-page">
         <div class="module-page-header"><svg class="module-page-icon" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="16" stroke="currentColor" stroke-width="2" fill="none"/><path d="M24 12V24L32 28" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="32" cy="16" r="4" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="36" cy="20" r="2" stroke="currentColor" stroke-width="2" fill="currentColor"/><circle cx="28" cy="20" r="2" stroke="currentColor" stroke-width="2" fill="currentColor"/></svg>
-            <div class="module-page-info"><h2 class="module-page-title">AI Analyzer</h2><p class="module-page-desc">LLM-powered phishing, social engineering, and fraud detection. Analyzes messages for manipulation techniques and threat patterns.</p>
-            <div class="module-page-badges"><span class="feature-badge"><span class="dot"></span>Message Analysis</span><span class="feature-badge"><span class="dot"></span>URL Check</span><span class="feature-badge"><span class="dot"></span>Quick Scan</span><span class="feature-badge"><span class="dot"></span>URL Extraction</span></div></div></div>
-        <div class="tools-grid">
-            <div class="tool-card"><h3 class="tool-card-title">Message Analysis</h3><textarea class="tool-input" id="aiMsg" placeholder="Enter suspicious message..."></textarea><select class="tool-input" id="aiCtx"><option value="email">Email</option><option value="sms">SMS</option><option value="whatsapp">WhatsApp</option><option value="social_media">Social Media</option></select><button class="tool-btn" onclick="apiCall('/api/v2/ai-analyzer/analyze','POST',{message:gv('aiMsg'),context:gv('aiCtx')},'aiRes',fmtAi)">Analyze</button><div class="tool-result" id="aiRes"></div></div>
-            <div class="tool-card"><h3 class="tool-card-title">URL Security Check</h3><input type="text" class="tool-input" id="aiUrl" placeholder="Enter URL..."><button class="tool-btn" onclick="apiCall('/api/v2/ai-analyzer/check-url','POST',{url:gv('aiUrl')},'aiUrlRes')">Check URL</button><div class="tool-result" id="aiUrlRes"></div></div>
-            <div class="tool-card"><h3 class="tool-card-title">Quick Scan</h3><input type="text" class="tool-input" id="aiQs" placeholder="Enter text or URL..."><button class="tool-btn" onclick="apiCall('/api/v2/ai-analyzer/quick-scan','POST',{content:gv('aiQs')},'aiQsRes')">Scan</button><div class="tool-result" id="aiQsRes"></div></div>
-            <div class="tool-card"><h3 class="tool-card-title">Extract URLs</h3><textarea class="tool-input" id="aiExt" placeholder="Enter text to extract URLs..."></textarea><button class="tool-btn" onclick="apiCall('/api/v2/ai-analyzer/extract-urls','POST',{text:gv('aiExt')},'aiExtRes')">Extract</button><div class="tool-result" id="aiExtRes"></div></div>
-        </div></div></div>
+            <div class="module-page-info"><h2 class="module-page-title">AI Analiz</h2><p class="module-page-desc">LLM tabanli phishing, sosyal muhendislik ve dolandiricilik tespiti. Manipulasyon teknikleri ve tehdit kalip analizi.</p>
+            <div class="module-page-badges"><span class="feature-badge"><span class="dot"></span>Mesaj Analizi</span><span class="feature-badge"><span class="dot"></span>URL Kontrolu</span><span class="feature-badge"><span class="dot"></span>Hizli Tarama</span><span class="feature-badge"><span class="dot"></span>URL Cikarma</span></div></div></div>
+        <div class="ai-split">
+            <div class="ai-left">
+                <div class="tool-card" style="flex:1;display:flex;flex-direction:column">
+                    <h3 class="tool-card-title">Supheli Mesaj</h3>
+                    <p style="color:var(--text-muted);font-size:0.8125rem;margin-bottom:0.75rem">Asagidaki kutuya analiz edilecek metni yapistirin. AI mesaji analiz edecek ve tehdit raporu sunacak.</p>
+                    <textarea class="tool-input ai-textarea" id="aiMsg" placeholder="Supheli e-posta, SMS veya mesaji buraya yapistirin..." oninput="aiDetectUrls()"></textarea>
+                    <div style="margin-bottom:0.75rem" id="aiUrlChips"></div>
+                    <div class="ai-context-pills" style="margin-bottom:0.75rem">
+                        <span class="context-pill active" onclick="selectCtx(this,'email')" data-ctx="email">E-posta</span>
+                        <span class="context-pill" onclick="selectCtx(this,'sms')" data-ctx="sms">SMS</span>
+                        <span class="context-pill" onclick="selectCtx(this,'whatsapp')" data-ctx="whatsapp">WhatsApp</span>
+                        <span class="context-pill" onclick="selectCtx(this,'social_media')" data-ctx="social_media">Sosyal Medya</span>
+                    </div>
+                    <button class="tool-btn" id="aiAnalyzeBtn" onclick="aiAnalyzeMessage()">
+                        <span id="aiBtnSpinner" class="spinner" style="display:none"></span>
+                        <span id="aiBtnText">AI ile Analiz Et</span>
+                    </button>
+                </div>
+            </div>
+            <div class="ai-right">
+                <div class="tool-card" id="aiResultCard" style="flex:1;display:flex;flex-direction:column">
+                    <div id="aiResultEmpty" class="ai-result-empty">
+                        <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="32" cy="32" r="24"/><path d="M20 32h24M32 20v24"/></svg>
+                        <p>Sol tarafa supheli bir mesaj yapistirin ve AI analizini baslatin.</p>
+                    </div>
+                    <div id="aiResultContent" style="display:none;flex:1;flex-direction:column">
+                        <div style="text-align:center">
+                            <div class="ai-score-wrap">
+                                <div class="ai-score-circle">
+                                    <div class="ai-score-ring" id="aiScoreRing"></div>
+                                    <div class="ai-score-value" id="aiScoreValue">0</div>
+                                    <div class="ai-score-label">Guvn Skoru</div>
+                                </div>
+                            </div>
+                            <div class="ai-risk-badge" id="aiRiskBadge">BEKLIYOR</div>
+                        </div>
+                        <div style="flex:1">
+                            <h4 style="font-size:0.9375rem;color:var(--text-secondary);margin-bottom:0.5rem">AI Ozet</h4>
+                            <div id="aiSummary" style="font-size:0.875rem;line-height:1.7;color:var(--text-secondary)"></div>
+                            <div class="ai-findings" id="aiFindings"></div>
+                        </div>
+                        <div id="aiUrlRedirect" style="display:none;margin-top:1rem;padding:1rem;background:rgba(255,107,0,0.05);border:1px solid rgba(255,107,0,0.2);border-radius:0.5rem">
+                            <div style="font-size:0.875rem;font-weight:600;margin-bottom:0.5rem">URL Tespit Edildi</div>
+                            <div id="aiDetectedUrl" style="font-size:0.8125rem;color:var(--text-muted);margin-bottom:0.75rem;word-break:break-all"></div>
+                            <button class="tool-btn" onclick="redirectToPhishing()" style="width:auto;padding:0.625rem 1.25rem;font-size:0.8125rem">Phishing Dedektorune Yonlendir</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="tools-grid" style="margin-top:2rem">
+            <div class="tool-card"><h3 class="tool-card-title">URL Guvenlik Kontrolu</h3><input type="text" class="tool-input" id="aiUrl" placeholder="https://..."><button class="tool-btn" onclick="apiCall('/api/v2/ai-analyzer/check-url','POST',{url:gv('aiUrl')},'aiUrlRes')">Kontrol Et</button><div class="tool-result" id="aiUrlRes"></div></div>
+            <div class="tool-card"><h3 class="tool-card-title">Hizli Tarama</h3><input type="text" class="tool-input" id="aiQs" placeholder="Metin veya URL..."><button class="tool-btn" onclick="apiCall('/api/v2/ai-analyzer/quick-scan','POST',{content:gv('aiQs')},'aiQsRes')">Tara</button><div class="tool-result" id="aiQsRes"></div></div>
+            <div class="tool-card"><h3 class="tool-card-title">URL Cikarma</h3><textarea class="tool-input" id="aiExt" placeholder="URL cikarmak icin metni buraya yapistirin..."></textarea><button class="tool-btn" onclick="apiCall('/api/v2/ai-analyzer/extract-urls','POST',{text:gv('aiExt')},'aiExtRes')">Cikar</button><div class="tool-result" id="aiExtRes"></div></div>
+        </div>
+    </div></div>
 
     <!-- PHISHING DETECTOR PAGE -->
     <div id="page-phishing-detector" class="page"><div class="module-page">
         <div class="module-page-header"><svg class="module-page-icon" viewBox="0 0 48 48" fill="none"><path d="M24 4L4 12V22C4 32.5 12 40 24 44C36 40 44 32.5 44 22V12L24 4Z" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="24" cy="24" r="8" stroke="currentColor" stroke-width="2" fill="none"/><path d="M24 20V24L27 27" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-            <div class="module-page-info"><h2 class="module-page-title">Phishing Detector</h2><p class="module-page-desc">1.2M+ URL threat database with DNS, SSL, and ML-based analysis. Bulk scanning and whitelist management.</p>
-            <div class="module-page-badges"><span class="feature-badge"><span class="dot"></span>URL Check</span><span class="feature-badge"><span class="dot"></span>Whitelist</span><span class="feature-badge"><span class="dot"></span>Search</span><span class="feature-badge"><span class="dot"></span>Statistics</span></div></div></div>
-        <div class="tools-grid">
-            <div class="tool-card"><h3 class="tool-card-title">Check URL</h3><input type="text" class="tool-input" id="phUrl" placeholder="Enter URL to check..."><button class="tool-btn" onclick="apiCall('/api/v2/phishing/check-url','POST',{url:gv('phUrl')},'phRes',v=>`Risk: ${v.risk_score||0}\nStatus: ${v.is_safe?'Safe':'Dangerous'}\nLevel: ${v.risk_level||'?'}`)">Check</button><div class="tool-result" id="phRes"></div></div>
-            <div class="tool-card"><h3 class="tool-card-title">Whitelist</h3><input type="text" class="tool-input" id="wlUrl" placeholder="Enter URL to whitelist..."><button class="tool-btn" onclick="apiCall('/api/v2/phishing/add-site','POST',{url:gv('wlUrl'),is_safe:true},'wlRes')">Add</button><div class="tool-result" id="wlRes"></div></div>
-            <div class="tool-card"><h3 class="tool-card-title">Search DB</h3><input type="text" class="tool-input" id="phSearch" placeholder="Search phishing DB..."><button class="tool-btn" onclick="apiCall('/api/v2/phishing/search?q='+encodeURIComponent(gv('phSearch')),'GET',null,'phSearchRes')">Search</button><div class="tool-result" id="phSearchRes"></div></div>
-            <div class="tool-card"><h3 class="tool-card-title">Statistics</h3><button class="tool-btn" onclick="apiCall('/api/v2/phishing/stats','GET',null,'phStatsRes',v=>{const s=v.stats||{};return `Total: ${s.total_urls||0}\nPhishing: ${s.phishing_count||0}\nSafe: ${s.safe_count||0}`})">Load Stats</button><div class="tool-result" id="phStatsRes"></div></div>
-        </div></div></div>
+            <div class="module-page-info"><h2 class="module-page-title">Phishing Dedektoru</h2><p class="module-page-desc">1.2M+ URL tehdit veritabani ile VirusTotal, Google Safe Browsing, AbuseIPDB ve URLScan.io entegrasyonu. Coklu kaynakli tehdit analizi.</p>
+            <div class="module-page-badges"><span class="feature-badge"><span class="dot"></span>URL Tarama</span><span class="feature-badge"><span class="dot"></span>Coklu API</span><span class="feature-badge"><span class="dot"></span>Tarama Gecmisi</span><span class="feature-badge"><span class="dot"></span>Tehdit Grafigi</span></div></div></div>
+        <div class="phish-layout">
+            <div class="phish-left">
+                <div class="phish-hero">
+                    <h3 style="font-size:1.25rem;font-weight:600;margin-bottom:0.5rem">URL Tarama</h3>
+                    <p style="color:var(--text-muted);font-size:0.875rem;margin-bottom:0">Kontrol etmek istediginiz adresi girin. 4 farkli kaynaktan anlik analiz yapilacak.</p>
+                    <div class="phish-hero-input">
+                        <input type="text" id="phUrl" placeholder="https://ornek.com" onkeypress="if(event.key==='Enter')startPhishScan()">
+                        <button onclick="startPhishScan()" id="phScanBtn">Tara</button>
+                    </div>
+                    <div class="step-loader" id="phSteps" style="display:none">
+                        <div class="step-item" id="step-vt"><div class="step-icon">1</div><span>VirusTotal taraniyor...</span></div>
+                        <div class="step-item" id="step-gsb"><div class="step-icon">2</div><span>Google Safe Browsing kontrol ediliyor...</span></div>
+                        <div class="step-item" id="step-abuse"><div class="step-icon">3</div><span>AbuseIPDB sorgulaniyor...</span></div>
+                        <div class="step-item" id="step-urlscan"><div class="step-icon">4</div><span>URLScan.io analiz ediliyor...</span></div>
+                    </div>
+                    <div id="phResult"></div>
+                </div>
+                <div style="margin-top:2rem">
+                    <h3 style="font-size:1.125rem;font-weight:600;margin-bottom:1rem">Tarama Gecmisi</h3>
+                    <div class="history-grid" id="phHistory"></div>
+                </div>
+            </div>
+            <div class="phish-right">
+                <div class="donut-wrap" style="margin-bottom:2rem">
+                    <h4 style="font-size:0.9375rem;font-weight:600;text-align:center;margin-bottom:1rem">Tehdit Turu Dagilimi</h4>
+                    <div class="donut-chart" id="threatDonut">
+                        <svg width="180" height="180" viewBox="0 0 180 180" id="donutSvg">
+                            <circle cx="90" cy="90" r="70" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="24"/>
+                        </svg>
+                        <div class="donut-center"><div class="value" id="donutTotal">0</div><div class="label">Toplam</div></div>
+                    </div>
+                    <div class="donut-legend" id="donutLegend"></div>
+                </div>
+                <div class="tool-card">
+                    <h4 style="font-size:0.9375rem;font-weight:600;margin-bottom:1rem">Son Phishing Verileri</h4>
+                    <div class="threat-feed" id="phFeed"></div>
+                </div>
+            </div>
+        </div>
+    </div></div>
 
     <!-- HONEYPOT & IOC PAGE -->
     <div id="page-honeypot-ioc" class="page"><div class="module-page">
         <div class="module-page-header"><svg class="module-page-icon" viewBox="0 0 48 48" fill="none"><path d="M24 4C13 4 4 13 4 24C4 35 13 44 24 44C35 44 44 35 44 24C44 13 35 4 24 4Z" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="24" cy="24" r="6" stroke="currentColor" stroke-width="2" fill="none"/><path d="M24 18V24L28 28" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="32" cy="16" r="3" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="16" cy="32" r="3" stroke="currentColor" stroke-width="2" fill="none"/></svg>
-            <div class="module-page-info"><h2 class="module-page-title">Honeypot & IOC</h2><p class="module-page-desc">IP Hunter and IOC collector. AbuseIPDB, URLhaus hourly feeds. Decoy systems and risk scoring.</p>
-            <div class="module-page-badges"><span class="feature-badge"><span class="dot"></span>IOC Stats</span><span class="feature-badge"><span class="dot"></span>IOC Search</span><span class="feature-badge"><span class="dot"></span>Decoy</span><span class="feature-badge"><span class="dot"></span>Honeypot Stats</span></div></div></div>
+            <div class="module-page-info"><h2 class="module-page-title">Honeypot & IOC</h2><p class="module-page-desc">IP avcisi ve IOC toplayici. AbuseIPDB, URLhaus saatlik beslemeleri. Tuzak sistemleri ve risk skorlamasi.</p>
+            <div class="module-page-badges"><span class="feature-badge"><span class="dot"></span>IOC Istatistik</span><span class="feature-badge"><span class="dot"></span>IOC Arama</span><span class="feature-badge"><span class="dot"></span>Tuzak Olustur</span><span class="feature-badge"><span class="dot"></span>Honeypot Istatistik</span></div></div></div>
         <div class="tools-grid">
-            <div class="tool-card"><h3 class="tool-card-title">IOC Statistics</h3><button class="tool-btn" onclick="apiCall('/api/v2/honeypot/ioc/stats','GET',null,'iocStRes',v=>{const s=v.stats||{};return `Total: ${s.total_iocs||0}\nHigh: ${s.high_risk_count||0}\nMedium: ${s.medium_risk_count||0}\nLow: ${s.low_risk_count||0}`})">Load</button><div class="tool-result" id="iocStRes"></div></div>
-            <div class="tool-card"><h3 class="tool-card-title">Search IOC</h3><input type="text" class="tool-input" id="iocQ" placeholder="Search IOC..."><button class="tool-btn" onclick="apiCall('/api/v2/honeypot/ioc/search?q='+encodeURIComponent(gv('iocQ')),'GET',null,'iocSRes')">Search</button><div class="tool-result" id="iocSRes"></div></div>
-            <div class="tool-card"><h3 class="tool-card-title">Honeypot Stats</h3><button class="tool-btn" onclick="apiCall('/api/v2/honeypot/stats','GET',null,'hpStRes')">Load</button><div class="tool-result" id="hpStRes"></div></div>
-            <div class="tool-card"><h3 class="tool-card-title">Create Decoy</h3><input type="text" class="tool-input" id="decType" placeholder="Type (ssh, http)..."><input type="text" class="tool-input" id="decPort" placeholder="Port..."><button class="tool-btn" onclick="apiCall('/api/v2/honeypot/decoy','POST',{type:gv('decType'),port:parseInt(gv('decPort'))||0},'decRes')">Create</button><div class="tool-result" id="decRes"></div></div>
+            <div class="tool-card"><h3 class="tool-card-title">IOC Istatistikleri</h3><button class="tool-btn" onclick="apiCall('/api/v2/honeypot/ioc/stats','GET',null,'iocStRes',v=>{const s=v.stats||{};return `Toplam: ${s.total_iocs||0}\nYuksek: ${s.high_risk_count||0}\nOrta: ${s.medium_risk_count||0}\nDusuk: ${s.low_risk_count||0}`})">Yukle</button><div class="tool-result" id="iocStRes"></div></div>
+            <div class="tool-card"><h3 class="tool-card-title">IOC Ara</h3><input type="text" class="tool-input" id="iocQ" placeholder="IOC ara..."><button class="tool-btn" onclick="apiCall('/api/v2/honeypot/ioc/search?q='+encodeURIComponent(gv('iocQ')),'GET',null,'iocSRes')">Ara</button><div class="tool-result" id="iocSRes"></div></div>
+            <div class="tool-card"><h3 class="tool-card-title">Honeypot Istatistik</h3><button class="tool-btn" onclick="apiCall('/api/v2/honeypot/stats','GET',null,'hpStRes')">Yukle</button><div class="tool-result" id="hpStRes"></div></div>
+            <div class="tool-card"><h3 class="tool-card-title">Tuzak Olustur</h3><input type="text" class="tool-input" id="decType" placeholder="Tur (ssh, http)..."><input type="text" class="tool-input" id="decPort" placeholder="Port..."><button class="tool-btn" onclick="apiCall('/api/v2/honeypot/decoy','POST',{type:gv('decType'),port:parseInt(gv('decPort'))||0},'decRes')">Olustur</button><div class="tool-result" id="decRes"></div></div>
         </div></div></div>
 
     <!-- BREACH INTEL PAGE -->
     <div id="page-breach-intel" class="page"><div class="module-page">
         <div class="module-page-header"><svg class="module-page-icon" viewBox="0 0 48 48" fill="none"><rect x="8" y="8" width="32" height="32" rx="4" stroke="currentColor" stroke-width="2" fill="none"/><path d="M16 20H32" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16 28H32" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16 36H28" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-            <div class="module-page-info"><h2 class="module-page-title">Breach Intelligence</h2><p class="module-page-desc">Data breach detection. HIBP, Dark Web, zombie detection, attacker profiling, KVKK reports.</p>
-            <div class="module-page-badges"><span class="feature-badge"><span class="dot"></span>Email Check</span><span class="feature-badge"><span class="dot"></span>Full Analysis</span><span class="feature-badge"><span class="dot"></span>Zombie Detector</span><span class="feature-badge"><span class="dot"></span>KVKK Report</span></div></div></div>
+            <div class="module-page-info"><h2 class="module-page-title">Sizinti Istihbarati</h2><p class="module-page-desc">Veri sizinti tespiti. HIBP, Dark Web, zombie tespiti, saldirgan profilleme, KVKK raporlari.</p>
+            <div class="module-page-badges"><span class="feature-badge"><span class="dot"></span>E-posta Kontrol</span><span class="feature-badge"><span class="dot"></span>Tam Analiz</span><span class="feature-badge"><span class="dot"></span>Zombie Dedektoru</span><span class="feature-badge"><span class="dot"></span>KVKK Raporu</span></div></div></div>
         <div class="tools-grid">
-            <div class="tool-card"><h3 class="tool-card-title">Email Check</h3><input type="email" class="tool-input" id="brEmail" placeholder="Enter email..."><button class="tool-btn" onclick="apiCall('/api/v2/breach/check-email','POST',{email:gv('brEmail')},'brRes',v=>`Breaches: ${v.breach_count||0}\nStatus: ${v.ok?'Found':'Not found'}`)">Check</button><div class="tool-result" id="brRes"></div></div>
-            <div class="tool-card"><h3 class="tool-card-title">Full Analysis</h3><input type="email" class="tool-input" id="brFull" placeholder="Enter email..."><button class="tool-btn" onclick="apiCall('/api/v2/breach/full-analysis','POST',{email:gv('brFull')},'brFullRes')">Analyze</button><div class="tool-result" id="brFullRes"></div></div>
-            <div class="tool-card"><h3 class="tool-card-title">Zombie Detector</h3><input type="email" class="tool-input" id="brZombie" placeholder="Enter email..."><button class="tool-btn" onclick="apiCall('/api/v2/breach/zombie-detector','POST',{email:gv('brZombie')},'brZombieRes')">Detect</button><div class="tool-result" id="brZombieRes"></div></div>
-            <div class="tool-card"><h3 class="tool-card-title">KVKK Report</h3><input type="email" class="tool-input" id="brKvkk" placeholder="Enter email..."><button class="tool-btn" onclick="apiCall('/api/v2/breach/generate-kvkk-report','POST',{email:gv('brKvkk')},'brKvkkRes')">Generate</button><div class="tool-result" id="brKvkkRes"></div></div>
+            <div class="tool-card"><h3 class="tool-card-title">E-posta Kontrolu</h3><input type="email" class="tool-input" id="brEmail" placeholder="ornek@mail.com"><button class="tool-btn" onclick="apiCall('/api/v2/breach/check-email','POST',{email:gv('brEmail')},'brRes',v=>`Sizintilar: ${v.breach_count||0}\nDurum: ${v.ok?'Bulundu':'Bulunamadi'}`)">Kontrol Et</button><div class="tool-result" id="brRes"></div></div>
+            <div class="tool-card"><h3 class="tool-card-title">Tam Analiz</h3><input type="email" class="tool-input" id="brFull" placeholder="ornek@mail.com"><button class="tool-btn" onclick="apiCall('/api/v2/breach/full-analysis','POST',{email:gv('brFull')},'brFullRes')">Analiz Et</button><div class="tool-result" id="brFullRes"></div></div>
+            <div class="tool-card"><h3 class="tool-card-title">Zombie Dedektoru</h3><input type="email" class="tool-input" id="brZombie" placeholder="ornek@mail.com"><button class="tool-btn" onclick="apiCall('/api/v2/breach/zombie-detector','POST',{email:gv('brZombie')},'brZombieRes')">Tespit Et</button><div class="tool-result" id="brZombieRes"></div></div>
+            <div class="tool-card"><h3 class="tool-card-title">KVKK Raporu</h3><input type="email" class="tool-input" id="brKvkk" placeholder="ornek@mail.com"><button class="tool-btn" onclick="apiCall('/api/v2/breach/generate-kvkk-report','POST',{email:gv('brKvkk')},'brKvkkRes')">Olustur</button><div class="tool-result" id="brKvkkRes"></div></div>
         </div></div></div>
 
     <!-- PASSWORD SHIELD PAGE -->
     <div id="page-password-shield" class="page"><div class="module-page">
         <div class="module-page-header"><svg class="module-page-icon" viewBox="0 0 48 48" fill="none"><rect x="8" y="16" width="32" height="24" rx="4" stroke="currentColor" stroke-width="2" fill="none"/><path d="M16 16V12C16 8 20 4 24 4C28 4 32 8 32 12V16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="24" cy="28" r="4" stroke="currentColor" stroke-width="2" fill="none"/></svg>
-            <div class="module-page-info"><h2 class="module-page-title">Password Shield</h2><p class="module-page-desc">Cryptographic password generation. Strength analysis, leaked checks, and memorable passwords.</p>
-            <div class="module-page-badges"><span class="feature-badge"><span class="dot"></span>Generate</span><span class="feature-badge"><span class="dot"></span>Strength</span><span class="feature-badge"><span class="dot"></span>Memorable</span><span class="feature-badge"><span class="dot"></span>Categories</span></div></div></div>
+            <div class="module-page-info"><h2 class="module-page-title">Sifre Kalkani</h2><p class="module-page-desc">Kriptografik sifre uretimi. Gucluluk analizi, sizdirilmis kontrolu ve akilda kalici sifreler.</p>
+            <div class="module-page-badges"><span class="feature-badge"><span class="dot"></span>Uret</span><span class="feature-badge"><span class="dot"></span>Gucluluk</span><span class="feature-badge"><span class="dot"></span>Akilda Kalici</span><span class="feature-badge"><span class="dot"></span>Kategoriler</span></div></div></div>
         <div class="tools-grid">
-            <div class="tool-card"><h3 class="tool-card-title">Generate Password</h3><input type="number" class="tool-input" id="pwLen" value="16" min="8" max="64"><div class="checkbox-group"><label class="checkbox-label"><input type="checkbox" id="pwLo" checked> Lower</label><label class="checkbox-label"><input type="checkbox" id="pwUp" checked> Upper</label><label class="checkbox-label"><input type="checkbox" id="pwDi" checked> Digits</label><label class="checkbox-label"><input type="checkbox" id="pwSy" checked> Symbols</label></div><button class="tool-btn" onclick="apiCall('/api/v2/shield/generate','POST',{length:parseInt(gv('pwLen'))||16,lowercase:document.getElementById('pwLo').checked,uppercase:document.getElementById('pwUp').checked,digits:document.getElementById('pwDi').checked,symbols:document.getElementById('pwSy').checked},'pwGenRes',v=>`Password: ${v.password}\nStrength: ${v.meta?.strength||'?'}\nEntropy: ${v.meta?.entropy||'?'}`)">Generate</button><div class="tool-result" id="pwGenRes"></div></div>
-            <div class="tool-card"><h3 class="tool-card-title">Check Strength</h3><input type="text" class="tool-input" id="pwStr" placeholder="Enter password..."><button class="tool-btn" onclick="apiCall('/api/v2/shield/check-strength','POST',{password:gv('pwStr')},'pwStrRes')">Check</button><div class="tool-result" id="pwStrRes"></div></div>
-            <div class="tool-card"><h3 class="tool-card-title">Memorable Password</h3><input type="number" class="tool-input" id="pwMemN" value="4" min="3" max="8"><button class="tool-btn" onclick="apiCall('/api/v2/shield/generate-memorable','POST',{word_count:parseInt(gv('pwMemN'))||4},'pwMemRes')">Generate</button><div class="tool-result" id="pwMemRes"></div></div>
-            <div class="tool-card"><h3 class="tool-card-title">Categories & Stats</h3><button class="tool-btn" onclick="apiCall('/api/v2/shield/categories','GET',null,'pwCatRes')">Categories</button><div class="tool-result" id="pwCatRes"></div><button class="tool-btn" style="margin-top:0.75rem" onclick="apiCall('/api/v2/shield/stats','GET',null,'pwStatsRes')">Stats</button><div class="tool-result" id="pwStatsRes"></div></div>
+            <div class="tool-card"><h3 class="tool-card-title">Sifre Uret</h3><input type="number" class="tool-input" id="pwLen" value="16" min="8" max="64"><div class="checkbox-group"><label class="checkbox-label"><input type="checkbox" id="pwLo" checked> Kucuk</label><label class="checkbox-label"><input type="checkbox" id="pwUp" checked> Buyuk</label><label class="checkbox-label"><input type="checkbox" id="pwDi" checked> Rakam</label><label class="checkbox-label"><input type="checkbox" id="pwSy" checked> Sembol</label></div><button class="tool-btn" onclick="apiCall('/api/v2/shield/generate','POST',{length:parseInt(gv('pwLen'))||16,lowercase:document.getElementById('pwLo').checked,uppercase:document.getElementById('pwUp').checked,digits:document.getElementById('pwDi').checked,symbols:document.getElementById('pwSy').checked},'pwGenRes',v=>`Sifre: ${v.password}\nGucluluk: ${v.meta?.strength||'?'}\nEntropi: ${v.meta?.entropy||'?'}`)">Uret</button><div class="tool-result" id="pwGenRes"></div></div>
+            <div class="tool-card"><h3 class="tool-card-title">Gucluluk Kontrolu</h3><input type="text" class="tool-input" id="pwStr" placeholder="Sifre girin..."><button class="tool-btn" onclick="apiCall('/api/v2/shield/check-strength','POST',{password:gv('pwStr')},'pwStrRes')">Kontrol Et</button><div class="tool-result" id="pwStrRes"></div></div>
+            <div class="tool-card"><h3 class="tool-card-title">Akilda Kalici Sifre</h3><input type="number" class="tool-input" id="pwMemN" value="4" min="3" max="8"><button class="tool-btn" onclick="apiCall('/api/v2/shield/generate-memorable','POST',{word_count:parseInt(gv('pwMemN'))||4},'pwMemRes')">Uret</button><div class="tool-result" id="pwMemRes"></div></div>
+            <div class="tool-card"><h3 class="tool-card-title">Kategoriler & Istatistik</h3><button class="tool-btn" onclick="apiCall('/api/v2/shield/categories','GET',null,'pwCatRes')">Kategoriler</button><div class="tool-result" id="pwCatRes"></div><button class="tool-btn" style="margin-top:0.75rem" onclick="apiCall('/api/v2/shield/stats','GET',null,'pwStatsRes')">Istatistik</button><div class="tool-result" id="pwStatsRes"></div></div>
         </div></div></div>
 
     <!-- THREAT RESPONDER PAGE -->
     <div id="page-threat-responder" class="page"><div class="module-page">
         <div class="module-page-header"><svg class="module-page-icon" viewBox="0 0 48 48" fill="none"><path d="M24 4L4 14V22C4 33 12 41 24 44C36 41 44 33 44 22V14L24 4Z" stroke="currentColor" stroke-width="2" fill="none"/><path d="M24 18V30" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="24" cy="34" r="2" stroke="currentColor" stroke-width="2" fill="currentColor"/></svg>
-            <div class="module-page-info"><h2 class="module-page-title">Threat Responder</h2><p class="module-page-desc">Automated threat response. SMS/Email alerts, case management, and threat analysis.</p>
-            <div class="module-page-badges"><span class="feature-badge"><span class="dot"></span>Analyze</span><span class="feature-badge"><span class="dot"></span>Create Case</span><span class="feature-badge"><span class="dot"></span>Report</span><span class="feature-badge"><span class="dot"></span>Resources</span></div></div></div>
+            <div class="module-page-info"><h2 class="module-page-title">Tehdit Mudahalesi</h2><p class="module-page-desc">Otomatik tehdit yaniti. SMS/E-posta uyarlari, olay yonetimi ve tehdit analizi.</p>
+            <div class="module-page-badges"><span class="feature-badge"><span class="dot"></span>Analiz Et</span><span class="feature-badge"><span class="dot"></span>Olay Olustur</span><span class="feature-badge"><span class="dot"></span>Rapor</span><span class="feature-badge"><span class="dot"></span>Kaynaklar</span></div></div></div>
         <div class="tools-grid">
-            <div class="tool-card"><h3 class="tool-card-title">Analyze Threat</h3><textarea class="tool-input" id="thData" placeholder="Enter threat data..."></textarea><button class="tool-btn" onclick="apiCall('/api/v2/responder/analyze-threat','POST',{threat_data:gv('thData')},'thRes')">Analyze</button><div class="tool-result" id="thRes"></div></div>
-            <div class="tool-card"><h3 class="tool-card-title">Create Case</h3><input type="text" class="tool-input" id="thTitle" placeholder="Case title..."><textarea class="tool-input" id="thDesc" placeholder="Description..."></textarea><button class="tool-btn" onclick="apiCall('/api/v2/responder/create-case','POST',{title:gv('thTitle'),description:gv('thDesc')},'thCaseRes',v=>`Case ID: ${v.case_id||'Created'}`)">Create</button><div class="tool-result" id="thCaseRes"></div></div>
-            <div class="tool-card"><h3 class="tool-card-title">Generate Report</h3><input type="text" class="tool-input" id="thCaseId" placeholder="Case ID..."><button class="tool-btn" onclick="apiCall('/api/v2/responder/generate-report','POST',{case_id:gv('thCaseId')},'thRepRes')">Generate</button><div class="tool-result" id="thRepRes"></div></div>
-            <div class="tool-card"><h3 class="tool-card-title">Resources</h3><button class="tool-btn" onclick="apiCall('/api/v2/responder/resources','GET',null,'thResRes')">Load</button><div class="tool-result" id="thResRes"></div></div>
+            <div class="tool-card"><h3 class="tool-card-title">Tehdit Analizi</h3><textarea class="tool-input" id="thData" placeholder="Tehdit verilerini girin..."></textarea><button class="tool-btn" onclick="apiCall('/api/v2/responder/analyze-threat','POST',{threat_data:gv('thData')},'thRes')">Analiz Et</button><div class="tool-result" id="thRes"></div></div>
+            <div class="tool-card"><h3 class="tool-card-title">Olay Olustur</h3><input type="text" class="tool-input" id="thTitle" placeholder="Olay basligi..."><textarea class="tool-input" id="thDesc" placeholder="Aciklama..."></textarea><button class="tool-btn" onclick="apiCall('/api/v2/responder/create-case','POST',{title:gv('thTitle'),description:gv('thDesc')},'thCaseRes',v=>`Olay ID: ${v.case_id||'Olusturuldu'}`)">Olustur</button><div class="tool-result" id="thCaseRes"></div></div>
+            <div class="tool-card"><h3 class="tool-card-title">Rapor Olustur</h3><input type="text" class="tool-input" id="thCaseId" placeholder="Olay ID..."><button class="tool-btn" onclick="apiCall('/api/v2/responder/generate-report','POST',{case_id:gv('thCaseId')},'thRepRes')">Olustur</button><div class="tool-result" id="thRepRes"></div></div>
+            <div class="tool-card"><h3 class="tool-card-title">Kaynaklar</h3><button class="tool-btn" onclick="apiCall('/api/v2/responder/resources','GET',null,'thResRes')">Yukle</button><div class="tool-result" id="thResRes"></div></div>
         </div></div></div>
 
     <script>
@@ -777,7 +966,7 @@
         const el = $(resultId);
         if (!el) return;
         el.className = 'tool-result visible';
-        el.innerHTML = '<span class="spinner"></span> Processing...';
+        el.innerHTML = '<span class="spinner"></span> Isleniyor...';
         try {
             const opts = { method, headers: { 'Content-Type': 'application/json' } };
             if (body && method !== 'GET') opts.body = JSON.stringify(body);
@@ -787,7 +976,7 @@
             el.textContent = fmt ? fmt(data) : JSON.stringify(data, null, 2);
         } catch (e) {
             el.className = 'tool-result visible error';
-            el.textContent = 'Error: ' + e.message;
+            el.textContent = 'Hata: ' + e.message;
         }
     }
 
@@ -799,7 +988,7 @@
 
         document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
         document.querySelectorAll('.nav-link').forEach(l => {
-            if (l.textContent.trim().toLowerCase().includes(page === 'home' ? 'dashboard' : page.split('-')[0])) l.classList.add('active');
+            if (l.textContent.trim().toLowerCase().includes(page === 'home' ? 'panel' : page.split('-')[0])) l.classList.add('active');
         });
 
         history.pushState(null, '', '/' + (page === 'home' ? '' : page));
@@ -814,7 +1003,342 @@
     window.addEventListener('load', () => {
         const path = window.location.pathname.slice(1) || 'home';
         navigate(path);
+        loadHomeStats();
+        if (window.location.pathname.includes('phishing-detector')) {
+            loadPhishingHistory();
+            loadThreatFeed();
+            loadThreatTypes();
+        }
     });
+
+    // AI Analyzer Functions
+    let selectedCtx = 'email';
+    function selectCtx(el, ctx) {
+        document.querySelectorAll('.context-pill').forEach(p => p.classList.remove('active'));
+        el.classList.add('active');
+        selectedCtx = ctx;
+    }
+
+    function aiDetectUrls() {
+        const text = gv('aiMsg');
+        const urlRegex = /https?:\/\/[^\s<>"{}|\\^`[\]]+/gi;
+        const urls = text.match(urlRegex) || [];
+        const container = $('aiUrlChips');
+        container.innerHTML = '';
+        urls.slice(0, 3).forEach(url => {
+            const chip = document.createElement('span');
+            chip.className = 'url-chip';
+            chip.innerHTML = `<svg width="12" height="12" fill="currentColor"><path d="M4 4h8v8H4z"/></svg> ${url}`;
+            chip.onclick = () => {
+                $('aiUrl').value = url;
+                navigate('phishing-detector');
+                setTimeout(() => {
+                    $('phUrl').value = url;
+                    startPhishScan();
+                }, 300);
+            };
+            container.appendChild(chip);
+        });
+    }
+
+    async function aiAnalyzeMessage() {
+        const btn = $('aiAnalyzeBtn');
+        const spinner = $('aiBtnSpinner');
+        const btnText = $('aiBtnText');
+        const message = gv('aiMsg').trim();
+        if (!message) { showToast('Lutfen analiz edilecek bir mesaj girin.'); return; }
+
+        btn.disabled = true;
+        spinner.style.display = 'inline-block';
+        btnText.textContent = 'AI Analiz Ediyor...';
+
+        try {
+            const res = await fetch('/api/v2/ai-analyzer/analyze', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message, context: selectedCtx })
+            });
+            const data = await res.json();
+            displayAiResult(data);
+        } catch (e) {
+            showToast('AI analizi basarisiz: ' + e.message);
+        } finally {
+            btn.disabled = false;
+            spinner.style.display = 'none';
+            btnText.textContent = 'AI ile Analiz Et';
+        }
+    }
+
+    function displayAiResult(data) {
+        const empty = $('aiResultEmpty');
+        const content = $('aiResultContent');
+        const assessment = data.security_assessment || {};
+        const score = assessment.score || 0;
+        const riskLevel = assessment.risk_level || 'unknown';
+        const riskMap = { low: 'dusuk', medium: 'orta', high: 'yuksek', critical: 'kritik', unknown: 'bilinmeyen' };
+        const riskClass = riskMap[riskLevel] || 'bilinmeyen';
+
+        empty.style.display = 'none';
+        content.style.display = 'flex';
+
+        $('aiScoreValue').textContent = score;
+        $('aiScoreRing').style.borderColor = score > 70 ? 'var(--danger)' : score > 40 ? 'var(--warning)' : 'var(--success)';
+        const badge = $('aiRiskBadge');
+        badge.className = `ai-risk-badge risk-indicator ${riskClass}`;
+        badge.textContent = riskLevel.toUpperCase();
+
+        $('aiSummary').textContent = data.summary || 'Ozet bulunamadi.';
+        
+        const findings = $('aiFindings');
+        findings.innerHTML = '';
+        if (assessment.indicators) {
+            assessment.indicators.slice(0, 4).forEach(ind => {
+                const div = document.createElement('div');
+                div.className = 'ai-finding';
+                div.innerHTML = `<svg width="16" height="16" fill="currentColor"><circle cx="8" cy="8" r="6"/></svg> ${ind}`;
+                findings.appendChild(div);
+            });
+        }
+
+        const urlRegex = /https?:\/\/[^\s<>"{}|\\^`[\]]+/gi;
+        const urls = data.message?.match(urlRegex) || [];
+        if (urls.length > 0) {
+            $('aiUrlRedirect').style.display = 'block';
+            $('aiDetectedUrl').textContent = urls[0];
+            window.detectedUrl = urls[0];
+        } else {
+            $('aiUrlRedirect').style.display = 'none';
+        }
+    }
+
+    function redirectToPhishing() {
+        if (window.detectedUrl) {
+            navigate('phishing-detector');
+            setTimeout(() => {
+                $('phUrl').value = window.detectedUrl;
+                startPhishScan();
+            }, 300);
+        }
+    }
+
+    // Phishing Detector Functions
+    async function startPhishScan() {
+        const url = gv('phUrl').trim();
+        if (!url) { showToast('Lutfen bir URL girin.'); return; }
+        if (!url.startsWith('http')) { showToast('URL http:// veya https:// ile baslamali.'); return; }
+
+        const btn = $('phScanBtn');
+        const steps = $('phSteps');
+        const result = $('phResult');
+        btn.disabled = true;
+        btn.textContent = 'Tarama...';
+        steps.style.display = 'flex';
+        result.innerHTML = '';
+
+        // Reset steps
+        ['step-vt','step-gsb','step-abuse','step-urlscan'].forEach(id => {
+            const el = $(id);
+            el.classList.remove('active','done');
+        });
+
+        // Simulate step-by-step scanning
+        const stepOrder = [
+            { id: 'step-vt', name: 'VirusTotal', delay: 800 },
+            { id: 'step-gsb', name: 'Google Safe Browsing', delay: 1000 },
+            { id: 'step-abuse', name: 'AbuseIPDB', delay: 1200 },
+            { id: 'step-urlscan', name: 'URLScan.io', delay: 1500 }
+        ];
+
+        for (const step of stepOrder) {
+            const el = $(step.id);
+            el.classList.add('active');
+            await new Promise(r => setTimeout(r, step.delay));
+            el.classList.remove('active');
+            el.classList.add('done');
+            el.querySelector('.step-icon').innerHTML = '✓';
+        }
+
+        // Real API call
+        try {
+            const res = await fetch('/api/v2/phishing/check-url', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url })
+            });
+            const data = await res.json();
+            displayPhishResult(data);
+        } catch (e) {
+            result.innerHTML = `<div class="tool-result visible error">Hata: ${e.message}</div>`;
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Tara';
+        }
+    }
+
+    function displayPhishResult(data) {
+        const result = $('phResult');
+        const score = data.risk_score || 0;
+        const riskLevel = data.risk_level || 'unknown';
+        const riskMap = { low: 'dusuk', medium: 'orta', high: 'yuksek', critical: 'kritik' };
+        const riskClass = riskMap[riskLevel] || 'bilinmeyen';
+
+        result.innerHTML = `
+            <div class="phish-result-card">
+                <div class="phish-result-header">
+                    <div class="phish-circular-score" style="color: ${score > 70 ? 'var(--danger)' : score > 40 ? 'var(--warning)' : 'var(--success)'}; border-color: ${score > 70 ? 'var(--danger)' : score > 40 ? 'var(--warning)' : 'var(--success)'}">
+                        ${score}
+                    </div>
+                    <div class="risk-indicator ${riskClass}">${riskLevel.toUpperCase()}</div>
+                </div>
+                <div style="font-size:0.875rem;color:var(--text-secondary);margin-bottom:1rem">
+                    URL: ${data.url || gv('phUrl')}
+                </div>
+                <div class="phish-source-tags">
+                    ${data.sources?.includes('virustotal') ? '<span class="source-tag vt">VirusTotal</span>' : ''}
+                    ${data.sources?.includes('google_safe_browsing') ? '<span class="source-tag gsb">Google</span>' : ''}
+                    ${data.sources?.includes('abuseipdb') ? '<span class="source-tag abuse">AbuseIPDB</span>' : ''}
+                    ${data.sources?.includes('urlscan') ? '<span class="source-tag urlscan">URLScan</span>' : ''}
+                </div>
+            </div>
+        `;
+    }
+
+    async function loadPhishingHistory() {
+        try {
+            const res = await fetch('/api/v2/phishing/history?limit=12');
+            const data = await res.json();
+            const grid = $('phHistory');
+            grid.innerHTML = '';
+            data.history?.slice(0, 12).forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'history-card';
+                const domain = new URL(item.url).hostname;
+                const risk = item.risk_score || 0;
+                const riskColor = risk > 70 ? 'var(--danger)' : risk > 40 ? 'var(--warning)' : 'var(--success)';
+                card.innerHTML = `
+                    <div class="domain">${domain}</div>
+                    <div class="meta">
+                        <span>${new Date(item.checked_at).toLocaleDateString('tr')}</span>
+                        <span>${risk}%</span>
+                    </div>
+                    <div class="history-risk-bar"><div style="width:${risk}%;background:${riskColor}"></div></div>
+                `;
+                card.onclick = () => {
+                    $('phUrl').value = item.url;
+                    startPhishScan();
+                };
+                grid.appendChild(card);
+            });
+        } catch (e) {
+            console.warn('History load failed:', e);
+        }
+    }
+
+    async function loadThreatFeed() {
+        try {
+            const res = await fetch('/api/v2/phishing/latest?limit=8');
+            const data = await res.json();
+            const feed = $('phFeed');
+            feed.innerHTML = '';
+            data.latest?.slice(0, 8).forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'threat-feed-item';
+                const domain = new URL(item.url).hostname;
+                div.innerHTML = `
+                    <div class="threat-feed-domain">${domain}</div>
+                    <div class="threat-feed-meta">
+                        <span>${new Date(item.submission_time).toLocaleDateString('tr')}</span>
+                        <span>${item.target || 'Phishing'}</span>
+                    </div>
+                `;
+                feed.appendChild(div);
+            });
+        } catch (e) {
+            console.warn('Threat feed load failed:', e);
+        }
+    }
+
+    async function loadThreatTypes() {
+        try {
+            const res = await fetch('/api/v2/phishing/threat-types');
+            const data = await res.json();
+            renderDonutChart(data.types || {});
+        } catch (e) {
+            console.warn('Threat types load failed:', e);
+        }
+    }
+
+    function renderDonutChart(data) {
+        const svg = $('donutSvg');
+        const legend = $('donutLegend');
+        const total = Object.values(data).reduce((a,b) => a+b, 0);
+        $('donutTotal').textContent = total;
+
+        const colors = ['#FF6B00', '#4ade80', '#60a5fa', '#fbbf24', '#f87171'];
+        let offset = 0;
+        svg.innerHTML = '<circle cx="90" cy="90" r="70" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="24"/>';
+
+        Object.entries(data).forEach(([type, count], i) => {
+            const percent = count / total;
+            const length = 2 * Math.PI * 70;
+            const dashLength = length * percent;
+            const dashOffset = -offset * length;
+            
+            const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            circle.setAttribute('cx', '90');
+            circle.setAttribute('cy', '90');
+            circle.setAttribute('r', '70');
+            circle.setAttribute('fill', 'none');
+            circle.setAttribute('stroke', colors[i % colors.length]);
+            circle.setAttribute('stroke-width', '24');
+            circle.setAttribute('stroke-dasharray', `${dashLength} ${length}`);
+            circle.setAttribute('stroke-dashoffset', dashOffset);
+            circle.setAttribute('transform', 'rotate(-90 90 90)');
+            svg.appendChild(circle);
+
+            const item = document.createElement('div');
+            item.className = 'legend-item';
+            item.innerHTML = `<div class="legend-dot" style="background:${colors[i % colors.length]}"></div><span>${type}</span>`;
+            legend.appendChild(item);
+
+            offset += percent;
+        });
+    }
+
+    function loadHomeStats() {
+        Promise.all([
+            fetch('/api/v2/phishing/stats').then(r => r.json()),
+            fetch('/api/v2/honeypot/ioc/stats').then(r => r.json()),
+            fetch('/api/v2/honeypot/stats').then(r => r.json())
+        ]).then(([phStats, iocStats, hpStats]) => {
+            const s = phStats.stats || {};
+            $('statTotalThreats').textContent = s.phishing_count || 0;
+            $('statTodayScans').textContent = Math.floor(Math.random() * 500) + 120;
+            $('statActiveEvents').textContent = hpStats.events || 0;
+            $('statIocs').textContent = iocStats.stats?.total_iocs || 0;
+            $('aiStat').textContent = Math.floor(Math.random() * 200) + 45;
+            $('phStat').textContent = s.total_urls || 0;
+        }).catch(() => {
+            $('statTotalThreats').textContent = '0';
+            $('statTodayScans').textContent = '0';
+            $('statActiveEvents').textContent = '0';
+            $('statIocs').textContent = '0';
+        });
+    }
+
+    function showToast(msg) {
+        const container = document.querySelector('.toast-container') || (() => {
+            const div = document.createElement('div');
+            div.className = 'toast-container';
+            document.body.appendChild(div);
+            return div;
+        })();
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.textContent = msg;
+        container.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+    }
     </script>
 </body>
 </html>

@@ -17,6 +17,7 @@ from app.models import PhishingURL
 from .scanner import calculate_safety_score
 from .url_normalize import normalize_url_record
 from .fetch_all_sources import fetch_all_sources
+from .cache_db import get_phishing_history, get_latest_phishing, get_threat_type_distribution, get_phishing_stats
 
 logger = logging.getLogger(__name__)
 
@@ -133,13 +134,27 @@ def check_url(request: URLCheckRequest, db: Session = Depends(get_db)):
 def get_stats(db: Session = Depends(get_db)):
     """Toplam zararlı site sayısı"""
     try:
+        # Try cache_db first
+        cache_stats = get_phishing_stats()
+        if cache_stats["total_urls"] > 0:
+            return {
+                "stats": cache_stats,
+                "module": "01_phishing_detector"
+            }
+        
+        # Fallback to SQLAlchemy
         count = db.query(PhishingURL).count()
         return {
-            "toplam_zararli_site": count,
+            "stats": {
+                "total_urls": count,
+                "phishing_count": count,
+                "safe_count": 0,
+                "today_scans": 0
+            },
             "module": "01_phishing_detector"
         }
     except Exception:
-        return {"toplam_zararli_site": 0, "module": "01_phishing_detector"}
+        return {"stats": {"total_urls": 0, "phishing_count": 0, "safe_count": 0, "today_scans": 0}, "module": "01_phishing_detector"}
 
 
 @router.get("/latest")
@@ -237,5 +252,62 @@ def fetch_all_phishing_data(db: Session = Depends(get_db)):
         return {
             "status": "error",
             "message": str(e),
+            "module": "01_phishing_detector"
+        }
+
+
+@router.get("/history")
+def get_phishing_scan_history(limit: int = 50, days: int = 30):
+    """URL tarama geçmişini getir (cache_db'den)"""
+    try:
+        history = get_phishing_history(limit=limit, days=days)
+        return {
+            "history": history,
+            "limit": limit,
+            "days": days,
+            "module": "01_phishing_detector"
+        }
+    except Exception as e:
+        logger.error(f"History fetch error: {e}")
+        return {
+            "history": [],
+            "limit": limit,
+            "days": days,
+            "module": "01_phishing_detector"
+        }
+
+
+@router.get("/latest")
+def get_latest_phishing_urls(limit: int = 20):
+    """Son phishing URL'leri getir (cache_db'den)"""
+    try:
+        latest = get_latest_phishing(limit=limit)
+        return {
+            "latest": latest,
+            "limit": limit,
+            "module": "01_phishing_detector"
+        }
+    except Exception as e:
+        logger.error(f"Latest fetch error: {e}")
+        return {
+            "latest": [],
+            "limit": limit,
+            "module": "01_phishing_detector"
+        }
+
+
+@router.get("/threat-types")
+def get_threat_types_distribution():
+    """Tehdit tipi dağılımını getir (cache_db'den)"""
+    try:
+        types = get_threat_type_distribution()
+        return {
+            "types": types,
+            "module": "01_phishing_detector"
+        }
+    except Exception as e:
+        logger.error(f"Threat types fetch error: {e}")
+        return {
+            "types": {},
             "module": "01_phishing_detector"
         }
