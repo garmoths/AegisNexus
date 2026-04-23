@@ -346,3 +346,43 @@ def cleanup_old_records(days: int = 90) -> int:
 if __name__ == "__main__":
     init_database()
     print("Cache database initialized successfully")
+
+
+def save_check_url_result(url: str, result: dict):
+    """Save check-url result to threat_intel_cache.db"""
+    import sqlite3
+    import os
+    from datetime import datetime
+    
+    db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "threat_intel_cache.db")
+    
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        domain = url.replace("https://", "").replace("http://", "").replace("www.", "").split('/')[0]
+        score = result.get("score", 50)
+        
+        # Determine risk level
+        if score >= 80:
+            risk_level = "safe"
+        elif score >= 60:
+            risk_level = "low"
+        elif score >= 40:
+            risk_level = "medium"
+        else:
+            risk_level = "high"
+        
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Upsert
+        cursor.execute("""
+            INSERT OR REPLACE INTO phishing_urls (url, domain, risk_score, risk_level, online, sources, created_at, updated_at, last_checked)
+            VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?)
+        """, (url, domain, score, risk_level, json.dumps(result.get("sources", [])), now, now, now))
+        
+        conn.commit()
+        conn.close()
+        logger.info(f"Saved check-url result to cache: {url}")
+    except Exception as e:
+        logger.error(f"Error saving check-url result: {e}")

@@ -175,13 +175,13 @@ function AIAnalyzer() {
 
   const sa = result?.security_assessment||{}
   const da = result?.detailed_analysis||{}
-  const score = typeof sa.score==='number'?Math.round(sa.score):50
-  const isPhishing = sa.is_phishing
-  const isScam = sa.is_scam
+  const score = typeof sa?.score==='number'?Math.round(sa.score):(result?.security_assessment?.score !== undefined ? Math.round(result.security_assessment.score) : 50)
+  const isPhishing = result?.security_assessment?.is_phishing === true
+  const isScam = result?.security_assessment?.is_scam === true
   const recs = result?.recommendations||[]
-  const beliefs = da?.psychological_triggers||[]
-  const threats = da?.identified_threats||[]
-  const suspects = da?.suspicious_elements||[]
+  const beliefs = da?.ai_analysis?.psychological_triggers||da?.psychological_triggers||[]
+  const threats = da?.ai_analysis?.identified_threats||da?.identified_threats||[]
+  const suspects = da?.ai_analysis?.suspicious_elements||da?.suspicious_elements||[]
 
   return <div style={{ animation:'fadeInUp 0.5s ease' }}>
     <Toast {...toast} />
@@ -327,13 +327,19 @@ function PhishingDetector() {
         <input value={url} onChange={e=>setUrl(e.target.value)} placeholder="https://ornek.com/supheli-link" style={{ flex:1, padding:'14px 18px', borderRadius:theme.radiusSm, background:theme.bg, border:`1px solid ${theme.border}`, color:'#fff', fontSize:14, outline:'none' }} onKeyDown={e=>e.key==='Enter'&&handleCheck()}/>
         <GlowButton onClick={handleCheck} loading={checking} disabled={!url}>{checking?'Taranıyor...':'🔍 Tara'}</GlowButton>
       </div>
+      {latest.length>0&&<div style={{ marginTop:12, padding:12, background:theme.surface, borderRadius:theme.radiusSm }}>
+        <p style={{ fontSize:11, color:theme.textMuted, marginBottom:8, fontWeight:600 }}>Son taranan URL'ler (tıklayarak kontrol edin):</p>
+        <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+          {latest.slice(0,10).map((item,i)=><button key={i} onClick={()=>{setUrl(item.url);setTimeout(()=>handleCheck(),100)}} style={{ padding:'5px 12px', borderRadius:'16px', border:`1px solid ${theme.border}`, background:theme.surface2, cursor:'pointer', fontSize:11, color:theme.primary, fontFamily:theme.mono, maxWidth:280, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.url}</button>)}
+        </div>
+      </div>}
       {result&&<div style={{ animation:'scaleIn 0.3s ease', padding:20, background:theme.bg, borderRadius:theme.radiusSm, border:`1px solid ${theme.border}` }}>
         <div style={{ display:'flex', gap:24, alignItems:'flex-start', flexWrap:'wrap' }}>
           <RiskGauge score={typeof result.score==='number'?Math.round(Math.min(result.score,100)):(result.risk_level?.includes('TEHLIKELI')?85:15)} label="Risk Skoru"/>
           <div style={{ flex:1, minWidth:250 }}>
             <div style={{ display:'flex', gap:12, flexWrap:'wrap', marginBottom:12 }}>
-              <RiskBadge level={result.risk_level?.includes('TEHLIKELI')?'high':result.score>50?'high':'safe'} size="md"/>
-              <span style={{ padding:'4px 14px', borderRadius:'20px', fontSize:12, fontWeight:700, background:result.score>0?theme.accentDim:theme.primaryDim, color:result.score>0?theme.accent:theme.primary }}>{result.score>0?'⚠️ PHISHING':'✅ GUVENLI'}</span>
+              <RiskBadge level={result.risk_level?.includes('Guvenli')||result.risk_level?.includes('Güvenli')?'safe':result.risk_level?.includes('Tehlikeli')?'high':'medium'} size="md"/>
+              <span style={{ padding:'4px 14px', borderRadius:'20px', fontSize:12, fontWeight:700, background:result.risk_level?.includes('Guvenli')||result.risk_level?.includes('Güvenli')?theme.primaryDim:theme.accentDim, color:result.risk_level?.includes('Guvenli')||result.risk_level?.includes('Güvenli')?theme.primary:theme.accent }}>{result.risk_level||'Bilinmiyor'}</span>
             </div>
             <p style={{ fontSize:12, color:theme.textMuted, wordBreak:'break-all', marginBottom:12, fontFamily:theme.mono }}>{url}</p>
             {result.details&&Array.isArray(result.details)&&result.details.map((d,i)=><div key={i} style={{ padding:'6px 10px', marginBottom:4, background:theme.primaryDim, borderRadius:6, fontSize:12, color:theme.text }}>• {d}</div>)}
@@ -349,12 +355,12 @@ function PhishingDetector() {
           <thead><tr style={{ borderBottom:`2px solid ${theme.border}`, color:theme.textMuted, fontSize:11, textTransform:'uppercase', letterSpacing:'1px' }}><th style={{ textAlign:'left', padding:'12px 8px' }}>URL</th><th style={{ textAlign:'left', padding:'12px 8px' }}>Domain</th><th style={{ textAlign:'center', padding:'12px 8px' }}>Hedef</th><th style={{ textAlign:'center', padding:'12px 8px' }}>Durum</th><th style={{ textAlign:'right', padding:'12px 8px' }}>Tarih</th></tr></thead>
           <tbody>
             {latest.length===0&&<tr><td colSpan={5} style={{ textAlign:'center', padding:32, color:theme.textMuted }}>Veri yukleniyor...</td></tr>}
-            {latest.map((item,i)=><tr key={item.id||i} style={{ borderBottom:`1px solid ${theme.border}` }} onMouseEnter={e=>e.currentTarget.style.background=theme.surface} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+            {latest.map((item,i)=><tr key={item.id||i} style={{ borderBottom:`1px solid ${theme.border}`, cursor:'pointer' }} onClick={()=>{setUrl(item.url);setTimeout(()=>handleCheck(),100)}} onMouseEnter={e=>e.currentTarget.style.background=theme.surface} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
               <td style={{ padding:'10px 8px', maxWidth:300, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}><span style={{ color:theme.text, fontSize:12, fontFamily:theme.mono }}>{item.url}</span></td>
               <td style={{ padding:'10px 8px' }}><span style={{ color:theme.primary, fontSize:12 }}>{item.domain_norm||item.domain||'-'}</span></td>
               <td style={{ padding:'10px 8px', textAlign:'center' }}><span style={{ padding:'2px 8px', borderRadius:'10px', fontSize:11, background:theme.accentDim, color:theme.accent }}>{item.target||'-'}</span></td>
               <td style={{ padding:'10px 8px', textAlign:'center' }}><span style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:4, fontSize:12 }}><StatusDot active={item.online||false}/>{item.online?'ONLINE':'OFFLINE'}</span></td>
-              <td style={{ padding:'10px 8px', textAlign:'right', color:theme.textMuted, fontSize:11 }}>{item.submission_time?new Date(item.submission_time).toLocaleDateString('tr-TR'):item.created_at?new Date(item.created_at).toLocaleDateString('tr-TR'):'-'}</td>
+              <td style={{ padding:'10px 8px', textAlign:'right', color:theme.textMuted, fontSize:11 }}>{item.created_at?new Date(item.created_at).toLocaleDateString('tr-TR'):item.submission_time?new Date(item.submission_time).toLocaleDateString('tr-TR'):item.time?new Date(item.time).toLocaleDateString('tr-TR'):'-'}</td>
             </tr>)}
           </tbody>
         </table>
@@ -381,18 +387,27 @@ function HoneypotIOC() {
 
   useEffect(()=>{loadIoCStats();loadIoCList()},[])
 
-  async function loadIoCStats(){try{const r=await fetch(`${API}/honeypot/ioc/stats`);const d=await r.json();setIocStats(d.stats||d)}catch{}}
-  async function loadIoCList(){try{const r=await fetch(`${API}/honeypot/ioc/list-collected?limit=25`);const d=await r.json();setIocList(d.data||d.iocs||d.results||[])}catch{}}
-  async function handleSearch(){if(!searchQuery)return;setSearching(true);try{const r=await fetch(`${API}/honeypot/ioc/search?q=${encodeURIComponent(searchQuery)}`);const d=await r.json();setSearchResults(d.data||d.results||d.iocs||[]);setActiveTab('search-results')}catch{};setSearching(false)}
+  async function loadIoCStats(){
+    try{
+      const r=await fetch(`${API}/honeypot/ioc/stats`);
+      const d=await r.json();
+      setIocStats(d.stats||d)
+    }catch(e){
+      try{const r=await fetch(`${API}/honeypot/ioc/stats`);const d=await r.json();setIocStats(d)}catch{}
+    }
+  }
+  async function loadIoCList(){try{const r=await fetch(`${API}/honeypot/ioc/list-collected?limit=25`);const d=await r.json();setIocList(d.iocs||d.data||d.results||d.indicators||[])}catch{}}
+  async function handleSearch(){if(!searchQuery)return;setSearching(true);try{const r=await fetch(`${API}/honeypot/ioc/search?q=${encodeURIComponent(searchQuery)}`);const d=await r.json();setSearchResults(d.results||d.data||d.iocs||[]);setActiveTab('search-results')}catch{};setSearching(false)}
 
-  const riskDist=iocStats?.risk_distribution||[]
-  const weeklyGrowth=iocStats?.weekly_growth||[]
-  const topThreats=iocStats?.top_threats||[]
-  const sourceBreakdown=iocStats?.source_breakdown||[]
-  const totalIocs=iocStats?.total_iocs||iocStats?.total_records||0
-  const highRisk=iocStats?.high_risk_count||0
-  const mediumRisk=iocStats?.medium_risk_count||0
-  const lowRisk=iocStats?.low_risk_count||0
+  const statsData=iocStats?.stats||iocStats||{}
+  const riskDist=statsData?.risk_distribution||iocStats?.risk_distribution||[]
+  const weeklyGrowth=statsData?.weekly_growth||iocStats?.weekly_growth||[]
+  const topThreats=statsData?.top_threats||iocStats?.top_threats||[]
+  const sourceBreakdown=statsData?.source_breakdown||iocStats?.source_breakdown||[]
+  const totalIocs=statsData?.total_iocs||iocStats?.total_iocs||iocStats?.total_records||0
+  const highRisk=statsData?.high_risk_count||iocStats?.high_risk_count||0
+  const mediumRisk=statsData?.medium_risk_count||iocStats?.medium_risk_count||0
+  const lowRisk=statsData?.low_risk_count||iocStats?.low_risk_count||0
 
   return <div style={{ animation:'fadeInUp 0.5s ease' }}>
     <SectionHeader badge="IOC / Tuzak Modulu" title="Tehdit Istihbarati & IOC Analizi" subtitle={`${totalIocs.toLocaleString('tr-TR')}+ tehdit indikatoru. Gercek zamanli IOC taramasi, risk analizi ve kaynak dagilimi.`}/>
@@ -418,7 +433,7 @@ function HoneypotIOC() {
         </Card>
         <Card><h3 style={{ fontSize:15, fontWeight:700, color:'#fff', marginBottom:12, display:'flex', gap:8, alignItems:'center' }}><span>🔎</span> IOC Sorgula</h3>
           <div style={{ display:'flex', gap:8 }}><input value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} placeholder="IP, domain, URL veya hash..." style={{ flex:1, padding:'12px 16px', borderRadius:theme.radiusSm, background:theme.bg, border:`1px solid ${theme.border}`, color:'#fff', fontSize:13, outline:'none' }} onKeyDown={e=>e.key==='Enter'&&handleSearch()}/><GlowButton onClick={handleSearch} loading={searching}>Ara</GlowButton></div>
-          {activeTab==='search-results'&&<div style={{ marginTop:16, maxHeight:300, overflowY:'auto' }}><p style={{ fontSize:12, color:theme.textMuted, marginBottom:8 }}>{searchResults.length} sonuc bulundu</p>{searchResults.length>0?searchResults.slice(0,15).map((item,i)=><div key={i} style={{ padding:'10px', marginBottom:6, background:theme.surface, borderRadius:theme.radiusSm, border:`1px solid ${theme.border}`, fontSize:12 }}><div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}><span style={{ color:theme.primary, fontFamily:theme.mono, fontSize:11 }}>{item.value||item.ioc||item.indicator}</span><span style={{ padding:'2px 8px', borderRadius:'10px', fontSize:10, background:theme.accentDim, color:theme.accent }}>{item.type||item.ioc_type||'unknown'}</span></div><p style={{ color:theme.textMuted, marginTop:4, fontSize:11 }}>Risk: {item.risk_score||'N/A'} • Kaynak: {item.source||'N/A'}</p></div>):<p style={{ color:theme.textMuted, fontSize:13, textAlign:'center' }}>Sonuc bulunamadi</p>}</div>}
+          {activeTab==='search-results'&&<div style={{ marginTop:16, maxHeight:300, overflowY:'auto' }}><p style={{ fontSize:12, color:theme.textMuted, marginBottom:8 }}>{searchResults.length} sonuc bulundu</p>{searchResults.length>0?searchResults.slice(0,15).map((item,i)=><div key={i} style={{ padding:'10px', marginBottom:6, background:theme.surface, borderRadius:theme.radiusSm, border:`1px solid ${theme.border}`, fontSize:12 }}><div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}><span style={{ color:theme.primary, fontFamily:theme.mono, fontSize:11 }}>{item.value||item.ioc_value||item.ioc||item.indicator}</span><span style={{ padding:'2px 8px', borderRadius:'10px', fontSize:10, background:theme.accentDim, color:theme.accent }}>{item.ioc_type||item.type||'unknown'}</span></div><p style={{ color:theme.textMuted, marginTop:4, fontSize:11 }}>Risk: {item.risk_score||'N/A'} • Kaynak: {item.source||'N/A'}</p></div>):<p style={{ color:theme.textMuted, fontSize:13, textAlign:'center' }}>Sonuc bulunamadi</p>}</div>}
         </Card>
       </div>
     </div>
@@ -430,9 +445,9 @@ function HoneypotIOC() {
             <thead style={{ position:'sticky', top:0, background:theme.surface2, zIndex:1 }}><tr style={{ borderBottom:`2px solid ${theme.border}`, color:theme.textMuted, fontSize:10, textTransform:'uppercase', letterSpacing:'1px' }}><th style={{ textAlign:'left', padding:'10px 6px' }}>Gosterge</th><th style={{ textAlign:'center', padding:'10px 6px' }}>Tur</th><th style={{ textAlign:'center', padding:'10px 6px' }}>Risk</th><th style={{ textAlign:'center', padding:'10px 6px' }}>Kaynak</th><th style={{ textAlign:'right', padding:'10px 6px' }}>Tarih</th></tr></thead>
             <tbody>{iocList.length===0&&<tr><td colSpan={5} style={{ textAlign:'center', padding:24, color:theme.textMuted }}>Veri yukleniyor...</td></tr>}
               {iocList.map((item,i)=><tr key={item.id||i} style={{ borderBottom:`1px solid ${theme.border}` }} onMouseEnter={e=>e.currentTarget.style.background=theme.surface} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                <td style={{ padding:'8px 6px' }}><span style={{ color:theme.primary, fontFamily:theme.mono, fontSize:11, wordBreak:'break-all' }}>{item.value||item.ioc||item.indicator||'-'}</span></td>
+                <td style={{ padding:'8px 6px' }}><span style={{ color:theme.primary, fontFamily:theme.mono, fontSize:11, wordBreak:'break-all' }}>{item.value||item.ioc_value||item.ioc||item.indicator||'-'}</span></td>
                 <td style={{ padding:'8px 6px', textAlign:'center' }}><span style={{ padding:'2px 6px', borderRadius:'8px', fontSize:10, background:theme.primaryDim, color:theme.primary }}>{item.type||item.ioc_type||'-'}</span></td>
-                <td style={{ padding:'8px 6px', textAlign:'center' }}><span style={{ padding:'2px 6px', borderRadius:'8px', fontSize:10, fontWeight:600, background:(item.risk_score||0)>75?theme.accentDim:(item.risk_score||0)>40?theme.warning+'22':theme.primaryDim, color:(item.risk_score||0)>75?theme.accent:(item.risk_score||0)>40?theme.warning:theme.primary }}>{item.risk_score||'-'}</span></td>
+                <td style={{ padding:'8px 6px', textAlign:'center' }}><span style={{ padding:'2px 6px', borderRadius:'8px', fontSize:10, fontWeight:600, background:(item.risk_score||0)>75?theme.accentDim:(item.risk_score||0)>40?theme.warning+'22':theme.primaryDim, color:(item.risk_score||0)>75?theme.accent:(item.risk_score||0)>40?theme.warning:theme.primary }}>{item.risk_score||item.risk_score||'-'}</span></td>
                 <td style={{ padding:'8px 6px', textAlign:'center', color:theme.textMuted, fontSize:11 }}>{item.source||'-'}</td>
                 <td style={{ padding:'8px 6px', textAlign:'right', color:theme.textMuted, fontSize:10 }}>{item.created_at?new Date(item.created_at).toLocaleDateString('tr-TR'):item.date?new Date(item.date).toLocaleDateString('tr-TR'):'-'}</td>
               </tr>)}
