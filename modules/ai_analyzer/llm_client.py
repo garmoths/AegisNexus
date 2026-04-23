@@ -293,11 +293,16 @@ class LLMClient:
             "account", "password", "verify", "confirm", "suspended", "limited",
             "tıklayın", "click here", "linke tıkla", "acil", "hemen", "şimdi",
             "ücretsiz", "free", "kazandınız", "won", "ödül", "prize",
-            "http://", "https://", ".tk", ".ml", "bit.ly", "tinyurl"
+            "http://", "https://", ".tk", ".ml", "bit.ly", "tinyurl",
+            "askıya", "kapatılacak", "engellenecek", "doğrulama", "dogrulama",
+            "güvenlik", "guvenlik", "oturum", "güncelle", "guncelle", "onay",
+            "hesap", "süre", "doluyor", "tehdit", "bloke", "kısıtlı",
+            "login", "sign in", "confirm", "security", "alert", "warning",
+            "acil", "hemen", "şimdi"
         ]
         
-        urgent_keywords = ["acil", "hemen", "şimdi", "24 saat", "süre doluyor", "limited time"]
-        fear_keywords = ["hesabınız kapatılacak", "engellenecek", "suspended", "terminate"]
+        urgent_keywords = ["acil", "hemen", "şimdi", "24 saat", "süre doluyor", "limited time", "tehlike", "uyarı"]
+        fear_keywords = ["hesabınız kapatılacak", "engellenecek", "suspended", "terminate", "askıya", "bloke", "kısıtlı", "tehdit"]
         authority_keywords = ["banka", "devlet", "polis", "jandarma", "güvenlik", "security"]
 
         score = 0
@@ -343,22 +348,22 @@ class LLMClient:
                 score += 25
                 found_threats.append("Şüpheli URL yapısı")
 
-        if score >= 70:
+        if score >= 60:
             threat_level = "critical"
-        elif score >= 50:
+        elif score >= 35:
             threat_level = "high"
-        elif score >= 30:
+        elif score >= 15:
             threat_level = "medium"
         else:
             threat_level = "low"
         
         return {
             "threat_level": threat_level,
-            "is_phishing": score >= 50,
-            "is_scam": score >= 40,
+            "is_phishing": score >= 30,
+            "is_scam": score >= 20,
             "confidence_score": min(score, 100),
-            "identified_threats": found_threats or ["Belirgin tehdit tespit edilmedi"],
-            "suspicious_elements": suspicious_elements or ["Şüpheli öğe bulunamadı"],
+            "identified_threats": found_threats if found_threats else [],
+            "suspicious_elements": suspicious_elements if suspicious_elements else [],
             "url_analysis": url_analysis or [],
             "psychological_triggers": psychological,
             "recommendations": [
@@ -370,10 +375,10 @@ class LLMClient:
                 ] if item
             ],
             "explanation": (
-                f"Metin {score}/100 risk skoru ile analiz edildi. "
+                f"Risk Skoru: {score}/100. "
                 f"{len(found_threats)} tehdit tespit edildi."
                 if found_threats
-                else "Metin güvenli görünüyor."
+                else f"Risk Skoru: {score}/100. Belirgin tehdit tespit edilmedi."
             ),
             "analysis_method": "local_pattern_matching"
         }
