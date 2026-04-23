@@ -20,9 +20,9 @@ except ImportError:
     ML_AVAILABLE = False
 
 class PhishingMLModel:
-    ML_WEIGHT = 0.40
-    URL_WEIGHT = 0.35
-    TEXT_WEIGHT = 0.25
+    ML_WEIGHT = 0.30
+    URL_WEIGHT = 0.40
+    TEXT_WEIGHT = 0.30
     
     MODEL_PATH = os.path.join(os.path.dirname(__file__), "phishing_model.joblib")
     VECTORIZER_PATH = os.path.join(os.path.dirname(__file__), "tfidf_vectorizer.joblib")
@@ -322,14 +322,14 @@ class PhishingMLModel:
         
         # 6. Decision
         result["confidence_score"] = round(final, 1)
-        if final >= 50:
+        if final >= 55:
             result["is_phishing"] = True
             result["is_scam"] = final >= 40
             result["threat_level"] = "critical"
-        elif final >= 25:
+        elif final >= 30:
             result["is_phishing"] = True
             result["threat_level"] = "high"
-        elif final >= 12:
+        elif final >= 15:
             result["is_phishing"] = False
             result["threat_level"] = "medium"
         else:
