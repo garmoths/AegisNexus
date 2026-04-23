@@ -1190,34 +1190,93 @@
         const riskClass = riskMap[riskLevel] || 'bilinmeyen';
         const analysis = data.analysis || {};
 
+        // Build detailed source analysis
+        const sourceDetails = [];
+        if (data.sources?.includes('virustotal')) {
+            const vt = data.virustotal || {};
+            const vtStatus = vt.malicious > 0 ? 'TEHLİKELİ' : vt.suspicious > 0 ? 'ŞÜPHELİ' : 'GÜVENLİ';
+            const vtDesc = vt.malicious > 0 ? `${vt.malicious}/${vt.total} motor tehlikeli buldu` : 
+                           vt.suspicious > 0 ? `${vt.suspicious} motor şüpheli buldu` : 'Tüm motorlar güvenli';
+            sourceDetails.push({
+                name: 'VirusTotal',
+                status: vtStatus,
+                description: vtDesc,
+                color: vt.malicious > 0 ? 'var(--danger)' : vt.suspicious > 0 ? 'var(--warning)' : 'var(--success)'
+            });
+        }
+        
+        if (data.sources?.includes('google_safe_browsing')) {
+            const gsb = data.google_safe_browsing || {};
+            const gsbStatus = gsb.threat ? 'TEHLİKELİ' : 'GÜVENLİ';
+            const gsbDesc = gsb.threat ? 'Google veritabanında tehdit olarak işaretlendi' : 'Google veritabanında temiz';
+            sourceDetails.push({
+                name: 'Google Safe Browsing',
+                status: gsbStatus,
+                description: gsbDesc,
+                color: gsb.threat ? 'var(--danger)' : 'var(--success)'
+            });
+        }
+        
+        if (data.sources?.includes('abuseipdb')) {
+            const abuse = data.abuseipdb || {};
+            const abuseStatus = abuse.abuse_score >= 70 ? 'TEHLİKELİ' : abuse.abuse_score >= 30 ? 'ŞÜPHELİ' : 'GÜVENLİ';
+            const abuseDesc = abuse.abuse_score > 0 ? `%${abuse.abuse_score} suistimal skoru (${abuse.total_reports} rapor)` : 'Suistimal raporu yok';
+            sourceDetails.push({
+                name: 'AbuseIPDB',
+                status: abuseStatus,
+                description: abuseDesc,
+                color: abuse.abuse_score >= 70 ? 'var(--danger)' : abuse.abuse_score >= 30 ? 'var(--warning)' : 'var(--success)'
+            });
+        }
+        
+        if (data.sources?.includes('urlscan')) {
+            const urlscan = data.urlscan || {};
+            const urlscanStatus = urlscan.malicious ? 'TEHLİKELİ' : urlscan.score > 0 ? 'ŞÜPHELİ' : 'GÜVENLİ';
+            const urlscanDesc = urlscan.malicious ? 'Zararlı olarak işaretlendi' : 
+                               urlscan.score > 0 ? `Şüpheli skor: ${urlscan.score}` : 'Temiz görünüyor';
+            sourceDetails.push({
+                name: 'URLScan.io',
+                status: urlscanStatus,
+                description: urlscanDesc,
+                color: urlscan.malicious ? 'var(--danger)' : urlscan.score > 0 ? 'var(--warning)' : 'var(--success)'
+            });
+        }
+
         result.innerHTML = `
             <div class="phish-result-card">
                 <div class="phish-result-header">
                     <div class="phish-circular-score" style="color: ${score > 70 ? 'var(--danger)' : score > 40 ? 'var(--warning)' : 'var(--success)'}; border-color: ${score > 70 ? 'var(--danger)' : score > 40 ? 'var(--warning)' : 'var(--success)'}">
-                        ${score}
+                        ${score}%
                     </div>
-                    <div class="risk-indicator ${riskClass}">${riskLevel.toUpperCase()}</div>
+                    <div class="risk-indicator ${riskClass}">${riskLevel === 'safe' ? 'GÜVENLİ' : riskLevel === 'low' ? 'DÜŞÜK RİSK' : riskLevel === 'medium' ? 'ORTA RİSK' : riskLevel === 'high' ? 'YÜKSEK RİSK' : 'KRİTİK TEHDİT'}</div>
                 </div>
                 <div style="font-size:0.875rem;color:var(--text-secondary);margin-bottom:1rem">
                     URL: ${data.url || gv('phUrl')}
                 </div>
-                <div class="phish-source-tags">
-                    ${data.sources?.includes('virustotal') ? '<span class="source-tag vt">VirusTotal</span>' : ''}
-                    ${data.sources?.includes('google_safe_browsing') ? '<span class="source-tag gsb">Google</span>' : ''}
-                    ${data.sources?.includes('abuseipdb') ? '<span class="source-tag abuse">AbuseIPDB</span>' : ''}
-                    ${data.sources?.includes('urlscan') ? '<span class="source-tag urlscan">URLScan</span>' : ''}
+                
+                <div style="margin:1rem 0">
+                    <h4 style="font-size:0.875rem;font-weight:600;margin-bottom:0.75rem">Güvenlik Kaynakları Analizi</h4>
+                    ${sourceDetails.map(source => `
+                        <div style="margin:0.5rem 0;padding:0.75rem;background:rgba(255,255,255,0.03);border-radius:6px;border-left:3px solid ${source.color}">
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem">
+                                <span style="font-weight:600">${source.name}</span>
+                                <span style="font-size:0.75rem;padding:0.125rem 0.5rem;background:${source.color};color:white;border-radius:12px">${source.status}</span>
+                            </div>
+                            <div style="font-size:0.8125rem;color:var(--text-secondary)">${source.description}</div>
+                        </div>
+                    `).join('')}
                 </div>
                 
                 ${analysis.summary ? `
                     <div class="analysis-summary" style="margin:1rem 0;padding:1rem;background:rgba(255,255,255,0.05);border-radius:8px">
-                        <h4 style="font-size:0.875rem;font-weight:600;margin-bottom:0.5rem">Analiz Özeti</h4>
+                        <h4 style="font-size:0.875rem;font-weight:600;margin-bottom:0.5rem">📋 Analiz Özeti</h4>
                         <p style="font-size:0.8125rem;line-height:1.5;color:var(--text-secondary)">${analysis.summary}</p>
                     </div>
                 ` : ''}
                 
                 ${analysis.threat_details && analysis.threat_details.length > 0 ? `
                     <div class="threat-details" style="margin:1rem 0">
-                        <h4 style="font-size:0.875rem;font-weight:600;margin-bottom:0.5rem">Tehdit Detayları</h4>
+                        <h4 style="font-size:0.875rem;font-weight:600;margin-bottom:0.5rem">⚠️ Tehdit Detayları</h4>
                         <div style="font-size:0.8125rem;line-height:1.4">
                             ${analysis.threat_details.map(detail => `<div style="margin:0.25rem 0">• ${detail}</div>`).join('')}
                         </div>
@@ -1226,7 +1285,7 @@
                 
                 ${analysis.recommendations && analysis.recommendations.length > 0 ? `
                     <div class="recommendations" style="margin:1rem 0">
-                        <h4 style="font-size:0.875rem;font-weight:600;margin-bottom:0.5rem">Öneriler</h4>
+                        <h4 style="font-size:0.875rem;font-weight:600;margin-bottom:0.5rem">🛡️ Güvenlik Önerileri</h4>
                         <div style="font-size:0.8125rem;line-height:1.4">
                             ${analysis.recommendations.map(rec => `<div style="margin:0.25rem 0">${rec}</div>`).join('')}
                         </div>
@@ -1235,7 +1294,7 @@
                 
                 <div class="scan-meta" style="margin-top:1rem;padding-top:1rem;border-top:1px solid rgba(255,255,255,0.1)">
                     <div style="font-size:0.75rem;color:var(--text-muted)">
-                        🕐 ${new Date().toLocaleString('tr')} • 🔍 ${data.sources?.length || 0} kaynak kontrol edildi
+                        🕐 ${new Date().toLocaleString('tr')} • 🔍 ${data.sources?.length || 0} kaynak kontrol edildi • 📊 Risk Skoru: ${score}%
                     </div>
                 </div>
             </div>
@@ -1302,16 +1361,54 @@
             data.latest.slice(0, 8).forEach(item => {
                 const div = document.createElement('div');
                 div.className = 'threat-feed-item';
-                const domain = new URL(item.url).hostname;
-                div.innerHTML = `
-                    <div class="threat-feed-domain">${domain}</div>
-                    <div class="threat-feed-meta">
-                        <span>${new Date(item.submission_time).toLocaleDateString('tr')}</span>
-                        <span>${item.target || 'Phishing'}</span>
-                    </div>
-                `;
+                div.style.cursor = 'pointer';
+                
+                try {
+                    const domain = new URL(item.url).hostname;
+                    const riskScore = item.risk_score || 85;
+                    const riskColor = riskScore > 70 ? 'var(--danger)' : riskScore > 40 ? 'var(--warning)' : 'var(--success)';
+                    const date = new Date(item.submission_time);
+                    
+                    div.innerHTML = `
+                        <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:0.5rem">
+                            <div class="threat-feed-domain" style="font-weight:600;color:var(--text-primary)">${domain}</div>
+                            <div style="font-size:0.75rem;padding:0.125rem 0.5rem;background:${riskColor};color:white;border-radius:12px;white-space:nowrap">
+                                ${riskScore}%
+                            </div>
+                        </div>
+                        <div class="threat-feed-meta">
+                            <span style="color:var(--text-muted)">${date.toLocaleDateString('tr')}</span>
+                            <span style="color:var(--text-muted)">•</span>
+                            <span style="color:var(--text-muted)">${item.target || 'Phishing'}</span>
+                        </div>
+                        ${item.phish_id ? `<div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.25rem">ID: ${item.phish_id}</div>` : ''}
+                    `;
+                    
+                    div.onclick = () => {
+                        $('phUrl').value = item.url;
+                        startPhishScan();
+                    };
+                } catch (e) {
+                    // Fallback for malformed URLs
+                    div.innerHTML = `
+                        <div class="threat-feed-domain">${item.url}</div>
+                        <div class="threat-feed-meta">
+                            <span>${item.target || 'Phishing'}</span>
+                        </div>
+                    `;
+                }
+                
                 feed.appendChild(div);
             });
+            
+            // Add total count if available
+            if (data.total) {
+                const totalDiv = document.createElement('div');
+                totalDiv.style.cssText = 'text-align:center;padding:0.5rem;color:var(--text-muted);font-size:0.75rem;border-top:1px solid rgba(255,255,255,0.1);margin-top:0.5rem';
+                totalDiv.textContent = `Toplam ${data.total.toLocaleString('tr')} phishing URL`;
+                feed.appendChild(totalDiv);
+            }
+            
         } catch (e) {
             console.warn('Threat feed load failed:', e);
             feed.innerHTML = '<div style="text-align:center;padding:1rem;color:var(--danger)">❌ Tehdit verileri yüklenemedi</div>';
