@@ -166,6 +166,9 @@ def health_check():
     
     AI Analyzer modülünün durumunu kontrol eder.
     """
+    analysis_method = getattr(llm_client, "analyze_text", None)
+    ml_ready = callable(analysis_method)
+
     return {
         "status": "healthy",
         "module": "07_ai_analyzer",
@@ -175,10 +178,8 @@ def health_check():
             "quick_scan",
             "full_analysis"
         ],
-        "llm_available": bool(
-            llm_client._deepseek_client or llm_client._groq_client
-        ),
-        "primary_llm": "deepseek" if llm_client._deepseek_client else "groq" if llm_client._groq_client else "none"
+        "llm_available": ml_ready,
+        "primary_llm": "ml_random_forest" if ml_ready else "none"
     }
 
 @router.get("/examples")
