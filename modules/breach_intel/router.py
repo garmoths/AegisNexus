@@ -17,6 +17,7 @@ from .osint_checker import analyze_zombie_accounts
 from .psychology_analyzer import analyze_breach_in_dark_web
 from .radar_generator import RadarGenerator, create_d3_visualization_html
 from .llm_reporter import BreachReportGenerator
+from app.security import require_admin_api_key
 from .dark_web_scanner import DarkWebScanner
 from .psychology_analyzer import PsychologyAnalyzerLLM
 from .utils import (
@@ -427,8 +428,10 @@ def get_youth_protection_support(req: YouthSupportRequest):
 # =========================================================
 
 @router.post("/llm-report")
+@router.post("/legacy-llm-report")
 def generate_llm_report(
-    req: LLMReportRequest
+    req: LLMReportRequest,
+    _: None = Depends(require_admin_api_key),
 ):
     """
     LLM ile Türkçe detaylı breach raporu üret

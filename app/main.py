@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.database import Base, engine
+from app.routers.contact import router as contact_router
 
 # Load environment variables
 load_dotenv()
@@ -80,6 +81,7 @@ app.include_router(breach_intel_router, prefix="/api/v2/breach")
 app.include_router(password_shield_router, prefix="/api/v2/shield")
 app.include_router(threat_responder_router, prefix="/api/v2/responder")
 app.include_router(ai_analyzer_router, prefix="/api/v2/ai-analyzer")
+app.include_router(contact_router)
 
 
 @app.get("/app")

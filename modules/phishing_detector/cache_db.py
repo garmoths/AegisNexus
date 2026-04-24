@@ -375,11 +375,18 @@ def save_check_url_result(url: str, result: dict):
         
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
-        # Upsert
+        # Upsert (schema-aligned columns)
         cursor.execute("""
-            INSERT OR REPLACE INTO phishing_urls (url, domain, risk_score, risk_level, online, sources, created_at, updated_at, last_checked)
-            VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?)
-        """, (url, domain, score, risk_level, json.dumps(result.get("sources", [])), now, now, now))
+            INSERT INTO phishing_urls (url, domain, risk_score, risk_level, is_safe, sources, checked_at, created_at, last_updated)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(url) DO UPDATE SET
+                risk_score = excluded.risk_score,
+                risk_level = excluded.risk_level,
+                is_safe = excluded.is_safe,
+                sources = excluded.sources,
+                checked_at = excluded.checked_at,
+                last_updated = excluded.last_updated
+        """, (url, domain, score, risk_level, 1 if score >= 80 else 0, json.dumps(result.get("sources", [])), now, now, now))
         
         conn.commit()
         conn.close()
