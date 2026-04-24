@@ -289,7 +289,7 @@ function PhishingDetector() {
   useEffect(()=>{loadLatest();loadStats()},[])
 
   async function loadLatest(p=1) {
-    try{const r=await fetch(`${API}/phishing/latest?limit=20`);const d=await r.json();setLatest(d.latest||[]);setTotalPages(Math.ceil((d.total||0)/20)||1);setPageNum(p)}catch{}
+    try{const r=await fetch(`${API}/phishing/latest?limit=20`);const d=await r.json();setLatest(d.data||d.latest||[]);setTotalPages(Math.ceil((d.total||0)/20)||1);setPageNum(p)}catch{}
   }
 
   async function loadStats() {
