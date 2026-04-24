@@ -289,7 +289,7 @@ function PhishingDetector() {
   useEffect(()=>{loadLatest();loadStats()},[])
 
   async function loadLatest(p=1) {
-    try{const r=await fetch(`${API}/phishing/latest?limit=20&page=${p}`);const d=await r.json();setLatest(d.data||[]);setTotalPages(d.total_pages||1);setPageNum(p)}catch{}
+    try{const r=await fetch(`${API}/phishing/latest?limit=20`);const d=await r.json();setLatest(d.latest||[]);setTotalPages(Math.ceil((d.total||0)/20)||1);setPageNum(p)}catch{}
   }
 
   async function loadStats() {
@@ -299,7 +299,7 @@ function PhishingDetector() {
   async function handleCheck() {
     if(!url)return;setChecking(true);setResult(null)
     try{
-      const r=await fetch(`${API}/phishing/check-url`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})})
+      const r=await fetch(`${API}/phishing/scan-url`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})})
       if(!r.ok)throw new Error('URL kontrol hatasi')
       const d=await r.json();setResult(d)
     }catch(e){showToast('URL kontrol hatasi: '+e.message,'error')}
@@ -335,15 +335,15 @@ function PhishingDetector() {
       </div>}
       {result&&<div style={{ animation:'scaleIn 0.3s ease', padding:20, background:theme.bg, borderRadius:theme.radiusSm, border:`1px solid ${theme.border}` }}>
         <div style={{ display:'flex', gap:24, alignItems:'flex-start', flexWrap:'wrap' }}>
-          <RiskGauge score={typeof result.score==='number'?Math.round(Math.min(result.score,100)):(result.risk_level?.includes('TEHLIKELI')?85:15)} label="Risk Skoru"/>
+          <RiskGauge score={result.risk_score||0} label="Risk Skoru"/>
           <div style={{ flex:1, minWidth:250 }}>
             <div style={{ display:'flex', gap:12, flexWrap:'wrap', marginBottom:12 }}>
-              <RiskBadge level={result.risk_level?.includes('Guvenli')||result.risk_level?.includes('Güvenli')?'safe':result.risk_level?.includes('Tehlikeli')?'high':'medium'} size="md"/>
-              <span style={{ padding:'4px 14px', borderRadius:'20px', fontSize:12, fontWeight:700, background:result.risk_level?.includes('Guvenli')||result.risk_level?.includes('Güvenli')?theme.primaryDim:theme.accentDim, color:result.risk_level?.includes('Guvenli')||result.risk_level?.includes('Güvenli')?theme.primary:theme.accent }}>{result.risk_level||'Bilinmiyor'}</span>
+              <RiskBadge level={result.risk_level||'medium'} size="md"/>
+              <span style={{ padding:'4px 14px', borderRadius:'20px', fontSize:12, fontWeight:700, background:result.is_safe?theme.primaryDim:theme.accentDim, color:result.is_safe?theme.primary:theme.accent }}>{result.is_safe?'✅ Guvenli':'⚠️ Tehdit'}</span>
             </div>
             <p style={{ fontSize:12, color:theme.textMuted, wordBreak:'break-all', marginBottom:12, fontFamily:theme.mono }}>{url}</p>
-            {result.details&&Array.isArray(result.details)&&result.details.map((d,i)=><div key={i} style={{ padding:'6px 10px', marginBottom:4, background:theme.primaryDim, borderRadius:6, fontSize:12, color:theme.text }}>• {d}</div>)}
-            {result.sources&&Array.isArray(result.sources)&&result.sources.map((s,i)=><div key={i} style={{ padding:'6px 10px', marginBottom:4, background:theme.surface, borderRadius:6, fontSize:12, display:'flex', gap:8, alignItems:'center' }}><span style={{ color:theme.textMuted }}>Kaynak:</span><span style={{ color:'#fff', fontWeight:600 }}>{s.name}</span><span style={{ marginLeft:'auto', color:s.status?.includes('TEHDIT')?theme.danger:theme.success }}>{s.status}</span></div>)}
+            {result.analysis?.summary&&<div style={{ padding:'10px 12px', background:theme.primaryDim, borderRadius:6, fontSize:12, color:theme.text, marginBottom:8 }}>{result.analysis.summary}</div>}
+            {result.sources&&Array.isArray(result.sources)&&result.sources.map((s,i)=><div key={i} style={{ padding:'6px 10px', marginBottom:4, background:theme.surface, borderRadius:6, fontSize:12, display:'flex', gap:8, alignItems:'center' }}><span style={{ color:theme.textMuted }}>Kaynak:</span><span style={{ color:'#fff', fontWeight:600 }}>{s}</span></div>)}
           </div>
         </div>
       </div>}
@@ -357,10 +357,10 @@ function PhishingDetector() {
             {latest.length===0&&<tr><td colSpan={5} style={{ textAlign:'center', padding:32, color:theme.textMuted }}>Veri yukleniyor...</td></tr>}
             {latest.map((item,i)=><tr key={item.id||i} style={{ borderBottom:`1px solid ${theme.border}`, cursor:'pointer' }} onClick={()=>{setUrl(item.url);setTimeout(()=>handleCheck(),100)}} onMouseEnter={e=>e.currentTarget.style.background=theme.surface} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
               <td style={{ padding:'10px 8px', maxWidth:300, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}><span style={{ color:theme.text, fontSize:12, fontFamily:theme.mono }}>{item.url}</span></td>
-              <td style={{ padding:'10px 8px' }}><span style={{ color:theme.primary, fontSize:12 }}>{item.domain_norm||item.domain||'-'}</span></td>
-              <td style={{ padding:'10px 8px', textAlign:'center' }}><span style={{ padding:'2px 8px', borderRadius:'10px', fontSize:11, background:theme.accentDim, color:theme.accent }}>{item.target||'-'}</span></td>
-              <td style={{ padding:'10px 8px', textAlign:'center' }}><span style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:4, fontSize:12 }}><StatusDot active={item.online||false}/>{item.online?'ONLINE':'OFFLINE'}</span></td>
-              <td style={{ padding:'10px 8px', textAlign:'right', color:theme.textMuted, fontSize:11 }}>{item.created_at?new Date(item.created_at).toLocaleDateString('tr-TR'):item.submission_time?new Date(item.submission_time).toLocaleDateString('tr-TR'):item.time?new Date(item.time).toLocaleDateString('tr-TR'):'-'}</td>
+              <td style={{ padding:'10px 8px' }}><span style={{ color:theme.primary, fontSize:12 }}>{item.domain||'-'}</span></td>
+              <td style={{ padding:'10px 8px', textAlign:'center' }}><span style={{ padding:'2px 8px', borderRadius:'10px', fontSize:11, background:theme.accentDim, color:theme.accent }}>{item.target||'Phishing'}</span></td>
+              <td style={{ padding:'10px 8px', textAlign:'center' }}><span style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:4, fontSize:12 }}><StatusDot active={item.status==='active'}/>{item.status||'Bilinmiyor'}</span></td>
+              <td style={{ padding:'10px 8px', textAlign:'right', color:theme.textMuted, fontSize:11 }}>{item.submission_time?new Date(item.submission_time).toLocaleDateString('tr-TR'):item.created_at?new Date(item.created_at).toLocaleDateString('tr-TR'):'-'}</td>
             </tr>)}
           </tbody>
         </table>
