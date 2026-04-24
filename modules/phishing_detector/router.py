@@ -274,8 +274,8 @@ def get_phishing_scan_history(limit: int = 50, days: int = 30, db: Session = Dep
         cutoff_date = datetime.now() - timedelta(days=days)
         
         items = db.query(PhishingURL).filter(
-            PhishingURL.submission_time >= cutoff_date
-        ).order_by(PhishingURL.submission_time.desc()).limit(limit).all()
+            PhishingURL.created_at >= cutoff_date
+        ).order_by(PhishingURL.created_at.desc()).limit(limit).all()
         
         history = []
         for item in items:
@@ -286,7 +286,7 @@ def get_phishing_scan_history(limit: int = 50, days: int = 30, db: Session = Dep
                 'risk_level': 'high',
                 'is_safe': False,
                 'sources': ['phishfeed'],  # Default source
-                'checked_at': item.submission_time.isoformat() if item.submission_time else datetime.now().isoformat(),
+                'checked_at': item.created_at.isoformat() if item.created_at else datetime.now().isoformat(),
                 'phish_id': item.phish_id,
                 'target': item.target or 'Phishing'
             })
@@ -330,7 +330,7 @@ def get_latest_phishing_urls(limit: int = 20, db: Session = Depends(get_db)):
                 'url': item.url,
                 'domain': item.domain_norm or item.url,
                 'risk_score': 85,  # Default high risk for known phishing
-                'submission_time': item.submission_time.isoformat() if item.submission_time else datetime.now().isoformat(),
+                'submission_time': item.created_at.isoformat() if item.created_at else datetime.now().isoformat(),
                 'target': item.target or 'Phishing',
                 'phish_id': item.phish_id,
                 'status': item.status
