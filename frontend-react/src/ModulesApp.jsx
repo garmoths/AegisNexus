@@ -299,7 +299,7 @@ function PhishingDetector() {
   async function handleCheck() {
     if(!url)return;setChecking(true);setResult(null)
     try{
-      const r=await fetch(`${API}/phishing/scan-url`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})})
+      const r=await fetch(`${API}/phishing/check-url`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})})
       if(!r.ok)throw new Error('URL kontrol hatasi')
       const d=await r.json();setResult(d)
     }catch(e){showToast('URL kontrol hatasi: '+e.message,'error')}
