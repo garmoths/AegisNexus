@@ -546,31 +546,32 @@ def calculate_safety_score(input_url, db: Session = None):
     # ---------------------------------------------------------
     # 2. KATMAN: INTERNAL DB (VERİTABANI) — hash / tam URL / domain (indeksli)
     # ---------------------------------------------------------
+    domain_match = None
     if db:
-        match = None
+        exact_match = None
         canon, url_hash, domain_norm = normalize_url_record(check_url)
         if url_hash:
-            match = db.query(PhishingURL).filter(PhishingURL.url_hash == url_hash).first()
-        if match is None and canon:
-            match = db.query(PhishingURL).filter(PhishingURL.url == canon).first()
-        if match is None:
-            match = db.query(PhishingURL).filter(PhishingURL.url == check_url).first()
-        if match is None:
-            match = db.query(PhishingURL).filter(PhishingURL.url == input_url).first()
-        if match is None and domain_norm and len(domain_norm) > 3:
-            match = (
+            exact_match = db.query(PhishingURL).filter(PhishingURL.url_hash == url_hash).first()
+        if exact_match is None and canon:
+            exact_match = db.query(PhishingURL).filter(PhishingURL.url == canon).first()
+        if exact_match is None:
+            exact_match = db.query(PhishingURL).filter(PhishingURL.url == check_url).first()
+        if exact_match is None:
+            exact_match = db.query(PhishingURL).filter(PhishingURL.url == input_url).first()
+        if exact_match is None and domain_norm and len(domain_norm) > 3:
+            domain_match = (
                 db.query(PhishingURL)
                 .filter(PhishingURL.domain_norm == domain_norm)
                 .first()
             )
 
-        if match:
+        if exact_match:
             return {
                 "url": input_url, "score": 0,
                 "risk_level": "🚨 ÇOK TEHLİKELİ (DB Kayıtlı)",
                 "details": [
-                    f"Tehlikeli site veritabanında tespit edildi! (ID: {match.phish_id})",
-                    f"Hedef: {match.target}",
+                    f"Tehlikeli site veritabanında tespit edildi! (ID: {exact_match.phish_id})",
+                    f"Hedef: {exact_match.target}",
                     "Bu siteye kesinlikle bilgi girmeyin!"
                 ],
                 "sources": [{"name": "Internal DB", "status": "TEHDİT 🚨"}]
@@ -667,6 +668,14 @@ def calculate_safety_score(input_url, db: Session = None):
     # Whitelist flag ekle
     if is_whitelisted:
         sources.append({"name": "Whitelist", "status": f"✅ {whitelist_info.get('company_name', 'Verified')}"})
+
+    # Domain seviyesinde tehdit kaydı, exact URL kadar kesin olmadığı için soft-penalty uygula.
+    if domain_match:
+        score -= 20
+        risks.append(
+            f"⚠️ Bu domain altında daha önce phishing kaydı görülmüş: {domain_match.target or 'Unknown'}"
+        )
+        sources.append({"name": "Internal DB", "status": "Domain eşleşmesi (soft risk)"})
 
     # --- 5a. HTTPS Kontrolü ---
     if check_url.startswith("http://"):
