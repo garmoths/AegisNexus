@@ -391,7 +391,7 @@ function HoneypotIOC() {
     try{
       const r=await fetch(`${API}/honeypot/ioc/stats`);
       const d=await r.json();
-      setIocStats(d.stats||d)
+      setIocStats(d)
     }catch(e){
       try{const r=await fetch(`${API}/honeypot/ioc/stats`);const d=await r.json();setIocStats(d)}catch{}
     }
