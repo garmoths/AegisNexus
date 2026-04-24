@@ -1,6 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 
-const API = '/api/v2'
+const API = import.meta.env.VITE_API_BASE_URL || '/api/v2'
+
+function normalizeStatus(status) {
+  const s = String(status || '').toLowerCase()
+  return s === 'active' || s === 'online'
+}
 
 const theme = {
   bg: '#080c14',
@@ -286,21 +291,40 @@ function PhishingDetector() {
   const [totalPages, setTotalPages] = useState(1)
   const [toast, setToast] = useState({ message:'', type:'success', visible:false })
 
-  useEffect(()=>{loadLatest();loadStats()},[])
+  useEffect(()=>{loadLatest(1);loadStats()},[])
 
   async function loadLatest(p=1) {
-    try{const r=await fetch(`${API}/phishing/latest?limit=20`);const d=await r.json();setLatest(d.data||d.latest||[]);setTotalPages(Math.ceil((d.total||0)/20)||1);setPageNum(p)}catch{}
+    try{
+      const r=await fetch(`${API}/phishing/latest-paged?limit=20&page=${p}`)
+      if(!r.ok) throw new Error('Son veriler alınamadı')
+      const d=await r.json()
+      setLatest(d.data||d.latest||[])
+      setTotalPages(d.total_pages||Math.ceil((d.total||0)/20)||1)
+      setPageNum(d.page||p)
+    }catch(e){
+      showToast('Son phishing verileri yüklenemedi: '+e.message,'error')
+    }
   }
 
   async function loadStats() {
-    try{const r=await fetch(`${API}/phishing/stats`);const d=await r.json();setStats(d)}catch{}
+    try{
+      const r=await fetch(`${API}/phishing/stats`)
+      if(!r.ok) throw new Error('Istatistik endpoint hatasi')
+      const d=await r.json()
+      setStats(d)
+    }catch(e){
+      showToast('Istatistikler yüklenemedi: '+e.message,'error')
+    }
   }
 
   async function handleCheck() {
-    if(!url)return;setChecking(true);setResult(null)
+    if(!url){showToast('Lutfen bir URL girin','error');return}
+    setChecking(true);setResult(null)
     try{
-      const r=await fetch(`${API}/phishing/check-url`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})})
-      if(!r.ok)throw new Error('URL kontrol hatasi')
+      const normalizedInput = /^https?:\/\//i.test(url) ? url : `https://${url}`
+      new URL(normalizedInput)
+      const r=await fetch(`${API}/phishing/check-url`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url: normalizedInput})})
+      if(!r.ok)throw new Error(`URL kontrol hatasi (${r.status})`)
       const d=await r.json();setResult(d)
     }catch(e){showToast('URL kontrol hatasi: '+e.message,'error')}
     setChecking(false)
@@ -358,7 +382,7 @@ function PhishingDetector() {
               <td style={{ padding:'10px 8px', maxWidth:300, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}><span style={{ color:theme.text, fontSize:12, fontFamily:theme.mono }}>{item.url}</span></td>
               <td style={{ padding:'10px 8px' }}><span style={{ color:theme.primary, fontSize:12 }}>{item.domain||'-'}</span></td>
               <td style={{ padding:'10px 8px', textAlign:'center' }}><span style={{ padding:'2px 8px', borderRadius:'10px', fontSize:11, background:theme.accentDim, color:theme.accent }}>{item.target||'Phishing'}</span></td>
-              <td style={{ padding:'10px 8px', textAlign:'center' }}><span style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:4, fontSize:12 }}><StatusDot active={item.status==='active'}/>{item.status||'Bilinmiyor'}</span></td>
+              <td style={{ padding:'10px 8px', textAlign:'center' }}><span style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:4, fontSize:12 }}><StatusDot active={normalizeStatus(item.status)}/>{item.status||'Bilinmiyor'}</span></td>
               <td style={{ padding:'10px 8px', textAlign:'right', color:theme.textMuted, fontSize:11 }}>{item.submission_time?new Date(item.submission_time).toLocaleDateString('tr-TR'):item.created_at?new Date(item.created_at).toLocaleDateString('tr-TR'):'-'}</td>
             </tr>)}
           </tbody>
@@ -383,6 +407,7 @@ function HoneypotIOC() {
   const [searchResults, setSearchResults] = useState([])
   const [searching, setSearching] = useState(false)
   const [activeTab, setActiveTab] = useState('dashboard')
+  const [toast, setToast] = useState({ message:'', type:'success', visible:false })
 
   useEffect(()=>{loadIoCStats();loadIoCList()},[])
 
@@ -407,12 +432,13 @@ function HoneypotIOC() {
           if(d.iocs) allIocs=[...allIocs,...d.iocs];
         }catch(e){}
       }
-      setIocList(allIocs.length>0?allIocs:(d.iocs||d.data||d.results||d.indicators||[]))
+      setIocList(allIocs)
     }catch(e){
       try{const r=await fetch(`${API}/honeypot/ioc/list?limit=25`);const d=await r.json();setIocList(d.data||d.iocs||[])}catch{}
     }
   }
   async function handleSearch(){if(!searchQuery)return;setSearching(true);try{const r=await fetch(`${API}/honeypot/ioc/search?q=${encodeURIComponent(searchQuery)}`);const d=await r.json();if(d.status==='success'||d.results){setSearchResults(d.results||d.data||d.iocs||[]);setActiveTab('search-results')}else{showToast('Arama sonucu bulunamadi veya hata: '+d.message,'error')}}catch(e){showToast('Arama hatasi: '+e.message,'error')};setSearching(false)}
+  function showToast(msg,t='success'){setToast({message:msg,type:t,visible:true});setTimeout(()=>setToast(v=>({...v,visible:false})),3000)}
 
   const statsData=iocStats?.stats||iocStats||{}
   const riskDist=statsData?.risk_distribution||iocStats?.risk_distribution||[]
@@ -425,6 +451,7 @@ function HoneypotIOC() {
   const lowRisk=statsData?.low_risk_count||iocStats?.low_risk_count||0
 
   return <div style={{ animation:'fadeInUp 0.5s ease' }}>
+    <Toast {...toast}/>
     <SectionHeader badge="IOC / Tuzak Modulu" title="Tehdit Istihbarati & IOC Analizi" subtitle={`${totalIocs.toLocaleString('tr-TR')}+ tehdit indikatoru. Gercek zamanli IOC taramasi, risk analizi ve kaynak dagilimi.`}/>
     <div style={{ display:'grid', gridTemplateColumns:'repeat(5, 1fr)', gap:16, marginBottom:32 }}>
       <Card style={{ textAlign:'center', padding:'16px 8px' }}><p style={{ fontSize:10, color:theme.textMuted, textTransform:'uppercase', fontWeight:600, letterSpacing:'1px', marginBottom:6 }}>Toplam IOC</p><p style={{ fontSize:24, fontWeight:800, color:theme.primary }}><CountUp end={totalIocs}/></p></Card>
