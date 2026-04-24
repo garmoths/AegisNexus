@@ -50,14 +50,14 @@ function StatusDot({ active }) {
   return <span style={{ display:'inline-block', width:8, height:8, borderRadius:'50%', background:active?theme.success:theme.danger, boxShadow:`0 0 8px ${active?theme.success:theme.danger}66`, marginRight:6 }} />
 }
 
-function Card({ children, style, hover=true, ...props }) {
+function Card({ children, style, ...props }) {
   const [h,sH]=useState(false)
   return <div onMouseEnter={()=>sH(true)} onMouseLeave={()=>sH(false)} style={{ background:`linear-gradient(135deg, ${theme.surface}, ${theme.surface2})`, border:`1px solid ${h?theme.primary+'66':theme.border}`, borderRadius:theme.radius, padding:24, transition:'all 0.3s cubic-bezier(0.175,0.885,0.32,1.275)', boxShadow:h?theme.glow:'none', transform:h?'translateY(-2px)':'none', ...style }} {...props}>{children}</div>
 }
 
 function GlowButton({ children, onClick, disabled, loading, variant='primary', style, ...props }) {
   const isPrimary=variant==='primary'
-  return <button onClick={onClick} disabled={disabled||loading} style={{ padding:'14px 32px', borderRadius:theme.radiusSm, border:'none', cursor:disabled?'not-allowed':'pointer', fontSize:14, fontWeight:700, letterSpacing:'0.5px', background:isPrimary?'linear-gradient(135deg, #00d4ff, #0099cc)':'transparent', color:isPrimary?'#000':'#00d4ff', border:isPrimary?'none':'1px solid #00d4ff44', transition:'all 0.3s ease', opacity:disabled?0.5:1, display:'inline-flex', alignItems:'center', gap:8, boxShadow:isPrimary?'0 4px 20px rgba(0,212,255,0.3)':'none', ...style }} onMouseEnter={e=>{if(!disabled){e.currentTarget.style.transform='translateY(-2px)';e.currentTarget.style.boxShadow='0 8px 30px rgba(0,212,255,0.4)'}}} onMouseLeave={e=>{e.currentTarget.style.transform='none';e.currentTarget.style.boxShadow=isPrimary?'0 4px 20px rgba(0,212,255,0.3)':'none'}} {...props}>{loading&&<Spinner size={18}/>}{children}</button>
+  return <button onClick={onClick} disabled={disabled||loading} style={{ padding:'14px 32px', borderRadius:theme.radiusSm, cursor:disabled?'not-allowed':'pointer', fontSize:14, fontWeight:700, letterSpacing:'0.5px', background:isPrimary?'linear-gradient(135deg, #00d4ff, #0099cc)':'transparent', color:isPrimary?'#000':'#00d4ff', border:isPrimary?'none':'1px solid #00d4ff44', transition:'all 0.3s ease', opacity:disabled?0.5:1, display:'inline-flex', alignItems:'center', gap:8, boxShadow:isPrimary?'0 4px 20px rgba(0,212,255,0.3)':'none', ...style }} onMouseEnter={e=>{if(!disabled){e.currentTarget.style.transform='translateY(-2px)';e.currentTarget.style.boxShadow='0 8px 30px rgba(0,212,255,0.4)'}}} onMouseLeave={e=>{e.currentTarget.style.transform='none';e.currentTarget.style.boxShadow=isPrimary?'0 4px 20px rgba(0,212,255,0.3)':'none'}} {...props}>{loading&&<Spinner size={18}/>}{children}</button>
 }
 
 function CountUp({ end, duration=1500 }) {
@@ -152,7 +152,7 @@ function AIAnalyzer() {
   useEffect(() => { loadHistory() }, [])
 
   async function loadHistory() {
-    try { const r = await fetch(`${API}/ai-analyzer/history?limit=10`); const d = await r.json(); setHistory(d.data || []) } catch {}
+    try { const r = await fetch(`${API}/ai-analyzer/history?limit=10`); const d = await r.json(); setHistory(d.data || []) } catch { setHistory([]) }
   }
 
   async function handleAnalyze() {
@@ -409,15 +409,19 @@ function HoneypotIOC() {
   const [activeTab, setActiveTab] = useState('dashboard')
   const [toast, setToast] = useState({ message:'', type:'success', visible:false })
 
-  useEffect(()=>{loadIoCStats();loadIoCList()},[])
-
   async function loadIoCStats(){
     try{
       const r=await fetch(`${API}/honeypot/ioc/stats`);
       const d=await r.json();
       setIocStats(d)
-    }catch(e){
-      try{const r=await fetch(`${API}/honeypot/ioc/stats`);const d=await r.json();setIocStats(d)}catch{}
+    }catch{
+      try{
+        const r=await fetch(`${API}/honeypot/ioc/stats`);
+        const d=await r.json();
+        setIocStats(d)
+      }catch{
+        setIocStats(null)
+      }
     }
   }
   async function loadIoCList(){
@@ -430,15 +434,25 @@ function HoneypotIOC() {
           const r=await fetch(`${API}/honeypot/ioc/by-risk-score?level=${level}&limit=8`);
           const d=await r.json();
           if(d.iocs) allIocs=[...allIocs,...d.iocs];
-        }catch(e){}
+        }catch{
+          continue
+        }
       }
       setIocList(allIocs)
-    }catch(e){
-      try{const r=await fetch(`${API}/honeypot/ioc/list?limit=25`);const d=await r.json();setIocList(d.data||d.iocs||[])}catch{}
+    }catch{
+      try{
+        const r=await fetch(`${API}/honeypot/ioc/list?limit=25`);
+        const d=await r.json();
+        setIocList(d.data||d.iocs||[])
+      }catch{
+        setIocList([])
+      }
     }
   }
   async function handleSearch(){if(!searchQuery)return;setSearching(true);try{const r=await fetch(`${API}/honeypot/ioc/search?q=${encodeURIComponent(searchQuery)}`);const d=await r.json();if(d.status==='success'||d.results){setSearchResults(d.results||d.data||d.iocs||[]);setActiveTab('search-results')}else{showToast('Arama sonucu bulunamadi veya hata: '+d.message,'error')}}catch(e){showToast('Arama hatasi: '+e.message,'error')};setSearching(false)}
   function showToast(msg,t='success'){setToast({message:msg,type:t,visible:true});setTimeout(()=>setToast(v=>({...v,visible:false})),3000)}
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(()=>{loadIoCStats();loadIoCList()},[])
 
   const statsData=iocStats?.stats||iocStats||{}
   const riskDist=statsData?.risk_distribution||iocStats?.risk_distribution||[]
@@ -511,8 +525,17 @@ function BreachIntel() {
   const [stats, setStats] = useState(null)
   const [toast, setToast] = useState({ message:'', type:'success', visible:false })
 
+  async function loadStats(){
+    try{
+      const r=await fetch(`${API}/breach/stats`);
+      const d=await r.json();
+      setStats(d)
+    }catch{
+      setStats(null)
+    }
+  }
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(()=>{loadStats()},[])
-  async function loadStats(){try{const r=await fetch(`${API}/breach/stats`);const d=await r.json();setStats(d)}catch{}}
 
   async function handleCheck() {
     if(!email||!email.includes('@')){showToast('Gecerli bir e-posta adresi girin','error');return}
