@@ -594,11 +594,20 @@ def calculate_safety_score(input_url, db: Session = None):
     # 4. KATMAN: CANLILIK TESTİ
     # ---------------------------------------------------------
     site_is_up = False
+    restricted_access = False
     http_status = 0
     page_content = None
+    request_headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0.0.0 Safari/537.36"
+        )
+    }
     try:
-        response = requests.get(check_url, timeout=8, allow_redirects=True)
+        response = requests.get(check_url, timeout=8, allow_redirects=True, headers=request_headers)
         http_status = response.status_code
+        # 4xx kodlar özellikle anti-bot/WAF kaynaklı olabilir; bu durumda site ayakta kabul edilir.
         if response.status_code < 400:
             site_is_up = True
             # Sayfa içeriğini AI analizi için sakla
@@ -607,6 +616,9 @@ def calculate_safety_score(input_url, db: Session = None):
                 page_content = response.text[:500_000]
             except Exception:
                 page_content = None
+        elif response.status_code in (401, 403, 405, 406, 429):
+            site_is_up = True
+            restricted_access = True
     except Exception:
         site_is_up = False
 
@@ -618,7 +630,7 @@ def calculate_safety_score(input_url, db: Session = None):
                 "Böyle bir site bulunamadı veya sunucusu kapalı.",
                 f"HTTP Durum Kodu: {http_status or 'Bağlantı hatası'}"
             ],
-            "sources": [{"name": "Ping", "status": "Başarısız ❌"}]
+            "sources": [{"name": "HTTP Erişim", "status": "Başarısız ❌"}]
         }
 
     # ---------------------------------------------------------
@@ -627,6 +639,13 @@ def calculate_safety_score(input_url, db: Session = None):
     score = 100
     risks = []
     sources = []
+
+    if restricted_access:
+        score -= 5
+        risks.append(f"⚠️ Site erişimi kısıtlı görünüyor (HTTP {http_status}). Anti-bot/WAF olabilir.")
+        sources.append({"name": "HTTP Erişim", "status": f"Kısıtlı (HTTP {http_status})"})
+    else:
+        sources.append({"name": "HTTP Erişim", "status": f"Ulaşılabilir (HTTP {http_status})"})
     
     # Whitelist flag ekle
     if is_whitelisted:
