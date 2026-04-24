@@ -335,15 +335,14 @@ function PhishingDetector() {
       </div>}
       {result&&<div style={{ animation:'scaleIn 0.3s ease', padding:20, background:theme.bg, borderRadius:theme.radiusSm, border:`1px solid ${theme.border}` }}>
         <div style={{ display:'flex', gap:24, alignItems:'flex-start', flexWrap:'wrap' }}>
-          <RiskGauge score={result.risk_score||0} label="Risk Skoru"/>
+          <RiskGauge score={result.score||0} label="Risk Skoru"/>
           <div style={{ flex:1, minWidth:250 }}>
             <div style={{ display:'flex', gap:12, flexWrap:'wrap', marginBottom:12 }}>
-              <RiskBadge level={result.risk_level||'medium'} size="md"/>
-              <span style={{ padding:'4px 14px', borderRadius:'20px', fontSize:12, fontWeight:700, background:result.is_safe?theme.primaryDim:theme.accentDim, color:result.is_safe?theme.primary:theme.accent }}>{result.is_safe?'✅ Guvenli':'⚠️ Tehdit'}</span>
+              <span style={{ padding:'4px 14px', borderRadius:'20px', fontSize:12, fontWeight:700, background:result.score>50?theme.accentDim:theme.primaryDim, color:result.score>50?theme.accent:theme.primary }}>{result.risk_level||'Bilinmiyor'}</span>
             </div>
             <p style={{ fontSize:12, color:theme.textMuted, wordBreak:'break-all', marginBottom:12, fontFamily:theme.mono }}>{url}</p>
-            {result.analysis?.summary&&<div style={{ padding:'10px 12px', background:theme.primaryDim, borderRadius:6, fontSize:12, color:theme.text, marginBottom:8 }}>{result.analysis.summary}</div>}
-            {result.sources&&Array.isArray(result.sources)&&result.sources.map((s,i)=><div key={i} style={{ padding:'6px 10px', marginBottom:4, background:theme.surface, borderRadius:6, fontSize:12, display:'flex', gap:8, alignItems:'center' }}><span style={{ color:theme.textMuted }}>Kaynak:</span><span style={{ color:'#fff', fontWeight:600 }}>{s}</span></div>)}
+            {result.details&&Array.isArray(result.details)&&result.details.map((d,i)=><div key={i} style={{ padding:'6px 10px', marginBottom:4, background:theme.primaryDim, borderRadius:6, fontSize:12, color:theme.text }}>• {d}</div>)}
+            {result.sources&&Array.isArray(result.sources)&&result.sources.map((s,i)=><div key={i} style={{ padding:'6px 10px', marginBottom:4, background:theme.surface, borderRadius:6, fontSize:12, display:'flex', gap:8, alignItems:'center' }}><span style={{ color:theme.textMuted }}>Kaynak:</span><span style={{ color:'#fff', fontWeight:600 }}>{s.name}</span><span style={{ marginLeft:'auto', color:s.status?.includes('Başarısız')?theme.danger:theme.success }}>{s.status}</span></div>)}
           </div>
         </div>
       </div>}
