@@ -596,6 +596,7 @@ def calculate_safety_score(input_url, db: Session = None):
     site_is_up = False
     restricted_access = False
     http_status = 0
+    transport_error = None
     page_content = None
     request_headers = {
         "User-Agent": (
@@ -604,23 +605,32 @@ def calculate_safety_score(input_url, db: Session = None):
             "Chrome/124.0.0.0 Safari/537.36"
         )
     }
-    try:
-        response = requests.get(check_url, timeout=8, allow_redirects=True, headers=request_headers)
-        http_status = response.status_code
-        # 4xx kodlar özellikle anti-bot/WAF kaynaklı olabilir; bu durumda site ayakta kabul edilir.
-        if response.status_code < 400:
+    candidates = [check_url]
+    # Varsayılan https denemesi başarısız olursa http fallback dene.
+    if check_url.startswith("https://"):
+        candidates.append("http://" + check_url.replace("https://", "", 1))
+
+    response = None
+    for candidate_url in candidates:
+        try:
+            response = requests.get(candidate_url, timeout=8, allow_redirects=True, headers=request_headers)
+            check_url = candidate_url
+            http_status = response.status_code
             site_is_up = True
-            # Sayfa içeriğini AI analizi için sakla
+            break
+        except Exception as e:
+            transport_error = str(e)
+
+    if site_is_up and response is not None:
+        if response.status_code in (401, 403, 405, 406, 429):
+            restricted_access = True
+        # Sayfa içeriğini AI analizi için sadece başarılı yanıtlarda kullan.
+        if response.status_code < 400:
             try:
                 response.encoding = response.apparent_encoding or 'utf-8'
                 page_content = response.text[:500_000]
             except Exception:
                 page_content = None
-        elif response.status_code in (401, 403, 405, 406, 429):
-            site_is_up = True
-            restricted_access = True
-    except Exception:
-        site_is_up = False
 
     if not site_is_up:
         return {
@@ -628,7 +638,8 @@ def calculate_safety_score(input_url, db: Session = None):
             "risk_level": "❌ Siteye Ulaşılamıyor",
             "details": [
                 "Böyle bir site bulunamadı veya sunucusu kapalı.",
-                f"HTTP Durum Kodu: {http_status or 'Bağlantı hatası'}"
+                f"HTTP Durum Kodu: {http_status or 'Bağlantı hatası'}",
+                f"Ağ hatası: {transport_error or 'bilinmiyor'}"
             ],
             "sources": [{"name": "HTTP Erişim", "status": "Başarısız ❌"}]
         }
@@ -646,6 +657,12 @@ def calculate_safety_score(input_url, db: Session = None):
         sources.append({"name": "HTTP Erişim", "status": f"Kısıtlı (HTTP {http_status})"})
     else:
         sources.append({"name": "HTTP Erişim", "status": f"Ulaşılabilir (HTTP {http_status})"})
+        if http_status >= 500:
+            score -= 10
+            risks.append(f"⚠️ Sunucu hata kodu döndürüyor (HTTP {http_status}).")
+        elif http_status == 404:
+            score -= 3
+            risks.append("⚠️ URL yolu bulunamadı (HTTP 404), ancak alan adı erişilebilir.")
     
     # Whitelist flag ekle
     if is_whitelisted:
