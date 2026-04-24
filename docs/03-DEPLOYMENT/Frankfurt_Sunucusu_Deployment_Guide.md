@@ -99,8 +99,16 @@ To                         Action      From
 │   └── db_init.py
 │
 ├── 📚 frontend/
-│   ├── api-test.html              ← Web API tester
-│   └── dashboard.js
+│   ├── templates/                 ← Legacy HTML templates
+│   └── modules/                   ← Legacy module pages
+│
+├── 🎨 frontend-react/             ← Modern React SPA
+│   ├── src/
+│   │   ├── main.jsx               ← React entry point
+│   │   ├── App.jsx                ← Main app component
+│   │   └── ModulesApp.jsx         ← Modules application
+│   ├── dist/                      ← Built production files
+│   └── package.json               ← React dependencies
 │
 ├── 📖 docs/
 │   ├── API_INTEGRATION_GUIDE.md
@@ -222,41 +230,23 @@ ORDER BY DATE DESC LIMIT 7;
 
 ## 🔄 SERVICES & PROCESS MANAGEMENT
 
-### PM2 Process Manager
-
-```bash
-# List all processes
-pm2 list
-
-# Current processes:
-# 0: main        (FastAPI server, port 8000)
-# 1: api         (Alternative API, port 5000)
-# 3: ioc-fetch   (DELETED - now using cron)
-
-# Start/stop services
-pm2 start main
-pm2 stop main
-pm2 restart main
-pm2 delete main
-
-# Logs
-pm2 logs main         # Real-time logs
-pm2 logs api          # API server logs
-pm2 logs --lines 100  # Last 100 lines
-
-# Save & restore
-pm2 save              # Save current processes
-pm2 startup          # Auto-start on reboot
-pm2 kill             # Stop all processes
-```
-
 ### SystemD Services
 
 ```bash
+# FastAPI Backend
+sudo systemctl status aegisnexus-api.service
+sudo systemctl restart aegisnexus-api.service
+sudo systemctl enable aegisnexus-api.service
+
+# Nginx Web Server
+sudo systemctl status nginx
+sudo systemctl restart nginx
+sudo systemctl reload nginx
+
 # PostgreSQL
 sudo systemctl status postgresql
 sudo systemctl restart postgresql
-sudo systemctl enable postgresql  # Auto-start on reboot
+sudo systemctl enable postgresql
 
 # SSH
 sudo systemctl status ssh
@@ -288,24 +278,13 @@ sudo crontab -l
 
 # Output:
 # m h  dom mon dow   command
-* * * * * /bin/bash -c 'cd /var/www/aegis_nexus && source venv/bin/activate && git pull origin main && pip install -r requirements.txt >> /var/log/aegis_deploy.log 2>&1'
 0 2 * * * cd /var/www/aegis_nexus && PYTHONPATH=/var/www/aegis_nexus /usr/bin/python3 -m modules.phishing_detector.fetch_all_sources >> logs/fetch_data.log 2>&1
 0 * * * * cd /var/www/aegis_nexus && source venv/bin/activate && python3 scripts/ioc_fetcher.py >> /var/log/aegis/cron.log 2>&1
 ```
 
 ### Cron Job Details
 
-#### 1. **Auto-Deploy (Every minute)**
-```bash
-* * * * * cd /var/www/aegis_nexus && source venv/bin/activate && \
-    git pull origin main && pip install -r requirements.txt >> /var/log/aegis_deploy.log 2>&1
-```
-- **Frequency:** Every minute (for rapid testing)
-- **Task:** Pull latest from GitHub + install dependencies
-- **Log:** `/var/log/aegis_deploy.log`
-- **Purpose:** Continuous deployment
-
-#### 2. **Phishing Data Fetcher (2:00 AM daily)**
+#### 1. **Phishing Data Fetcher (2:00 AM daily)**
 ```bash
 0 2 * * * cd /var/www/aegis_nexus && PYTHONPATH=/var/www/aegis_nexus \
     /usr/bin/python3 -m modules.phishing_detector.fetch_all_sources >> logs/fetch_data.log 2>&1
@@ -314,7 +293,7 @@ sudo crontab -l
 - **Task:** Fetch phishing data from sources
 - **Log:** `logs/fetch_data.log`
 
-#### 3. **IOC Fetcher (Every hour) - CRITICAL ⭐**
+#### 2. **IOC Fetcher (Every hour) - CRITICAL ⭐**
 ```bash
 0 * * * * cd /var/www/aegis_nexus && source venv/bin/activate && \
     python3 scripts/ioc_fetcher.py >> /var/log/aegis/cron.log 2>&1
@@ -492,6 +471,28 @@ psql -U enes -d phishing_db -c "SELECT datname, count(*) FROM pg_stat_activity G
 
 ## 🚀 MANUAL OPERATIONS
 
+### React Frontend Deployment
+
+```bash
+# SSH to server
+ssh root@104.248.45.198
+
+# Navigate to project
+cd /var/www/aegis_nexus
+
+# Pull latest changes
+git pull origin main
+
+# Build React frontend
+cd frontend-react
+npm run build
+cd ..
+
+# Restart services
+sudo systemctl restart aegisnexus-api.service
+sudo systemctl reload nginx
+```
+
 ### Starting Services
 
 ```bash
@@ -501,17 +502,15 @@ ssh root@104.248.45.198
 # Navigate to project
 cd /var/www/aegis_nexus
 
-# Activate virtual environment
-source venv/bin/activate
+# Start FastAPI backend
+sudo systemctl start aegisnexus-api.service
 
-# Start FastAPI server (if stopped)
-pm2 start main
-
-# Start alternative API
-pm2 start api
+# Start Nginx
+sudo systemctl start nginx
 
 # Verify services running
-pm2 list
+sudo systemctl status aegisnexus-api.service
+sudo systemctl status nginx
 ```
 
 ### Manual IOC Fetch (Testing)
@@ -714,9 +713,10 @@ psql -U enes -d phishing_db -c "SELECT COUNT(*) FROM indicators_of_compromise;"
 tail -f /var/log/aegis/cron.log
 
 # Process management
-pm2 list
-pm2 logs
-pm2 restart main
+sudo systemctl status aegisnexus-api.service
+sudo systemctl restart aegisnexus-api.service
+sudo systemctl status nginx
+sudo systemctl reload nginx
 
 # System info
 uptime
