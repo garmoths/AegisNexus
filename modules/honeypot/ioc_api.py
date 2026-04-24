@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 from shared.utils.db import get_db
 
-router = APIRouter(prefix="/api/ioc", tags=["IOC-Stats"])
+router = APIRouter(tags=["IOC-Stats"])
 
 # ==================== MODELS ====================
 
