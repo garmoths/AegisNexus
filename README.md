@@ -2,24 +2,16 @@
 
 [![Deploy to Frankfurt](https://github.com/garmoths/AegisNexus/actions/workflows/deploy.yml/badge.svg)](https://github.com/garmoths/AegisNexus/actions)
 
-**Live:** http://104.248.45.198:8000
+**Live:** https://aegisnexus.dev
 
-## 🚀 Quick Start - API Test Dashboard
+## Quick Start
+- API docs: `docs/04-TEKNIK-DETAYLAR/API_INTEGRATION_GUIDE.md`
+- Quick commands: `docs/04-TEKNIK-DETAYLAR/API_USAGE.md`
+- Deployment checklist: `docs/00-ANA-DOKUMANLAR/PRODUCTION_DEPLOYMENT_CHECKLIST.md`
 
-**Interactive API Tester:** Open `frontend/api-test.html` in your browser
-- ✅ Single URL checking
-- ✅ Bulk scanning (CSV upload)
-- ✅ Whitelist management
-- ✅ Real-time statistics
+**API Base (Canonical):** `https://aegisnexus.dev/api/v2`
 
-**API Documentation:** See `docs/API_INTEGRATION_GUIDE.md` for:
-- REST API endpoints
-- cURL examples
-- JavaScript/React integration
-- WordPress plugin template
-- Browser extension example
-
-**API Base:** `http://104.248.45.198:5000/api/v1`
+Legacy `v1` endpoints should be treated as compatibility-only and not used for new integrations.
 
 ## Modules
 - 🎣 Phishing Detector (URL tarama + SSL/Domain analizi)
@@ -29,8 +21,4 @@
 - ⚡ Threat Responder
 
 ## Auto-Deploy
-Every push to `main` automatically deploys to Frankfurt server via GitHub Actions.
-
-# Auto-deploy test Tue Apr 14 17:37:03 +03 2026
-✅ GitHub Actions auto-deploy active! Tue Apr 14 17:59:27 +03 2026
-✅ Cron auto-deployment working! Tue Apr 14 18:18:10 +03 2026
+Every push to `main` deploys via GitHub Actions workflow.
