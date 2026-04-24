@@ -1,0 +1,44 @@
+{
+  "models": [
+    {
+      "title": "DeepSeek-V3 (Antigravity)",
+      "provider": "deepseek",
+      "model": "deepseek-chat",
+      "apiKey": "sk-b31288c0e994422094f0bb71d7db2176",
+      "systemMessage": "Sen Antigravity Awesome Skills protokollerini kullanan siber güvenlik ve Python uzmanısın. Yanıtlarını kısa tut, gereksiz açıklama yapma. Kod yazarken siber güvenlik açıklarını denetle."
+    }
+  ],
+  "tabAutocompleteModel": {
+    "title": "DeepSeek Autocomplete",
+    "provider": "deepseek",
+    "model": "deepseek-chat",
+    "apiKey": "sk-b31288c0e994422094f0bb71d7db2176"
+  },
+  "contextProviders": [
+    { "name": "codebase" },
+    { "name": "file" },
+    { "name": "terminal" },
+    {
+      "name": "folder",
+      "params": {
+        "folders": [".continue/skills"]
+      }
+    }
+  ],
+  "slashCommands": [
+    {
+      "name": "fix",
+      "description": "Kodu siber güvenlik odaklı düzelt",
+      "step": "@.continue/skills/security/security-auditor.md Bu kodu denetle ve düzelt."
+    },
+    {
+      "name": "audit",
+      "description": "Siber güvenlik taraması yap",
+      "step": "@.continue/skills/security/security-auditor.md Sadece riskleri ve açıkları listele."
+    },
+    {
+      "name": "share",
+      "description": "Oturumu dışa aktar"
+    }
+  ]
+}

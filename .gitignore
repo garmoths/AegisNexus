@@ -1,1 +1,13 @@
-.continue/
+node_modules/
+venv/
+env/
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+dist/
+build/
+.next/
+*.log
+.env
+.env.local

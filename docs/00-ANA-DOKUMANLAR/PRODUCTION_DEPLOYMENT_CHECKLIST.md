@@ -127,18 +127,18 @@ GET /api/v2/honeypot/stats
 
 ```bash
 # PostgreSQL Database
-DATABASE_URL=postgresql://enes:password@127.0.0.1:5432/phishing_db
+DATABASE_URL=postgresql://APP_DB_USER:APP_DB_PASSWORD@127.0.0.1:5432/phishing_db
 
 # Redis
 REDIS_URL=redis://localhost:6379/0
 
 # RabbitMQ (Celery Broker)
-CELERY_BROKER_URL=amqp://guest:guest@localhost:5672//
+CELERY_BROKER_URL=amqp://APP_RMQ_USER:APP_RMQ_PASSWORD@localhost:5672//
 
 # API Keys (VirusTotal, URLScan, AbuseIPDB)
-VIRUSTOTAL_API_KEYS=58177fb3550491ec6711145d5cadc097cde22c85079eec0be0e042285cddbf3c
-URLSCAN_API_KEYS=019daba8-4266-774d-a251-dbc55d5a4a69
-ABUSEIPDB_API_KEYS=055bc2de7cefa2db0bef577346ebc74386db8e74596e3b48bbabad16eda3b5978a678e6e797848b3
+VIRUSTOTAL_API_KEYS=VT_KEY_1,VT_KEY_2
+URLSCAN_API_KEYS=URLSCAN_KEY_1,URLSCAN_KEY_2
+ABUSEIPDB_API_KEYS=ABUSEIPDB_KEY_1,ABUSEIPDB_KEY_2
 ```
 
 ---

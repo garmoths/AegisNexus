@@ -2,8 +2,9 @@
 -- Run as postgres user: sudo -u postgres psql -f scripts/db_setup.sql
 -- OR: sudo -u postgres psql < scripts/db_setup.sql
 
--- Create database if not exists
-CREATE DATABASE IF NOT EXISTS phishing_db OWNER postgres ENCODING 'UTF8';
+-- Create database if not exists (PostgreSQL compatible)
+SELECT 'CREATE DATABASE phishing_db OWNER postgres ENCODING ''UTF8'''
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'phishing_db')\gexec
 
 -- Connect to database
 \c phishing_db

@@ -4,7 +4,6 @@ Tehdit veritabanı, URL tarama ve analiz endpointleri
 """
 import uuid
 import logging
-from typing import List, Optional
 from datetime import datetime, timedelta
 from functools import wraps
 
@@ -12,12 +11,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from shared.utils.db import get_db, SessionLocal
+from shared.utils.db import get_db
 from app.models import PhishingURL
+from app.security import require_admin_api_key
 from .scanner import calculate_safety_score
 from .url_normalize import normalize_url_record
 from .fetch_all_sources import fetch_all_sources
-from .cache_db import get_phishing_history, get_latest_phishing, get_threat_type_distribution, get_phishing_stats, save_check_url_result
+from .cache_db import get_phishing_history, get_latest_phishing, get_threat_type_distribution, get_phishing_stats
 
 logger = logging.getLogger(__name__)
 
@@ -77,21 +77,25 @@ def rate_limit(max_requests: int, time_window: int):
 
 
 @router.post("/add-site")
-def add_site(item: SiteAddRequest, db: Session = Depends(get_db)):
+def add_site(
+    item: SiteAddRequest,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin_api_key),
+):
     """Yeni phishing sitesi ekle"""
     if not item.url or not item.target:
         raise HTTPException(status_code=400, detail="URL ve Hedef boş olamaz")
 
     phish_id_gen = f"PHISH-{uuid.uuid4().hex[:12].upper()}"
 
-    canon, uh, dn = normalize_url_record(item.url)
-    stored_url = canon if canon else item.url.strip()
+    normalized = normalize_url_record(item.url)
+    stored_url = normalized.get("canonical_url", item.url.strip())
 
     new_site = PhishingURL(
         phish_id=phish_id_gen,
         url=stored_url,
-        url_hash=uh,
-        domain_norm=dn,
+        url_hash=normalized.get("url_hash"),
+        domain_norm=normalized.get("domain_norm"),
         target=item.target,
         status=item.status,
         online=True if item.status == "ONLINE" else False,
@@ -157,7 +161,7 @@ def get_stats(db: Session = Depends(get_db)):
         return {"stats": {"total_urls": 0, "phishing_count": 0, "safe_count": 0, "today_scans": 0}, "module": "01_phishing_detector"}
 
 
-@router.get("/latest")
+@router.get("/latest-paged")
 def get_latest(limit: int = 20, page: int = 1, db: Session = Depends(get_db)):
     """Son eklenen tehditler"""
     try:
@@ -225,7 +229,10 @@ def search_urls(url: str, limit: int = 20, page: int = 1, db: Session = Depends(
 
 
 @router.post("/update-db")
-def update_phishtank_database(db: Session = Depends(get_db)):
+def update_phishtank_database(
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin_api_key),
+):
     """Deprecated: Lokal PhishTank import kaldirildi."""
     return {
         "status": "deprecated",
@@ -238,7 +245,10 @@ def update_phishtank_database(db: Session = Depends(get_db)):
 
 
 @router.post("/fetch-all")
-def fetch_all_phishing_data(db: Session = Depends(get_db)):
+def fetch_all_phishing_data(
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin_api_key),
+):
     """Tum kaynaklardan phishing verileri cek (URLHaus, OpenPhish, TweetFeed, GitHub feed'leri)"""
     try:
         result = fetch_all_sources(db)
@@ -264,8 +274,8 @@ def get_phishing_scan_history(limit: int = 50, days: int = 30, db: Session = Dep
         cutoff_date = datetime.now() - timedelta(days=days)
         
         items = db.query(PhishingURL).filter(
-            PhishingURL.created_at >= cutoff_date
-        ).order_by(PhishingURL.created_at.desc()).limit(limit).all()
+            PhishingURL.submission_time >= cutoff_date
+        ).order_by(PhishingURL.submission_time.desc()).limit(limit).all()
         
         history = []
         for item in items:
@@ -276,7 +286,7 @@ def get_phishing_scan_history(limit: int = 50, days: int = 30, db: Session = Dep
                 'risk_level': 'high',
                 'is_safe': False,
                 'sources': ['phishfeed'],  # Default source
-                'checked_at': item.created_at.isoformat() if item.created_at else datetime.now().isoformat(),
+                'checked_at': item.submission_time.isoformat() if item.submission_time else datetime.now().isoformat(),
                 'phish_id': item.phish_id,
                 'target': item.target or 'Phishing'
             })
@@ -320,7 +330,7 @@ def get_latest_phishing_urls(limit: int = 20, db: Session = Depends(get_db)):
                 'url': item.url,
                 'domain': item.domain_norm or item.url,
                 'risk_score': 85,  # Default high risk for known phishing
-                'submission_time': item.created_at.isoformat() if item.created_at else datetime.now().isoformat(),
+                'submission_time': item.submission_time.isoformat() if item.submission_time else datetime.now().isoformat(),
                 'target': item.target or 'Phishing',
                 'phish_id': item.phish_id,
                 'status': item.status

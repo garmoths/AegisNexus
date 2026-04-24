@@ -14,6 +14,7 @@ from typing import Optional, List
 
 from shared.utils.db import get_db
 from app.models import HoneypotEvent, IndicatorOfCompromise
+from app.security import require_admin_api_key
 from .engine import honeypot_engine, HoneypotSession
 from .ioc_collector import IOCCollectorEngine, IOCRecord, IOCType, ThreatType, IOCSource
 
@@ -186,7 +187,7 @@ _BANK_DECOY_HTML = """<!DOCTYPE html>
         let startTime = Date.now();
         
         // Sayfa yüklendiğinde oturum başlat
-        fetch('/api/honeypot/session/ping', {
+        fetch('/api/v2/honeypot/interaction', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({session_id: sessionId, action: 'page_load'})
@@ -207,7 +208,7 @@ _BANK_DECOY_HTML = """<!DOCTYPE html>
             document.getElementById('submit-btn').disabled = true;
             
             // Etkileşimi kaydet
-            const response = await fetch('/api/honeypot/interaction', {
+            const response = await fetch('/api/v2/honeypot/interaction', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
@@ -242,7 +243,7 @@ _BANK_DECOY_HTML = """<!DOCTYPE html>
             
             resetLink.querySelector('a').addEventListener('click', async (e) => {
                 e.preventDefault();
-                await fetch('/api/honeypot/interaction', {
+                await fetch('/api/v2/honeypot/interaction', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
@@ -274,7 +275,7 @@ def honeypot_decoy_page(request: Request, db: Session = Depends(get_db)):
     event = HoneypotEvent(
         client_ip=ip,
         user_agent=user_agent[:500],
-        path="/api/v2/decoy",
+        path="/api/v2/honeypot/decoy",
         referer=request.headers.get("referer", "")[:500],
         note=f"session_id:{session.session_id}",
     )
@@ -305,7 +306,7 @@ def create_honeypot_session(
     event = HoneypotEvent(
         client_ip=ip,
         user_agent=user_agent[:500],
-        path="/api/v2/session/create",
+        path="/api/v2/honeypot/session/create",
         note=f"session_id:{session.session_id},decoy:{req.decoy_type}",
     )
     db.add(event)
@@ -313,7 +314,7 @@ def create_honeypot_session(
     
     return {
         "session_id": session.session_id,
-        "decoy_page": f"/api/v2/decoy?session={session.session_id}",
+        "decoy_page": f"/api/v2/honeypot/decoy?session={session.session_id}",
         "decoy_type": req.decoy_type,
         "module": "02_honeypot"
     }
@@ -333,7 +334,7 @@ def record_interaction(
     event = HoneypotEvent(
         client_ip=ip,
         user_agent=request.headers.get("user-agent", "")[:500],
-        path=f"/api/v2/interaction",
+        path=f"/api/v2/honeypot/interaction",
         note=f"session_id:{req.session_id},action:{req.action},threat_score:{result.get('threat_score', 0)},ioc:{result.get('ioc_detected', 0)}",
     )
     db.add(event)
@@ -451,7 +452,8 @@ class IOCFilterRequest(BaseModel):
 @router.post("/ioc/fetch-external")
 async def fetch_external_iocs(
     req: IOCCollectorFetchRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin_api_key),
 ):
     """
     Fetch IOCs from external threat intelligence sources.
