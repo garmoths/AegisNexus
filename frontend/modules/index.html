@@ -1306,12 +1306,16 @@
         grid.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text-muted)"><span class="spinner"></span> Yükleniyor...</div>';
         
         try {
+            console.log('🔍 Fetching phishing history data...');
             const res = await fetch('/api/v2/phishing/history?limit=12');
+            console.log('📡 Response status:', res.status);
             const data = await res.json();
+            console.log('📊 Received history data:', data);
             
             grid.innerHTML = '';
             
             if (!data.history || data.history.length === 0) {
+                console.warn('⚠️ No history data found');
                 grid.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text-muted)">📝 Henüz tarama geçmişi bulunmuyor</div>';
                 return;
             }
@@ -1348,12 +1352,16 @@
         feed.innerHTML = '<div style="text-align:center;padding:1rem;color:var(--text-muted)"><span class="spinner"></span> Yükleniyor...</div>';
         
         try {
+            console.log('🔍 Fetching phishing latest data...');
             const res = await fetch('/api/v2/phishing/latest?limit=8');
+            console.log('📡 Response status:', res.status);
             const data = await res.json();
+            console.log('📊 Received data:', data);
             
             feed.innerHTML = '';
             
             if (!data.latest || data.latest.length === 0) {
+                console.warn('⚠️ No latest data found');
                 feed.innerHTML = '<div style="text-align:center;padding:1rem;color:var(--text-muted)">📊 Henüz tehdit verisi bulunmuyor</div>';
                 return;
             }
