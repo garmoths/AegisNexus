@@ -130,33 +130,31 @@ def fetch_openphish_data(session: Optional[requests.Session] = None) -> List[str
 
 
 def fetch_urlhaus_data(session: Optional[requests.Session] = None) -> List[str]:
-    """URLHaus JSON API'den phishing odaklı URL'ler."""
+    """URLHaus CSV recent dump'tan phishing odaklı URL'ler."""
     http = session or _http_session()
     limit = int(os.getenv("PHISHING_URLHAUS_LIMIT", "3000"))
     try:
-        response = http.post(
-            "https://urlhaus-api.abuse.ch/api/v1/",
-            data={"query": "get_recent", "limit": str(min(limit, 10000))},
-            timeout=60,
-        )
+        response = http.get("https://urlhaus.abuse.ch/downloads/csv_recent/", timeout=90)
         if response.status_code != 200:
             print(f"URLHaus status: {response.status_code}")
             return []
 
-        payload = response.json()
+        reader = csv.reader(io.StringIO(response.text))
         urls: List[str] = []
-        if payload.get("query_status") != "ok":
-            return urls
-
-        for item in payload.get("urls", []):
-            url = str(item.get("url", "")).strip()
+        for row in reader:
+            if not row or row[0].startswith("#"):
+                continue
+            # Columns: id, dateadded, url, url_status, last_online, threat, tags, urlhaus_link, reporter
+            url = row[2].strip() if len(row) > 2 else ""
+            threat = row[5].strip().lower() if len(row) > 5 else ""
+            tags = row[6].strip().lower() if len(row) > 6 else ""
             if not url.startswith(("http://", "https://")):
                 continue
-            threat = str(item.get("threat", "")).lower()
-            tags = [str(tag).lower() for tag in item.get("tags", [])]
             if "phish" in threat or any("phish" in tag for tag in tags):
                 urls.append(url)
-        return list(dict.fromkeys(urls))
+            if len(urls) >= limit:
+                break
+        return list(dict.fromkeys(urls))[: max(limit, 1)]
     except Exception as exc:
         print(f"URLHaus hatasi: {exc}")
         return []
