@@ -27,13 +27,14 @@ jobs:
           # Kill old processes
           pkill -f uvicorn || true
           pkill -f "app/api_server.py" || true
+          pkill -f "app.main:app" || true
           sleep 1
           
           # Start uvicorn
-          nohup uvicorn app.api_server:app --host 0.0.0.0 --port 8000 > logs/uvicorn.log 2>&1 &
+          nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 > logs/uvicorn.log 2>&1 &
           sleep 2
           
           # Health check
-          curl -s http://localhost:8000/api/v1/health
+          curl -fsS http://localhost:8000/api/v2/ai-analyzer/health
           echo "✅ Deploy completed"
           EOF

@@ -1,0 +1,4 @@
+nohup: ignoring input
+2026-04-17 14:37:49,624 - INFO - 🚀 IOC Fetcher started
+2026-04-17 14:37:49,768 - INFO - ✅ Database connection successful
+2026-04-17 14:37:49,768 - INFO - 🔄 Starting IOC collection from: abuseipdb

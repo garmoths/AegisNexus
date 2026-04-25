@@ -1,0 +1,115 @@
+<frozen runpy>:128: RuntimeWarning: 'modules.phishing_detector.fetch_all_sources' found in sys.modules after import of package 'modules.phishing_detector', but prior to execution of 'modules.phishing_detector.fetch_all_sources'; this may result in unpredictable behaviour
+
+============================================================
+🚀 PHISHING DATA AGGREGATOR (FAST MODE)
+============================================================
+
+📡 1. GitHub fast feeds'ten veri cekiliyor...
+   ↳ github_spam404: https://raw.githubusercontent.com/Spam404/lists/master/main-blacklist.txt
+   ⚠️  github_spam404: veri alinamadi
+   ↳ github_phishing_new_today: https://raw.githubusercontent.com/mitchellkrogza/Phishing.Database/master/phishing-links-NEW-today.txt
+   ✅ github_phishing_new_today: 3 URL, 0 eklendi
+   ↳ github_phishingdb_new_today: https://raw.githubusercontent.com/Phishing-Database/Phishing.Database/master/phishing-links-NEW-today.txt
+   ✅ github_phishingdb_new_today: 3 URL, 0 eklendi
+
+============================================================
+📊 ÖZET
+============================================================
+   Toplam yeni eklenen: 0
+   Toplam güncellenen: 6
+   Aktif kaynak: 2
+
+Sonuc: {'status': 'success', 'sources': {'github_phishing_new_today': {'total': 3, 'added': 0, 'updated': 3, 'errors': 0}, 'github_phishingdb_new_today': {'total': 3, 'added': 0, 'updated': 3, 'errors': 0}}, 'total_added': 0, 'total_updated': 6}
+Traceback (most recent call last):
+  File "<frozen runpy>", line 189, in _run_module_as_main
+  File "<frozen runpy>", line 112, in _get_module_details
+  File "/var/www/aegis_nexus/modules/__init__.py", line 20, in <module>
+    from .phishing_detector import router as phishing_detector_router
+  File "/var/www/aegis_nexus/modules/phishing_detector/__init__.py", line 5, in <module>
+    from .router import router
+  File "/var/www/aegis_nexus/modules/phishing_detector/router.py", line 11, in <module>
+    from fastapi import APIRouter, Depends, HTTPException
+ModuleNotFoundError: No module named 'fastapi'
+Error in sys.excepthook:
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/apport_python_hook.py", line 228, in partial_apport_excepthook
+    return apport_excepthook(binary, exc_type, exc_obj, exc_tb)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/apport_python_hook.py", line 114, in apport_excepthook
+    report["ExecutableTimestamp"] = str(int(os.stat(binary).st_mtime))
+                                            ^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/var/www/aegis_nexus/-m'
+
+Original exception was:
+Traceback (most recent call last):
+  File "<frozen runpy>", line 189, in _run_module_as_main
+  File "<frozen runpy>", line 112, in _get_module_details
+  File "/var/www/aegis_nexus/modules/__init__.py", line 20, in <module>
+    from .phishing_detector import router as phishing_detector_router
+  File "/var/www/aegis_nexus/modules/phishing_detector/__init__.py", line 5, in <module>
+    from .router import router
+  File "/var/www/aegis_nexus/modules/phishing_detector/router.py", line 11, in <module>
+    from fastapi import APIRouter, Depends, HTTPException
+ModuleNotFoundError: No module named 'fastapi'
+Traceback (most recent call last):
+  File "<frozen runpy>", line 189, in _run_module_as_main
+  File "<frozen runpy>", line 112, in _get_module_details
+  File "/var/www/aegis_nexus/modules/__init__.py", line 19, in <module>
+    from .phishing_detector import router as phishing_detector_router
+  File "/var/www/aegis_nexus/modules/phishing_detector/__init__.py", line 5, in <module>
+    from .router import router
+  File "/var/www/aegis_nexus/modules/phishing_detector/router.py", line 11, in <module>
+    from fastapi import APIRouter, Depends, HTTPException
+ModuleNotFoundError: No module named 'fastapi'
+Error in sys.excepthook:
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/apport_python_hook.py", line 228, in partial_apport_excepthook
+    return apport_excepthook(binary, exc_type, exc_obj, exc_tb)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/apport_python_hook.py", line 114, in apport_excepthook
+    report["ExecutableTimestamp"] = str(int(os.stat(binary).st_mtime))
+                                            ^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/var/www/aegis_nexus/-m'
+
+Original exception was:
+Traceback (most recent call last):
+  File "<frozen runpy>", line 189, in _run_module_as_main
+  File "<frozen runpy>", line 112, in _get_module_details
+  File "/var/www/aegis_nexus/modules/__init__.py", line 19, in <module>
+    from .phishing_detector import router as phishing_detector_router
+  File "/var/www/aegis_nexus/modules/phishing_detector/__init__.py", line 5, in <module>
+    from .router import router
+  File "/var/www/aegis_nexus/modules/phishing_detector/router.py", line 11, in <module>
+    from fastapi import APIRouter, Depends, HTTPException
+ModuleNotFoundError: No module named 'fastapi'
+Traceback (most recent call last):
+  File "<frozen runpy>", line 189, in _run_module_as_main
+  File "<frozen runpy>", line 112, in _get_module_details
+  File "/var/www/aegis_nexus/modules/__init__.py", line 19, in <module>
+    from .phishing_detector import router as phishing_detector_router
+  File "/var/www/aegis_nexus/modules/phishing_detector/__init__.py", line 5, in <module>
+    from .router import router
+  File "/var/www/aegis_nexus/modules/phishing_detector/router.py", line 11, in <module>
+    from fastapi import APIRouter, Depends, HTTPException
+ModuleNotFoundError: No module named 'fastapi'
+Error in sys.excepthook:
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/apport_python_hook.py", line 228, in partial_apport_excepthook
+    return apport_excepthook(binary, exc_type, exc_obj, exc_tb)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/apport_python_hook.py", line 114, in apport_excepthook
+    report["ExecutableTimestamp"] = str(int(os.stat(binary).st_mtime))
+                                            ^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/var/www/aegis_nexus/-m'
+
+Original exception was:
+Traceback (most recent call last):
+  File "<frozen runpy>", line 189, in _run_module_as_main
+  File "<frozen runpy>", line 112, in _get_module_details
+  File "/var/www/aegis_nexus/modules/__init__.py", line 19, in <module>
+    from .phishing_detector import router as phishing_detector_router
+  File "/var/www/aegis_nexus/modules/phishing_detector/__init__.py", line 5, in <module>
+    from .router import router
+  File "/var/www/aegis_nexus/modules/phishing_detector/router.py", line 11, in <module>
+    from fastapi import APIRouter, Depends, HTTPException
+ModuleNotFoundError: No module named 'fastapi'
