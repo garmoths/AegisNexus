@@ -258,7 +258,7 @@ def fetch_all_phishing_data(
     db: Session = Depends(get_db),
     _: None = Depends(require_admin_api_key),
 ):
-    """Tum kaynaklardan phishing verileri cek (URLHaus, OpenPhish, TweetFeed, GitHub feed'leri)"""
+    """Tum kaynaklardan phishing verileri cek (GitHub, OpenPhish, URLHaus, Kaggle, CertStream, OTX)"""
     try:
         result = fetch_all_sources(db)
         return {
