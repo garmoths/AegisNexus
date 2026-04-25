@@ -234,6 +234,10 @@ function AIAnalyzer() {
 }
 
 function ResultContent({ score, threatLevel, isPhishing, isScam, sa, da, recs, beliefs, threats, suspects, result }) {
+  const confidence = da?.ai_analysis?.confidence_score || 0
+  const confidencePercentage = Math.round(confidence)
+  const confidenceColor = confidence > 75 ? theme.danger : confidence > 50 ? theme.warning : confidence > 25 ? theme.primary : theme.success
+
   return <div style={{ animation:'scaleIn 0.3s ease' }}>
     <div style={{ display:'flex', gap:24, alignItems:'center', marginBottom:20, flexWrap:'wrap' }}>
       <RiskGauge score={score} label="Risk Skoru" />
@@ -244,6 +248,16 @@ function ResultContent({ score, threatLevel, isPhishing, isScam, sa, da, recs, b
           {isScam&&<span style={{ padding:'6px 16px', borderRadius:'20px', fontSize:13, fontWeight:700, background:theme.accentDim, color:theme.accent }}>🛑 Scam</span>}
         </div>
         <p style={{ fontSize:13, color:theme.textMuted }}>Guvenlik Durumu: <strong style={{ color:score>70?'#ef4444':score>40?'#f59e0b':'#22c55e' }}>{sa.safety_status||'Bilinmiyor'}</strong> • Aksiyon: {sa.action_required||'YOK'}</p>
+        <div style={{ marginTop:12, padding:12, background:theme.surface, borderRadius:theme.radiusSm, border:`1px solid ${theme.border}` }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+            <span style={{ fontSize:12, fontWeight:700, color:theme.textMuted }}>🤖 AI Guvenilirlik Skoru</span>
+            <span style={{ fontSize:14, fontWeight:800, color:confidenceColor }}>{confidencePercentage}%</span>
+          </div>
+          <div style={{ width:'100%', height:8, background:theme.bg, borderRadius:4, overflow:'hidden' }}>
+            <div style={{ width:`${confidencePercentage}%`, height:'100%', background:confidenceColor, borderRadius:4, transition:'width 0.5s ease' }} />
+          </div>
+          <p style={{ fontSize:11, color:theme.textMuted, marginTop:6 }}>Yapay zeka modeli bu analizi %{confidencePercentage} guvenilirlik ile tamamladi.</p>
+        </div>
       </div>
     </div>
     {result.summary&&<Card style={{ padding:16, marginBottom:16, maxHeight:120, overflowY:'auto' }}><p style={{ fontSize:13, lineHeight:1.6, color:theme.textDim, whiteSpace:'pre-wrap' }}>{result.summary}</p></Card>}
@@ -269,11 +283,12 @@ function ResultContent({ score, threatLevel, isPhishing, isScam, sa, da, recs, b
   </div>
 }
 
-function RiskGauge({ score, label }) {
+function RiskGauge({ score, label, showPercentage = false }) {
   const c=2*Math.PI*40;const o=c-(Math.min(score,100)/100)*c
   const color=score>75?theme.danger:score>50?theme.warning:score>25?theme.primary:theme.success
+  const percentage = Math.round(score)
   return <div style={{ display:'inline-flex', flexDirection:'column', alignItems:'center' }}>
-    <svg width="120" height="120" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="none" stroke={theme.border} strokeWidth="8"/><circle cx="50" cy="50" r="40" fill="none" stroke={color} strokeWidth="8" strokeDasharray={c} strokeDashoffset={o} transform="rotate(-90 50 50)" style={{ transition:'stroke-dashoffset 1s ease' }} strokeLinecap="round"/><text x="50" y="50" textAnchor="middle" dominantBaseline="central" fill="#fff" fontSize="22" fontWeight="800" fontFamily="Inter, sans-serif">{score}</text></svg>
+    <svg width="120" height="120" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="none" stroke={theme.border} strokeWidth="8"/><circle cx="50" cy="50" r="40" fill="none" stroke={color} strokeWidth="8" strokeDasharray={c} strokeDashoffset={o} transform="rotate(-90 50 50)" style={{ transition:'stroke-dashoffset 1s ease' }} strokeLinecap="round"/><text x="50" y="50" textAnchor="middle" dominantBaseline="central" fill="#fff" fontSize="22" fontWeight="800" fontFamily="Inter, sans-serif">{showPercentage?`${percentage}%`:score}</text></svg>
     <p style={{ fontSize:12, color:theme.textMuted, marginTop:8, fontWeight:600 }}>{label}</p>
   </div>
 }
