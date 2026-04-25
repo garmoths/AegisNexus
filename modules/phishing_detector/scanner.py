@@ -546,31 +546,32 @@ def calculate_safety_score(input_url, db: Session = None):
     # ---------------------------------------------------------
     # 2. KATMAN: INTERNAL DB (VERİTABANI) — hash / tam URL / domain (indeksli)
     # ---------------------------------------------------------
+    domain_match = None
     if db:
-        match = None
+        exact_match = None
         canon, url_hash, domain_norm = normalize_url_record(check_url)
         if url_hash:
-            match = db.query(PhishingURL).filter(PhishingURL.url_hash == url_hash).first()
-        if match is None and canon:
-            match = db.query(PhishingURL).filter(PhishingURL.url == canon).first()
-        if match is None:
-            match = db.query(PhishingURL).filter(PhishingURL.url == check_url).first()
-        if match is None:
-            match = db.query(PhishingURL).filter(PhishingURL.url == input_url).first()
-        if match is None and domain_norm and len(domain_norm) > 3:
-            match = (
+            exact_match = db.query(PhishingURL).filter(PhishingURL.url_hash == url_hash).first()
+        if exact_match is None and canon:
+            exact_match = db.query(PhishingURL).filter(PhishingURL.url == canon).first()
+        if exact_match is None:
+            exact_match = db.query(PhishingURL).filter(PhishingURL.url == check_url).first()
+        if exact_match is None:
+            exact_match = db.query(PhishingURL).filter(PhishingURL.url == input_url).first()
+        if exact_match is None and domain_norm and len(domain_norm) > 3:
+            domain_match = (
                 db.query(PhishingURL)
                 .filter(PhishingURL.domain_norm == domain_norm)
                 .first()
             )
 
-        if match:
+        if exact_match:
             return {
                 "url": input_url, "score": 0,
                 "risk_level": "🚨 ÇOK TEHLİKELİ (DB Kayıtlı)",
                 "details": [
-                    f"Tehlikeli site veritabanında tespit edildi! (ID: {match.phish_id})",
-                    f"Hedef: {match.target}",
+                    f"Tehlikeli site veritabanında tespit edildi! (ID: {exact_match.phish_id})",
+                    f"Hedef: {exact_match.target}",
                     "Bu siteye kesinlikle bilgi girmeyin!"
                 ],
                 "sources": [{"name": "Internal DB", "status": "TEHDİT 🚨"}]
@@ -594,21 +595,43 @@ def calculate_safety_score(input_url, db: Session = None):
     # 4. KATMAN: CANLILIK TESTİ
     # ---------------------------------------------------------
     site_is_up = False
+    restricted_access = False
     http_status = 0
+    transport_error = None
     page_content = None
-    try:
-        response = requests.get(check_url, timeout=8, allow_redirects=True)
-        http_status = response.status_code
-        if response.status_code < 400:
+    request_headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0.0.0 Safari/537.36"
+        )
+    }
+    candidates = [check_url]
+    # Varsayılan https denemesi başarısız olursa http fallback dene.
+    if check_url.startswith("https://"):
+        candidates.append("http://" + check_url.replace("https://", "", 1))
+
+    response = None
+    for candidate_url in candidates:
+        try:
+            response = requests.get(candidate_url, timeout=8, allow_redirects=True, headers=request_headers)
+            check_url = candidate_url
+            http_status = response.status_code
             site_is_up = True
-            # Sayfa içeriğini AI analizi için sakla
+            break
+        except Exception as e:
+            transport_error = str(e)
+
+    if site_is_up and response is not None:
+        if response.status_code in (401, 403, 405, 406, 429):
+            restricted_access = True
+        # Sayfa içeriğini AI analizi için sadece başarılı yanıtlarda kullan.
+        if response.status_code < 400:
             try:
                 response.encoding = response.apparent_encoding or 'utf-8'
                 page_content = response.text[:500_000]
             except Exception:
                 page_content = None
-    except Exception:
-        site_is_up = False
 
     if not site_is_up:
         return {
@@ -616,9 +639,10 @@ def calculate_safety_score(input_url, db: Session = None):
             "risk_level": "❌ Siteye Ulaşılamıyor",
             "details": [
                 "Böyle bir site bulunamadı veya sunucusu kapalı.",
-                f"HTTP Durum Kodu: {http_status or 'Bağlantı hatası'}"
+                f"HTTP Durum Kodu: {http_status or 'Bağlantı hatası'}",
+                f"Ağ hatası: {transport_error or 'bilinmiyor'}"
             ],
-            "sources": [{"name": "Ping", "status": "Başarısız ❌"}]
+            "sources": [{"name": "HTTP Erişim", "status": "Başarısız ❌"}]
         }
 
     # ---------------------------------------------------------
@@ -627,10 +651,31 @@ def calculate_safety_score(input_url, db: Session = None):
     score = 100
     risks = []
     sources = []
+
+    if restricted_access:
+        score -= 5
+        risks.append(f"⚠️ Site erişimi kısıtlı görünüyor (HTTP {http_status}). Anti-bot/WAF olabilir.")
+        sources.append({"name": "HTTP Erişim", "status": f"Kısıtlı (HTTP {http_status})"})
+    else:
+        sources.append({"name": "HTTP Erişim", "status": f"Ulaşılabilir (HTTP {http_status})"})
+        if http_status >= 500:
+            score -= 10
+            risks.append(f"⚠️ Sunucu hata kodu döndürüyor (HTTP {http_status}).")
+        elif http_status == 404:
+            score -= 3
+            risks.append("⚠️ URL yolu bulunamadı (HTTP 404), ancak alan adı erişilebilir.")
     
     # Whitelist flag ekle
     if is_whitelisted:
         sources.append({"name": "Whitelist", "status": f"✅ {whitelist_info.get('company_name', 'Verified')}"})
+
+    # Domain seviyesinde tehdit kaydı, exact URL kadar kesin olmadığı için soft-penalty uygula.
+    if domain_match:
+        score -= 20
+        risks.append(
+            f"⚠️ Bu domain altında daha önce phishing kaydı görülmüş: {domain_match.target or 'Unknown'}"
+        )
+        sources.append({"name": "Internal DB", "status": "Domain eşleşmesi (soft risk)"})
 
     # --- 5a. HTTPS Kontrolü ---
     if check_url.startswith("http://"):
@@ -757,9 +802,12 @@ def calculate_safety_score(input_url, db: Session = None):
             risks.extend(threat_result["findings"])
         else:
             # VirusTotal temiz (penalty 0) + SSL geçerli = BONUS +25
-            if check_ssl_certificate(domain)["valid"] and not check_ssl_certificate(domain)["expired"]:
-                score += 25  # VirusTotal + SSL bonus
-                risks.append("✅ VirusTotal temiz + SSL geçerli = Yüksek güvenlik")
+            vt_status = threat_result.get("virustotal") or {}
+            if vt_status.get("available") and vt_status.get("malicious", 0) == 0 and vt_status.get("suspicious", 0) == 0:
+                ssl_status = check_ssl_certificate(domain)
+                if ssl_status["valid"] and not ssl_status["expired"]:
+                    score += 25  # VirusTotal + SSL bonus
+                    risks.append("✅ VirusTotal temiz + SSL geçerli = Yüksek güvenlik")
         sources.extend(threat_result["sources"])
     except Exception as e:
         logger.error(f"Threat Intelligence hatası: {e}")
@@ -807,6 +855,7 @@ def calculate_safety_score(input_url, db: Session = None):
     if threat_result:
         result["threat_intel"] = {
             "virustotal": threat_result.get("virustotal"),
+            "urlscan": threat_result.get("urlscan"),
             "google_safe_browsing": threat_result.get("google_safe_browsing"),
             "abuseipdb": threat_result.get("abuseipdb"),
         }

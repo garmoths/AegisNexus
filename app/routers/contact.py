@@ -15,6 +15,7 @@ class ContactForm(BaseModel):
 
 
 @router.post("/api/contact")
+@router.post("/api/v2/contact")
 def submit_contact(form: ContactForm):
     """Mesaj sunucu günlüğüne yazılır; e-posta gönderimi yoktur (ileride SMTP eklenebilir)."""
     logger.info("İletişim formu | %s <%s> | %s", form.name, form.email, form.message[:300])

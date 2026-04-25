@@ -11,9 +11,11 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import Optional, List
+from datetime import datetime, timedelta
 
 from shared.utils.db import get_db
 from app.models import HoneypotEvent, IndicatorOfCompromise
+from app.security import require_admin_api_key
 from .engine import honeypot_engine, HoneypotSession
 from .ioc_collector import IOCCollectorEngine, IOCRecord, IOCType, ThreatType, IOCSource
 
@@ -186,7 +188,7 @@ _BANK_DECOY_HTML = """<!DOCTYPE html>
         let startTime = Date.now();
         
         // Sayfa yüklendiğinde oturum başlat
-        fetch('/api/honeypot/session/ping', {
+        fetch('/api/v2/honeypot/interaction', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({session_id: sessionId, action: 'page_load'})
@@ -207,7 +209,7 @@ _BANK_DECOY_HTML = """<!DOCTYPE html>
             document.getElementById('submit-btn').disabled = true;
             
             // Etkileşimi kaydet
-            const response = await fetch('/api/honeypot/interaction', {
+            const response = await fetch('/api/v2/honeypot/interaction', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
@@ -242,7 +244,7 @@ _BANK_DECOY_HTML = """<!DOCTYPE html>
             
             resetLink.querySelector('a').addEventListener('click', async (e) => {
                 e.preventDefault();
-                await fetch('/api/honeypot/interaction', {
+                await fetch('/api/v2/honeypot/interaction', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
@@ -274,7 +276,7 @@ def honeypot_decoy_page(request: Request, db: Session = Depends(get_db)):
     event = HoneypotEvent(
         client_ip=ip,
         user_agent=user_agent[:500],
-        path="/api/v2/decoy",
+        path="/api/v2/honeypot/decoy",
         referer=request.headers.get("referer", "")[:500],
         note=f"session_id:{session.session_id}",
     )
@@ -305,7 +307,7 @@ def create_honeypot_session(
     event = HoneypotEvent(
         client_ip=ip,
         user_agent=user_agent[:500],
-        path="/api/v2/session/create",
+        path="/api/v2/honeypot/session/create",
         note=f"session_id:{session.session_id},decoy:{req.decoy_type}",
     )
     db.add(event)
@@ -313,7 +315,7 @@ def create_honeypot_session(
     
     return {
         "session_id": session.session_id,
-        "decoy_page": f"/api/v2/decoy?session={session.session_id}",
+        "decoy_page": f"/api/v2/honeypot/decoy?session={session.session_id}",
         "decoy_type": req.decoy_type,
         "module": "02_honeypot"
     }
@@ -333,7 +335,7 @@ def record_interaction(
     event = HoneypotEvent(
         client_ip=ip,
         user_agent=request.headers.get("user-agent", "")[:500],
-        path=f"/api/v2/interaction",
+        path=f"/api/v2/honeypot/interaction",
         note=f"session_id:{req.session_id},action:{req.action},threat_score:{result.get('threat_score', 0)},ioc:{result.get('ioc_detected', 0)}",
     )
     db.add(event)
@@ -430,55 +432,8 @@ def list_collected_iocs(ioc_type: Optional[str] = None, limit: int = 100, min_co
     }
 
 
-@router.get("/ioc/stats")
-def get_ioc_stats():
-    """IOC collector istatistikleri - veritabanından."""
-    try:
-        from app.database import SessionLocal
-        db = SessionLocal()
-        
-        # Veritabanından IOC istatistikleri
-        total = db.query(IndicatorOfCompromise).count()
-        high_risk = db.query(IndicatorOfCompromise).filter(IndicatorOfCompromise.risk_score >= 80).count()
-        medium_risk = db.query(IndicatorOfCompromise).filter(
-            (IndicatorOfCompromise.risk_score >= 50) & (IndicatorOfCompromise.risk_score < 80)
-        ).count()
-        low_risk = db.query(IndicatorOfCompromise).filter(IndicatorOfCompromise.risk_score < 50).count()
-        
-        from datetime import datetime
-        last_update = db.query(IndicatorOfCompromise.created_at).order_by(
-            IndicatorOfCompromise.created_at.desc()
-        ).first()
-        
-        db.close()
-        
-        return {
-            "status": "success",
-            "stats": {
-                "total_iocs": total,
-                "high_risk_count": high_risk,
-                "medium_risk_count": medium_risk,
-                "low_risk_count": low_risk,
-                "last_update": last_update[0] if last_update else None,
-            },
-            "module": "02_honeypot",
-        }
-    except Exception as e:
-        return {
-            "status": "error",
-            "error": str(e),
-            "stats": {
-                "total_iocs": 0,
-                "high_risk_count": 0,
-                "medium_risk_count": 0,
-                "low_risk_count": 0,
-            },
-            "module": "02_honeypot",
-        }
-
-
 # ============================================================================
-# ENTERPRISE IOC COLLECTOR ENDPOINTS (NEW)
+# ENTERPRISE IOC COLLECTOR ENDPOINTS
 # ============================================================================
 
 class IOCCollectorFetchRequest(BaseModel):
@@ -498,7 +453,8 @@ class IOCFilterRequest(BaseModel):
 @router.post("/ioc/fetch-external")
 async def fetch_external_iocs(
     req: IOCCollectorFetchRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: None = Depends(require_admin_api_key),
 ):
     """
     Fetch IOCs from external threat intelligence sources.
@@ -742,3 +698,255 @@ async def get_iocs_by_risk_level(
     except Exception as e:
         logger.error(f"Risk level query error: {e}")
         return {"status": "error", "error": str(e)}
+
+
+# ==================== IOC STATS API ====================
+
+@router.get("/ioc/stats")
+def get_ioc_statistics(db: Session = Depends(get_db)):
+    """
+    IoC istatistikleri aggregation endpoint
+    """
+    from sqlalchemy import func, desc, cast, Date
+    from datetime import datetime, timedelta
+    
+    try:
+        # 1. Toplam kayıt
+        total = db.query(func.count(IndicatorOfCompromise.id)).scalar() or 0
+        
+        # 2. Bugün eklenen
+        today = datetime.utcnow().date()
+        today_added = db.query(func.count(IndicatorOfCompromise.id)).filter(
+            cast(IndicatorOfCompromise.created_at, Date) == today
+        ).scalar() or 0
+        
+        # 3. Son 7 gün günlük artış
+        weekly_growth = []
+        for i in range(7, -1, -1):
+            date = datetime.utcnow().date() - timedelta(days=i)
+            count = db.query(func.count(IndicatorOfCompromise.id)).filter(
+                cast(IndicatorOfCompromise.created_at, Date) == date
+            ).scalar() or 0
+            weekly_growth.append({"date": date.isoformat(), "count": count})
+        
+        # 4. Risk skoru dağılımı
+        risk_ranges = [
+            ("Düşük (0-20)", 0, 20),
+            ("Orta-Düşük (21-40)", 21, 40),
+            ("Orta (41-60)", 41, 60),
+            ("Orta-Yüksek (61-80)", 61, 80),
+            ("Yüksek (81-100)", 81, 100)
+        ]
+        risk_distribution = []
+        for label, min_val, max_val in risk_ranges:
+            count = db.query(func.count(IndicatorOfCompromise.id)).filter(
+                IndicatorOfCompromise.risk_score >= min_val,
+                IndicatorOfCompromise.risk_score <= max_val
+            ).scalar() or 0
+            risk_distribution.append({
+                "range": label,
+                "count": count,
+                "percentage": round((count / total * 100), 2) if total > 0 else 0
+            })
+        
+        # 5. En çok görülen tehdit tipleri
+        top_threats = db.query(
+            IndicatorOfCompromise.threat_type,
+            func.count(IndicatorOfCompromise.id).label("count")
+        ).filter(
+            IndicatorOfCompromise.threat_type.isnot(None)
+        ).group_by(
+            IndicatorOfCompromise.threat_type
+        ).order_by(desc("count")).limit(10).all()
+        
+        # 6. Kaynak dağılımı
+        sources = db.query(
+            IndicatorOfCompromise.source,
+            func.count(IndicatorOfCompromise.id).label("count")
+        ).filter(
+            IndicatorOfCompromise.source.isnot(None)
+        ).group_by(
+            IndicatorOfCompromise.source
+        ).order_by(desc("count")).limit(10).all()
+        
+        # Risk kategorilerine göre sayılar (frontend uyumluluğu için)
+        high_risk = sum(r["count"] for r in risk_distribution if "Yüksek" in r["range"])
+        medium_risk = sum(r["count"] for r in risk_distribution if "Orta" in r["range"] and "Yüksek" not in r["range"])
+        low_risk = sum(r["count"] for r in risk_distribution if "Düşük" in r["range"])
+        
+        return {
+            "status": "success",
+            "stats": {
+                "total_iocs": total,
+                "high_risk_count": high_risk,
+                "medium_risk_count": medium_risk,
+                "low_risk_count": low_risk,
+                "last_update": datetime.utcnow().isoformat()
+            },
+            "total_records": total,
+            "today_added": today_added,
+            "weekly_growth": weekly_growth,
+            "risk_distribution": risk_distribution,
+            "top_threats": [{"type": t[0], "count": t[1]} for t in top_threats],
+            "source_breakdown": [{"source": s[0], "count": s[1]} for s in sources],
+            "last_updated": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"IoC stats error: {e}")
+        return {
+            "status": "error",
+            "message": str(e),
+            "stats": {
+                "total_iocs": 0,
+                "high_risk_count": 0,
+                "medium_risk_count": 0,
+                "low_risk_count": 0
+            }
+        }
+
+
+@router.get("/phishing/stats")
+def get_phishing_statistics(db: Session = Depends(get_db)):
+    """
+    Phishing verileri aggregation endpoint
+    """
+    from app.models import PhishingURL
+    from sqlalchemy import func, desc, cast, Date
+    from datetime import datetime, timedelta
+    
+    try:
+        # 1. Toplam URL
+        total = db.query(func.count(PhishingURL.id)).scalar() or 0
+        
+        # 2. Bugün eklenen
+        today = datetime.utcnow().date()
+        daily_new = db.query(func.count(PhishingURL.id)).filter(
+            cast(PhishingURL.submission_time, Date) == today
+        ).scalar() or 0
+        
+        # 3. En çok phishing yapılan domainler
+        top_domains = db.query(
+            PhishingURL.domain_norm,
+            func.count(PhishingURL.id).label("count")
+        ).filter(
+            PhishingURL.domain_norm.isnot(None)
+        ).group_by(
+            PhishingURL.domain_norm
+        ).order_by(desc("count")).limit(20).all()
+        
+        # 4. Son 20 URL
+        recent = db.query(PhishingURL).order_by(
+            desc(PhishingURL.submission_time)
+        ).limit(20).all()
+        
+        # 5. Hedef kategorileri
+        categories = db.query(
+            PhishingURL.target,
+            func.count(PhishingURL.id).label("count")
+        ).filter(
+            PhishingURL.target.isnot(None)
+        ).group_by(
+            PhishingURL.target
+        ).order_by(desc("count")).limit(15).all()
+        
+        return {
+            "status": "success",
+            "stats": {
+                "total_urls": total,
+                "daily_new": daily_new,
+                "last_update": datetime.utcnow().isoformat()
+            },
+            "total_urls": total,
+            "daily_new": daily_new,
+            "top_domains": [{"domain": d[0], "count": d[1]} for d in top_domains],
+            "recent_urls": [
+                {
+                    "url": r.url[:80] + "..." if len(r.url) > 80 else r.url,
+                    "domain": r.domain_norm,
+                    "target": r.target,
+                    "status": r.status,
+                    "time": r.submission_time.isoformat() if r.submission_time else None
+                }
+                for r in recent
+            ],
+            "threat_categories": [{"category": c[0], "count": c[1]} for c in categories],
+            "last_updated": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Phishing stats error: {e}")
+        return {
+            "status": "error",
+            "message": str(e),
+            "stats": {
+                "total_urls": 0,
+                "daily_new": 0
+            }
+        }
+
+
+# IOC API Router Include - Frontend uyumlulugu icin
+from .ioc_api import router as ioc_api_router
+router.include_router(ioc_api_router)
+
+@router.get('/ioc/stats')
+async def ioc_stats_endpoint(db: Session = Depends(get_db)):
+    from shared.models import IndicatorOfCompromise
+    from sqlalchemy import func, cast, Date, desc
+    total = db.query(func.count(IndicatorOfCompromise.id)).scalar() or 0
+    today = datetime.utcnow().date()
+    today_added = db.query(func.count(IndicatorOfCompromise.id)).filter(
+        cast(IndicatorOfCompromise.created_at, Date) == today
+    ).scalar() or 0
+    
+    weekly_growth = []
+    for i in range(7, -1, -1):
+        date = datetime.utcnow().date() - timedelta(days=i)
+        count = db.query(func.count(IndicatorOfCompromise.id)).filter(
+            cast(IndicatorOfCompromise.created_at, Date) == date
+        ).scalar() or 0
+        weekly_growth.append({'date': date.isoformat(), 'count': count})
+    
+    risk_ranges = [
+        ('Düşük (0-20)', 0, 20), ('Orta-Düşük (21-40)', 21, 40),
+        ('Orta (41-60)', 41, 60), ('Orta-Yüksek (61-80)', 61, 80),
+        ('Yüksek (81-100)', 81, 100)
+    ]
+    risk_distribution = []
+    for label, min_val, max_val in risk_ranges:
+        count = db.query(func.count(IndicatorOfCompromise.id)).filter(
+            IndicatorOfCompromise.risk_score >= min_val,
+            IndicatorOfCompromise.risk_score <= max_val
+        ).scalar() or 0
+        risk_distribution.append({'range': label, 'count': count, 'percentage': round((count / max(total, 1)) * 100, 2)})
+    
+    top_threats = db.query(
+        IndicatorOfCompromise.threat_type,
+        func.count(IndicatorOfCompromise.id).label('count')
+    ).filter(IndicatorOfCompromise.threat_type.isnot(None)).group_by(
+        IndicatorOfCompromise.threat_type
+    ).order_by(desc('count')).limit(10).all()
+    
+    sources = db.query(
+        IndicatorOfCompromise.source,
+        func.count(IndicatorOfCompromise.id).label('count')
+    ).filter(IndicatorOfCompromise.source.isnot(None)).group_by(
+        IndicatorOfCompromise.source
+    ).order_by(desc('count')).limit(10).all()
+    
+    return {
+        'status': 'success',
+        'stats': {
+            'total_iocs': total,
+            'high_risk_count': sum(1 for _ in []),
+            'medium_risk_count': 0,
+            'low_risk_count': 0,
+            'last_update': datetime.utcnow().isoformat()
+        },
+        'total_records': total,
+        'today_added': today_added,
+        'weekly_growth': weekly_growth,
+        'risk_distribution': risk_distribution,
+        'top_threats': [{'type': t[0], 'count': t[1]} for t in top_threats],
+        'source_breakdown': [{'source': s[0], 'count': s[1]} for s in sources],
+        'last_updated': datetime.utcnow().isoformat()
+    }
