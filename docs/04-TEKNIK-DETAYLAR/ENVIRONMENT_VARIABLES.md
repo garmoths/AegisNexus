@@ -14,7 +14,8 @@
 - `URLSCAN_API_KEY` or `URLSCAN_API_KEYS`
 - `ABUSEIPDB_API_KEY` or `ABUSEIPDB_API_KEYS`
 - `ALIENVAULT_OTX_API_KEY` (required for OTX phishing pulls)
-- `KAGGLE_USERNAME` + `KAGGLE_KEY` (required for Kaggle dataset download)
+- `KAGGLE_API_TOKEN` (recommended for Kaggle dataset download)
+- `KAGGLE_USERNAME` + `KAGGLE_KEY` (legacy alternative)
 
 If both singular and plural are present, plural key list is preferred.
 
