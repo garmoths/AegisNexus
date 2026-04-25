@@ -10,6 +10,7 @@ from functools import wraps
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from sqlalchemy import case, func
 
 from shared.utils.db import get_db
 from app.models import PhishingURL
@@ -17,7 +18,14 @@ from app.security import require_admin_api_key
 from .scanner import calculate_safety_score
 from .url_normalize import normalize_url_record
 from .fetch_all_sources import fetch_all_sources
-from .cache_db import get_phishing_history, get_latest_phishing, get_threat_type_distribution, get_phishing_stats
+from .cache_db import (
+    get_phishing_history,
+    get_latest_phishing,
+    get_threat_type_distribution,
+    get_phishing_stats,
+    get_scan_history,
+    write_phishing_url,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -126,11 +134,35 @@ def check_url(request: URLCheckRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="URL boş olamaz")
     try:
         result = calculate_safety_score(request.url, db)
+        sources = []
+        for src in result.get("sources", []):
+            if isinstance(src, dict):
+                name = src.get("name")
+                if name:
+                    sources.append(str(name))
+        write_phishing_url(
+            url=request.url,
+            risk_score=int(result.get("score", 0)),
+            risk_level=str(result.get("risk_level", "unknown")),
+            is_safe=bool(result.get("score", 0) >= 80),
+            sources=sources,
+            raw_data=result,
+            track_event=True,
+        )
         result["module"] = "01_phishing_detector"
         logger.info(f"URL kontrol yapıldı: {request.url} - Skor: {result.get('score')}")
         return result
     except Exception as e:
         logger.error(f"URL kontrol hatası: {str(e)}")
+        write_phishing_url(
+            url=request.url,
+            risk_score=50,
+            risk_level="degraded",
+            is_safe=False,
+            sources=["degraded"],
+            raw_data={"error": str(e)},
+            track_event=True,
+        )
         # Fail-soft: UI'nin tamamen kırılmasını engellemek için degrade yanıt döndür.
         return {
             "status": "degraded",
@@ -174,15 +206,40 @@ def get_stats(db: Session = Depends(get_db)):
 def get_latest(limit: int = 20, page: int = 1, db: Session = Depends(get_db)):
     """Son eklenen tehditler"""
     try:
+        limit = max(limit, 1)
+        page = max(page, 1)
         offset = (page - 1) * limit
+        status_rank = case(
+            (func.lower(PhishingURL.status).in_(["active", "online"]), 0),
+            (func.lower(PhishingURL.status) == "valid", 1),
+            else_=2,
+        )
         total = db.query(PhishingURL).count()
-        items = db.query(PhishingURL).order_by(PhishingURL.id.desc()).offset(offset).limit(limit).all()
+        items = (
+            db.query(PhishingURL)
+            .order_by(status_rank.asc(), PhishingURL.id.desc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+        rows = [
+            {
+                "id": item.id,
+                "url": item.url,
+                "domain": item.domain_norm or item.url,
+                "target": item.target or "Phishing",
+                "status": item.status or "unknown",
+                "submission_time": item.submission_time.isoformat() if item.submission_time else None,
+            }
+            for item in items
+        ]
         total_pages = (total + limit - 1) // limit if limit else 1
         return {
-            "data": items,
+            "data": rows,
             "page": page,
             "total_pages": total_pages,
             "total": total,
+            "page_size": limit,
             "module": "01_phishing_detector"
         }
     except Exception:
@@ -277,33 +334,14 @@ def fetch_all_phishing_data(
 
 @router.get("/history")
 def get_phishing_scan_history(limit: int = 50, days: int = 30, db: Session = Depends(get_db)):
-    """URL tarama geçmişini getir (gerçek PhishingURL tablosundan)"""
+    """URL tarama geçmişini getir (threat_intel_cache.db)."""
     try:
-        # Use real PhishingURL table for recent phishing data
-        cutoff_date = datetime.now() - timedelta(days=days)
-        
-        items = db.query(PhishingURL).filter(
-            PhishingURL.submission_time >= cutoff_date
-        ).order_by(PhishingURL.submission_time.desc()).limit(limit).all()
-        
-        history = []
-        for item in items:
-            history.append({
-                'url': item.url,
-                'domain': item.domain_norm or item.url,
-                'risk_score': 85,  # Default high risk for known phishing
-                'risk_level': 'high',
-                'is_safe': False,
-                'sources': ['phishfeed'],  # Default source
-                'checked_at': item.submission_time.isoformat() if item.submission_time else datetime.now().isoformat(),
-                'phish_id': item.phish_id,
-                'target': item.target or 'Phishing'
-            })
-        
+        history_page = get_scan_history(limit=limit, page=1, days=days)
         return {
-            "history": history,
+            "history": history_page["data"],
             "limit": limit,
             "days": days,
+            "total": history_page["total"],
             "module": "01_phishing_detector"
         }
     except Exception as e:
@@ -324,6 +362,25 @@ def get_phishing_scan_history(limit: int = 50, days: int = 30, db: Session = Dep
                 "days": days,
                 "module": "01_phishing_detector"
             }
+
+
+@router.get("/scan-history")
+def get_scan_history_paged(limit: int = 10, page: int = 1, days: int = 30):
+    """Paginated URL scan history for frontend chips/list."""
+    try:
+        result = get_scan_history(limit=limit, page=page, days=days)
+        result["module"] = "01_phishing_detector"
+        return result
+    except Exception as e:
+        logger.error(f"Scan history fetch error: {e}")
+        return {
+            "data": [],
+            "page": 1,
+            "total_pages": 0,
+            "total": 0,
+            "limit": limit,
+            "module": "01_phishing_detector",
+        }
 
 
 @router.get("/latest")

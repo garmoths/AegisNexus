@@ -10,6 +10,7 @@ SQLite veritabanı ile URL tarama geçmişi ve IOC verileri için kalıcı önbe
 import sqlite3
 import json
 import logging
+import os
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Dict, Optional, Any
@@ -19,6 +20,17 @@ from contextlib import contextmanager
 logger = logging.getLogger(__name__)
 
 DB_PATH = Path(__file__).resolve().parents[2] / "threat_intel_cache.db"
+MAX_CACHE_ROWS = int(os.getenv("THREAT_CACHE_MAX_ROWS", "1000"))
+MAX_SCAN_EVENTS = int(os.getenv("THREAT_SCAN_EVENTS_MAX_ROWS", "5000"))
+_DB_INITIALIZED = False
+
+
+def _ensure_initialized():
+    global _DB_INITIALIZED
+    if _DB_INITIALIZED:
+        return
+    init_database()
+    _DB_INITIALIZED = True
 
 @contextmanager
 def get_db_connection():
@@ -50,6 +62,20 @@ def init_database():
                 last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+
+        # URL scan event log (kullanıcıların son taradığı URL'ler)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS url_scan_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                url TEXT NOT NULL,
+                domain TEXT NOT NULL,
+                risk_score INTEGER DEFAULT 0,
+                risk_level TEXT DEFAULT 'unknown',
+                is_safe BOOLEAN DEFAULT FALSE,
+                sources TEXT,
+                checked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         
         # IndicatorOfCompromise tablosu
         cursor.execute("""
@@ -70,6 +96,8 @@ def init_database():
         # Index'ler
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_phishing_urls_domain ON phishing_urls(domain)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_phishing_urls_checked_at ON phishing_urls(checked_at)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_scan_events_checked_at ON url_scan_events(checked_at)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_scan_events_domain ON url_scan_events(domain)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_iocs_type ON indicators_of_compromise(ioc_type)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_iocs_threat_type ON indicators_of_compromise(threat_type)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_iocs_last_seen ON indicators_of_compromise(last_seen)")
@@ -77,10 +105,37 @@ def init_database():
         conn.commit()
         logger.info("Cache database initialized")
 
-def write_phishing_url(url: str, risk_score: int, risk_level: str, is_safe: bool, 
-                       sources: List[str], raw_data: Optional[Dict] = None) -> bool:
+def _prune_cache(cursor: sqlite3.Cursor):
+    cursor.execute("""
+        DELETE FROM phishing_urls
+        WHERE id NOT IN (
+            SELECT id FROM phishing_urls
+            ORDER BY checked_at DESC, id DESC
+            LIMIT ?
+        )
+    """, (MAX_CACHE_ROWS,))
+    cursor.execute("""
+        DELETE FROM url_scan_events
+        WHERE id NOT IN (
+            SELECT id FROM url_scan_events
+            ORDER BY checked_at DESC, id DESC
+            LIMIT ?
+        )
+    """, (MAX_SCAN_EVENTS,))
+
+
+def write_phishing_url(
+    url: str,
+    risk_score: int,
+    risk_level: str,
+    is_safe: bool,
+    sources: List[str],
+    raw_data: Optional[Dict] = None,
+    track_event: bool = True,
+) -> bool:
     """URL tarama sonucunu veritabanına yaz"""
     try:
+        _ensure_initialized()
         domain = urlparse(url).netloc.lower()
         sources_json = json.dumps(sources) if sources else "[]"
         
@@ -107,6 +162,14 @@ def write_phishing_url(url: str, risk_score: int, risk_level: str, is_safe: bool
                     (ioc_type, ioc_value, threat_type, confidence, source, raw_data, last_seen)
                     VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 """, ('url', url, 'phishing', risk_score, 'detector', json.dumps(raw_data) if raw_data else None))
+
+            if track_event:
+                cursor.execute("""
+                    INSERT INTO url_scan_events (url, domain, risk_score, risk_level, is_safe, sources, checked_at)
+                    VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                """, (url, domain, risk_score, risk_level, int(is_safe), sources_json))
+
+            _prune_cache(cursor)
             
             conn.commit()
             logger.debug(f"Phishing URL cached: {url} (risk: {risk_score})")
@@ -141,6 +204,7 @@ def write_ioc(ioc_type: str, ioc_value: str, threat_type: str, confidence: int,
 def get_phishing_history(limit: int = 50, days: int = 30) -> List[Dict]:
     """Son URL tarama geçmişini getir"""
     try:
+        _ensure_initialized()
         cutoff_date = datetime.now() - timedelta(days=days)
         
         with get_db_connection() as conn:
@@ -174,6 +238,7 @@ def get_phishing_history(limit: int = 50, days: int = 30) -> List[Dict]:
 def get_latest_phishing(limit: int = 20) -> List[Dict]:
     """Son phishing URL'leri getir"""
     try:
+        _ensure_initialized()
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
@@ -195,46 +260,11 @@ def get_latest_phishing(limit: int = 20) -> List[Dict]:
                     'sources': json.loads(row['sources']) if row['sources'] else []
                 })
             
-            # If no real data, add sample data for demonstration
-            if len(results) == 0:
-                results = [
-                    {
-                        'url': 'https://paypal-security-update.com',
-                        'domain': 'paypal-security-update.com',
-                        'risk_score': 85,
-                        'submission_time': datetime.now().isoformat(),
-                        'target': 'PayPal'
-                    },
-                    {
-                        'url': 'https://microsoft-account-verify.net',
-                        'domain': 'microsoft-account-verify.net',
-                        'risk_score': 92,
-                        'submission_time': (datetime.now() - timedelta(hours=2)).isoformat(),
-                        'target': 'Microsoft'
-                    },
-                    {
-                        'url': 'https://amazon-order-confirm.info',
-                        'domain': 'amazon-order-confirm.info',
-                        'risk_score': 78,
-                        'submission_time': (datetime.now() - timedelta(hours=4)).isoformat(),
-                        'target': 'Amazon'
-                    }
-                ]
-            
             return results
             
     except Exception as e:
         logger.error(f"Failed to get latest phishing: {e}")
-        # Return fallback data on error
-        return [
-            {
-                'url': 'https://example-phishing-site.com',
-                'domain': 'example-phishing-site.com',
-                'risk_score': 75,
-                'submission_time': datetime.now().isoformat(),
-                'target': 'Demo'
-            }
-        ]
+        return []
 
 def get_threat_type_distribution(limit: int = 10000) -> Dict[str, int]:
     """Tehdit tipi dağılımını getir (son N IOC için)"""
@@ -276,6 +306,7 @@ def get_threat_type_distribution(limit: int = 10000) -> Dict[str, int]:
 def get_phishing_stats() -> Dict[str, Any]:
     """Phishing istatistiklerini getir"""
     try:
+        _ensure_initialized()
         with get_db_connection() as conn:
             cursor = conn.cursor()
             
@@ -315,6 +346,7 @@ def get_phishing_stats() -> Dict[str, Any]:
 def cleanup_old_records(days: int = 90) -> int:
     """Eski kayıtları temizle"""
     try:
+        _ensure_initialized()
         cutoff_date = datetime.now() - timedelta(days=days)
         
         with get_db_connection() as conn:
@@ -393,3 +425,62 @@ def save_check_url_result(url: str, result: dict):
         logger.info(f"Saved check-url result to cache: {url}")
     except Exception as e:
         logger.error(f"Error saving check-url result: {e}")
+
+
+def get_scan_history(limit: int = 10, page: int = 1, days: int = 30) -> Dict[str, Any]:
+    """Paginated user scan history from threat_intel_cache.db."""
+    try:
+        _ensure_initialized()
+        page = max(page, 1)
+        limit = max(limit, 1)
+        offset = (page - 1) * limit
+        cutoff_date = datetime.now() - timedelta(days=days)
+
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT COUNT(*) AS total
+                FROM url_scan_events
+                WHERE checked_at >= ?
+                """,
+                (cutoff_date.isoformat(),),
+            )
+            total = int(cursor.fetchone()["total"])
+
+            cursor.execute(
+                """
+                SELECT url, domain, risk_score, risk_level, is_safe, sources, checked_at
+                FROM url_scan_events
+                WHERE checked_at >= ?
+                ORDER BY checked_at DESC, id DESC
+                LIMIT ? OFFSET ?
+                """,
+                (cutoff_date.isoformat(), limit, offset),
+            )
+
+            items = []
+            for row in cursor.fetchall():
+                items.append(
+                    {
+                        "url": row["url"],
+                        "domain": row["domain"],
+                        "risk_score": row["risk_score"],
+                        "risk_level": row["risk_level"],
+                        "is_safe": bool(row["is_safe"]),
+                        "sources": json.loads(row["sources"]) if row["sources"] else [],
+                        "checked_at": row["checked_at"],
+                    }
+                )
+
+            total_pages = (total + limit - 1) // limit if total else 0
+            return {
+                "data": items,
+                "page": page,
+                "limit": limit,
+                "total": total,
+                "total_pages": total_pages,
+            }
+    except Exception as e:
+        logger.error(f"Failed to get scan history: {e}")
+        return {"data": [], "page": 1, "limit": limit, "total": 0, "total_pages": 0}

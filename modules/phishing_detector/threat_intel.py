@@ -798,7 +798,8 @@ def run_threat_intelligence(url):
             risk_level=results["risk_level"],
             is_safe=results["is_safe"],
             sources=sources_list,
-            raw_data=results
+            raw_data=results,
+            track_event=False,
         )
         logger.debug(f"URL cached to persistent DB: {url}")
     except Exception as e:
