@@ -24,6 +24,9 @@ class PhishingMLModel:
     URL_WEIGHT = 0.40
     TEXT_WEIGHT = 0.30
     
+    # For text-only scams (no URLs), boost text weight
+    TEXT_ONLY_BOOST = 1.5
+    
     MODEL_PATH = os.path.join(os.path.dirname(__file__), "phishing_model.joblib")
     VECTORIZER_PATH = os.path.join(os.path.dirname(__file__), "tfidf_vectorizer.joblib")
     
@@ -79,6 +82,17 @@ class PhishingMLModel:
             "Hesabiniz bloke! Tikla: http://bit.ly/3kL9mQ",
             "Kargonuz dagitimda. Adres dogrulama: http://tiny.cc/kargoadres",
             "Telefon numaraniz odul kazandi! http://hediye.tk",
+            "Tebrikler! 100.000 TL kazandiniz. Hemen arayin: 0555 123 45 67",
+            "Tebrikler! iPhone 15 kazandiniz. Hemen tıkla: http://odul-iphone.tk",
+            "Cekilis sonucu: 500.000 TL kazandiniz. Arayin: 0900 123 45 67",
+            "Siz secildiniz! 1.000.000 TL odul. Hemen arayin: 0532 999 88 77",
+            "Odulunuz hazir! 50.000 TL. Hemen teslim almak icin arayin",
+            "Tebrikler! Araba kazandiniz. Detaylar icin arayin: 0544 777 66 55",
+            "Cekilis kazandiniz! 200.000 TL. Hemen arayin: 0533 888 99 00",
+            "Sampiyonluk odulu: 1 milyon TL. Arayin: 0900 555 44 33",
+            "Buyuk odul! 300.000 TL kazandiniz. Hemen arayin",
+            "Fatura odeme odulu: 100.000 TL kazandiniz. Arayin",
+            "Musteri odulu: 75.000 TL kazandiniz. Hemen arayin",
         ]
         safe = [
             "Merhaba, yarin saat 14:00da toplanti Zoom: https://zoom.us/j/987654321",
@@ -272,9 +286,38 @@ class PhishingMLModel:
             "bloke", "kisitli", "tehdit", "silinecek",
             "sure", "doluyor", "odul", "kazandiniz", "ucretsiz",
         ]
+        scam_keywords = [
+            "tebrikler", "cekilis", "odul", "kazandiniz", "arayin",
+            "secildiniz", "sampiyonluk", "buyuk odul", "musteri odulu",
+            "fatura odeme odulu", "iphone kazandiniz", "araba kazandiniz",
+            "tl kazandiniz", "milyon tl", "bin tl", "yuz bin tl",
+        ]
+        invoice_scam_keywords = [
+            "fatura ekteki gibidir", "acil odeme yapiniz", "mali isler",
+            "fatura ektedir", "odenmemis fatura", "fatura borcunuz",
+            "fatura odeme", "borcunuz var", "fatura kesilmesi",
+            "elektrik faturasi", "dogalgaz faturasi", "su faturasi",
+            "fatura blokaj", "fatura kesintisi", "acil fatura",
+        ]
         for kw in keywords:
             if kw in text_lower:
                 text_score += 5.0
+        for kw in scam_keywords:
+            if kw in text_lower:
+                text_score += 25.0
+                result["identified_threats"].append(f"Scam kelimesi tespit edildi: {kw}")
+        
+        for kw in invoice_scam_keywords:
+            if kw in text_lower:
+                text_score += 20.0
+                result["identified_threats"].append(f"Fatura scam kelimesi tespit edildi: {kw}")
+        
+        # Phone number detection for scam patterns
+        phone_pattern = r'(05\d{2}|\+90\s*5\d{2}|0\d{3})\s*\d{3}\s*\d{2}\s*\d{2}|0900\s*\d{3}\s*\d{4}'
+        if re.search(phone_pattern, text):
+            text_score += 30.0
+            result["identified_threats"].append("Telefon numarasi tespit edildi (scam pattern)")
+            result["suspicious_elements"].append("Telefon arama istegi (scam)")
         
         urgent = ["acil", "hemen", "simdi", "tehlike", "uyari"]
         if any(k in text_lower for k in urgent):
@@ -318,18 +361,24 @@ class PhishingMLModel:
             final = (self.ML_WEIGHT * ml_prob * 100) + (self.URL_WEIGHT * url_risk) + (self.TEXT_WEIGHT * text_score)
         else:
             final = (0.60 * url_risk) + (0.40 * text_score)
+        
+        # Boost text-only scams (no URLs)
+        if urf.get("has_url", 0) == 0 and text_score > 20:
+            final *= self.TEXT_ONLY_BOOST
+            result["identified_threats"].append("Metin tabanli scam (URL yok)")
+        
         final = min(final, 100.0)
         
         # 6. Decision
         result["confidence_score"] = round(final, 1)
-        if final >= 55:
+        if final >= 45:
             result["is_phishing"] = True
-            result["is_scam"] = final >= 40
+            result["is_scam"] = final >= 35
             result["threat_level"] = "critical"
-        elif final >= 30:
+        elif final >= 25:
             result["is_phishing"] = True
             result["threat_level"] = "high"
-        elif final >= 15:
+        elif final >= 12:
             result["is_phishing"] = False
             result["threat_level"] = "medium"
         else:
