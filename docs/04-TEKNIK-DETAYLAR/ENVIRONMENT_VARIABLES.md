@@ -13,6 +13,8 @@
 - `GOOGLE_SAFE_BROWSING_KEY` or `GOOGLE_SAFE_BROWSING_KEYS`
 - `URLSCAN_API_KEY` or `URLSCAN_API_KEYS`
 - `ABUSEIPDB_API_KEY` or `ABUSEIPDB_API_KEYS`
+- `ALIENVAULT_OTX_API_KEY` (required for OTX phishing pulls)
+- `KAGGLE_USERNAME` + `KAGGLE_KEY` (required for Kaggle dataset download)
 
 If both singular and plural are present, plural key list is preferred.
 
@@ -29,6 +31,18 @@ If both singular and plural are present, plural key list is preferred.
 - `CELERY_PHISHING_INTERVAL_SECONDS` (optional): Phishing refresh interval, default `7200`.
 - `CELERY_IOC_SOURCES` (optional): Comma-separated IOC sources, default `abuse_urlhaus,abuse_phishtank,abuseipdb`.
 - `CELERY_IOC_LIMIT_PER_SOURCE` (optional): Per-source IOC fetch limit, default `1000`.
+
+## Phishing Multi-Source Collector
+- `PHISHING_GITHUB_FEEDS` (optional): Comma-separated GitHub raw feed URLs.
+- `PHISHING_OPENPHISH_LIMIT` (optional): Max OpenPhish URLs per run (default `20000`).
+- `PHISHING_URLHAUS_LIMIT` (optional): URLHaus fetch limit (default `3000`).
+- `PHISHING_KAGGLE_DATASET` (optional): Kaggle dataset ref `owner/dataset` (default `taruntiwarihp/phishing-site-urls`).
+- `PHISHING_KAGGLE_LIMIT` (optional): Max Kaggle URLs per run (default `100000`).
+- `PHISHING_OTX_LIMIT` (optional): OTX pulse fetch size (default `200`).
+- `CERTSTREAM_WS_URL` (optional): CertStream websocket URL (default `wss://certstream.calidog.io/`).
+- `CERTSTREAM_MAX_URLS` (optional): Max CertStream domains per run (default `500`).
+- `CERTSTREAM_DURATION_SECONDS` (optional): CertStream consume duration in seconds (default `20`).
+- `CERTSTREAM_KEYWORDS` (optional): Comma-separated phishing keyword list for CertStream domain heuristic.
 
 ## Security Rules
 1. Do not commit `.env` files.
