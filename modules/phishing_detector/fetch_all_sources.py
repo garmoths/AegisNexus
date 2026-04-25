@@ -196,15 +196,18 @@ def _extract_urls_from_kaggle_zip(zip_blob: bytes) -> List[str]:
 def fetch_kaggle_data(session: Optional[requests.Session] = None) -> List[str]:
     """
     Kaggle phishing dataset fetch.
-    Requires KAGGLE_USERNAME and KAGGLE_KEY in environment.
+    Supports either:
+    - KAGGLE_API_TOKEN (new token style), or
+    - KAGGLE_USERNAME + KAGGLE_KEY (legacy style).
     """
     username = os.getenv("KAGGLE_USERNAME", "").strip()
     key = os.getenv("KAGGLE_KEY", "").strip()
+    api_token = os.getenv("KAGGLE_API_TOKEN", "").strip()
     dataset_ref = os.getenv("PHISHING_KAGGLE_DATASET", "taruntiwarihp/phishing-site-urls").strip()
     limit = int(os.getenv("PHISHING_KAGGLE_LIMIT", "100000"))
 
-    if not username or not key:
-        print("Kaggle atlandi: KAGGLE_USERNAME/KAGGLE_KEY tanimli degil")
+    if not api_token and (not username or not key):
+        print("Kaggle atlandi: KAGGLE_API_TOKEN veya KAGGLE_USERNAME/KAGGLE_KEY tanimli degil")
         return []
 
     if "/" not in dataset_ref:
@@ -215,7 +218,14 @@ def fetch_kaggle_data(session: Optional[requests.Session] = None) -> List[str]:
     endpoint = f"https://www.kaggle.com/api/v1/datasets/download/{dataset_ref}"
 
     try:
-        response = http.get(endpoint, auth=(username, key), timeout=180)
+        headers: Dict[str, str] = {}
+        auth = None
+        if api_token:
+            headers["Authorization"] = f"Bearer {api_token}"
+        else:
+            auth = (username, key)
+
+        response = http.get(endpoint, headers=headers, auth=auth, timeout=180)
         if response.status_code != 200:
             print(f"Kaggle status: {response.status_code}")
             return []
