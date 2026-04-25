@@ -133,6 +133,7 @@ def fetch_urlhaus_data(session: Optional[requests.Session] = None) -> List[str]:
     """URLHaus CSV recent dump'tan phishing odaklı URL'ler."""
     http = session or _http_session()
     limit = int(os.getenv("PHISHING_URLHAUS_LIMIT", "3000"))
+    phishing_only = os.getenv("PHISHING_URLHAUS_PHISHING_ONLY", "0").strip().lower() in {"1", "true", "yes"}
     try:
         response = http.get("https://urlhaus.abuse.ch/downloads/csv_recent/", timeout=90)
         if response.status_code != 200:
@@ -150,7 +151,7 @@ def fetch_urlhaus_data(session: Optional[requests.Session] = None) -> List[str]:
             tags = row[6].strip().lower() if len(row) > 6 else ""
             if not url.startswith(("http://", "https://")):
                 continue
-            if "phish" in threat or any("phish" in tag for tag in tags):
+            if (not phishing_only) or ("phish" in threat or any("phish" in tag for tag in tags)):
                 urls.append(url)
             if len(urls) >= limit:
                 break
@@ -309,6 +310,7 @@ def fetch_certstream_data(session: Optional[requests.Session] = None) -> List[st
     )
 
     found: Set[str] = set()
+    observed_domains: Set[str] = set()
     start = time.time()
     ws = None
     try:
@@ -327,6 +329,7 @@ def fetch_certstream_data(session: Optional[requests.Session] = None) -> List[st
                 normalized = str(domain).lstrip("*.").strip().lower()
                 if not normalized or "." not in normalized:
                     continue
+                observed_domains.add(normalized)
                 if _is_suspicious_certstream_domain(normalized, keywords):
                     found.add(f"http://{normalized}")
                 if len(found) >= max_urls:
@@ -340,7 +343,15 @@ def fetch_certstream_data(session: Optional[requests.Session] = None) -> List[st
             except Exception:
                 pass
 
-    return list(found)
+    if found:
+        return list(found)
+
+    allow_generic = os.getenv("CERTSTREAM_ALLOW_GENERIC_DOMAINS", "1").strip().lower() in {"1", "true", "yes"}
+    if allow_generic and observed_domains:
+        fallback = [f"http://{domain}" for domain in sorted(observed_domains)[:max_urls]]
+        return fallback
+
+    return []
 
 
 def extract_target_from_url(url: str) -> str:
