@@ -285,24 +285,50 @@ function PhishingDetector() {
   const [url, setUrl] = useState('')
   const [checking, setChecking] = useState(false)
   const [result, setResult] = useState(null)
-  const [latest, setLatest] = useState([])
+  const [latestFeeds, setLatestFeeds] = useState([])
+  const [scanHistory, setScanHistory] = useState([])
   const [stats, setStats] = useState(null)
   const [pageNum, setPageNum] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
+  const [latestTotal, setLatestTotal] = useState(0)
+  const [loadingLatest, setLoadingLatest] = useState(false)
   const [toast, setToast] = useState({ message:'', type:'success', visible:false })
 
-  useEffect(()=>{loadLatest(1);loadStats()},[])
+  useEffect(()=>{loadLatest(1);loadScanHistory(1);loadStats()},[])
 
   async function loadLatest(p=1) {
     try{
+      setLoadingLatest(true)
       const r=await fetch(`${API}/phishing/latest-paged?limit=20&page=${p}`)
       if(!r.ok) throw new Error('Son veriler alınamadı')
       const d=await r.json()
-      setLatest(d.data||d.latest||[])
+      setLatestFeeds(d.data||d.latest||[])
       setTotalPages(d.total_pages||Math.ceil((d.total||0)/20)||1)
       setPageNum(d.page||p)
+      setLatestTotal(d.total||0)
     }catch(e){
       showToast('Son phishing verileri yüklenemedi: '+e.message,'error')
+    } finally {
+      setLoadingLatest(false)
+    }
+  }
+
+  async function loadScanHistory(p=1) {
+    try {
+      const r = await fetch(`${API}/phishing/scan-history?limit=10&page=${p}`)
+      if(!r.ok) throw new Error('Tarama gecmisi alınamadı')
+      const d = await r.json()
+      const items = d.data || d.history || []
+      const uniq = []
+      const seen = new Set()
+      for (const item of items) {
+        if (!item?.url || seen.has(item.url)) continue
+        seen.add(item.url)
+        uniq.push(item)
+      }
+      setScanHistory(uniq)
+    } catch (e) {
+      setScanHistory([])
     }
   }
 
@@ -326,6 +352,7 @@ function PhishingDetector() {
       const r=await fetch(`${API}/phishing/check-url`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url: normalizedInput})})
       if(!r.ok)throw new Error(`URL kontrol hatasi (${r.status})`)
       const d=await r.json();setResult(d)
+      loadScanHistory(1)
     }catch(e){showToast('URL kontrol hatasi: '+e.message,'error')}
     setChecking(false)
   }
@@ -351,10 +378,10 @@ function PhishingDetector() {
         <input value={url} onChange={e=>setUrl(e.target.value)} placeholder="https://ornek.com/supheli-link" style={{ flex:1, padding:'14px 18px', borderRadius:theme.radiusSm, background:theme.bg, border:`1px solid ${theme.border}`, color:'#fff', fontSize:14, outline:'none' }} onKeyDown={e=>e.key==='Enter'&&handleCheck()}/>
         <GlowButton onClick={handleCheck} loading={checking} disabled={!url}>{checking?'Taranıyor...':'🔍 Tara'}</GlowButton>
       </div>
-      {latest.length>0&&<div style={{ marginTop:12, padding:12, background:theme.surface, borderRadius:theme.radiusSm }}>
+      {scanHistory.length>0&&<div style={{ marginTop:12, padding:12, background:theme.surface, borderRadius:theme.radiusSm, border:`1px solid ${theme.borderLight}` }}>
         <p style={{ fontSize:11, color:theme.textMuted, marginBottom:8, fontWeight:600 }}>Son taranan URL'ler (tıklayarak kontrol edin):</p>
         <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
-          {latest.slice(0,10).map((item,i)=><button key={i} onClick={()=>{setUrl(item.url);setTimeout(()=>handleCheck(),100)}} style={{ padding:'5px 12px', borderRadius:'16px', border:`1px solid ${theme.border}`, background:theme.surface2, cursor:'pointer', fontSize:11, color:theme.primary, fontFamily:theme.mono, maxWidth:280, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.url}</button>)}
+          {scanHistory.slice(0,10).map((item,i)=><button key={item.checked_at||i} onClick={()=>{setUrl(item.url);setTimeout(()=>handleCheck(),100)}} style={{ padding:'5px 12px', borderRadius:'16px', border:`1px solid ${theme.border}`, background:theme.surface2, cursor:'pointer', fontSize:11, color:theme.primary, fontFamily:theme.mono, maxWidth:280, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.url}</button>)}
         </div>
       </div>}
       {result&&<div style={{ animation:'scaleIn 0.3s ease', padding:20, background:theme.bg, borderRadius:theme.radiusSm, border:`1px solid ${theme.border}` }}>
@@ -372,13 +399,13 @@ function PhishingDetector() {
       </div>}
     </Card>
     <Card>
-      <h3 style={{ fontSize:16, fontWeight:700, color:'#fff', marginBottom:16, display:'flex', gap:8, alignItems:'center' }}><span>📋</span> Son Phishing Verileri<span style={{ fontSize:11, color:theme.textMuted, fontWeight:400, marginLeft:'auto' }}>Toplam {totalPages} sayfa</span></h3>
-      <div style={{ overflowX:'auto' }}>
+      <h3 style={{ fontSize:16, fontWeight:700, color:'#fff', marginBottom:16, display:'flex', gap:8, alignItems:'center' }}><span>📋</span> Son Phishing Verileri<span style={{ fontSize:11, color:theme.textMuted, fontWeight:400, marginLeft:'auto' }}>Toplam {latestTotal.toLocaleString('tr-TR')} kayıt • {totalPages} sayfa</span></h3>
+      <div style={{ overflowX:'auto', border:`1px solid ${theme.borderLight}`, borderRadius:theme.radiusSm }}>
         <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
           <thead><tr style={{ borderBottom:`2px solid ${theme.border}`, color:theme.textMuted, fontSize:11, textTransform:'uppercase', letterSpacing:'1px' }}><th style={{ textAlign:'left', padding:'12px 8px' }}>URL</th><th style={{ textAlign:'left', padding:'12px 8px' }}>Domain</th><th style={{ textAlign:'center', padding:'12px 8px' }}>Hedef</th><th style={{ textAlign:'center', padding:'12px 8px' }}>Durum</th><th style={{ textAlign:'right', padding:'12px 8px' }}>Tarih</th></tr></thead>
           <tbody>
-            {latest.length===0&&<tr><td colSpan={5} style={{ textAlign:'center', padding:32, color:theme.textMuted }}>Veri yukleniyor...</td></tr>}
-            {latest.map((item,i)=><tr key={item.id||i} style={{ borderBottom:`1px solid ${theme.border}`, cursor:'pointer' }} onClick={()=>{setUrl(item.url);setTimeout(()=>handleCheck(),100)}} onMouseEnter={e=>e.currentTarget.style.background=theme.surface} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+            {latestFeeds.length===0&&<tr><td colSpan={5} style={{ textAlign:'center', padding:32, color:theme.textMuted }}>{loadingLatest?'Veri yukleniyor...':'Kayit bulunamadi'}</td></tr>}
+            {latestFeeds.map((item,i)=><tr key={item.id||i} style={{ borderBottom:`1px solid ${theme.border}`, cursor:'pointer' }} onClick={()=>{setUrl(item.url);setTimeout(()=>handleCheck(),100)}} onMouseEnter={e=>e.currentTarget.style.background=theme.surface} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
               <td style={{ padding:'10px 8px', maxWidth:300, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}><span style={{ color:theme.text, fontSize:12, fontFamily:theme.mono }}>{item.url}</span></td>
               <td style={{ padding:'10px 8px' }}><span style={{ color:theme.primary, fontSize:12 }}>{item.domain||'-'}</span></td>
               <td style={{ padding:'10px 8px', textAlign:'center' }}><span style={{ padding:'2px 8px', borderRadius:'10px', fontSize:11, background:theme.accentDim, color:theme.accent }}>{item.target||'Phishing'}</span></td>
@@ -389,9 +416,9 @@ function PhishingDetector() {
         </table>
       </div>
       {totalPages>1&&<div style={{ display:'flex', justifyContent:'center', gap:8, marginTop:20 }}>
-        <button onClick={()=>loadLatest(pageNum-1)} disabled={pageNum<=1} style={{ padding:'8px 16px', borderRadius:theme.radiusSm, border:`1px solid ${theme.border}`, background:theme.surface, color:pageNum<=1?theme.textMuted:'#fff', cursor:pageNum<=1?'not-allowed':'pointer', fontSize:13, fontWeight:600 }}>← Onceki</button>
+        <button onClick={()=>loadLatest(pageNum-1)} disabled={pageNum<=1||loadingLatest} style={{ padding:'8px 16px', borderRadius:theme.radiusSm, border:`1px solid ${theme.border}`, background:theme.surface, color:pageNum<=1?theme.textMuted:'#fff', cursor:pageNum<=1?'not-allowed':'pointer', fontSize:13, fontWeight:600 }}>← Onceki</button>
         <span style={{ padding:'8px 16px', color:theme.textMuted, fontSize:13 }}>Sayfa {pageNum} / {totalPages}</span>
-        <button onClick={()=>loadLatest(pageNum+1)} disabled={pageNum>=totalPages} style={{ padding:'8px 16px', borderRadius:theme.radiusSm, border:`1px solid ${theme.border}`, background:theme.surface, color:pageNum>=totalPages?theme.textMuted:'#fff', cursor:pageNum>=totalPages?'not-allowed':'pointer', fontSize:13, fontWeight:600 }}>Sonraki →</button>
+        <button onClick={()=>loadLatest(pageNum+1)} disabled={pageNum>=totalPages||loadingLatest} style={{ padding:'8px 16px', borderRadius:theme.radiusSm, border:`1px solid ${theme.border}`, background:theme.surface, color:pageNum>=totalPages?theme.textMuted:'#fff', cursor:pageNum>=totalPages?'not-allowed':'pointer', fontSize:13, fontWeight:600 }}>Sonraki →</button>
       </div>}
     </Card>
   </div>
