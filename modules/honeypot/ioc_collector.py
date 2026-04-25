@@ -791,7 +791,7 @@ class AlienVaultOTXCollector:
                     elif t == 'IPv4':
                         ioc_type = IOCType.IP
                     elif t in ['MD5', 'SHA1', 'SHA256']:
-                        ioc_type = IOCType.HASH
+                        ioc_type = IOCType.FILE_HASH
                     else:
                         continue
 
@@ -814,4 +814,3 @@ class AlienVaultOTXCollector:
         except Exception as e:
             logger.error(f"❌ OTX fetch failed: {str(e)}")
             return []
-
