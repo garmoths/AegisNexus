@@ -933,7 +933,25 @@ function BreachIntel() {
         </div>
         {result&&<div style={{ animation:'scaleIn 0.3s ease', marginTop:24, padding:20, background:theme.bg, borderRadius:theme.radiusSm, border:`1px solid ${theme.border}` }}>
           {result.status==='error'?<div style={{ textAlign:'center', padding:20 }}><span style={{ fontSize:48, display:'block', marginBottom:12 }}>⚠️</span><p style={{ color:theme.warning, fontSize:16, fontWeight:600 }}>{result.message}</p><p style={{ color:theme.textMuted, fontSize:12, marginTop:8 }}>{result.hint}</p></div>
-          :result.breached?<><div style={{ textAlign:'center', marginBottom:16 }}><span style={{ fontSize:48 }}>⚠️</span><p style={{ color:theme.danger, fontSize:18, fontWeight:700, marginTop:8 }}>Sizinti Tespit Edildi!</p></div>{(result.breaches||[]).map((b,i)=><div key={i} style={{ padding:'10px 14px', marginBottom:8, background:theme.accentDim, borderRadius:theme.radiusSm, borderLeft:`3px solid ${theme.accent}` }}><p style={{ fontSize:13, fontWeight:600, color:'#fff' }}>{b.title||b.name||'Bilinmeyen'}</p><p style={{ fontSize:11, color:theme.textMuted }}>{b.breach_date?new Date(b.breach_date).toLocaleDateString('tr-TR'):''} — {(b.data_classes||[]).join(', ')}</p></div>)}</>
+          :result.breached?<>
+            <div style={{ textAlign:'center', marginBottom:16 }}><span style={{ fontSize:48 }}>⚠️</span><p style={{ color:theme.danger, fontSize:18, fontWeight:700, marginTop:8 }}>Sizinti Tespit Edildi!</p></div>
+            {result.turkish_summary&&<div style={{ padding:12, background:theme.warning+'22', borderRadius:theme.radiusSm, marginBottom:16, borderLeft:`3px solid ${theme.warning}` }}><p style={{ fontSize:13, lineHeight:1.6, color:theme.text }}>{result.turkish_summary}</p></div>}
+            {result.shantaj_risk_analysis&&<div style={{ padding:12, background:theme.accentDim, borderRadius:theme.radiusSm, marginBottom:16, borderLeft:`3px solid ${theme.accent}` }}>
+              <p style={{ fontSize:12, fontWeight:700, color:'#fff', marginBottom:8 }}>🚨 Şantaj Risk Analizi</p>
+              <p style={{ fontSize:11, color:theme.textMuted, marginBottom:6 }}>Risk Skoru: <span style={{ color:theme.danger, fontWeight:700 }}>{result.shantaj_risk_analysis.shantaj_risk_score}/100</span> ({result.shantaj_risk_analysis.risk_level})</p>
+              {result.shantaj_risk_analysis.risk_factors&&<div style={{ marginTop:8 }}><p style={{ fontSize:11, fontWeight:600, color:theme.textMuted, marginBottom:4 }}>Risk Faktörleri:</p>{result.shantaj_risk_analysis.risk_factors.slice(0,3).map((rf,i)=><p key={i} style={{ fontSize:11, color:theme.text, marginLeft:8 }}>• {rf}</p>)}</div>}
+            </div>}
+            {(result.breaches||[]).map((b,i)=><div key={i} style={{ padding:'12px 14px', marginBottom:8, background:theme.surface2, borderRadius:theme.radiusSm, borderLeft:`3px solid ${theme.accent}` }}>
+              <p style={{ fontSize:13, fontWeight:700, color:'#fff', marginBottom:4 }}>{b.title||b.name||'Bilinmeyen'}</p>
+              <p style={{ fontSize:11, color:theme.textMuted, marginBottom:4 }}>{b.breach_date?new Date(b.breach_date).toLocaleDateString('tr-TR'):''}</p>
+              <p style={{ fontSize:11, color:theme.textMuted }}>Sızan Veriler: {(b.data_classes||[]).join(', ')}</p>
+            </div>)}
+            {result.kvkk_report&&<div style={{ marginTop:16, padding:12, background:theme.primaryDim, borderRadius:theme.radiusSm, borderLeft:`3px solid ${theme.primary}` }}>
+              <p style={{ fontSize:12, fontWeight:700, color:'#fff', marginBottom:6 }}>📄 KVKK Başvuru Raporu</p>
+              <p style={{ fontSize:11, color:theme.textMuted }}>Rapor ID: {result.kvkk_report.report_id}</p>
+              <p style={{ fontSize:11, color:theme.textMuted }}>Başvuru için: <a href="https://www.kvkk.gov.tr" target="_blank" style={{ color:theme.primary }}>kvkk.gov.tr</a></p>
+            </div>}
+          </>
           :<div style={{ textAlign:'center', padding:20 }}><span style={{ fontSize:48 }}>✅</span><p style={{ color:theme.success, fontSize:18, fontWeight:700, marginTop:8 }}>Sizinti Bulunamadi</p><p style={{ color:theme.textMuted, fontSize:13, marginTop:4 }}>{email} adresi bilinen sizintilarda yok</p></div>}
         </div>}
       </Card>
