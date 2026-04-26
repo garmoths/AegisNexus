@@ -10,6 +10,7 @@ from urllib.parse import quote
 import requests
 
 from app.config import get_settings
+from .cache import get_cached_result, cache_result
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
@@ -34,13 +35,31 @@ def _turkish_report(breaches: list[dict]) -> str:
             "Yine de güçlü ve benzersiz şifre kullanmaya devam edin."
         )
     
-    names = ", ".join(b.get("Title") or b.get("Name") or "?" for b in breaches[:5])
+    names = ", ".join(b.get("title") or b.get("name") or "?" for b in breaches[:5])
     extra = f" ve {n - 5} kayıt daha" if n > 5 else ""
+    
+    # Data classes translation
+    translation_map = {
+        "Email addresses": "E-posta adresleri",
+        "Passwords": "Şifreler",
+        "Usernames": "Kullanıcı adları",
+        "Cryptocurrency wallet addresses": "Kripto cüzdan adresleri",
+        "IP addresses": "IP adresleri",
+        "Names": "İsimler",
+        "Physical addresses": "Fiziksel adresler",
+        "Phone numbers": "Telefon numaraları",
+        "Social media profiles": "Sosyal medya profilleri",
+        "Geographic locations": "Coğrafi konumlar",
+        "Purchases": "Satın alma bilgileri",
+        "Credit card details": "Kredi kartı detayları",
+        "Bank account numbers": "Banka hesap numaraları",
+    }
     
     classes: set[str] = set()
     for b in breaches:
         for c in b.get("data_classes") or []:
-            classes.add(str(c))
+            translated = translation_map.get(str(c), str(c))
+            classes.add(translated)
     
     class_hint = ""
     if classes:
@@ -57,6 +76,7 @@ def lookup_breaches(email: str) -> dict:
     """
     Have I Been Pwned API'den e-posta sızıntı sorgusu yap.
     API anahtarı gerekir (.env dosyasında HIBP_API_KEY)
+    Sonuçlar 1 ay süreyle cache'lenir (max 1000 email)
     """
     email = (email or "").strip().lower()
     
@@ -66,6 +86,12 @@ def lookup_breaches(email: str) -> dict:
             "error": "E-posta adresi geçerli görünmüyor.",
             "hint": "Örnek biçim: isim@ornek.com — boşluk ve yazım hatası olmadığından emin olun.",
         }
+    
+    # Önce cache'te kontrol et
+    cached = get_cached_result(email)
+    if cached is not None:
+        cached["from_cache"] = True
+        return cached
     
     key = get_settings().get("hibp_api_key") if get_settings() else None
     if not key:
@@ -102,13 +128,16 @@ def lookup_breaches(email: str) -> dict:
         }
     
     if r.status_code == 404:
-        return {
+        result = {
             "ok": True,
             "breached": False,
             "breach_count": 0,
             "breaches": [],
             "report_tr": _turkish_report([]),
+            "from_cache": False,
         }
+        cache_result(email, result)
+        return result
     
     if r.status_code == 401:
         return {
@@ -136,10 +165,13 @@ def lookup_breaches(email: str) -> dict:
         return {"ok": False, "error": "Yanıt işlenemedi.", "hint": "API formatı değişmiş olabilir."}
     
     brief = [_brief_breach(b) for b in raw]
-    return {
+    result = {
         "ok": True,
         "breached": len(brief) > 0,
         "breach_count": len(brief),
         "breaches": brief,
         "report_tr": _turkish_report(brief),
+        "from_cache": False,
     }
+    cache_result(email, result)
+    return result

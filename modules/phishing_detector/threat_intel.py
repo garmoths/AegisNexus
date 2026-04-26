@@ -12,6 +12,7 @@ import json
 import logging
 import hashlib
 import socket
+import ipaddress
 import requests
 from urllib.parse import urlparse, quote_plus
 from dotenv import load_dotenv
@@ -48,6 +49,12 @@ if not ABUSEIPDB_API_KEYS:
 URLSCAN_API_KEYS = _parse_api_keys(os.getenv("URLSCAN_API_KEYS", ""))
 if not URLSCAN_API_KEYS:
     URLSCAN_API_KEYS = _parse_api_keys(os.getenv("URLSCAN_API_KEY", ""))
+
+ABUSE_CH_API_KEYS = _parse_api_keys(os.getenv("ABUSE_API_KEYS", ""))
+if not ABUSE_CH_API_KEYS:
+    ABUSE_CH_API_KEYS = _parse_api_keys(os.getenv("ABUSE_API_KEY", ""))
+
+ABUSE_CH_KEY_INDEX = 0
 
 # Cache depolama (in-memory)
 API_CACHE = {}
@@ -170,6 +177,27 @@ def _get_cached(cache_key):
 def _set_cached(cache_key, data):
     """Cache'ye koy."""
     API_CACHE[cache_key] = (data, datetime.now())
+
+
+def _get_current_abuse_ch_key():
+    if not ABUSE_CH_API_KEYS:
+        return None
+    return ABUSE_CH_API_KEYS[ABUSE_CH_KEY_INDEX]
+
+
+def _rotate_abuse_ch_key():
+    global ABUSE_CH_KEY_INDEX
+    if len(ABUSE_CH_API_KEYS) > 1:
+        ABUSE_CH_KEY_INDEX = (ABUSE_CH_KEY_INDEX + 1) % len(ABUSE_CH_API_KEYS)
+    return _get_current_abuse_ch_key()
+
+
+def _is_valid_ip(value: str) -> bool:
+    try:
+        ipaddress.ip_address(value)
+        return True
+    except ValueError:
+        return False
 
 
 # =========================================================
@@ -644,6 +672,148 @@ def check_abuseipdb(url, timeout=8):
         "abuse_score": 0,
         "total_reports": 0
     }
+
+
+def check_ioc_threatfox(ioc_value: str, timeout: int = 10):
+    """ThreatFox IOC cross-check."""
+    normalized = (ioc_value or "").strip()
+    cache_key = f"threatfox_{hashlib.sha256(normalized.lower().encode()).hexdigest()}"
+    cached = _get_cached(cache_key)
+    if cached:
+        return cached
+
+    if not normalized:
+        return {"found": False, "status": "Boş IOC"}
+
+    if not ABUSE_CH_API_KEYS:
+        return {"found": False, "status": "ABUSE_API_KEY tanımlı değil"}
+
+    attempts = len(ABUSE_CH_API_KEYS)
+    for _ in range(attempts):
+        try:
+            current_key = _get_current_abuse_ch_key()
+            headers = {"API-KEY": current_key} if current_key else {}
+            response = requests.post(
+                "https://threatfox-api.abuse.ch/api/v1/",
+                json={"query": "search_ioc", "search_term": normalized},
+                headers=headers,
+                timeout=timeout,
+            )
+            if response.status_code != 200:
+                _rotate_abuse_ch_key()
+                continue
+
+            data = response.json()
+            if data.get("query_status") == "ok" and data.get("data"):
+                entry = data["data"][0]
+                result = {
+                    "found": True,
+                    "ioc_type": entry.get("ioc_type"),
+                    "threat_type": entry.get("threat_type"),
+                    "malware": entry.get("malware"),
+                    "confidence": int(entry.get("confidence_level") or 0),
+                    "tags": entry.get("tags", []),
+                    "status": "IOC bulundu",
+                }
+                _set_cached(cache_key, result)
+                return result
+
+            result = {"found": False, "status": "IOC bulunamadı"}
+            _set_cached(cache_key, result)
+            return result
+        except Exception as exc:
+            logger.warning(f"ThreatFox error: {exc}")
+            _rotate_abuse_ch_key()
+            continue
+
+    return {"found": False, "status": "ThreatFox sorgusu başarısız"}
+
+
+def check_hash_malwarebazaar(file_hash: str, timeout: int = 10):
+    """MalwareBazaar hash lookup."""
+    normalized = (file_hash or "").strip()
+    cache_key = f"mb_{hashlib.sha256(normalized.lower().encode()).hexdigest()}"
+    cached = _get_cached(cache_key)
+    if cached:
+        return cached
+
+    if not normalized:
+        return {"found": False, "status": "Boş hash"}
+
+    if not ABUSE_CH_API_KEYS:
+        return {"found": False, "status": "ABUSE_API_KEY tanımlı değil"}
+
+    attempts = len(ABUSE_CH_API_KEYS)
+    for _ in range(attempts):
+        try:
+            current_key = _get_current_abuse_ch_key()
+            headers = {"API-KEY": current_key} if current_key else {}
+            response = requests.post(
+                "https://mb-api.abuse.ch/api/v1/",
+                data={"query": "get_info", "hash": normalized},
+                headers=headers,
+                timeout=timeout,
+            )
+            if response.status_code != 200:
+                _rotate_abuse_ch_key()
+                continue
+
+            data = response.json()
+            if data.get("query_status") == "ok" and data.get("data"):
+                entry = data["data"][0]
+                result = {
+                    "found": True,
+                    "malware_family": entry.get("signature"),
+                    "file_type": entry.get("file_type"),
+                    "threat_score": (entry.get("intelligence") or {}).get("clamav"),
+                    "tags": entry.get("tags", []),
+                    "first_seen": entry.get("first_seen"),
+                    "status": "Hash bulundu",
+                }
+                _set_cached(cache_key, result)
+                return result
+
+            result = {"found": False, "status": "Hash bulunamadı"}
+            _set_cached(cache_key, result)
+            return result
+        except Exception as exc:
+            logger.warning(f"MalwareBazaar error: {exc}")
+            _rotate_abuse_ch_key()
+            continue
+
+    return {"found": False, "status": "MalwareBazaar sorgusu başarısız"}
+
+
+def check_ip_shodan(ip: str, timeout: int = 10):
+    """Shodan InternetDB lookup."""
+    normalized = (ip or "").strip()
+    cache_key = f"shodan_{normalized}"
+    cached = _get_cached(cache_key)
+    if cached:
+        return cached
+
+    if not _is_valid_ip(normalized):
+        return {"found": False, "status": "Geçersiz IP"}
+
+    try:
+        response = requests.get(f"https://internetdb.shodan.io/{normalized}", timeout=timeout)
+        if response.status_code != 200:
+            return {"found": False, "status": f"Shodan HTTP {response.status_code}"}
+        data = response.json()
+        result = {
+            "found": True,
+            "open_ports": data.get("ports", []),
+            "hostnames": data.get("hostnames", []),
+            "cpes": data.get("cpes", []),
+            "vulns": data.get("vulns", []),
+            "tags": data.get("tags", []),
+            "status": "IP bulundu",
+        }
+        _set_cached(cache_key, result)
+        return result
+    except Exception as exc:
+        logger.warning(f"Shodan InternetDB error: {exc}")
+        return {"found": False, "status": "Shodan sorgusu başarısız"}
 
 
 # =========================================================

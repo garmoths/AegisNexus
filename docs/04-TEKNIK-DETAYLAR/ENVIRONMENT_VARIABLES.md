@@ -47,6 +47,35 @@ If both singular and plural are present, plural key list is preferred.
 - `CERTSTREAM_KEYWORDS` (optional): Comma-separated phishing keyword list for CertStream domain heuristic.
 - `CERTSTREAM_ALLOW_GENERIC_DOMAINS` (optional): Şüpheli eşleşme yoksa genel domain fallback aktif (`1` default).
 
+## Victim Atlas Module
+- `VICTIM_ATLAS_DB_PATH` (optional): Separate SQLite DB path. Default `data/victim_atlas.db`.
+- `VICTIM_ATLAS_HOT_SET_LIMIT` (optional): Number of hot cases kept active. Default `1000`.
+- `VICTIM_ATLAS_SOURCE_ITEM_LIMIT` (optional): Max fetched items per source run. Default `120`.
+- `VICTIM_ATLAS_ENRICH_LIMIT` (optional): Enrichment pass limit. Default `500`.
+- `VICTIM_ATLAS_SIKAYETVAR_RSS_URL` (optional): ToS-uyumlu sikayet akisi (RSS/Atom) URL'i.
+- `VICTIM_ATLAS_SIKAYETVAR_TRUST_TIER` (optional): `tier1` or `tier2` (default `tier2`).
+- `VICTIM_ATLAS_TR_CERT_FEED_URL` (optional): TR CERT/kurumsal duyuru RSS URL'i.
+- `VICTIM_ATLAS_TR_CERT_TRUST_TIER` (optional): `tier1` or `tier2` (default `tier1`).
+
+Source toggles (optional, `1` or `0`):
+- `VICTIM_ATLAS_SOURCE_CISA_ADVISORIES`
+- `VICTIM_ATLAS_SOURCE_KREBSONSECURITY`
+- `VICTIM_ATLAS_SOURCE_BLEEPINGCOMPUTER`
+- `VICTIM_ATLAS_SOURCE_PROOFPOINT_BLOG`
+- `VICTIM_ATLAS_SOURCE_REDDIT_SCAM`
+- `VICTIM_ATLAS_SOURCE_GOOGLE_NEWS_TR_DOLANDIRICILIK`
+- `VICTIM_ATLAS_SOURCE_GOOGLE_NEWS_TR_SAHTE_UYGULAMA`
+- `VICTIM_ATLAS_SOURCE_SIKAYETVAR_RSS` (env URL tanimliysa)
+- `VICTIM_ATLAS_SOURCE_TR_CERT_FEED` (env URL tanimliysa)
+
+Celery daily schedule (UTC):
+- `VICTIM_ATLAS_INGEST_HOUR_UTC` (default `3`)
+- `VICTIM_ATLAS_INGEST_MINUTE` (default `30`)
+- `VICTIM_ATLAS_ENRICH_HOUR_UTC` (default `3`)
+- `VICTIM_ATLAS_ENRICH_MINUTE` (default `50`)
+- `VICTIM_ATLAS_PRUNE_HOUR_UTC` (default `4`)
+- `VICTIM_ATLAS_PRUNE_MINUTE` (default `10`)
+
 ## Security Rules
 1. Do not commit `.env` files.
 2. Keep `.env.example` as non-secret template only.

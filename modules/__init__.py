@@ -9,7 +9,8 @@ Modüller:
 02. honeypot - IP Avcısı (tersine mühendislik tuzakları)
 03. breach_intel - Veri sızıntısı istihbaratı
 04. password_shield - Kriptografik şifre üretimi
-05. threat_responder - Tehdit göstergelerini operatörlere yanıt ver
+05. ai_analyzer - AI Güvenlik Asistanı
+06. victim_atlas - Siber Magduriyet Atlasi
 
 Her modülün router'ı /api/v2/modular/ prefix'i altında erişilebilir.
 Örnek: /api/v2/phishing/check-url
@@ -27,11 +28,11 @@ from .breach_intel import router as breach_intel_router
 # 04 - Password Shield (Kriptografik Kalkan)
 from .password_shield import router as password_shield_router
 
-# 05 - Threat Responder (Tehdit Yanıtlayıcı)
-from .threat_responder import router as threat_responder_router
-
-# 06 - AI Analyzer (AI Güvenlik Asistanı)
+# 05 - AI Analyzer (AI Güvenlik Asistanı)
 from .ai_analyzer import router as ai_analyzer_router
+
+# 06 - Victim Atlas (Siber Magduriyet Atlasi)
+from .victim_atlas import router as victim_atlas_router
 
 router = None  # Placeholder for direct router access
 
@@ -40,6 +41,6 @@ __all__ = [
     "honeypot_router",
     "breach_intel_router",
     "password_shield_router",
-    "threat_responder_router",
     "ai_analyzer_router",
+    "victim_atlas_router",
 ]

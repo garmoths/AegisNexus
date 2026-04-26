@@ -3,11 +3,13 @@ from datetime import datetime, timezone
 from typing import Dict, List
 
 from celery import Celery
+from celery.schedules import crontab
 from dotenv import load_dotenv
 
 from app.database import SessionLocal
 from app.models import IndicatorOfCompromise
 from modules.phishing_detector.fetch_all_sources import fetch_all_sources
+from modules.victim_atlas.ingest import run_daily_pipeline, run_enrichment_pass, run_hotset_maintenance
 
 from .ioc_collector import AlienVaultOTXCollector, IOCCollectorEngine, IOCSource, IOCRecord
 
@@ -37,6 +39,27 @@ app.conf.update(
         "phishing-refresh": {
             "task": "modules.honeypot.celery_tasks.update_phishing_feeds",
             "schedule": int(os.getenv("CELERY_PHISHING_INTERVAL_SECONDS", "7200")),
+        },
+        "victim-atlas-ingest-daily": {
+            "task": "modules.honeypot.celery_tasks.victim_atlas_ingest_daily",
+            "schedule": crontab(
+                minute=int(os.getenv("VICTIM_ATLAS_INGEST_MINUTE", "30")),
+                hour=int(os.getenv("VICTIM_ATLAS_INGEST_HOUR_UTC", "3")),
+            ),
+        },
+        "victim-atlas-enrich-daily": {
+            "task": "modules.honeypot.celery_tasks.victim_atlas_enrich_cases",
+            "schedule": crontab(
+                minute=int(os.getenv("VICTIM_ATLAS_ENRICH_MINUTE", "50")),
+                hour=int(os.getenv("VICTIM_ATLAS_ENRICH_HOUR_UTC", "3")),
+            ),
+        },
+        "victim-atlas-prune-daily": {
+            "task": "modules.honeypot.celery_tasks.victim_atlas_prune_hotset",
+            "schedule": crontab(
+                minute=int(os.getenv("VICTIM_ATLAS_PRUNE_MINUTE", "10")),
+                hour=int(os.getenv("VICTIM_ATLAS_PRUNE_HOUR_UTC", "4")),
+            ),
         },
     },
 )
@@ -162,3 +185,29 @@ def run_ioc_fetch():
     urlhaus_job = fetch_urlhaus.delay()
     otx_job = fetch_otx.delay()
     return {"status": "queued", "urlhaus_task_id": urlhaus_job.id, "otx_task_id": otx_job.id}
+
+
+@app.task(bind=True, max_retries=3, name="modules.honeypot.celery_tasks.victim_atlas_ingest_daily")
+def victim_atlas_ingest_daily(self):
+    try:
+        max_items = int(os.getenv("VICTIM_ATLAS_SOURCE_ITEM_LIMIT", "120"))
+        return run_daily_pipeline(max_items_per_source=max_items)
+    except Exception as exc:
+        raise self.retry(exc=exc, countdown=180)
+
+
+@app.task(bind=True, max_retries=2, name="modules.honeypot.celery_tasks.victim_atlas_enrich_cases")
+def victim_atlas_enrich_cases(self):
+    try:
+        enrich_limit = int(os.getenv("VICTIM_ATLAS_ENRICH_LIMIT", "500"))
+        return run_enrichment_pass(limit=enrich_limit)
+    except Exception as exc:
+        raise self.retry(exc=exc, countdown=120)
+
+
+@app.task(bind=True, max_retries=2, name="modules.honeypot.celery_tasks.victim_atlas_prune_hotset")
+def victim_atlas_prune_hotset(self):
+    try:
+        return run_hotset_maintenance()
+    except Exception as exc:
+        raise self.retry(exc=exc, countdown=120)

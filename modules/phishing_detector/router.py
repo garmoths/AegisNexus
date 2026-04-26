@@ -19,6 +19,7 @@ from .scanner import calculate_safety_score
 from .url_normalize import normalize_url_record
 from .fetch_all_sources import fetch_all_sources
 from .cache_db import (
+    get_cached_scan_result,
     get_phishing_history,
     get_latest_phishing,
     get_threat_type_distribution,
@@ -133,7 +134,32 @@ def check_url(request: URLCheckRequest, db: Session = Depends(get_db)):
     if not request.url:
         raise HTTPException(status_code=400, detail="URL boş olamaz")
     try:
-        result = calculate_safety_score(request.url, db)
+        requested_url = request.url.strip()
+        cached_result = get_cached_scan_result(requested_url, days=30)
+        if cached_result:
+            sources = []
+            for src in cached_result.get("sources", []):
+                if isinstance(src, dict):
+                    name = src.get("name")
+                    if name:
+                        sources.append(str(name))
+                elif isinstance(src, str):
+                    sources.append(src)
+            write_phishing_url(
+                url=requested_url,
+                risk_score=int(cached_result.get("score", 0)),
+                risk_level=str(cached_result.get("risk_level", "unknown")),
+                is_safe=bool(cached_result.get("score", 0) >= 80),
+                sources=sources,
+                raw_data=cached_result,
+                track_event=True,
+            )
+            cached_result["module"] = "01_phishing_detector"
+            cached_result["cache"] = "30d-hit"
+            logger.info(f"URL cache hit: {requested_url}")
+            return cached_result
+
+        result = calculate_safety_score(requested_url, db)
         sources = []
         for src in result.get("sources", []):
             if isinstance(src, dict):
@@ -141,7 +167,7 @@ def check_url(request: URLCheckRequest, db: Session = Depends(get_db)):
                 if name:
                     sources.append(str(name))
         write_phishing_url(
-            url=request.url,
+            url=requested_url,
             risk_score=int(result.get("score", 0)),
             risk_level=str(result.get("risk_level", "unknown")),
             is_safe=bool(result.get("score", 0) >= 80),
@@ -150,12 +176,12 @@ def check_url(request: URLCheckRequest, db: Session = Depends(get_db)):
             track_event=True,
         )
         result["module"] = "01_phishing_detector"
-        logger.info(f"URL kontrol yapıldı: {request.url} - Skor: {result.get('score')}")
+        logger.info(f"URL kontrol yapıldı: {requested_url} - Skor: {result.get('score')}")
         return result
     except Exception as e:
         logger.error(f"URL kontrol hatası: {str(e)}")
         write_phishing_url(
-            url=request.url,
+            url=request.url.strip(),
             risk_score=50,
             risk_level="degraded",
             is_safe=False,
@@ -365,7 +391,7 @@ def get_phishing_scan_history(limit: int = 50, days: int = 30, db: Session = Dep
 
 
 @router.get("/scan-history")
-def get_scan_history_paged(limit: int = 10, page: int = 1, days: int = 30):
+def get_scan_history_paged(limit: int = 20, page: int = 1, days: int = 30):
     """Paginated URL scan history for frontend chips/list."""
     try:
         result = get_scan_history(limit=limit, page=page, days=days)
