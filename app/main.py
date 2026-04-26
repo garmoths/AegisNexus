@@ -113,11 +113,14 @@ async def read_react_app():
 
 @app.get("/")
 async def read_root():
+    react_index = REACT_BUILD_DIR / "index.html"
+    if react_index.exists():
+        return FileResponse(react_index)
     if HTML_FILE.exists():
         return FileResponse(HTML_FILE)
     return {
-        "Hata": "index.html bulunamadı.",
-        "Aranan_Yol": str(HTML_FILE),
+        "Hata": "Ana sayfa index dosyası bulunamadı.",
+        "Aranan_Yol": [str(react_index), str(HTML_FILE)],
     }
 
 
