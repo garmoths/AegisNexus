@@ -112,19 +112,24 @@ def init_database():
         if not _column_exists(cursor, "phishing_urls", "raw_data"):
             cursor.execute("ALTER TABLE phishing_urls ADD COLUMN raw_data TEXT")
 
-        # Eğer event tablosu boşsa, geçmiş phishing_urls kayıtlarından backfill yap.
+        # Event tarafı eksikse, geçmiş phishing_urls kayıtlarından backfill yap.
         cursor.execute("SELECT COUNT(*) FROM url_scan_events")
         event_count = int(cursor.fetchone()[0] or 0)
-        if event_count == 0:
+        cursor.execute("SELECT COUNT(*) FROM phishing_urls")
+        cache_count = int(cursor.fetchone()[0] or 0)
+        if event_count < cache_count:
             cursor.execute(
                 """
                 INSERT INTO url_scan_events (url, domain, risk_score, risk_level, is_safe, sources, checked_at)
                 SELECT url, domain, risk_score, risk_level, is_safe, sources, checked_at
                 FROM phishing_urls
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM url_scan_events e WHERE e.url = phishing_urls.url
+                )
                 ORDER BY checked_at DESC, id DESC
                 LIMIT ?
                 """,
-                (MAX_SCAN_EVENTS,),
+                (max(0, MAX_SCAN_EVENTS - event_count),),
             )
         
         conn.commit()
