@@ -1,21 +1,9 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
+import SecurityModulesScrollSection from './sections/SecurityModulesScrollSection'
+import PlatformStatsHorizontalSection from './sections/PlatformStatsHorizontalSection'
+import { theme } from './theme'
 
 const API = '/api/v2'
-
-const theme = {
-  bg: '#080c14',
-  surface: '#0f1629',
-  surface2: '#1a2342',
-  border: '#1e2a4a',
-  primary: '#00d4ff',
-  primaryDim: 'rgba(0,212,255,0.1)',
-  accent: '#ff6b35',
-  success: '#22c55e',
-  warning: '#f59e0b',
-  danger: '#ef4444',
-  text: '#e2e8f0',
-  textMuted: '#64748b',
-}
 
 function Card({ children, style, ...props }) {
   const [h, sH] = useState(false)
@@ -30,32 +18,14 @@ function GlowButton({ children, onClick, variant='primary', style }) {
 
 export default function LandingPage() {
   const [scrolled, setScrolled] = useState(false)
-  const [stats, setStats] = useState(null)
-  const [iocStats, setIocStats] = useState(null)
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY>20)
     window.addEventListener('scroll', onScroll, {passive:true})
-    Promise.all([
-      fetch(API+'/phishing/stats').then(r=>r.json()).catch(()=>{}),
-      fetch(API+'/honeypot/ioc/stats').then(r=>r.json()).catch(()=>{}),
-    ]).then(([ph, ioc]) => { setStats(ph); setIocStats(ioc) })
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
   const scrollTo = (id) => document.getElementById(id)?.scrollIntoView({behavior:'smooth'})
-
-  const totalUrls = stats?.stats?.total_urls || stats?.total_urls || 0
-  const totalIocs = iocStats?.stats?.total_iocs || iocStats?.total_records || 0
-
-  const moduller = [
-    { icon:'🤖', title:'AI Guvenlik Asistani', desc:'DeepSeek/Groq LLM ile mesaj, e-posta ve metin analizi. Phishing, sosyal muhendislik ve psikolojik manipulasyon tespiti.', color:'#00d4ff', badge:'AKTIF', link:'https://modules.aegisnexus.dev' },
-    { icon:'🎣', title:'Phishing Dedektoru', desc:'1.2M+ phishing URL veritabani ile anlik URL guvenlik kontrolu. DNS, SSL ve makine ogrenimi analizi.', color:'#ff6b35', badge:'1.2M DB', link:'https://modules.aegisnexus.dev' },
-    { icon:'🕸️', title:'IOC / Tuzak Sistemi', desc:'Saldirganlardan toplanan 9K+ IOC. IP, domain, URL ve hash analizi. Gercek zamanli tehdit istihbarati.', color:'#f59e0b', badge:'9K IOC', link:'https://modules.aegisnexus.dev' },
-    { icon:'🔓', title:'Veri Sizinti Radari', desc:'Have I Been Pwned, dark web ve sizinti veritabanlarinda e-posta taramasi. KVKK uyumlu raporlama.', color:'#ef4444', badge:'HIBP', link:'https://modules.aegisnexus.dev' },
-    { icon:'🔐', title:'Kriptografik Kalkan', desc:'Yuz yillar suren sifreler olusturun. AES-256 sifreleme ile guvenli sifre yonetimi.', color:'#22c55e', badge:'GELIYOR', link:'#' },
-    { icon:'⚡', title:'Tehdit Yanitlayici', desc:'IOC verilerini operatorlere anlik uyar. Otomatik mudahale ve raporlama sistemi.', color:'#00d4ff', badge:'GELIYOR', link:'#' },
-  ]
 
   return <div style={{ minHeight:'100vh', background:theme.bg, color:theme.text }}>
     <style>{`
@@ -108,54 +78,9 @@ export default function LandingPage() {
       </div>
     </div>
 
-    {/* MODULES */}
-    <div id="modules" style={{ padding:'80px 24px', maxWidth:1200, margin:'0 auto' }}>
-      <h2 style={{ fontSize:36, fontWeight:800, color:'#fff', textAlign:'center', marginBottom:16, letterSpacing:'-1px' }}>
-        Guvenlik <span style={{ color:'#00d4ff' }}>Modulleri</span>
-      </h2>
-      <p style={{ color:theme.textMuted, textAlign:'center', fontSize:16, maxWidth:500, margin:'0 auto 48px' }}>5 katmanli guvenlik kalkani ile her acidan korunun</p>
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(320px, 1fr))', gap:24 }}>
-        {moduller.map((m,i) => {
-          const [h,sH] = useState(false)
-          return <a key={i} href={m.link} target={m.link!=='#'?'_blank':''}
-            onMouseEnter={()=>sH(true)} onMouseLeave={()=>sH(false)}
-            style={{ background:`linear-gradient(135deg, ${theme.surface}, ${theme.surface2})`, border:`1px solid ${h?m.color+'66':theme.border}`, borderRadius:'12px', padding:'32px 24px', cursor:m.link!=='#'?'pointer':'default', transition:'all 0.3s cubic-bezier(0.175,0.885,0.32,1.275)', boxShadow:h?`0 0 40px ${m.color}11`:'none', transform:h?'translateY(-4px)':'none', position:'relative', overflow:'hidden', textDecoration:'none', display:'block' }}>
-            <div style={{ position:'absolute', top:0, right:0, width:150, height:150, background:`radial-gradient(circle, ${m.color}11 0%, transparent 70%)`, pointerEvents:'none' }} />
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:16 }}>
-              <span style={{ fontSize:40 }}>{m.icon}</span>
-              {m.badge && <span style={{ padding:'3px 10px', borderRadius:'12px', fontSize:10, fontWeight:700, background:m.color+'22', color:m.color }}>{m.badge}</span>}
-            </div>
-            <h3 style={{ fontSize:18, fontWeight:700, color:'#fff', marginBottom:10, letterSpacing:'-0.5px' }}>{m.title}</h3>
-            <p style={{ fontSize:13, color:theme.textMuted, lineHeight:1.7 }}>{m.desc}</p>
-          </a>
-        })}
-      </div>
-    </div>
+    <SecurityModulesScrollSection />
 
-    {/* STATS */}
-    <div id="features" style={{ padding:'60px 24px', maxWidth:1200, margin:'0 auto' }}>
-      <h2 style={{ fontSize:36, fontWeight:800, color:'#fff', textAlign:'center', marginBottom:48, letterSpacing:'-1px' }}>
-        Platform <span style={{ color:'#00d4ff' }}>Istatistikleri</span>
-      </h2>
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:16 }}>
-        <Card style={{ textAlign:'center', padding:'32px 16px' }}>
-          <p style={{ fontSize:11, color:theme.textMuted, textTransform:'uppercase', fontWeight:600, letterSpacing:'1px', marginBottom:8 }}>Taranan URL</p>
-          <p style={{ fontSize:36, fontWeight:800, color:theme.primary }}><CountUp end={totalUrls} /></p>
-        </Card>
-        <Card style={{ textAlign:'center', padding:'32px 16px' }}>
-          <p style={{ fontSize:11, color:theme.textMuted, textTransform:'uppercase', fontWeight:600, letterSpacing:'1px', marginBottom:8 }}>Tehdit Indikatoru</p>
-          <p style={{ fontSize:36, fontWeight:800, color:'#ff6b35' }}><CountUp end={totalIocs} /></p>
-        </Card>
-        <Card style={{ textAlign:'center', padding:'32px 16px' }}>
-          <p style={{ fontSize:11, color:theme.textMuted, textTransform:'uppercase', fontWeight:600, letterSpacing:'1px', marginBottom:8 }}>AI Analiz Motoru</p>
-          <p style={{ fontSize:36, fontWeight:800, color:'#f59e0b' }}>Groq</p>
-        </Card>
-        <Card style={{ textAlign:'center', padding:'32px 16px' }}>
-          <p style={{ fontSize:11, color:theme.textMuted, textTransform:'uppercase', fontWeight:600, letterSpacing:'1px', marginBottom:8 }}>Guvenlik Kalkani</p>
-          <p style={{ fontSize:36, fontWeight:800, color:'#22c55e' }}>5 Kat</p>
-        </Card>
-      </div>
-    </div>
+    <PlatformStatsHorizontalSection />
 
     {/* WHY */}
     <div style={{ padding:'60px 24px', maxWidth:1200, margin:'0 auto' }}>
@@ -204,22 +129,4 @@ export default function LandingPage() {
       </div>
     </footer>
   </div>
-}
-
-function CountUp({ end, duration = 1500 }) {
-  const [val, setVal] = useState(0)
-  const ref = useRef(null)
-  useEffect(() => {
-    const start = performance.now()
-    const animate = (now) => {
-      const elapsed = now - start
-      const progress = Math.min(elapsed / duration, 1)
-      const eased = 1 - Math.pow(1 - progress, 3)
-      setVal(Math.floor(eased * end))
-      if (progress < 1) ref.current = requestAnimationFrame(animate)
-    }
-    ref.current = requestAnimationFrame(animate)
-    return () => cancelAnimationFrame(ref.current)
-  }, [end, duration])
-  return <>{val.toLocaleString('tr-TR')}</>
 }
