@@ -23,7 +23,10 @@ export default defineConfig([
       },
     },
     rules: {
-      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+      // `motion` ve `AnimatePresence` JSX namespace pattern (örn. <motion.div>) ile
+      // kullanıldığı için, ESLint default kuralı bu importları yanlışlıkla unused olarak işaretliyor.
+      // Aşağıdaki ignorePattern bu pattern'i ve standart uppercase component naming'i kapsar.
+      'no-unused-vars': ['error', { varsIgnorePattern: '^([A-Z_]|motion|AnimatePresence)' }],
     },
   },
 ])

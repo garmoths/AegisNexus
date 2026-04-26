@@ -1,178 +1,145 @@
-import { useEffect, useRef, useState } from 'react'
-import { motion, useReducedMotion, useScroll, useTransform } from 'framer-motion'
+import { motion, useReducedMotion } from 'framer-motion'
 import { theme } from '../theme'
+import { platformPath } from '../data/landing'
 
-const statsCards = [
-  {
-    metric: 'Threat Surface',
-    value: 'Lorem 120K',
-    detail: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Proin suscipit arcu ac metus posuere.',
-    tag: 'Realtime',
-    color: '#00d4ff',
-  },
-  {
-    metric: 'IOC Correlation',
-    value: 'Lorem 9.4K',
-    detail: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec volutpat enim in feugiat aliquet.',
-    tag: 'Signal',
-    color: '#ff6b35',
-  },
-  {
-    metric: 'AI Triage',
-    value: 'Lorem Groq',
-    detail: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nam commodo augue vitae tincidunt tempor.',
-    tag: 'LLM',
-    color: '#f59e0b',
-  },
-  {
-    metric: 'Response Posture',
-    value: 'Lorem 5-Layer',
-    detail: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Aliquam a nibh ut ligula scelerisque posuere.',
-    tag: 'Defense',
-    color: '#22c55e',
-  },
-  {
-    metric: 'Risk Drift',
-    value: 'Lorem Low',
-    detail: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Integer lobortis urna at nibh sagittis.',
-    tag: 'Control',
-    color: '#9f7aea',
-  },
-]
+// voxr.ai "Your Path from Leads to Live Conversations" pattern'inden esinlenmiş
+// numaralı dikey adım listesi. Yatay sticky scroll yok; her adım kendi satırında,
+// solda büyük mono numara, sağda başlık + açıklama, en altta ince ayraç çizgisi.
+function PathStep({ step, index, total, prefersReducedMotion }) {
+  const isLast = index === total - 1
 
-function HorizontalStatCard({ card, reducedMotion }) {
   return (
     <motion.article
-      whileHover={{
-        y: -5,
-        borderColor: `${card.color}cc`,
-        boxShadow: `0 0 0 1px ${card.color}66, 0 18px 45px ${card.color}33, inset 0 0 24px ${card.color}1f`,
-      }}
-      transition={{ duration: 0.22, ease: 'easeOut' }}
+      initial={prefersReducedMotion ? false : { opacity: 0, y: 24 }}
+      whileInView={prefersReducedMotion ? undefined : { opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: '-10% 0px' }}
+      transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1], delay: index * 0.06 }}
+      whileHover={prefersReducedMotion ? undefined : { y: -2 }}
       style={{
-        width: 'clamp(240px, 32vw, 320px)',
-        minHeight: 290,
-        borderRadius: 18,
-        padding: 24,
-        background: `linear-gradient(145deg, ${theme.surface}, ${theme.surface2})`,
-        border: `1px solid ${theme.border}`,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 14,
-        flexShrink: 0,
-        scrollSnapAlign: 'start',
-        boxShadow: `0 10px 30px ${card.color}12, inset 0 0 0 ${card.color}00`,
-        transition: reducedMotion ? 'none' : 'box-shadow 200ms ease, border-color 200ms ease',
-      }}
-      tabIndex={0}
-      whileFocus={{
-        borderColor: `${card.color}cc`,
-        boxShadow: `0 0 0 1px ${card.color}66, 0 18px 45px ${card.color}33, inset 0 0 24px ${card.color}1f`,
+        display: 'grid',
+        gridTemplateColumns: 'minmax(120px, 200px) 1fr',
+        gap: 'clamp(24px, 4vw, 56px)',
+        padding: 'clamp(28px, 4vw, 48px) 0',
+        borderBottom: isLast ? 'none' : `1px solid ${theme.borderSoft || '#1a2236'}`,
+        cursor: 'default',
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <p style={{ color: theme.textMuted, fontSize: 12, textTransform: 'uppercase', letterSpacing: '1.4px', fontWeight: 700 }}>{card.metric}</p>
-        <span style={{ padding: '5px 10px', borderRadius: 999, fontSize: 11, color: card.color, background: `${card.color}1f`, border: `1px solid ${card.color}55` }}>{card.tag}</span>
+      <div
+        style={{
+          fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+          fontSize: 'clamp(48px, 7vw, 88px)',
+          fontWeight: 600,
+          color: theme.textSubtle || theme.textMuted,
+          letterSpacing: '-0.04em',
+          lineHeight: 1,
+          transition: 'color .25s ease',
+        }}
+        className="path-step-num"
+      >
+        {step.num}
       </div>
-      <h3 style={{ color: '#fff', fontSize: 'clamp(24px, 3vw, 34px)', letterSpacing: '-0.6px' }}>{card.value}</h3>
-      <p style={{ color: theme.textMuted, lineHeight: 1.68, fontSize: 14 }}>{card.detail}</p>
-      <div style={{ marginTop: 'auto', height: 1, background: `linear-gradient(90deg, transparent, ${card.color}aa, transparent)` }} />
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, paddingTop: 8 }}>
+        <h3
+          style={{
+            color: '#fff',
+            fontSize: 'clamp(24px, 3vw, 34px)',
+            fontWeight: 750,
+            letterSpacing: '-0.6px',
+            lineHeight: 1.15,
+          }}
+        >
+          {step.title}
+        </h3>
+        <p
+          style={{
+            color: theme.textMuted,
+            fontSize: 'clamp(14px, 1.5vw, 17px)',
+            lineHeight: 1.75,
+            maxWidth: 720,
+          }}
+        >
+          {step.desc}
+        </p>
+      </div>
     </motion.article>
   )
 }
 
 export default function PlatformStatsHorizontalSection() {
-  const sectionRef = useRef(null)
-  const viewportRef = useRef(null)
-  const trackRef = useRef(null)
-  const reducedMotion = useReducedMotion()
-  const [isCompact, setIsCompact] = useState(false)
-  const [maxTranslate, setMaxTranslate] = useState(0)
-
-  const { scrollYProgress } = useScroll({
-    target: sectionRef,
-    offset: ['start start', 'end end'],
-  })
-
-  const x = useTransform(scrollYProgress, [0, 1], [0, -maxTranslate])
-
-  useEffect(() => {
-    const media = window.matchMedia('(max-width: 900px)')
-    const sync = () => setIsCompact(media.matches)
-    sync()
-    media.addEventListener('change', sync)
-    return () => media.removeEventListener('change', sync)
-  }, [])
-
-  useEffect(() => {
-    if (reducedMotion) {
-      setMaxTranslate(0)
-      return undefined
-    }
-
-    const recalc = () => {
-      const viewportWidth = viewportRef.current?.clientWidth ?? 0
-      const trackWidth = trackRef.current?.scrollWidth ?? 0
-      setMaxTranslate(Math.max(trackWidth - viewportWidth, 0))
-    }
-
-    recalc()
-    const observer = new ResizeObserver(recalc)
-    if (viewportRef.current) observer.observe(viewportRef.current)
-    if (trackRef.current) observer.observe(trackRef.current)
-    window.addEventListener('resize', recalc)
-
-    return () => {
-      observer.disconnect()
-      window.removeEventListener('resize', recalc)
-    }
-  }, [reducedMotion, isCompact])
+  const prefersReducedMotion = useReducedMotion() ?? false
 
   return (
     <section
-      id="features"
-      ref={sectionRef}
+      id="path"
       style={{
-        minHeight: reducedMotion || isCompact ? 'auto' : '290vh',
-        padding: '36px 0 68px',
+        padding: 'clamp(60px, 10vw, 120px) 0',
+        position: 'relative',
       }}
     >
-      <div style={{ maxWidth: 1220, margin: '0 auto', padding: '0 24px 26px' }}>
-        <h2 style={{ fontSize: 'clamp(34px, 4vw, 44px)', fontWeight: 820, color: '#fff', textAlign: 'center', letterSpacing: '-1px' }}>
-          Platform <span style={{ color: theme.primary }}>Istatistikleri</span>
-        </h2>
-        <p style={{ color: theme.textMuted, textAlign: 'center', margin: '12px auto 0', maxWidth: 760, lineHeight: 1.7 }}>
-          Sticky horizontal scroll ile sayfa inerken kartlar soldan saga akiyor; her kart hover aninda parlayan border ve hafif neon inset ile canli bir his veriyor.
-        </p>
-      </div>
+      <style>{`
+        .path-step-num-wrapper:hover .path-step-num,
+        .path-step-num-wrapper:focus-within .path-step-num {
+          color: ${theme.primary};
+        }
+      `}</style>
 
-      <div
-        ref={viewportRef}
-        style={{
-          position: reducedMotion || isCompact ? 'relative' : 'sticky',
-          top: reducedMotion || isCompact ? 'auto' : 90,
-          minHeight: reducedMotion || isCompact ? 'auto' : 'calc(100vh - 112px)',
-          display: 'flex',
-          alignItems: 'center',
-          overflow: reducedMotion || isCompact ? 'auto' : 'hidden',
-          padding: '0 24px',
-        }}
-      >
-        <motion.div
-          ref={trackRef}
-          style={{
-            display: 'flex',
-            gap: 18,
-            width: 'max-content',
-            x: reducedMotion || isCompact ? 0 : x,
-            scrollSnapType: isCompact ? 'x mandatory' : 'none',
-            paddingBottom: isCompact ? 8 : 0,
-          }}
-        >
-          {statsCards.map((card) => (
-            <HorizontalStatCard key={card.metric} card={card} reducedMotion={reducedMotion} />
+      <div style={{ maxWidth: 1180, margin: '0 auto', padding: '0 24px' }}>
+        <header style={{ maxWidth: 760, marginBottom: 'clamp(40px, 6vw, 72px)' }}>
+          <span
+            style={{
+              display: 'inline-block',
+              padding: '6px 14px',
+              borderRadius: 999,
+              background: `${theme.primary}1a`,
+              border: `1px solid ${theme.primary}40`,
+              color: theme.primary,
+              fontSize: 12,
+              fontWeight: 700,
+              letterSpacing: 1.4,
+              textTransform: 'uppercase',
+              marginBottom: 22,
+            }}
+          >
+            Akış
+          </span>
+          <h2
+            style={{
+              fontSize: 'clamp(36px, 5vw, 56px)',
+              fontWeight: 820,
+              color: '#fff',
+              letterSpacing: '-1.4px',
+              lineHeight: 1.05,
+            }}
+          >
+            Tehdit sinyalinden kapatılan olaya{' '}
+            <span style={{ color: theme.primary }}>5 adımlık yol</span>
+          </h2>
+          <p
+            style={{
+              color: theme.textMuted,
+              fontSize: 'clamp(15px, 1.6vw, 18px)',
+              lineHeight: 1.7,
+              marginTop: 22,
+              maxWidth: 640,
+            }}
+          >
+            AegisNexus’ın günlük operasyonu nasıl şekillendirdiğini kısaca anlatıyoruz: bağlantı kurmaktan iyileştirme döngüsüne kadar her adım, ekibinizin manuel iş yükünü azaltacak şekilde tasarlandı.
+          </p>
+        </header>
+
+        <div>
+          {platformPath.map((step, i) => (
+            <div key={step.num} className="path-step-num-wrapper">
+              <PathStep
+                step={step}
+                index={i}
+                total={platformPath.length}
+                prefersReducedMotion={prefersReducedMotion}
+              />
+            </div>
           ))}
-        </motion.div>
+        </div>
       </div>
     </section>
   )
