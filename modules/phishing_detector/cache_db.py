@@ -42,6 +42,11 @@ def get_db_connection():
     finally:
         conn.close()
 
+
+def _column_exists(cursor: sqlite3.Cursor, table: str, column: str) -> bool:
+    cursor.execute(f"PRAGMA table_info({table})")
+    return any(row[1] == column for row in cursor.fetchall())
+
 def init_database():
     """Veritabanı tablolarını oluştur"""
     with get_db_connection() as conn:
@@ -57,6 +62,7 @@ def init_database():
                 risk_level TEXT DEFAULT 'unknown',
                 is_safe BOOLEAN DEFAULT FALSE,
                 sources TEXT,  -- JSON array
+                raw_data TEXT,  -- Full cached scan result JSON
                 checked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -101,6 +107,25 @@ def init_database():
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_iocs_type ON indicators_of_compromise(ioc_type)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_iocs_threat_type ON indicators_of_compromise(threat_type)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_iocs_last_seen ON indicators_of_compromise(last_seen)")
+
+        # Backward-compatible schema migration
+        if not _column_exists(cursor, "phishing_urls", "raw_data"):
+            cursor.execute("ALTER TABLE phishing_urls ADD COLUMN raw_data TEXT")
+
+        # Eğer event tablosu boşsa, geçmiş phishing_urls kayıtlarından backfill yap.
+        cursor.execute("SELECT COUNT(*) FROM url_scan_events")
+        event_count = int(cursor.fetchone()[0] or 0)
+        if event_count == 0:
+            cursor.execute(
+                """
+                INSERT INTO url_scan_events (url, domain, risk_score, risk_level, is_safe, sources, checked_at)
+                SELECT url, domain, risk_score, risk_level, is_safe, sources, checked_at
+                FROM phishing_urls
+                ORDER BY checked_at DESC, id DESC
+                LIMIT ?
+                """,
+                (MAX_SCAN_EVENTS,),
+            )
         
         conn.commit()
         logger.info("Cache database initialized")
@@ -136,24 +161,29 @@ def write_phishing_url(
     """URL tarama sonucunu veritabanına yaz"""
     try:
         _ensure_initialized()
-        domain = urlparse(url).netloc.lower()
+        parsed = urlparse(url)
+        domain = (parsed.netloc or parsed.path or "").lower()
+        if domain:
+            domain = domain.split("/")[0]
         sources_json = json.dumps(sources) if sources else "[]"
+        raw_data_json = json.dumps(raw_data) if raw_data is not None else None
         
         with get_db_connection() as conn:
             cursor = conn.cursor()
             
             # UPSERT - varsa güncelle, yoksa oluştur
             cursor.execute("""
-                INSERT INTO phishing_urls (url, domain, risk_score, risk_level, is_safe, sources, last_updated)
-                VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                INSERT INTO phishing_urls (url, domain, risk_score, risk_level, is_safe, sources, raw_data, last_updated)
+                VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 ON CONFLICT(url) DO UPDATE SET
                     risk_score = excluded.risk_score,
                     risk_level = excluded.risk_level,
                     is_safe = excluded.is_safe,
                     sources = excluded.sources,
+                    raw_data = excluded.raw_data,
                     last_updated = CURRENT_TIMESTAMP,
                     checked_at = CURRENT_TIMESTAMP
-            """, (url, domain, risk_score, risk_level, is_safe, sources_json))
+            """, (url, domain, risk_score, risk_level, is_safe, sources_json, raw_data_json))
             
             # IOC kaydet (eğer tehdit ise)
             if not is_safe and risk_score > 40:
@@ -427,7 +457,7 @@ def save_check_url_result(url: str, result: dict):
         logger.error(f"Error saving check-url result: {e}")
 
 
-def get_scan_history(limit: int = 10, page: int = 1, days: int = 30) -> Dict[str, Any]:
+def get_scan_history(limit: int = 20, page: int = 1, days: int = 30) -> Dict[str, Any]:
     """Paginated user scan history from threat_intel_cache.db."""
     try:
         _ensure_initialized()
@@ -484,3 +514,60 @@ def get_scan_history(limit: int = 10, page: int = 1, days: int = 30) -> Dict[str
     except Exception as e:
         logger.error(f"Failed to get scan history: {e}")
         return {"data": [], "page": 1, "limit": limit, "total": 0, "total_pages": 0}
+
+
+def get_cached_scan_result(url: str, days: int = 30) -> Optional[Dict[str, Any]]:
+    """Aynı URL son N günde tarandıysa cache sonucu döndür."""
+    try:
+        _ensure_initialized()
+        normalized_url = (url or "").strip()
+        if not normalized_url:
+            return None
+
+        cutoff_date = datetime.now() - timedelta(days=max(days, 1))
+
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT url, risk_score, risk_level, is_safe, sources, raw_data, checked_at
+                FROM phishing_urls
+                WHERE url = ? AND checked_at >= ?
+                ORDER BY checked_at DESC, id DESC
+                LIMIT 1
+                """,
+                (normalized_url, cutoff_date.isoformat()),
+            )
+            row = cursor.fetchone()
+            if not row:
+                return None
+
+            raw_data = None
+            if row["raw_data"]:
+                try:
+                    raw_data = json.loads(row["raw_data"])
+                except Exception:
+                    raw_data = None
+
+            if isinstance(raw_data, dict):
+                cached = dict(raw_data)
+                cached["url"] = cached.get("url") or row["url"]
+                cached["score"] = int(cached.get("score", row["risk_score"] or 0))
+                cached["risk_level"] = cached.get("risk_level") or row["risk_level"] or "unknown"
+                if "sources" not in cached:
+                    cached["sources"] = json.loads(row["sources"]) if row["sources"] else []
+            else:
+                cached = {
+                    "url": row["url"],
+                    "score": int(row["risk_score"] or 0),
+                    "risk_level": row["risk_level"] or "unknown",
+                    "details": ["Son 30 gün cache sonucundan döndürüldü."],
+                    "sources": json.loads(row["sources"]) if row["sources"] else [],
+                }
+
+            cached["cache_hit"] = True
+            cached["cached_at"] = row["checked_at"]
+            return cached
+    except Exception as e:
+        logger.error(f"Failed to get cached scan result: {e}")
+        return None

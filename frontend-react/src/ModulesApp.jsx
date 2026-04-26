@@ -339,18 +339,11 @@ function PhishingDetector() {
 
   const loadScanHistory = useCallback(async (p=1) => {
     try {
-      const r = await fetch(`${API}/phishing/scan-history?limit=10&page=${p}`)
+      const r = await fetch(`${API}/phishing/scan-history?limit=20&page=${p}`)
       if(!r.ok) throw new Error('Tarama gecmisi alınamadı')
       const d = await r.json()
       const items = d.data || d.history || []
-      const uniq = []
-      const seen = new Set()
-      for (const item of items) {
-        if (!item?.url || seen.has(item.url)) continue
-        seen.add(item.url)
-        uniq.push(item)
-      }
-      setScanHistory(uniq)
+      setScanHistory(items.filter(item => item?.url))
     } catch {
       setScanHistory([])
     }
@@ -404,9 +397,9 @@ function PhishingDetector() {
         <GlowButton onClick={handleCheck} loading={checking} disabled={!url}>{checking?'Taranıyor...':'🔍 Tara'}</GlowButton>
       </div>
       {scanHistory.length>0&&<div style={{ marginTop:12, padding:12, background:theme.surface, borderRadius:theme.radiusSm, border:`1px solid ${theme.borderLight}` }}>
-        <p style={{ fontSize:11, color:theme.textMuted, marginBottom:8, fontWeight:600 }}>Son taranan URL'ler (tıklayarak kontrol edin):</p>
+        <p style={{ fontSize:11, color:theme.textMuted, marginBottom:8, fontWeight:600 }}>Son 20 taranan URL (tıklayarak kontrol edin):</p>
         <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
-          {scanHistory.slice(0,10).map((item,i)=><button key={item.checked_at||i} onClick={()=>{setUrl(item.url);setTimeout(()=>handleCheck(),100)}} style={{ padding:'5px 12px', borderRadius:'16px', border:`1px solid ${theme.border}`, background:theme.surface2, cursor:'pointer', fontSize:11, color:theme.primary, fontFamily:theme.mono, maxWidth:280, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.url}</button>)}
+          {scanHistory.slice(0,20).map((item,i)=><button key={`${item.checked_at||''}-${i}`} onClick={()=>{setUrl(item.url);setTimeout(()=>handleCheck(),100)}} style={{ padding:'5px 12px', borderRadius:'16px', border:`1px solid ${theme.border}`, background:theme.surface2, cursor:'pointer', fontSize:11, color:theme.primary, fontFamily:theme.mono, maxWidth:280, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.url}</button>)}
         </div>
       </div>}
       {result&&<div style={{ animation:'scaleIn 0.3s ease', padding:20, background:theme.bg, borderRadius:theme.radiusSm, border:`1px solid ${theme.border}` }}>
