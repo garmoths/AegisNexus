@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 
 const API = import.meta.env.VITE_API_BASE_URL || '/api/v2'
 
@@ -311,9 +311,9 @@ function PhishingDetector() {
   const [loadingLatest, setLoadingLatest] = useState(false)
   const [toast, setToast] = useState({ message:'', type:'success', visible:false })
 
-  useEffect(()=>{loadLatest(1);loadScanHistory(1);loadStats()},[])
+  function showToast(msg,t='success'){setToast({message:msg,type:t,visible:true});setTimeout(()=>setToast(t=>({...t,visible:false})),3000)}
 
-  async function loadLatest(p=1) {
+  const loadLatest = useCallback(async (p=1) => {
     try{
       setLoadingLatest(true)
       const r=await fetch(`${API}/phishing/latest-paged?limit=20&page=${p}`)
@@ -328,9 +328,9 @@ function PhishingDetector() {
     } finally {
       setLoadingLatest(false)
     }
-  }
+  }, [])
 
-  async function loadScanHistory(p=1) {
+  const loadScanHistory = useCallback(async (p=1) => {
     try {
       const r = await fetch(`${API}/phishing/scan-history?limit=10&page=${p}`)
       if(!r.ok) throw new Error('Tarama gecmisi alınamadı')
@@ -344,12 +344,12 @@ function PhishingDetector() {
         uniq.push(item)
       }
       setScanHistory(uniq)
-    } catch (e) {
+    } catch {
       setScanHistory([])
     }
-  }
+  }, [])
 
-  async function loadStats() {
+  const loadStats = useCallback(async () => {
     try{
       const r=await fetch(`${API}/phishing/stats`)
       if(!r.ok) throw new Error('Istatistik endpoint hatasi')
@@ -358,7 +358,10 @@ function PhishingDetector() {
     }catch(e){
       showToast('Istatistikler yüklenemedi: '+e.message,'error')
     }
-  }
+  }, [])
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(()=>{loadLatest(1);loadScanHistory(1);loadStats()},[loadLatest, loadScanHistory, loadStats])
 
   async function handleCheck() {
     if(!url){showToast('Lutfen bir URL girin','error');return}
@@ -373,8 +376,6 @@ function PhishingDetector() {
     }catch(e){showToast('URL kontrol hatasi: '+e.message,'error')}
     setChecking(false)
   }
-
-  function showToast(msg,t='success'){setToast({message:msg,type:t,visible:true});setTimeout(()=>setToast(t=>({...t,visible:false})),3000)}
 
   const totalUrls=stats?.stats?.total_urls||stats?.total_urls||0
   const phCount=stats?.stats?.phishing_count||stats?.phishing_count||0
@@ -457,9 +458,12 @@ function VictimAtlas() {
   const [expanded, setExpanded] = useState({})
   const [toast, setToast] = useState({ message:'', type:'success', visible:false })
 
-  useEffect(()=>{loadStats(); loadCases(1)},[])
+  const showToast = useCallback((msg, type='success') => {
+    setToast({message:msg, type, visible:true})
+    setTimeout(()=>setToast(t=>({...t, visible:false})), 2500)
+  }, [])
 
-  async function loadStats() {
+  const loadStats = useCallback(async () => {
     try {
       const r = await fetch(`${API}/victim-atlas/stats`)
       if(!r.ok) throw new Error('stats failed')
@@ -468,9 +472,9 @@ function VictimAtlas() {
     } catch {
       setStats(null)
     }
-  }
+  }, [])
 
-  async function loadCases(nextPage=1) {
+  const loadCases = useCallback(async (nextPage=1) => {
     try {
       setLoading(true)
       const params = new URLSearchParams({
@@ -495,18 +499,19 @@ function VictimAtlas() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [attackMethod, lossType, query, showToast])
 
-  function showToast(msg, type='success') {
-    setToast({message:msg, type, visible:true})
-    setTimeout(()=>setToast(t=>({...t, visible:false})), 2500)
-  }
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(()=>{loadStats(); loadCases(1)},[loadStats, loadCases])
 
   function riskColor(score=0) {
     if (score >= 75) return theme.danger
     if (score >= 55) return theme.warning
     return theme.primary
   }
+
+  const methodDist = stats?.attack_method_distribution || {}
+  const topMethods = Object.entries(methodDist).sort((a,b)=>b[1]-a[1]).slice(0,5)
 
   return <div style={{ animation:'fadeInUp 0.5s ease' }}>
     <Toast {...toast}/>
@@ -522,6 +527,15 @@ function VictimAtlas() {
       <Card style={{ textAlign:'center', padding:'18px' }}><p style={{ fontSize:11, color:theme.textMuted, textTransform:'uppercase', marginBottom:8 }}>Yuksek Guven</p><p style={{ fontSize:30, fontWeight:800, color:theme.success }}><CountUp end={stats?.high_confidence_cases||0}/></p></Card>
       <Card style={{ textAlign:'center', padding:'18px' }}><p style={{ fontSize:11, color:theme.textMuted, textTransform:'uppercase', marginBottom:8 }}>Listelenen</p><p style={{ fontSize:30, fontWeight:800, color:theme.warning }}><CountUp end={total||0}/></p></Card>
     </div>
+
+    {topMethods.length>0 && <Card style={{ marginBottom:20, padding:'14px 16px' }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:10 }}>
+        <p style={{ fontSize:12, color:theme.textMuted, fontWeight:700, margin:0 }}>En SIk GoruLen YOntemler</p>
+        <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+          {topMethods.map(([name,count])=><span key={name} style={{ padding:'6px 10px', borderRadius:'16px', fontSize:11, background:theme.primaryDim, border:`1px solid ${theme.primary}33`, color:theme.primary }}>{name} • {count}</span>)}
+        </div>
+      </div>
+    </Card>}
 
     <Card style={{ marginBottom:24, padding:16 }}>
       <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr 1fr auto', gap:10 }}>
@@ -552,12 +566,22 @@ function VictimAtlas() {
       {cases.map((c)=> {
         const isOpen = expanded[c.id] === true
         return <Card key={c.id} style={{ padding:18, border:`1px solid ${riskColor(c.severity_score)}44` }}>
+          <div style={{ height:4, borderRadius:99, background:`linear-gradient(90deg, ${riskColor(c.severity_score)}, ${theme.primary})`, marginBottom:12 }} />
           <div style={{ display:'flex', justifyContent:'space-between', gap:8, marginBottom:10 }}>
             <span style={{ fontSize:11, color:theme.textMuted }}>{c.attack_method}</span>
             <span style={{ fontSize:11, color:riskColor(c.severity_score), fontWeight:700 }}>SEV {c.severity_score}</span>
           </div>
           <h4 style={{ fontSize:15, color:'#fff', marginBottom:8, lineHeight:1.4 }}>{c.case_title}</h4>
           <p style={{ fontSize:12, color:theme.textMuted, marginBottom:12 }}>{c.loss_type} • {c.target_platform}</p>
+          <div style={{ marginBottom:12 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', marginBottom:6 }}>
+              <span style={{ fontSize:11, color:theme.textMuted }}>Guven skoru</span>
+              <span style={{ fontSize:11, color:'#fff', fontWeight:700 }}>{c.confidence_score}%</span>
+            </div>
+            <div style={{ width:'100%', height:6, borderRadius:99, overflow:'hidden', background:theme.bg }}>
+              <div style={{ width:`${Math.max(4, Math.min(100, c.confidence_score||0))}%`, height:'100%', background:riskColor(c.confidence_score) }} />
+            </div>
+          </div>
           <div style={{ padding:'10px 12px', borderRadius:8, background:theme.surface, border:`1px solid ${theme.border}`, marginBottom:12 }}>
             <p style={{ fontSize:12, color:theme.warning, margin:0 }}>Kritik Uyari</p>
             <p style={{ fontSize:12, color:theme.text, margin:'6px 0 0' }}>{c.critical_warning}</p>

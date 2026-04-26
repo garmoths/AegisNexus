@@ -23,7 +23,7 @@ function Card({ children, style, ...props }) {
 }
 
 function GlowButton({ children, onClick, variant='primary', style }) {
-  return <button onClick={onClick} style={{ padding:'14px 32px', borderRadius:'8px', border:'none', cursor:'pointer', fontSize:14, fontWeight:700, letterSpacing:'0.5px', background:variant==='primary'?'linear-gradient(135deg, #00d4ff, #0099cc)':'transparent', color:variant==='primary'?'#000':'#00d4ff', border:variant==='primary'?'none':'1px solid #00d4ff44', transition:'all 0.3s ease', boxShadow:variant==='primary'?'0 4px 20px rgba(0,212,255,0.3)':'none', textDecoration:'none', display:'inline-flex', alignItems:'center', gap:8, ...style }}
+  return <button onClick={onClick} style={{ padding:'14px 32px', borderRadius:'8px', cursor:'pointer', fontSize:14, fontWeight:700, letterSpacing:'0.5px', background:variant==='primary'?'linear-gradient(135deg, #00d4ff, #0099cc)':'transparent', color:variant==='primary'?'#000':'#00d4ff', border:variant==='primary'?'none':'1px solid #00d4ff44', transition:'all 0.3s ease', boxShadow:variant==='primary'?'0 4px 20px rgba(0,212,255,0.3)':'none', textDecoration:'none', display:'inline-flex', alignItems:'center', gap:8, ...style }}
     onMouseEnter={e=>{if(!e.currentTarget.disabled){e.currentTarget.style.transform='translateY(-2px)';e.currentTarget.style.boxShadow='0 8px 30px rgba(0,212,255,0.4)'}}}
     onMouseLeave={e=>{e.currentTarget.style.transform='none';e.currentTarget.style.boxShadow=variant==='primary'?'0 4px 20px rgba(0,212,255,0.3)':'none'}}>{children}</button>
 }
@@ -116,10 +116,10 @@ export default function LandingPage() {
       <p style={{ color:theme.textMuted, textAlign:'center', fontSize:16, maxWidth:500, margin:'0 auto 48px' }}>5 katmanli guvenlik kalkani ile her acidan korunun</p>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(320px, 1fr))', gap:24 }}>
         {moduller.map((m,i) => {
-          const [h,sH] = useState(false)
           return <a key={i} href={m.link} target={m.link!=='#'?'_blank':''}
-            onMouseEnter={()=>sH(true)} onMouseLeave={()=>sH(false)}
-            style={{ background:`linear-gradient(135deg, ${theme.surface}, ${theme.surface2})`, border:`1px solid ${h?m.color+'66':theme.border}`, borderRadius:'12px', padding:'32px 24px', cursor:m.link!=='#'?'pointer':'default', transition:'all 0.3s cubic-bezier(0.175,0.885,0.32,1.275)', boxShadow:h?`0 0 40px ${m.color}11`:'none', transform:h?'translateY(-4px)':'none', position:'relative', overflow:'hidden', textDecoration:'none', display:'block' }}>
+            style={{ background:`linear-gradient(135deg, ${theme.surface}, ${theme.surface2})`, border:`1px solid ${theme.border}`, borderRadius:'12px', padding:'32px 24px', cursor:m.link!=='#'?'pointer':'default', transition:'all 0.3s cubic-bezier(0.175,0.885,0.32,1.275)', boxShadow:'none', transform:'none', position:'relative', overflow:'hidden', textDecoration:'none', display:'block' }}
+            onMouseEnter={e=>{e.currentTarget.style.borderColor=m.color+'66';e.currentTarget.style.boxShadow=`0 0 40px ${m.color}11`;e.currentTarget.style.transform='translateY(-4px)'}}
+            onMouseLeave={e=>{e.currentTarget.style.borderColor=theme.border;e.currentTarget.style.boxShadow='none';e.currentTarget.style.transform='none'}}>
             <div style={{ position:'absolute', top:0, right:0, width:150, height:150, background:`radial-gradient(circle, ${m.color}11 0%, transparent 70%)`, pointerEvents:'none' }} />
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:16 }}>
               <span style={{ fontSize:40 }}>{m.icon}</span>

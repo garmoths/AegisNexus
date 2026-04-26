@@ -37,7 +37,7 @@ class SourceConfig:
 
 
 TRUSTED_SOURCES: List[SourceConfig] = [
-    SourceConfig("cisa_advisories", "https://www.cisa.gov/cybersecurity-advisories/all.xml", "rss", "tier1"),
+    SourceConfig("cisa_advisories", "https://www.cisa.gov/cybersecurity-advisories/all.xml", "rss", "tier1", enabled_by_default=False),
     SourceConfig("krebsonsecurity", "https://krebsonsecurity.com/feed/", "rss", "tier1"),
     SourceConfig("bleepingcomputer", "https://www.bleepingcomputer.com/feed/", "rss", "tier1"),
     SourceConfig("proofpoint_blog", "https://www.proofpoint.com/us/rss.xml", "rss", "tier1"),
