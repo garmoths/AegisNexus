@@ -24,6 +24,7 @@ from modules import (
     ai_analyzer_router,          # 05 - AI Güvenlik Asistanı
     victim_atlas_router,         # 06 - Magduriyet Atlasi
 )
+from modules.honeypot.ioc_api import router as honeypot_ioc_router
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
 logger = logging.getLogger("aegis")
@@ -95,6 +96,7 @@ else:
 # 6 Modüler Router
 app.include_router(phishing_detector_router, prefix="/api/v2/phishing")
 app.include_router(honeypot_router, prefix="/api/v2/honeypot")
+app.include_router(honeypot_ioc_router, prefix="/api/v2/ioc")
 app.include_router(breach_intel_router, prefix="/api/v2/breach")
 app.include_router(password_shield_router, prefix="/api/v2/shield")
 app.include_router(ai_analyzer_router, prefix="/api/v2/ai-analyzer")
@@ -149,4 +151,3 @@ async def dashboard_page():
         "Hata": "dashboard.html bulunamadı.",
         "Aranan_Yol": str(DASHBOARD_FILE),
     }
-

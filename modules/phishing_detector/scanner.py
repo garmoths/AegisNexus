@@ -7,14 +7,15 @@ import logging
 import requests
 from urllib.parse import urlparse
 from sqlalchemy.orm import Session
-from app.models import PhishingURL, WhitelistDomain
+from sqlalchemy import or_
+from app.models import IndicatorOfCompromise, PhishingURL, WhitelistDomain
 from datetime import datetime
 from .url_normalize import normalize_url_record
 
 # AI Modülleri - Yerel modüllerden import
 from .ai_analyzer import analyze_page_content
 from .ml_classifier import classify_url
-from .threat_intel import run_threat_intelligence
+from .threat_intel import check_ioc_threatfox, run_threat_intelligence
 
 logger = logging.getLogger(__name__)
 
@@ -676,6 +677,62 @@ def calculate_safety_score(input_url, db: Session = None):
             f"⚠️ Bu domain altında daha önce phishing kaydı görülmüş: {domain_match.target or 'Unknown'}"
         )
         sources.append({"name": "Internal DB", "status": "Domain eşleşmesi (soft risk)"})
+
+    # --- IOC DB + ThreatFox cross-check (domain + resolved IP) ---
+    domain_lookup = domain.split(":")[0]
+    resolved_ip = None
+    if re.match(r"^\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?$", domain):
+        resolved_ip = domain_lookup
+    else:
+        try:
+            resolved_ip = socket.gethostbyname(domain_lookup)
+        except Exception:
+            resolved_ip = None
+
+    local_ioc_hits = []
+    if db:
+        ioc_candidates = [domain_lookup]
+        if resolved_ip:
+            ioc_candidates.append(resolved_ip)
+        local_ioc_hits = (
+            db.query(IndicatorOfCompromise)
+            .filter(
+                or_(
+                    IndicatorOfCompromise.status == "active",
+                    IndicatorOfCompromise.status.is_(None),
+                ),
+                IndicatorOfCompromise.ioc_value.in_(ioc_candidates),
+            )
+            .all()
+        )
+
+    threatfox_hits = []
+    for candidate in [domain_lookup, resolved_ip]:
+        if not candidate:
+            continue
+        tf_result = check_ioc_threatfox(candidate, timeout=10)
+        if tf_result.get("found"):
+            threatfox_hits.append((candidate, tf_result))
+
+    if local_ioc_hits or threatfox_hits:
+        score -= 30
+        risks.append("🚨 IOC listesinde bulundu (local DB veya ThreatFox eşleşmesi).")
+        if local_ioc_hits:
+            first_local = local_ioc_hits[0]
+            sources.append(
+                {
+                    "name": "IOC Local DB",
+                    "status": f"Eşleşme: {first_local.ioc_type}:{first_local.ioc_value}",
+                }
+            )
+        if threatfox_hits:
+            first_tf = threatfox_hits[0]
+            sources.append(
+                {
+                    "name": "ThreatFox",
+                    "status": f"Eşleşme: {first_tf[0]} ({first_tf[1].get('threat_type', 'unknown')})",
+                }
+            )
 
     # --- 5a. HTTPS Kontrolü ---
     if check_url.startswith("http://"):
