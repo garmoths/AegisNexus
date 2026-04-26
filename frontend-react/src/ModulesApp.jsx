@@ -1010,12 +1010,22 @@ function BreachIntel() {
               <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(300px, 1fr))', gap:16 }}>
                 {(result.breaches||[]).map((b,i)=><div key={i} style={{ padding:20, background:theme.surface2, borderRadius:theme.radius, border:`1px solid ${theme.border}`, transition:'all 0.3s ease' }} onMouseEnter={e=>e.currentTarget.style.borderColor=theme.accent} onMouseLeave={e=>e.currentTarget.style.borderColor=theme.border}>
                   <div style={{ display:'flex', alignItems:'flex-start', gap:12, marginBottom:12 }}>
-                    <div style={{ width:48, height:48, borderRadius:'12px', background:theme.accentDim, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                      <span style={{ fontSize:24 }}>🔓</span>
+                    <div style={{ width:48, height:48, borderRadius:'12px', background:theme.bg, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, overflow:'hidden' }}>
+                      {b.domain ? (
+                        <img 
+                          src={`https://www.google.com/s2/favicons?domain=${b.domain}&sz=64`} 
+                          alt={b.domain}
+                          style={{ width:32, height:32 }}
+                          onError={e=>e.currentTarget.style.display='none'}
+                        />
+                      ) : (
+                        <span style={{ fontSize:24 }}>🔓</span>
+                      )}
                     </div>
                     <div style={{ flex:1 }}>
                       <p style={{ fontSize:16, fontWeight:700, color:'#fff', marginBottom:4 }}>{b.title||b.name||'Bilinmeyen'}</p>
                       <p style={{ fontSize:13, color:theme.textMuted }}>{b.breach_date?new Date(b.breach_date).toLocaleDateString('tr-TR'):''}</p>
+                      {b.domain && <p style={{ fontSize:11, color:theme.primary, marginTop:2 }}>{b.domain}</p>}
                     </div>
                   </div>
                   <div style={{ padding:12, background:theme.bg, borderRadius:theme.radiusSm }}>
