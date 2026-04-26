@@ -487,138 +487,157 @@ function PhishingDetector() {
   return <div>
     <Toast {...toast}/>
     
-    {/* Hero Section */}
+    {/* Hero Section - Main Site Style */}
     <motion.div 
       initial={{ opacity:0, y:30 }}
       animate={{ opacity:1, y:0 }}
-      transition={{ duration:0.6, ease:theme.ease.out }}
+      transition={{ duration:0.8, ease:theme.ease.out }}
       style={{ 
-        background:theme.gradientHero,
-        borderRadius:theme.radiusLg,
-        padding:48,
-        marginBottom:32,
         position:'relative',
-        overflow:'hidden',
-        border:`1px solid ${theme.border}`
+        padding:'120px 24px 80px',
+        marginBottom:32,
+        overflow:'hidden'
       }}
     >
-      <div style={{ position:'absolute', top:0, left:0, right:0, bottom:0, opacity:0.1, backgroundImage:theme.gridPattern, backgroundSize:'40px 40px' }} />
-      <div style={{ position:'relative', zIndex:1 }}>
-        <motion.div 
-          initial={{ opacity:0, scale:0.9 }}
-          animate={{ opacity:1, scale:1 }}
-          transition={{ delay:0.2, duration:0.5, ease:theme.ease.spring }}
-          style={{ textAlign:'center', marginBottom:32 }}
-        >
-          <span style={{ display:'inline-block', padding:'8px 20px', background:theme.primaryDim, border:`1px solid ${theme.primary}33`, borderRadius:'24px', fontSize:12, fontWeight:700, color:theme.primary, textTransform:'uppercase', letterSpacing:'2px', marginBottom:16 }}>Phishing Dedektoru</span>
-          <h1 style={{ fontSize:42, fontWeight:800, color:'#fff', marginBottom:12, letterSpacing:'-1px' }}>URL Guvenlik Tarama Motoru</h1>
-          <p style={{ color:theme.textMuted, fontSize:16, maxWidth:600, margin:'0 auto' }}>{totalUrls.toLocaleString('tr-TR')}+ phishing URL veritabani ile anlik guvenlik kontrolu. Aninda sonuc, detayli rapor.</p>
-        </motion.div>
-
-        {/* Search Section */}
+      <div aria-hidden style={{ position:'absolute', inset:0, pointerEvents:'none', overflow:'hidden' }}>
+        <div style={{ position:'absolute', inset:0, backgroundImage:theme.gridPattern, backgroundSize:theme.gridPatternSize, maskImage:'radial-gradient(ellipse at 50% 40%, #000 35%, transparent 75%)', WebkitMaskImage:'radial-gradient(ellipse at 50% 40%, #000 35%, transparent 75%)', opacity:0.7 }} />
+        <div style={{ position:'absolute', inset:0, background:theme.gradientHero }} />
+        <div style={{ position:'absolute', top:'20%', left:'50%', transform:'translateX(-50%)', width:'600px', height:'600px', background:theme.primary, borderRadius:'50%', filter:'blur(120px)', opacity:0.15 }} />
+        <div style={{ position:'absolute', bottom:'20%', right:'20%', width:'400px', height:'400px', background:theme.accent, borderRadius:'50%', filter:'blur(100px)', opacity:0.1 }} />
+      </div>
+      
+      <div style={{ position:'relative', zIndex:1, maxWidth:1200, margin:'0 auto' }}>
         <motion.div 
           initial={{ opacity:0, y:20 }}
           animate={{ opacity:1, y:0 }}
-          transition={{ delay:0.3, duration:0.5, ease:theme.ease.out }}
-          style={{ maxWidth:700, margin:'0 auto', position:'relative' }}
+          transition={{ delay:0.2, duration:0.6, ease:theme.ease.out }}
+          style={{ textAlign:'center', marginBottom:48 }}
         >
-          <div style={{ display:'flex', gap:12, background:theme.bg, padding:8, borderRadius:theme.radiusLg, border:`2px solid ${theme.border}`, boxShadow:theme.shadow.glow }}>
-            <input 
-              value={url} 
-              onChange={e=>setUrl(e.target.value)} 
-              placeholder="https://ornek.com/supheli-link" 
-              style={{ 
-                flex:1, 
-                padding:'16px 24px', 
-                borderRadius:theme.radiusMd, 
-                background:'transparent', 
-                border:'none', 
-                color:'#fff', 
-                fontSize:16, 
-                outline:'none',
-                fontFamily:theme.mono
-              }} 
-              onKeyDown={e=>e.key==='Enter'&&handleCheck()}
-            />
-            <motion.button 
-              onClick={handleCheck}
-              disabled={checking}
-              whileHover={{ scale:1.02 }}
-              whileTap={{ scale:0.98 }}
-              style={{
-                padding:'16px 32px',
-                borderRadius:theme.radiusMd,
-                cursor:checking?'not-allowed':'pointer',
-                fontSize:15,
-                fontWeight:700,
-                background:checking?'#444':theme.gradientPrimary,
-                color:checking?'#888':'#000',
-                border:'none',
-                display:'inline-flex',
-                alignItems:'center',
-                gap:8,
-                opacity:checking?0.5:1
-              }}
-            >
-              {checking?'Taranıyor...':'🔍 Tara'}
-            </motion.button>
-          </div>
-          
-          {/* Autocomplete Dropdown */}
-          <AnimatePresence>
-            {showDropdown && searchResults.length > 0 && (
-              <motion.div
-                initial={{ opacity:0, y:-10 }}
-                animate={{ opacity:1, y:0 }}
-                exit={{ opacity:0, y:-10 }}
-                transition={{ duration:0.2, ease:theme.ease.out }}
+          <span style={{ display:'inline-block', padding:'10px 24px', background:theme.primaryDim, border:`1px solid ${theme.primary}33`, borderRadius:'30px', fontSize:13, fontWeight:700, color:theme.primary, textTransform:'uppercase', letterSpacing:'3px', marginBottom:24 }}>Phishing Dedektoru</span>
+          <h1 style={{ fontSize:56, fontWeight:800, color:'#fff', marginBottom:20, letterSpacing:'-2px', lineHeight:1.1 }}>URL Guvenlik Tarama Motoru</h1>
+          <p style={{ color:theme.textMuted, fontSize:18, maxWidth:700, margin:'0 auto', lineHeight:1.6 }}>{totalUrls.toLocaleString('tr-TR')}+ phishing URL veritabani ile anlik guvenlik kontrolu. Aninda sonuc, detayli rapor.</p>
+        </motion.div>
+
+        {/* Search Section - Glassmorphism */}
+        <motion.div 
+          initial={{ opacity:0, y:30 }}
+          animate={{ opacity:1, y:0 }}
+          transition={{ delay:0.4, duration:0.6, ease:theme.ease.out }}
+          style={{ maxWidth:800, margin:'0 auto', position:'relative' }}
+        >
+          <div style={{ 
+            background:'rgba(255,255,255,0.05)', 
+            backdropFilter:'blur(20px)', 
+            WebkitBackdropFilter:'blur(20px)',
+            border:`1px solid ${theme.primary}33`,
+            borderRadius:theme.radius.lg,
+            padding:8,
+            boxShadow:'0 8px 32px rgba(0,0,0,0.3)'
+          }}>
+            <div style={{ display:'flex', gap:12 }}>
+              <input 
+                value={url} 
+                onChange={e=>setUrl(e.target.value)} 
+                placeholder="https://ornek.com/supheli-link" 
+                style={{ 
+                  flex:1, 
+                  padding:'20px 28px', 
+                  borderRadius:theme.radius.md,
+                  background:'rgba(255,255,255,0.05)',
+                  border:'none',
+                  color:'#fff', 
+                  fontSize:17, 
+                  outline:'none',
+                  fontFamily:theme.mono,
+                  letterSpacing:'0.5px'
+                }} 
+                onKeyDown={e=>e.key==='Enter'&&handleCheck()}
+              />
+              <motion.button 
+                onClick={handleCheck}
+                disabled={checking}
+                whileHover={{ scale:1.02, boxShadow:'0 8px 30px rgba(0,212,255,0.4)' }}
+                whileTap={{ scale:0.98 }}
                 style={{
-                  position:'absolute',
-                  top:'100%',
-                  left:0,
-                  right:0,
-                  marginTop:8,
-                  background:theme.bgDeep,
-                  borderRadius:theme.radiusLg,
-                  border:`1px solid ${theme.border}`,
-                  maxHeight:300,
-                  overflowY:'auto',
-                  zIndex:100,
-                  boxShadow:theme.shadow.glow
+                  padding:'20px 40px',
+                  borderRadius:theme.radius.md,
+                  cursor:checking?'not-allowed':'pointer',
+                  fontSize:16,
+                  fontWeight:700,
+                  letterSpacing:'0.5px',
+                  background:checking?'#444':theme.gradientPrimary,
+                  color:checking?'#888':'#000',
+                  border:'none',
+                  display:'inline-flex',
+                  alignItems:'center',
+                  gap:10,
+                  opacity:checking?0.5:1,
+                  boxShadow:checking?'none':'0 4px 20px rgba(0,212,255,0.3)',
+                  transition:'all 0.3s ease'
                 }}
               >
-                {searchResults.slice(0, 10).map((item, i) => (
-                  <motion.div
-                    key={i}
-                    initial={{ opacity:0, x:-10 }}
-                    animate={{ opacity:1, x:0 }}
-                    transition={{ delay:i * 0.05, duration:0.2 }}
-                    onClick={() => {
-                      setUrl(item.url || '')
-                      setShowDropdown(false)
-                      setTimeout(() => handleCheck(), 100)
-                    }}
-                    style={{
-                      padding:'12px 16px',
-                      borderBottom:`1px solid ${theme.border}`,
-                      cursor:'pointer',
-                      transition:'background 0.2s ease'
-                    }}
-                    whileHover={{ background:theme.surface }}
-                  >
-                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
-                      <span style={{ color:theme.primary, fontFamily:theme.mono, fontSize:13, wordBreak:'break-all' }}>{item.url||'-'}</span>
-                      <span style={{ padding:'4px 10px', borderRadius:'10px', fontSize:10, background:(item.risk_score||0)>50?theme.accentDim:theme.primaryDim, color:(item.risk_score||0)>50?theme.accent:theme.primary }}>{item.risk_level||'Bilinmiyor'}</span>
-                    </div>
-                    <div style={{ display:'flex', gap:16, fontSize:11, color:theme.textMuted }}>
-                      <span>Risk: <span style={{ color:(item.risk_score||0)>50?theme.accent:theme.primary, fontWeight:600 }}>{item.risk_score||'-'}</span></span>
-                      <span>Domain: {item.domain||'-'}</span>
-                    </div>
-                  </motion.div>
-                ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
+                {checking?'Taranıyor...':'🔍 Tara'}
+              </motion.button>
+            </div>
+            
+            {/* Autocomplete Dropdown */}
+            <AnimatePresence>
+              {showDropdown && searchResults.length > 0 && (
+                <motion.div
+                  initial={{ opacity:0, y:-10 }}
+                  animate={{ opacity:1, y:0 }}
+                  exit={{ opacity:0, y:-10 }}
+                  transition={{ duration:0.2, ease:theme.ease.out }}
+                  style={{
+                    position:'absolute',
+                    top:'100%',
+                    left:0,
+                    right:0,
+                    marginTop:12,
+                    background:'rgba(8,12,20,0.95)',
+                    backdropFilter:'blur(20px)',
+                    WebkitBackdropFilter:'blur(20px)',
+                    borderRadius:theme.radius.md,
+                    border:`1px solid ${theme.border}`,
+                    maxHeight:350,
+                    overflowY:'auto',
+                    zIndex:100,
+                    boxShadow:'0 8px 32px rgba(0,0,0,0.4)'
+                  }}
+                >
+                  {searchResults.slice(0, 10).map((item, i) => (
+                    <motion.div
+                      key={i}
+                      initial={{ opacity:0, x:-10 }}
+                      animate={{ opacity:1, x:0 }}
+                      transition={{ delay:i * 0.05, duration:0.2 }}
+                      onClick={() => {
+                        setUrl(item.url || '')
+                        setShowDropdown(false)
+                        setTimeout(() => handleCheck(), 100)
+                      }}
+                      style={{
+                        padding:'14px 20px',
+                        borderBottom:`1px solid ${theme.border}`,
+                        cursor:'pointer',
+                        transition:'background 0.2s ease'
+                      }}
+                      whileHover={{ background:'rgba(0,212,255,0.1)' }}
+                    >
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+                        <span style={{ color:theme.primary, fontFamily:theme.mono, fontSize:13, wordBreak:'break-all' }}>{item.url||'-'}</span>
+                        <span style={{ padding:'6px 12px', borderRadius:'12px', fontSize:11, background:(item.risk_score||0)>50?theme.accentDim:theme.primaryDim, color:(item.risk_score||0)>50?theme.accent:theme.primary }}>{item.risk_level||'Bilinmiyor'}</span>
+                      </div>
+                      <div style={{ display:'flex', gap:20, fontSize:12, color:theme.textMuted }}>
+                        <span>Risk: <span style={{ color:(item.risk_score||0)>50?theme.accent:theme.primary, fontWeight:600 }}>{item.risk_score||'-'}</span></span>
+                        <span>Domain: {item.domain||'-'}</span>
+                      </div>
+                    </motion.div>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </motion.div>
 
         {/* Scan History Preview */}
@@ -626,43 +645,46 @@ function PhishingDetector() {
           <motion.div
             initial={{ opacity:0, y:20 }}
             animate={{ opacity:1, y:0 }}
-            transition={{ delay:0.4, duration:0.5, ease:theme.ease.out }}
+            transition={{ delay:0.6, duration:0.6, ease:theme.ease.out }}
             style={{ 
               maxWidth:900, 
-              margin:'32px auto 0',
-              background:theme.bgDeep,
-              borderRadius:theme.radiusLg,
-              padding:20,
+              margin:'48px auto 0',
+              background:'rgba(255,255,255,0.03)',
+              backdropFilter:'blur(10px)',
+              WebkitBackdropFilter:'blur(10px)',
+              borderRadius:theme.radius.lg,
+              padding:24,
               border:`1px solid ${theme.border}`
             }}
           >
-            <h3 style={{ fontSize:14, fontWeight:700, color:'#fff', marginBottom:12 }}>📋 Son Taranan URL'ler</h3>
-            <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
+            <h3 style={{ fontSize:15, fontWeight:700, color:'#fff', marginBottom:16 }}>📋 Son Taranan URL'ler</h3>
+            <div style={{ display:'flex', flexWrap:'wrap', gap:10 }}>
               {scanHistory.slice(0, 8).map((item, i) => (
                 <motion.button
                   key={i}
                   initial={{ opacity:0, scale:0.9 }}
                   animate={{ opacity:1, scale:1 }}
-                  transition={{ delay:0.5 + i * 0.05, duration:0.3 }}
+                  transition={{ delay:0.7 + i * 0.05, duration:0.3 }}
                   onClick={() => {
                     setUrl(item.url)
                     setTimeout(() => handleCheck(), 100)
                   }}
                   style={{ 
-                    padding:'6px 14px', 
-                    borderRadius:'16px', 
+                    padding:'8px 16px', 
+                    borderRadius:'20px', 
                     border:`1px solid ${theme.border}`, 
-                    background:theme.surface, 
+                    background:'rgba(255,255,255,0.05)', 
                     cursor:'pointer', 
-                    fontSize:11, 
+                    fontSize:12, 
                     color:theme.primary, 
                     fontFamily:theme.mono,
-                    maxWidth:200,
+                    maxWidth:220,
                     overflow:'hidden',
                     textOverflow:'ellipsis',
-                    whiteSpace:'nowrap'
+                    whiteSpace:'nowrap',
+                    transition:'all 0.3s ease'
                   }}
-                  whileHover={{ background:theme.primaryDim, borderColor:theme.primary }}
+                  whileHover={{ background:'rgba(0,212,255,0.15)', borderColor:theme.primary, transform:'translateY(-2px)' }}
                 >
                   {item.url}
                 </motion.button>
@@ -676,21 +698,26 @@ function PhishingDetector() {
     {/* Result Display */}
     {result && (
       <motion.div
-        initial={{ opacity:0, y:20 }}
+        initial={{ opacity:0, y:30 }}
         animate={{ opacity:1, y:0 }}
-        transition={{ duration:0.5, ease:theme.ease.out }}
-        style={{ marginBottom:32 }}
+        transition={{ duration:0.6, ease:theme.ease.out }}
+        style={{ marginBottom:48 }}
       >
-        <Card>
-          <div style={{ display:'flex', gap:24, alignItems:'flex-start', flexWrap:'wrap' }}>
+        <Card style={{ 
+          background:'rgba(255,255,255,0.03)',
+          backdropFilter:'blur(10px)',
+          WebkitBackdropFilter:'blur(10px)',
+          border:`1px solid ${theme.border}`
+        }}>
+          <div style={{ display:'flex', gap:32, alignItems:'flex-start', flexWrap:'wrap' }}>
             <RiskGauge score={result.score||0} label="Risk Skoru"/>
-            <div style={{ flex:1, minWidth:250 }}>
-              <div style={{ display:'flex', gap:12, flexWrap:'wrap', marginBottom:12 }}>
-                <span style={{ padding:'6px 16px', borderRadius:'20px', fontSize:13, fontWeight:700, background:result.score>50?theme.accentDim:theme.primaryDim, color:result.score>50?theme.accent:theme.primary }}>{result.risk_level||'Bilinmiyor'}</span>
+            <div style={{ flex:1, minWidth:300 }}>
+              <div style={{ display:'flex', gap:12, flexWrap:'wrap', marginBottom:16 }}>
+                <span style={{ padding:'8px 20px', borderRadius:'24px', fontSize:14, fontWeight:700, background:result.score>50?theme.accentDim:theme.primaryDim, color:result.score>50?theme.accent:theme.primary }}>{result.risk_level||'Bilinmiyor'}</span>
               </div>
-              <p style={{ fontSize:13, color:theme.textMuted, wordBreak:'break-all', marginBottom:12, fontFamily:theme.mono }}>{url}</p>
-              {result.details&&Array.isArray(result.details)&&result.details.map((d,i)=><div key={i} style={{ padding:'8px 12px', marginBottom:6, background:theme.primaryDim, borderRadius:8, fontSize:13, color:theme.text }}>• {d}</div>)}
-              {result.sources&&Array.isArray(result.sources)&&result.sources.map((s,i)=><div key={i} style={{ padding:'8px 12px', marginBottom:6, background:theme.surface, borderRadius:8, fontSize:13, display:'flex', gap:8, alignItems:'center' }}><span style={{ color:theme.textMuted }}>Kaynak:</span><span style={{ color:'#fff', fontWeight:600 }}>{s.name}</span><span style={{ marginLeft:'auto', color:s.status?.includes('Başarısız')?theme.danger:theme.success }}>{s.status}</span></div>)}
+              <p style={{ fontSize:14, color:theme.textMuted, wordBreak:'break-all', marginBottom:16, fontFamily:theme.mono, lineHeight:1.6 }}>{url}</p>
+              {result.details&&Array.isArray(result.details)&&result.details.map((d,i)=><div key={i} style={{ padding:'10px 16px', marginBottom:8, background:theme.primaryDim, borderRadius:12, fontSize:14, color:theme.text, lineHeight:1.5 }}>• {d}</div>)}
+              {result.sources&&Array.isArray(result.sources)&&result.sources.map((s,i)=><div key={i} style={{ padding:'10px 16px', marginBottom:8, background:theme.surface, borderRadius:12, fontSize:14, display:'flex', gap:10, alignItems:'center' }}><span style={{ color:theme.textMuted }}>Kaynak:</span><span style={{ color:'#fff', fontWeight:600 }}>{s.name}</span><span style={{ marginLeft:'auto', color:s.status?.includes('Başarısız')?theme.danger:theme.success }}>{s.status}</span></div>)}
             </div>
           </div>
         </Card>
@@ -701,8 +728,8 @@ function PhishingDetector() {
     <motion.div 
       initial={{ opacity:0, y:20 }}
       animate={{ opacity:1, y:0 }}
-      transition={{ delay:0.5, duration:0.5, ease:theme.ease.out }}
-      style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:16, marginBottom:32 }}
+      transition={{ delay:0.5, duration:0.6, ease:theme.ease.out }}
+      style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:20, marginBottom:48 }}
     >
       {[
         { label:'Toplam URL', value:totalUrls, color:theme.primary },
@@ -714,11 +741,18 @@ function PhishingDetector() {
           key={i}
           initial={{ opacity:0, y:20 }}
           animate={{ opacity:1, y:0 }}
-          transition={{ delay:0.6 + i * 0.1, duration:0.4, ease:theme.ease.spring }}
+          transition={{ delay:0.6 + i * 0.1, duration:0.5, ease:theme.ease.spring }}
         >
-          <Card style={{ textAlign:'center', padding:'24px 16px' }}>
-            <p style={{ fontSize:10, color:theme.textMuted, textTransform:'uppercase', fontWeight:600, letterSpacing:'1px', marginBottom:8 }}>{stat.label}</p>
-            <p style={{ fontSize:32, fontWeight:800, color:stat.color }}><CountUp end={stat.value}/></p>
+          <Card style={{ 
+            textAlign:'center', 
+            padding:'32px 20px',
+            background:'rgba(255,255,255,0.03)',
+            backdropFilter:'blur(10px)',
+            WebkitBackdropFilter:'blur(10px)',
+            border:`1px solid ${theme.border}`
+          }}>
+            <p style={{ fontSize:11, color:theme.textMuted, textTransform:'uppercase', fontWeight:700, letterSpacing:'2px', marginBottom:12 }}>{stat.label}</p>
+            <p style={{ fontSize:40, fontWeight:800, color:stat.color }}><CountUp end={stat.value}/></p>
           </Card>
         </motion.div>
       ))}
