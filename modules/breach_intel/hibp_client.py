@@ -35,13 +35,31 @@ def _turkish_report(breaches: list[dict]) -> str:
             "Yine de güçlü ve benzersiz şifre kullanmaya devam edin."
         )
     
-    names = ", ".join(b.get("Title") or b.get("Name") or "?" for b in breaches[:5])
+    names = ", ".join(b.get("title") or b.get("name") or "?" for b in breaches[:5])
     extra = f" ve {n - 5} kayıt daha" if n > 5 else ""
+    
+    # Data classes translation
+    translation_map = {
+        "Email addresses": "E-posta adresleri",
+        "Passwords": "Şifreler",
+        "Usernames": "Kullanıcı adları",
+        "Cryptocurrency wallet addresses": "Kripto cüzdan adresleri",
+        "IP addresses": "IP adresleri",
+        "Names": "İsimler",
+        "Physical addresses": "Fiziksel adresler",
+        "Phone numbers": "Telefon numaraları",
+        "Social media profiles": "Sosyal medya profilleri",
+        "Geographic locations": "Coğrafi konumlar",
+        "Purchases": "Satın alma bilgileri",
+        "Credit card details": "Kredi kartı detayları",
+        "Bank account numbers": "Banka hesap numaraları",
+    }
     
     classes: set[str] = set()
     for b in breaches:
         for c in b.get("data_classes") or []:
-            classes.add(str(c))
+            translated = translation_map.get(str(c), str(c))
+            classes.add(translated)
     
     class_hint = ""
     if classes:
