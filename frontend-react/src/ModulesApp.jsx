@@ -510,6 +510,45 @@ function VictimAtlas() {
     return theme.primary
   }
 
+  function methodLabel(value='') {
+    const labels = {
+      phishing: 'Oltalama (Phishing)',
+      smishing: 'SMS Oltalamasi (Smishing)',
+      vishing: 'Telefon Dolandiriciligi (Vishing)',
+      social_engineering: 'Sosyal Muhendislik',
+      malware_assisted: 'Zararli Yazilim Destekli',
+      sahte_mobil_uygulama: 'Sahte Mobil Uygulama',
+      banka_taklit: 'Banka Taklit Senaryosu',
+    }
+    return labels[value] || value || 'Bilinmiyor'
+  }
+
+  function lossTypeLabel(value='') {
+    const labels = {
+      bank_account: 'Banka Hesabi',
+      social_media: 'Sosyal Medya Hesabi',
+      ecommerce: 'E-Ticaret',
+      corporate_account: 'Kurumsal Hesap',
+      crypto_wallet: 'Kripto Cuzdan',
+      device_compromise: 'Cihaz Ele Gecirme',
+    }
+    return labels[value] || value || 'Bilinmiyor'
+  }
+
+  function platformLabel(value='') {
+    const labels = {
+      banking: 'Bankacilik',
+      ecommerce: 'E-Ticaret',
+      instagram: 'Instagram',
+      whatsapp: 'WhatsApp',
+      telegram: 'Telegram',
+      microsoft365: 'Microsoft 365',
+      sikayet_platformu: 'Sikayet Platformu',
+      general: 'Genel',
+    }
+    return labels[value] || value || 'Genel'
+  }
+
   const methodDist = stats?.attack_method_distribution || {}
   const topMethods = Object.entries(methodDist).sort((a,b)=>b[1]-a[1]).slice(0,5)
 
@@ -517,8 +556,8 @@ function VictimAtlas() {
     <Toast {...toast}/>
     <SectionHeader
       badge="Magduriyet Atlasi"
-      title="Siber Magduriyet Arsivi ve Savunma Rehberi"
-      subtitle="Guvenilir kaynaklardan derlenen vakalar: nasil kandirildilar, ne kaybettiler, nasil korunurlardi."
+      title="Siber Magduriyet Arsivi"
+      subtitle="Turkiye ve global guvenilir kaynaklardan derlenen dolandiricilik vakalari. Kartlari acip adim adim korunma planini gorebilirsin."
     />
 
     <div style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:16, marginBottom:24 }}>
@@ -530,34 +569,52 @@ function VictimAtlas() {
 
     {topMethods.length>0 && <Card style={{ marginBottom:20, padding:'14px 16px' }}>
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:10 }}>
-        <p style={{ fontSize:12, color:theme.textMuted, fontWeight:700, margin:0 }}>En SIk GoruLen YOntemler</p>
+        <p style={{ fontSize:12, color:theme.textMuted, fontWeight:700, margin:0 }}>En sik gorulen dolandiricilik yontemleri</p>
         <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-          {topMethods.map(([name,count])=><span key={name} style={{ padding:'6px 10px', borderRadius:'16px', fontSize:11, background:theme.primaryDim, border:`1px solid ${theme.primary}33`, color:theme.primary }}>{name} • {count}</span>)}
+          {topMethods.map(([name,count])=><span key={name} style={{ padding:'6px 10px', borderRadius:'16px', fontSize:11, background:theme.primaryDim, border:`1px solid ${theme.primary}33`, color:theme.primary }}>{methodLabel(name)} • {count}</span>)}
         </div>
       </div>
     </Card>}
 
     <Card style={{ marginBottom:24, padding:16 }}>
+      <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:12 }}>
+        {[
+          { label:'Banka taklidi', method:'banka_taklit', loss:'bank_account' },
+          { label:'Sahte mobil app', method:'sahte_mobil_uygulama', loss:'bank_account' },
+          { label:'Sosyal medya ele gecirme', method:'phishing', loss:'social_media' },
+          { label:'SMS oltalamasi', method:'smishing', loss:'' },
+        ].map((preset)=>(
+          <button
+            key={preset.label}
+            onClick={()=>{ setAttackMethod(preset.method); setLossType(preset.loss); setTimeout(()=>loadCases(1), 0) }}
+            style={{ padding:'6px 12px', borderRadius:'20px', border:`1px solid ${theme.border}`, background:theme.surface, color:theme.text, fontSize:11, cursor:'pointer' }}
+          >
+            {preset.label}
+          </button>
+        ))}
+      </div>
       <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr 1fr auto', gap:10 }}>
-        <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Vaka, warning veya ozet icinde ara..." style={{ padding:'12px 14px', borderRadius:theme.radiusSm, background:theme.bg, border:`1px solid ${theme.border}`, color:'#fff', outline:'none' }} onKeyDown={e=>e.key==='Enter'&&loadCases(1)} />
+        <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Orn: sahte banka uygulamasi, kargo mesaji, hesap kapatildi..." style={{ padding:'12px 14px', borderRadius:theme.radiusSm, background:theme.bg, border:`1px solid ${theme.border}`, color:'#fff', outline:'none' }} onKeyDown={e=>e.key==='Enter'&&loadCases(1)} />
         <select value={attackMethod} onChange={e=>setAttackMethod(e.target.value)} style={{ padding:'12px 10px', borderRadius:theme.radiusSm, background:theme.bg, border:`1px solid ${theme.border}`, color:'#fff' }}>
           <option value="">Tum yontemler</option>
-          <option value="phishing">phishing</option>
-          <option value="smishing">smishing</option>
-          <option value="vishing">vishing</option>
-          <option value="social_engineering">social_engineering</option>
-          <option value="malware_assisted">malware_assisted</option>
+          <option value="banka_taklit">Banka taklit senaryosu</option>
+          <option value="sahte_mobil_uygulama">Sahte mobil uygulama</option>
+          <option value="phishing">Phishing (oltalama)</option>
+          <option value="smishing">Smishing (SMS)</option>
+          <option value="vishing">Vishing (telefon)</option>
+          <option value="social_engineering">Sosyal muhendislik</option>
+          <option value="malware_assisted">Zararli yazilim destekli</option>
         </select>
         <select value={lossType} onChange={e=>setLossType(e.target.value)} style={{ padding:'12px 10px', borderRadius:theme.radiusSm, background:theme.bg, border:`1px solid ${theme.border}`, color:'#fff' }}>
           <option value="">Tum kayip tipleri</option>
-          <option value="bank_account">bank_account</option>
-          <option value="social_media">social_media</option>
-          <option value="ecommerce">ecommerce</option>
-          <option value="corporate_account">corporate_account</option>
-          <option value="crypto_wallet">crypto_wallet</option>
-          <option value="device_compromise">device_compromise</option>
+          <option value="bank_account">Banka hesabi</option>
+          <option value="social_media">Sosyal medya hesabi</option>
+          <option value="ecommerce">E-ticaret</option>
+          <option value="corporate_account">Kurumsal hesap</option>
+          <option value="crypto_wallet">Kripto cuzdan</option>
+          <option value="device_compromise">Cihaz ele gecirme</option>
         </select>
-        <GlowButton onClick={()=>loadCases(1)} loading={loading}>Filtrele</GlowButton>
+        <GlowButton onClick={()=>loadCases(1)} loading={loading}>VakalarI getir</GlowButton>
       </div>
     </Card>
 
@@ -568,11 +625,11 @@ function VictimAtlas() {
         return <Card key={c.id} style={{ padding:18, border:`1px solid ${riskColor(c.severity_score)}44` }}>
           <div style={{ height:4, borderRadius:99, background:`linear-gradient(90deg, ${riskColor(c.severity_score)}, ${theme.primary})`, marginBottom:12 }} />
           <div style={{ display:'flex', justifyContent:'space-between', gap:8, marginBottom:10 }}>
-            <span style={{ fontSize:11, color:theme.textMuted }}>{c.attack_method}</span>
-            <span style={{ fontSize:11, color:riskColor(c.severity_score), fontWeight:700 }}>SEV {c.severity_score}</span>
+            <span style={{ fontSize:11, color:theme.textMuted }}>{methodLabel(c.attack_method)}</span>
+            <span style={{ fontSize:11, color:riskColor(c.severity_score), fontWeight:700 }}>Risk {c.severity_score}/100</span>
           </div>
           <h4 style={{ fontSize:15, color:'#fff', marginBottom:8, lineHeight:1.4 }}>{c.case_title}</h4>
-          <p style={{ fontSize:12, color:theme.textMuted, marginBottom:12 }}>{c.loss_type} • {c.target_platform}</p>
+          <p style={{ fontSize:12, color:theme.textMuted, marginBottom:12 }}>{lossTypeLabel(c.loss_type)} • {platformLabel(c.target_platform)}</p>
           <div style={{ marginBottom:12 }}>
             <div style={{ display:'flex', justifyContent:'space-between', marginBottom:6 }}>
               <span style={{ fontSize:11, color:theme.textMuted }}>Guven skoru</span>
@@ -587,7 +644,7 @@ function VictimAtlas() {
             <p style={{ fontSize:12, color:theme.text, margin:'6px 0 0' }}>{c.critical_warning}</p>
           </div>
           <button onClick={()=>setExpanded(v=>({...v,[c.id]:!isOpen}))} style={{ width:'100%', padding:'10px 12px', borderRadius:theme.radiusSm, cursor:'pointer', border:`1px solid ${theme.primary}44`, background:theme.primaryDim, color:theme.primary, fontWeight:700 }}>
-            {isOpen ? 'Savunma adimlarini gizle' : 'Savunma adimlarini goster'}
+            {isOpen ? 'Karti kapat' : 'KartI cevir: onlem adimlari'}
           </button>
           {isOpen && <VictimAtlasDefense caseId={c.id} />}
         </Card>
@@ -630,12 +687,15 @@ function VictimAtlasDefense({ caseId }) {
 
   return <div style={{ marginTop:12, padding:12, background:theme.bg, borderRadius:theme.radiusSm, border:`1px solid ${theme.border}` }}>
     <p style={{ fontSize:12, color:theme.text, marginBottom:10 }}>{data.narrative_summary}</p>
-    <p style={{ fontSize:11, color:theme.textMuted, marginBottom:8 }}>Nasil korunurdun?</p>
-    <ol style={{ margin:'0 0 12px 16px', padding:0 }}>
-      {(data.defense_steps||[]).map((step, idx)=><li key={idx} style={{ fontSize:12, color:'#fff', marginBottom:6 }}>{step}</li>)}
-    </ol>
+    <p style={{ fontSize:11, color:theme.textMuted, marginBottom:8 }}>Bu durumda 3-4 adimda nasil korunursun?</p>
+    <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:12 }}>
+      {(data.defense_steps||[]).map((step, idx)=><div key={idx} style={{ display:'flex', gap:8, alignItems:'flex-start', padding:'8px 10px', borderRadius:8, background:theme.surface, border:`1px solid ${theme.border}` }}>
+        <span style={{ color:theme.success, fontWeight:700 }}>✓</span>
+        <span style={{ fontSize:12, color:'#fff', lineHeight:1.5 }}>{step}</span>
+      </div>)}
+    </div>
     {Array.isArray(data.evidence) && data.evidence.length>0 && <div>
-      <p style={{ fontSize:11, color:theme.textMuted, marginBottom:6 }}>Kaynaklar</p>
+      <p style={{ fontSize:11, color:theme.textMuted, marginBottom:6 }}>Kaynak baglantilari</p>
       {data.evidence.slice(0,3).map((ev, idx)=><a key={idx} href={ev.url} target="_blank" rel="noreferrer" style={{ display:'block', fontSize:11, color:theme.primary, marginBottom:4, textDecoration:'none' }}>{ev.title || ev.url}</a>)}
     </div>}
   </div>

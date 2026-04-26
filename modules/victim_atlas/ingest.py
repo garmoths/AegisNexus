@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from html import unescape
 from typing import Any, Dict, Iterable, List, Optional
-from urllib.parse import urlparse
 from xml.etree import ElementTree
 
 import requests
@@ -41,10 +40,41 @@ TRUSTED_SOURCES: List[SourceConfig] = [
     SourceConfig("krebsonsecurity", "https://krebsonsecurity.com/feed/", "rss", "tier1"),
     SourceConfig("bleepingcomputer", "https://www.bleepingcomputer.com/feed/", "rss", "tier1"),
     SourceConfig("proofpoint_blog", "https://www.proofpoint.com/us/rss.xml", "rss", "tier1"),
+    SourceConfig(
+        "google_news_tr_dolandiricilik",
+        "https://news.google.com/rss/search?q=dolandiricilik+banka+uygulamasi+phishing&hl=tr&gl=TR&ceid=TR:tr",
+        "rss",
+        "tier2",
+    ),
+    SourceConfig(
+        "google_news_tr_sahte_uygulama",
+        "https://news.google.com/rss/search?q=sahte+banka+uygulamasi+magduriyet&hl=tr&gl=TR&ceid=TR:tr",
+        "rss",
+        "tier2",
+    ),
     SourceConfig("reddit_scam", "https://www.reddit.com/r/Scams/.rss", "rss", "tier2"),
 ]
 
 ATTACK_METHOD_KEYWORDS: Dict[str, Iterable[str]] = {
+    "sahte_mobil_uygulama": (
+        "fake app",
+        "fake application",
+        "sahte uygulama",
+        "klon uygulama",
+        "apk",
+        "play store",
+        "app store",
+        "mobile app",
+        "mobil uygulama",
+    ),
+    "banka_taklit": (
+        "banka taklit",
+        "bank clone",
+        "bank impersonation",
+        "bank alert",
+        "hesabiniz bloke",
+        "hesabiniz donduruldu",
+    ),
     "smishing": ("sms", "text message", "mesaj", "short code"),
     "vishing": ("call", "phone", "voice", "arama", "telefon"),
     "social_engineering": ("impersonat", "spoof", "social engineering", "ikna", "taklit"),
@@ -53,9 +83,19 @@ ATTACK_METHOD_KEYWORDS: Dict[str, Iterable[str]] = {
 }
 
 LOSS_TYPE_KEYWORDS: Dict[str, Iterable[str]] = {
-    "bank_account": ("bank", "iban", "transfer", "wire", "credit card", "payment"),
-    "social_media": ("instagram", "facebook", "x account", "social account", "tiktok"),
-    "ecommerce": ("marketplace", "cargo", "delivery", "order", "shipping"),
+    "bank_account": (
+        "bank",
+        "iban",
+        "transfer",
+        "wire",
+        "credit card",
+        "payment",
+        "hesap bosalt",
+        "kredi karti",
+        "mobil bankacilik",
+    ),
+    "social_media": ("instagram", "facebook", "x account", "social account", "tiktok", "hesap calindi"),
+    "ecommerce": ("marketplace", "cargo", "delivery", "order", "shipping", "sahte kargo"),
     "corporate_account": ("m365", "office365", "slack", "vpn", "corporate", "enterprise"),
     "crypto_wallet": ("wallet", "seed phrase", "crypto", "usdt", "bitcoin"),
     "device_compromise": ("endpoint", "device", "ransomware", "implant", "backdoor"),
@@ -66,12 +106,24 @@ PLATFORM_KEYWORDS: Dict[str, Iterable[str]] = {
     "whatsapp": ("whatsapp",),
     "telegram": ("telegram",),
     "microsoft365": ("m365", "office365", "outlook"),
-    "banking": ("bank", "credit card", "payment"),
+    "banking": ("bank", "credit card", "payment", "mobil bankacilik", "internet sube"),
     "ecommerce": ("cargo", "delivery", "order", "marketplace", "shop"),
     "crypto": ("wallet", "crypto", "bitcoin", "usdt"),
+    "sikayet_platformu": ("sikayet", "magdur", "dolandirildim"),
 }
 
 DEFENSE_STEPS: Dict[str, List[str]] = {
+    "sahte_mobil_uygulama": [
+        "Uygulamayi sadece resmi store'dan ve resmi yayinci adindan indir.",
+        "Yukledikten sonra uygulama izinlerini (SMS, erisilebilirlik, ekran) kontrol et.",
+        "Banka girisini uygulama linki yerine bankanin resmi uygulamasindan manuel ac.",
+        "Supheli APK veya yan yukleme dosyalarini cihazdan sil ve antivir taramasi yap.",
+    ],
+    "banka_taklit": [
+        "Bankadan geldigi iddia edilen arama/SMS icin resmi cagrı merkezini kendin ara.",
+        "Hesap bloke/hesap kapandi bahanesiyle gelen linklerden giris yapma.",
+        "Kart ve hesap hareketlerine anlik bildirim ac, supheli islemi aninda bankaya bildir.",
+    ],
     "smishing": [
         "SMS icindeki linke tiklamadan once resmi uygulamadan kontrol et.",
         "Gelen mesaji kurumun resmi numarasindan dogrula.",
@@ -100,6 +152,8 @@ DEFENSE_STEPS: Dict[str, List[str]] = {
 }
 
 CRITICAL_WARNING: Dict[str, str] = {
+    "sahte_mobil_uygulama": "Sahte banka uygulamalari cihazdan izin alarak hesap ele gecirme yapabilir.",
+    "banka_taklit": "Banka adina gelen acil hesap uyarilarinda linke degil resmi uygulamaya gidin.",
     "smishing": "SMS ile gelen acil odeme/link mesajlarinda resmi kaynagi dogrulamadan tiklama.",
     "vishing": "Telefonla arayan kisiye kod veya parola bilgisi verme.",
     "social_engineering": "Acil baski ve korku yaratan talepler en kritik sosyal muhendislik isaretidir.",
@@ -155,6 +209,7 @@ def _fetch_rss_documents(session: requests.Session, source: SourceConfig, max_it
     root = ElementTree.fromstring(response.content)
 
     docs: List[Dict[str, str]] = []
+    lang = "tr" if "_tr_" in source.name or "sikayet" in source.name else "en"
     entries = list(root.iterfind(".//item")) or list(root.iterfind(".//entry"))
     for entry in entries[:max_items]:
         title = _first_non_empty([_find_text_anywhere(entry, ("title",))], default="Untitled alert")
@@ -181,10 +236,38 @@ def _fetch_rss_documents(session: requests.Session, source: SourceConfig, max_it
                 "title": title[:300],
                 "published_at": published,
                 "raw_text": summary[:4000],
-                "lang": "en",
+                "lang": lang,
             }
         )
     return docs
+
+
+def _load_extra_sources_from_env() -> List[SourceConfig]:
+    extra: List[SourceConfig] = []
+    sikayetvar_rss = os.getenv("VICTIM_ATLAS_SIKAYETVAR_RSS_URL", "").strip()
+    if sikayetvar_rss:
+        extra.append(
+            SourceConfig(
+                "sikayetvar_rss",
+                sikayetvar_rss,
+                "rss",
+                os.getenv("VICTIM_ATLAS_SIKAYETVAR_TRUST_TIER", "tier2").strip() or "tier2",
+                enabled_by_default=True,
+            )
+        )
+
+    tr_cert_feed = os.getenv("VICTIM_ATLAS_TR_CERT_FEED_URL", "").strip()
+    if tr_cert_feed:
+        extra.append(
+            SourceConfig(
+                "tr_cert_feed",
+                tr_cert_feed,
+                "rss",
+                os.getenv("VICTIM_ATLAS_TR_CERT_TRUST_TIER", "tier1").strip() or "tier1",
+                enabled_by_default=True,
+            )
+        )
+    return extra
 
 
 def _source_enabled(name: str, default: bool) -> bool:
@@ -196,8 +279,9 @@ def _source_enabled(name: str, default: bool) -> bool:
 
 
 def get_enabled_sources() -> List[SourceConfig]:
+    configured_sources = [*TRUSTED_SOURCES, *_load_extra_sources_from_env()]
     enabled = []
-    for source in TRUSTED_SOURCES:
+    for source in configured_sources:
         if _source_enabled(source.name, source.enabled_by_default):
             enabled.append(source)
     return enabled
@@ -250,7 +334,7 @@ def extract_case_fields(document: Dict[str, str], trust_tier: str) -> Dict[str, 
     incident_end = first_seen
     seed = f"{document.get('url','')}-{title}-{attack_method}-{loss_type}-{target_platform}"
 
-    summary = raw_text[:320] if raw_text else title
+    summary = raw_text[:360] if raw_text else title
     defense_steps = DEFENSE_STEPS.get(attack_method, DEFENSE_STEPS["phishing"])
     warning = CRITICAL_WARNING.get(attack_method, CRITICAL_WARNING["phishing"])
 
@@ -272,7 +356,7 @@ def extract_case_fields(document: Dict[str, str], trust_tier: str) -> Dict[str, 
     }
 
 
-def run_daily_pipeline(max_items_per_source: int = 40) -> Dict[str, Any]:
+def run_daily_pipeline(max_items_per_source: int = 120) -> Dict[str, Any]:
     run_id = start_ingest_run()
     errors: Dict[str, str] = {}
     documents_fetched = 0

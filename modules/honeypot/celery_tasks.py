@@ -190,7 +190,7 @@ def run_ioc_fetch():
 @app.task(bind=True, max_retries=3, name="modules.honeypot.celery_tasks.victim_atlas_ingest_daily")
 def victim_atlas_ingest_daily(self):
     try:
-        max_items = int(os.getenv("VICTIM_ATLAS_SOURCE_ITEM_LIMIT", "40"))
+        max_items = int(os.getenv("VICTIM_ATLAS_SOURCE_ITEM_LIMIT", "120"))
         return run_daily_pipeline(max_items_per_source=max_items)
     except Exception as exc:
         raise self.retry(exc=exc, countdown=180)

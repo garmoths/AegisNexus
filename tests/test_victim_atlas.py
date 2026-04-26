@@ -29,6 +29,19 @@ class VictimAtlasExtractionTests(unittest.TestCase):
         self.assertIn("critical_warning", case)
         self.assertIn("case_slug", case)
 
+    def test_extract_case_fields_detects_fake_mobile_app_pattern(self):
+        document = {
+            "title": "Sahte banka uygulamasi ile mobil hesaplar bosaltiliyor",
+            "raw_text": "Magdurlar sahte APK ile internet sube girisi yaptiktan sonra hesaplarindan transfer oldugunu bildiriyor.",
+            "url": "https://example.com/tr-haber",
+            "published_at": "2026-02-01T11:00:00Z",
+        }
+        case = extract_case_fields(document, trust_tier="tier2")
+        self.assertEqual(case["attack_method"], "sahte_mobil_uygulama")
+        self.assertEqual(case["loss_type"], "bank_account")
+        self.assertGreaterEqual(case["confidence_score"], 60)
+        self.assertGreaterEqual(len(case["defense_steps"]), 3)
+
 
 if __name__ == "__main__":
     unittest.main()
