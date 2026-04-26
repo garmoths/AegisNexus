@@ -1,132 +1,681 @@
-import { useState, useEffect } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
+import { motion, useReducedMotion } from 'framer-motion'
 import SecurityModulesScrollSection from './sections/SecurityModulesScrollSection'
 import PlatformStatsHorizontalSection from './sections/PlatformStatsHorizontalSection'
+import KpiCountersSection from './sections/KpiCountersSection'
 import { theme } from './theme'
+import { why } from './data/landing'
+import useActiveSection from './hooks/useActiveSection'
+
+const ThreatLandscapeLive = lazy(() => import('./sections/ThreatLandscapeLive'))
+const CaseStudiesShowcase = lazy(() => import('./sections/CaseStudiesShowcase'))
+const IncidentTimeline = lazy(() => import('./sections/IncidentTimeline'))
+const Testimonials = lazy(() => import('./sections/Testimonials'))
+const ContactCTA = lazy(() => import('./sections/ContactCTA'))
 
 const API = '/api/v2'
 
-function Card({ children, style, ...props }) {
-  const [h, sH] = useState(false)
-  return <div onMouseEnter={()=>sH(true)} onMouseLeave={()=>sH(false)} style={{ background:`linear-gradient(135deg, ${theme.surface}, ${theme.surface2})`, border:`1px solid ${h?theme.primary+'66':theme.border}`, borderRadius:'12px', padding:24, transition:'all 0.3s cubic-bezier(0.175,0.885,0.32,1.275)', boxShadow:h?'0 0 40px rgba(0,212,255,0.08)':'none', transform:h?'translateY(-2px)':'none', ...style }} {...props}>{children}</div>
+const NAV_LINKS = [
+  { id: 'modules', label: 'Modüller', glyph: '⬡' },
+  { id: 'path', label: 'Akış', glyph: '◈' },
+  { id: 'cases', label: 'Vakalar', glyph: '△' },
+  { id: 'timeline', label: 'Süreç', glyph: '◇' },
+  { id: 'contact', label: 'İletişim', glyph: '⎔' },
+]
+
+const NAV_FONT_FAMILY = 'ui-monospace, SFMono-Regular, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace'
+
+function SectionFallback({ minHeight = 320 }) {
+  return (
+    <div style={{ minHeight, display: 'grid', placeItems: 'center', color: theme.textMuted, fontSize: 13 }}>
+      Yükleniyor…
+    </div>
+  )
 }
 
-function GlowButton({ children, onClick, variant='primary', style }) {
-  return <button onClick={onClick} style={{ padding:'14px 32px', borderRadius:'8px', border:'none', cursor:'pointer', fontSize:14, fontWeight:700, letterSpacing:'0.5px', background:variant==='primary'?'linear-gradient(135deg, #00d4ff, #0099cc)':'transparent', color:variant==='primary'?'#000':'#00d4ff', border:variant==='primary'?'none':'1px solid #00d4ff44', transition:'all 0.3s ease', boxShadow:variant==='primary'?'0 4px 20px rgba(0,212,255,0.3)':'none', textDecoration:'none', display:'inline-flex', alignItems:'center', gap:8, ...style }}
-    onMouseEnter={e=>{if(!e.currentTarget.disabled){e.currentTarget.style.transform='translateY(-2px)';e.currentTarget.style.boxShadow='0 8px 30px rgba(0,212,255,0.4)'}}}
-    onMouseLeave={e=>{e.currentTarget.style.transform='none';e.currentTarget.style.boxShadow=variant==='primary'?'0 4px 20px rgba(0,212,255,0.3)':'none'}}>{children}</button>
+function GlowButton({ children, onClick, variant = 'primary', as = 'button', href, style }) {
+  const Tag = as
+  const baseStyle = {
+    padding: '14px 32px',
+    borderRadius: theme.radius.sm,
+    border: variant === 'primary' ? 'none' : `1px solid ${theme.primary}55`,
+    cursor: 'pointer',
+    fontSize: 14,
+    fontWeight: 700,
+    letterSpacing: '0.5px',
+    background: variant === 'primary' ? theme.gradientPrimary : 'transparent',
+    color: variant === 'primary' ? '#000' : theme.primary,
+    transition: 'transform 220ms ease, box-shadow 220ms ease',
+    boxShadow: variant === 'primary' ? '0 4px 20px rgba(0,212,255,0.3)' : 'none',
+    textDecoration: 'none',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 8,
+    ...style,
+  }
+  return (
+    <Tag
+      onClick={onClick}
+      href={href}
+      style={baseStyle}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform = 'translateY(-2px)'
+        e.currentTarget.style.boxShadow =
+          variant === 'primary' ? '0 8px 30px rgba(0,212,255,0.4)' : `0 8px 30px ${theme.primary}33`
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = 'none'
+        e.currentTarget.style.boxShadow = variant === 'primary' ? '0 4px 20px rgba(0,212,255,0.3)' : 'none'
+      }}
+    >
+      {children}
+    </Tag>
+  )
+}
+
+function HeroBackdrop() {
+  return (
+    <div aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          backgroundImage: theme.gridPattern,
+          backgroundSize: theme.gridPatternSize,
+          maskImage: 'radial-gradient(ellipse at 50% 40%, #000 35%, transparent 75%)',
+          WebkitMaskImage: 'radial-gradient(ellipse at 50% 40%, #000 35%, transparent 75%)',
+          opacity: 0.7,
+        }}
+      />
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          background: theme.gradientHero,
+        }}
+      />
+      <div
+        style={{
+          position: 'absolute',
+          top: '20%',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: 720,
+          height: 720,
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(0,212,255,0.18) 0%, transparent 70%)',
+          filter: 'blur(20px)',
+        }}
+      />
+    </div>
+  )
+}
+
+function Hero({ reducedMotion }) {
+  return (
+    <header
+      style={{
+        position: 'relative',
+        textAlign: 'center',
+        padding: '160px 24px 90px',
+        minHeight: '92vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        overflow: 'hidden',
+      }}
+    >
+      <HeroBackdrop />
+      <div style={{ position: 'relative', zIndex: 1, maxWidth: 920 }}>
+        <motion.span
+          initial={reducedMotion ? false : { opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '8px 18px',
+            background: theme.primaryDim,
+            border: `1px solid ${theme.primary}33`,
+            borderRadius: 999,
+            fontSize: 12,
+            fontWeight: 700,
+            color: theme.primary,
+            textTransform: 'uppercase',
+            letterSpacing: '2px',
+            marginBottom: 26,
+          }}
+        >
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: theme.success, boxShadow: `0 0 10px ${theme.success}` }} />
+          5 Katmanlı Güvenlik Kalkanı · Canlı
+        </motion.span>
+        <motion.h1
+          initial={reducedMotion ? false : { opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.55, delay: 0.05 }}
+          style={{
+            fontSize: 'clamp(44px, 7.4vw, 80px)',
+            fontWeight: 900,
+            color: '#fff',
+            lineHeight: 1.02,
+            marginBottom: 24,
+            letterSpacing: '-2.4px',
+          }}
+        >
+          Siber Tehditlere Karşı
+          <br />
+          <span
+            style={{
+              background: theme.gradientPrimary,
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+            }}
+          >
+            Proaktif Koruma
+          </span>
+        </motion.h1>
+        <motion.p
+          initial={reducedMotion ? false : { opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.55, delay: 0.1 }}
+          style={{
+            color: theme.text,
+            fontSize: 'clamp(16px, 2vw, 20px)',
+            maxWidth: 720,
+            margin: '0 auto',
+            lineHeight: 1.7,
+            marginBottom: 40,
+          }}
+        >
+          Bireyler ve KOBİ’ler için yapay zekâ destekli, gerçek zamanlı siber güvenlik platformu. Phishing, veri sızıntıları
+          ve sosyal mühendislik saldırılarına karşı 5 katmanlı koruma.
+        </motion.p>
+        <motion.div
+          initial={reducedMotion ? false : { opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.55, delay: 0.15 }}
+          style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' }}
+        >
+          <GlowButton as="a" href="https://modules.aegisnexus.dev">
+            Paneli Aç →
+          </GlowButton>
+          <GlowButton variant="outline" onClick={() => document.getElementById('modules')?.scrollIntoView({ behavior: 'smooth' })}>
+            Modülleri Keşfet
+          </GlowButton>
+        </motion.div>
+
+        <motion.div
+          initial={reducedMotion ? false : { opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.55, delay: 0.25 }}
+          style={{
+            marginTop: 56,
+            display: 'flex',
+            justifyContent: 'center',
+            flexWrap: 'wrap',
+            gap: 14,
+          }}
+        >
+          {[
+            { label: '1.24M+', sub: 'Taranan URL' },
+            { label: '9.4K', sub: 'Aktif IOC' },
+            { label: '99.97%', sub: 'Uptime' },
+            { label: '<2s', sub: 'AI Yanıt' },
+          ].map((kpi) => (
+            <div
+              key={kpi.sub}
+              style={{
+                padding: '10px 18px',
+                borderRadius: 999,
+                background: theme.surface,
+                border: `1px solid ${theme.border}`,
+                display: 'flex',
+                alignItems: 'baseline',
+                gap: 8,
+              }}
+            >
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", color: theme.primary, fontWeight: 800 }}>{kpi.label}</span>
+              <span style={{ fontSize: 12, color: theme.textMuted }}>{kpi.sub}</span>
+            </div>
+          ))}
+        </motion.div>
+      </div>
+    </header>
+  )
+}
+
+function NavLink({ item, active, onClick, reducedMotion }) {
+  const isActive = active === item.id
+
+  return (
+    <motion.button
+      type="button"
+      onClick={() => onClick(item.id)}
+      initial={false}
+      whileHover={reducedMotion ? undefined : 'hover'}
+      whileFocus={reducedMotion ? undefined : 'hover'}
+      animate={isActive ? 'hover' : 'rest'}
+      style={{
+        position: 'relative',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 8,
+        padding: '8px 12px',
+        background: 'transparent',
+        border: '1px solid transparent',
+        borderRadius: 10,
+        cursor: 'pointer',
+        color: isActive ? theme.primary : theme.textMuted,
+        fontSize: 13,
+        fontWeight: 600,
+        letterSpacing: '0.04em',
+        fontFamily: NAV_FONT_FAMILY,
+        fontFeatureSettings: '"tnum" 1',
+        transition: 'color 200ms ease, background 200ms ease, border-color 200ms ease',
+      }}
+      onMouseEnter={(e) => {
+        if (isActive) return
+        e.currentTarget.style.color = theme.primary
+        e.currentTarget.style.background = theme.primaryDim
+        e.currentTarget.style.borderColor = `${theme.primary}33`
+      }}
+      onMouseLeave={(e) => {
+        if (isActive) return
+        e.currentTarget.style.color = theme.textMuted
+        e.currentTarget.style.background = 'transparent'
+        e.currentTarget.style.borderColor = 'transparent'
+      }}
+      aria-current={isActive ? 'true' : undefined}
+    >
+      <motion.span
+        aria-hidden
+        variants={{
+          rest: { rotate: 0, scale: 1 },
+          hover: { rotate: 30, scale: 1.08 },
+        }}
+        transition={{ type: 'spring', stiffness: 320, damping: 20 }}
+        style={{
+          display: 'inline-block',
+          color: isActive ? theme.primary : 'inherit',
+          fontSize: 14,
+          lineHeight: 1,
+        }}
+      >
+        {item.glyph}
+      </motion.span>
+      <span style={{ position: 'relative', display: 'inline-block' }}>
+        {item.label}
+        <motion.span
+          aria-hidden
+          variants={{
+            rest: { scaleX: 0 },
+            hover: { scaleX: 1 },
+          }}
+          transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: -4,
+            height: 2,
+            background: theme.primary,
+            transformOrigin: 'left center',
+            borderRadius: 2,
+            boxShadow: `0 0 8px ${theme.primary}80`,
+          }}
+        />
+      </span>
+      {isActive && (
+        <motion.span
+          aria-hidden
+          layoutId="nav-active-pulse"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            borderRadius: 10,
+            border: `1px solid ${theme.primary}33`,
+            background: theme.primaryDim,
+            pointerEvents: 'none',
+          }}
+        />
+      )}
+    </motion.button>
+  )
+}
+
+function Navbar({ scrolled, scrollTo, mobileOpen, setMobileOpen, activeId, reducedMotion }) {
+  return (
+    <nav
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 1000,
+        background: scrolled ? 'rgba(8,12,20,0.92)' : 'rgba(8,12,20,0.55)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        borderBottom: `1px solid ${scrolled ? theme.border : 'transparent'}`,
+        transition: 'background 220ms ease, border-color 220ms ease',
+        padding: '0 24px',
+      }}
+    >
+      <div
+        style={{
+          maxWidth: 1280,
+          margin: '0 auto',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          height: 70,
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => window.scrollTo({ top: 0, behavior: reducedMotion ? 'auto' : 'smooth' })}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            color: '#fff',
+          }}
+          aria-label="AegisNexus ana sayfa"
+        >
+          <svg width="32" height="32" viewBox="0 0 36 36" fill="none">
+            <path d="M18 4L6 11V18C6 23.5 10 28.5 18 30C26 28.5 30 23.5 30 18V11L18 4Z" stroke={theme.primary} strokeWidth="2" fill="none" />
+            <path d="M14 18L17 21L23 15" stroke={theme.primary} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.5px' }}>
+            Aegis<span style={{ color: theme.primary }}>Nexus</span>
+          </span>
+        </button>
+        <div className="nav-desktop" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          {NAV_LINKS.map((item) => (
+            <NavLink
+              key={item.id}
+              item={item}
+              active={activeId}
+              onClick={scrollTo}
+              reducedMotion={reducedMotion}
+            />
+          ))}
+          <a
+            href="https://modules.aegisnexus.dev"
+            style={{
+              marginLeft: 14,
+              padding: '10px 22px',
+              borderRadius: theme.radius.sm,
+              fontSize: 13,
+              fontWeight: 700,
+              fontFamily: NAV_FONT_FAMILY,
+              letterSpacing: '0.04em',
+              background: theme.gradientPrimary,
+              color: '#000',
+              textDecoration: 'none',
+              boxShadow: '0 4px 20px rgba(0,212,255,0.3)',
+              transition: 'transform 220ms ease, box-shadow 220ms ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-2px)'
+              e.currentTarget.style.boxShadow = '0 8px 30px rgba(0,212,255,0.4)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'none'
+              e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,212,255,0.3)'
+            }}
+          >
+            Panele Git →
+          </a>
+        </div>
+        <button
+          type="button"
+          onClick={() => setMobileOpen((v) => !v)}
+          aria-label="Menüyü aç/kapat"
+          aria-expanded={mobileOpen}
+          className="nav-mobile-toggle"
+          style={{
+            display: 'none',
+            background: 'none',
+            border: `1px solid ${theme.border}`,
+            color: '#fff',
+            width: 40,
+            height: 40,
+            borderRadius: 10,
+            cursor: 'pointer',
+            fontFamily: NAV_FONT_FAMILY,
+          }}
+        >
+          {mobileOpen ? '✕' : '☰'}
+        </button>
+      </div>
+      {mobileOpen && (
+        <div
+          className="nav-mobile-panel"
+          style={{
+            display: 'none',
+            padding: '12px 0 18px',
+            borderTop: `1px solid ${theme.border}`,
+            flexDirection: 'column',
+            gap: 6,
+          }}
+        >
+          {NAV_LINKS.map((item) => {
+            const isActive = activeId === item.id
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => {
+                  scrollTo(item.id)
+                  setMobileOpen(false)
+                }}
+                style={{
+                  background: isActive ? theme.primaryDim : 'none',
+                  border: isActive ? `1px solid ${theme.primary}33` : '1px solid transparent',
+                  color: isActive ? theme.primary : theme.text,
+                  textAlign: 'left',
+                  padding: '12px 14px',
+                  fontSize: 15,
+                  fontWeight: 600,
+                  letterSpacing: '0.04em',
+                  fontFamily: NAV_FONT_FAMILY,
+                  borderRadius: 10,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 10,
+                }}
+                aria-current={isActive ? 'true' : undefined}
+              >
+                <span aria-hidden style={{ fontSize: 16 }}>{item.glyph}</span>
+                {item.label}
+              </button>
+            )
+          })}
+          <a
+            href="https://modules.aegisnexus.dev"
+            style={{
+              marginTop: 8,
+              padding: '12px 16px',
+              borderRadius: theme.radius.sm,
+              background: theme.gradientPrimary,
+              color: '#000',
+              textDecoration: 'none',
+              fontWeight: 700,
+              fontFamily: NAV_FONT_FAMILY,
+              letterSpacing: '0.04em',
+              textAlign: 'center',
+            }}
+          >
+            Panele Git →
+          </a>
+        </div>
+      )}
+      <style>{`
+        @media (max-width: 880px) {
+          .nav-desktop { display: none !important; }
+          .nav-mobile-toggle { display: inline-flex !important; align-items: center; justify-content: center; }
+          .nav-mobile-panel { display: flex !important; }
+        }
+      `}</style>
+    </nav>
+  )
+}
+
+function WhySection() {
+  return (
+    <section style={{ padding: '80px 24px', maxWidth: 1220, margin: '0 auto' }}>
+      <div style={{ textAlign: 'center', marginBottom: 40 }}>
+        <span
+          style={{
+            display: 'inline-block',
+            padding: '6px 14px',
+            borderRadius: 999,
+            fontSize: 11,
+            fontWeight: 700,
+            color: theme.primary,
+            background: theme.primaryDim,
+            border: `1px solid ${theme.primary}33`,
+            letterSpacing: '1.6px',
+            textTransform: 'uppercase',
+            marginBottom: 16,
+          }}
+        >
+          Neden AegisNexus
+        </span>
+        <h2 style={{ fontSize: 'clamp(30px, 3.8vw, 42px)', fontWeight: 820, color: '#fff', letterSpacing: '-1px' }}>
+          Üst düzey güvenlik, <span style={{ color: theme.primary }}>KOBİ erişilebilirliğinde</span>
+        </h2>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 18 }}>
+        {why.map((item) => (
+          <div
+            key={item.title}
+            style={{
+              padding: 24,
+              borderRadius: theme.radius.lg,
+              background: theme.gradientSurface,
+              border: `1px solid ${theme.border}`,
+              transition: 'transform 220ms ease, border-color 220ms ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-4px)'
+              e.currentTarget.style.borderColor = `${theme.primary}66`
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'none'
+              e.currentTarget.style.borderColor = theme.border
+            }}
+          >
+            <span style={{ fontSize: 36, display: 'block', marginBottom: 14 }} aria-hidden>{item.icon}</span>
+            <h3 style={{ fontSize: 18, fontWeight: 750, color: '#fff', marginBottom: 8 }}>{item.title}</h3>
+            <p style={{ fontSize: 14, color: theme.textMuted, lineHeight: 1.7 }}>{item.desc}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function Footer() {
+  return (
+    <footer style={{ borderTop: `1px solid ${theme.border}`, padding: '32px 24px', color: theme.textMuted, fontSize: 13 }}>
+      <div style={{ maxWidth: 1220, margin: '0 auto', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 18, alignItems: 'center' }}>
+        <p>AegisNexus — Enterprise Cybersecurity Platform &copy; {new Date().getFullYear()}</p>
+        <div style={{ display: 'flex', gap: 22, flexWrap: 'wrap' }}>
+          <a href={`${API}/docs`} style={{ color: theme.textMuted, textDecoration: 'none' }} target="_blank" rel="noreferrer">
+            API Docs
+          </a>
+          <a
+            href="https://github.com/garmoths/AegisNexus"
+            style={{ color: theme.textMuted, textDecoration: 'none' }}
+            target="_blank"
+            rel="noreferrer"
+          >
+            GitHub
+          </a>
+          <a
+            href="https://modules.aegisnexus.dev"
+            style={{ color: theme.primary, textDecoration: 'none' }}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Modül Paneli →
+          </a>
+        </div>
+      </div>
+    </footer>
+  )
 }
 
 export default function LandingPage() {
+  const reducedMotion = useReducedMotion() ?? false
   const [scrolled, setScrolled] = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(false)
+
+  const navIds = useMemo(() => NAV_LINKS.map((item) => item.id), [])
+  const activeId = useActiveSection(navIds)
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY>20)
-    window.addEventListener('scroll', onScroll, {passive:true})
+    const onScroll = () => setScrolled(window.scrollY > 20)
+    window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
-  const scrollTo = (id) => document.getElementById(id)?.scrollIntoView({behavior:'smooth'})
+  const scrollTo = (id) =>
+    document.getElementById(id)?.scrollIntoView({
+      behavior: reducedMotion ? 'auto' : 'smooth',
+      block: 'start',
+    })
 
-  return <div style={{ minHeight:'100vh', background:theme.bg, color:theme.text }}>
-    <style>{`
-      @keyframes fadeInUp { from { opacity:0; transform:translateY(20px) } to { opacity:1; transform:translateY(0) } }
-      @keyframes float { 0%,100% { transform:translateY(0px) } 50% { transform:translateY(-8px) } }
-      * { scrollbar-width:thin; scrollbar-color:#1e2a4a transparent; }
-    `}</style>
+  return (
+    <div style={{ minHeight: '100vh', background: theme.bg, color: theme.text, position: 'relative' }}>
+      <Navbar
+        scrolled={scrolled}
+        scrollTo={scrollTo}
+        mobileOpen={mobileOpen}
+        setMobileOpen={setMobileOpen}
+        activeId={activeId}
+        reducedMotion={reducedMotion}
+      />
 
-    {/* NAVBAR */}
-    <nav style={{ position:'fixed', top:0, left:0, right:0, zIndex:1000, background:scrolled?'rgba(8,12,20,0.95)':'rgba(8,12,20,0.8)', backdropFilter:'blur(20px)', borderBottom:`1px solid ${scrolled?theme.border:'transparent'}`, transition:'all 0.3s ease', padding:'0 24px' }}>
-      <div style={{ maxWidth:1200, margin:'0 auto', display:'flex', alignItems:'center', justifyContent:'space-between', height:70 }}>
-        <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-          <svg width="32" height="32" viewBox="0 0 36 36" fill="none">
-            <path d="M18 4L6 11V18C6 23.5 10 28.5 18 30C26 28.5 30 23.5 30 18V11L18 4Z" stroke="#00d4ff" strokeWidth="2" fill="none"/>
-            <path d="M14 18L17 21L23 15" stroke="#00d4ff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-          <span style={{ fontSize:20, fontWeight:700, color:'#fff', letterSpacing:'-0.5px' }}>Aegis<span style={{ color:'#00d4ff' }}>Nexus</span></span>
-        </div>
-        <div style={{ display:'flex', gap:20, alignItems:'center' }}>
-          {['Moduller','Ozellikler','Iletisim'].map(item =>
-            <button key={item} onClick={()=>scrollTo(item==='Moduller'?'modules':item==='Ozellikler'?'features':'contact')}
-              style={{ background:'none', border:'none', color:theme.textMuted, cursor:'pointer', fontSize:14, fontWeight:500, transition:'color 0.2s' }}
-              onMouseEnter={e=>e.currentTarget.style.color='#00d4ff'}
-              onMouseLeave={e=>e.currentTarget.style.color='#64748b'}>{item}</button>
-          )}
-          <a href="https://modules.aegisnexus.dev" style={{ padding:'10px 24px', borderRadius:'8px', border:'none', cursor:'pointer', fontSize:13, fontWeight:700, background:'linear-gradient(135deg, #00d4ff, #0099cc)', color:'#000', textDecoration:'none', boxShadow:'0 4px 20px rgba(0,212,255,0.3)', transition:'all 0.3s' }}
-            onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-2px)';e.currentTarget.style.boxShadow='0 8px 30px rgba(0,212,255,0.4)'}}
-            onMouseLeave={e=>{e.currentTarget.style.transform='none';e.currentTarget.style.boxShadow='0 4px 20px rgba(0,212,255,0.3)'}}>Panele Git →</a>
-        </div>
-      </div>
-    </nav>
+      <main>
+        <Hero reducedMotion={reducedMotion} />
 
-    {/* HERO */}
-    <div style={{ textAlign:'center', padding:'140px 24px 80px', position:'relative', overflow:'hidden', minHeight:'85vh', display:'flex', alignItems:'center', justifyContent:'center' }}>
-      <div style={{ position:'absolute', top:'50%', left:'50%', transform:'translate(-50%,-50%)', width:800, height:800, background:'radial-gradient(circle, rgba(0,212,255,0.08) 0%, transparent 70%)', pointerEvents:'none' }} />
-      <div style={{ position:'relative', zIndex:1, maxWidth:900 }}>
-        <span style={{ display:'inline-block', padding:'8px 20px', background:'rgba(0,212,255,0.1)', border:'1px solid #00d4ff33', borderRadius:'20px', fontSize:12, fontWeight:700, color:'#00d4ff', textTransform:'uppercase', letterSpacing:'2px', marginBottom:24 }}>🛡️ 5 Katmanli Guvenlik Kalkani</span>
-        <h1 style={{ fontSize:'clamp(42px, 7vw, 72px)', fontWeight:900, color:'#fff', lineHeight:1.05, marginBottom:24, letterSpacing:'-2px' }}>
-          Siber Tehditlere Karsi<br />
-          <span style={{ background:'linear-gradient(135deg, #00d4ff, #0099cc)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>Proaktif Koruma</span>
-        </h1>
-        <p style={{ color:theme.textMuted, fontSize:'clamp(16px, 2vw, 20px)', maxWidth:680, margin:'0 auto', lineHeight:1.7, marginBottom:40 }}>
-          Bireyler ve KOBİ'ler icin yapay zeka destekli, gercek zamanli siber guvenlik platformu.
-          Phishing, veri sizintilari ve sosyal muhendislik saldirilarina karsi 5 katmanli koruma.
-        </p>
-        <div style={{ display:'flex', gap:16, justifyContent:'center', flexWrap:'wrap' }}>
-          <a href="https://modules.aegisnexus.dev" style={{ textDecoration:'none' }}><GlowButton>🚀 Paneli Ac</GlowButton></a>
-          <GlowButton variant="outline" onClick={()=>scrollTo('modules')}>📦 Modulleri Kesfet</GlowButton>
-        </div>
-      </div>
+        <KpiCountersSection />
+
+        <SecurityModulesScrollSection />
+
+        <PlatformStatsHorizontalSection />
+
+        <Suspense fallback={<SectionFallback />}>
+          <ThreatLandscapeLive />
+        </Suspense>
+
+        <Suspense fallback={<SectionFallback />}>
+          <CaseStudiesShowcase />
+        </Suspense>
+
+        <Suspense fallback={<SectionFallback />}>
+          <IncidentTimeline />
+        </Suspense>
+
+        <Suspense fallback={<SectionFallback />}>
+          <Testimonials />
+        </Suspense>
+
+        <WhySection />
+
+        <Suspense fallback={<SectionFallback />}>
+          <ContactCTA />
+        </Suspense>
+      </main>
+
+      <Footer />
     </div>
-
-    <SecurityModulesScrollSection />
-
-    <PlatformStatsHorizontalSection />
-
-    {/* WHY */}
-    <div style={{ padding:'60px 24px', maxWidth:1200, margin:'0 auto' }}>
-      <h2 style={{ fontSize:36, fontWeight:800, color:'#fff', textAlign:'center', marginBottom:48, letterSpacing:'-1px' }}>
-        Neden <span style={{ color:'#00d4ff' }}>AegisNexus</span>?
-      </h2>
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(300px, 1fr))', gap:24 }}>
-        {[
-          { icon:'🧠', title:'Yapay Zeka Destekli', desc:'DeepSeek ve Groq AI modelleri ile gercek zamanli tehdit analizi. Saniyeler icinde phishing ve sosyal muhendislik tespiti.' },
-          { icon:'🌐', title:'Gercek Zamanli IStihbarat', desc:'1.2M+ phishing URL, 9K+ IOC, AbuseIPDB, URLhaus, AlienVault OTX gibi 10+ kaynaktan beslenen tehdit istihbarati.' },
-          { icon:'🛡️', title:'5 Katmanli Koruma', desc:'AI Analiz → Phishing Tarama → IOC Tespit → Sizinti Kontrolu → Kriptografik Koruma. Her acidan guvende olun.' },
-          { icon:'🇹🇷', title:'Turkce & KVKK Uyumlu', desc:'Tamamen Turkce arayuz. KVKK ve GDPR uyumlu veri isleme. Turkiyedeki siber tehditlere ozel analiz.' },
-          { icon:'🔒', title:'Gizlilik Odakli', desc:'Hicbir veriniz ucuncu taraflarla paylasilmaz. Sifreleriniz sadece sizin bilgisayarinizda olusturulur.' },
-          { icon:'📊', title:'Detayli Raporlama', desc:'Her analiz icin kapsamli raporlar. PDF export, e-posta bildirimleri ve dashboard ile takip.' },
-        ].map((item,i) => <Card key={i} style={{ textAlign:'center', padding:'32px 24px' }}>
-          <span style={{ fontSize:48, display:'block', marginBottom:16, animation:'float 3s ease-in-out infinite', animationDelay:`${i*0.3}s` }}>{item.icon}</span>
-          <h3 style={{ fontSize:18, fontWeight:700, color:'#fff', marginBottom:12 }}>{item.title}</h3>
-          <p style={{ fontSize:14, color:theme.textMuted, lineHeight:1.7 }}>{item.desc}</p>
-        </Card>)}
-      </div>
-    </div>
-
-    {/* CONTACT */}
-    <div id="contact" style={{ padding:'60px 24px 80px', maxWidth:600, margin:'0 auto', textAlign:'center' }}>
-      <h2 style={{ fontSize:36, fontWeight:800, color:'#fff', marginBottom:16, letterSpacing:'-1px' }}>Iletisim</h2>
-      <p style={{ color:theme.textMuted, fontSize:16, marginBottom:32 }}>Sorulariniz mi var? Bize ulasin, en kisa surede donus yapalim.</p>
-      <form onSubmit={e=>{e.preventDefault();alert('Tesekkurler! En kisa surede donus yapacagiz.')}} style={{ display:'flex', flexDirection:'column', gap:16, alignItems:'center' }}>
-        <div style={{ display:'flex', gap:12, width:'100%', maxWidth:500 }}>
-          <input type="email" placeholder="E-posta adresiniz" required style={{ flex:1, padding:'14px 18px', borderRadius:'8px', background:'#080c14', border:'1px solid #1e2a4a', color:'#fff', fontSize:14, outline:'none' }} />
-          <button type="submit" style={{ padding:'14px 28px', borderRadius:'8px', border:'none', cursor:'pointer', fontSize:14, fontWeight:700, background:'linear-gradient(135deg, #00d4ff, #0099cc)', color:'#000', boxShadow:'0 4px 20px rgba(0,212,255,0.3)' }}>Gonder</button>
-        </div>
-        <div style={{ display:'flex', gap:24, marginTop:16, color:theme.textMuted, fontSize:13 }}>
-          <span>📧 info@aegisnexus.dev</span>
-          <span>🌐 github.com/garmoths/AegisNexus</span>
-        </div>
-      </form>
-    </div>
-
-    {/* FOOTER */}
-    <footer style={{ borderTop:`1px solid ${theme.border}`, padding:'24px', textAlign:'center', color:theme.textMuted, fontSize:13 }}>
-      <p>AegisNexus — Enterprise Cybersecurity Platform &copy; 2026</p>
-      <div style={{ display:'flex', gap:24, justifyContent:'center', marginTop:12 }}>
-        <a href={API+'/docs'} style={{ color:theme.textMuted, textDecoration:'none' }} target="_blank">API Docs</a>
-        <a href="https://github.com/garmoths/AegisNexus" style={{ color:theme.textMuted, textDecoration:'none' }} target="_blank">GitHub</a>
-        <a href="https://modules.aegisnexus.dev" style={{ color:'#00d4ff', textDecoration:'none' }} target="_blank">Module Paneli →</a>
-      </div>
-    </footer>
-  </div>
+  )
 }
