@@ -213,11 +213,10 @@ def write_phishing_url(
 
             _prune_cache(cursor)
             
-            # Otomatik cleanup: risk_score=0 olan kayıtları temizle
+            # Otomatik cleanup: risk_score=0 olan kayıtları hemen temizle
             cursor.execute("""
                 DELETE FROM phishing_urls
                 WHERE risk_score = 0
-                AND checked_at < datetime('now', '-7 days')
             """)
             auto_deleted = cursor.rowcount
             if auto_deleted > 0:
