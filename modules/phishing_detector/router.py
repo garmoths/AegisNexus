@@ -467,3 +467,25 @@ def get_threat_types_distribution():
             "types": {},
             "module": "01_phishing_detector"
         }
+
+
+@router.get("/skipped-urls")
+def get_skipped_urls(days: int = 30):
+    """Sources dolu ama risk_score=0 olan URL'leri tespit et"""
+    try:
+        from .cache_db import detect_skipped_urls
+        skipped = detect_skipped_urls(days=days)
+        return {
+            "skipped": skipped,
+            "count": len(skipped),
+            "days": days,
+            "module": "01_phishing_detector"
+        }
+    except Exception as e:
+        logger.error(f"Skipped URLs fetch error: {e}")
+        return {
+            "skipped": [],
+            "count": 0,
+            "days": days,
+            "module": "01_phishing_detector"
+        }

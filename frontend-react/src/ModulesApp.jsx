@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { motion, useReducedMotion } from 'framer-motion'
 
 const API = import.meta.env.VITE_API_BASE_URL || '/api/v2'
 
@@ -9,27 +10,85 @@ function normalizeStatus(status) {
 
 const theme = {
   bg: '#080c14',
+  bgDeep: '#05080f',
   surface: '#0f1629',
   surface2: '#1a2342',
+  surface3: '#0c1322',
   border: '#1e2a4a',
+  borderSoft: '#162038',
   borderLight: 'rgba(30,42,74,0.5)',
   primary: '#00d4ff',
   primaryDim: 'rgba(0,212,255,0.1)',
+  primarySoft: 'rgba(0,212,255,0.18)',
   accent: '#ff6b35',
   accentDim: 'rgba(255,107,53,0.1)',
+  accentSoft: 'rgba(255,107,53,0.18)',
+  violet: '#9f7aea',
   success: '#22c55e',
   warning: '#f59e0b',
   danger: '#ef4444',
   text: '#e2e8f0',
   textMuted: '#64748b',
+  textSubtle: '#475569',
   textDim: '#475569',
   font: "'Inter', sans-serif",
   mono: "'JetBrains Mono', monospace",
+  navFont: 'ui-monospace, SFMono-Regular, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace',
   radius: '12px',
   radiusSm: '8px',
+  radiusMd: '12px',
+  radiusLg: '18px',
+  radiusXl: '24px',
   glow: '0 0 40px rgba(0,212,255,0.08)',
   cardShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
   cardShadowHover: '0 35px 60px -15px rgba(0, 212, 255, 0.15)',
+  gradientHero: 'radial-gradient(ellipse at 50% 0%, rgba(0,212,255,0.18) 0%, transparent 60%), radial-gradient(ellipse at 50% 100%, rgba(159,122,234,0.12) 0%, transparent 65%)',
+  gradientPrimary: 'linear-gradient(135deg, #00d4ff, #0099cc)',
+  gradientAccent: 'linear-gradient(135deg, #ff6b35, #c9472b)',
+  gradientSurface: 'linear-gradient(145deg, #0f1629 0%, #1a2342 100%)',
+  gradientGlow: 'linear-gradient(90deg, transparent, rgba(0,212,255,0.4), transparent)',
+  gridPattern: `
+    linear-gradient(rgba(0,212,255,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,212,255,0.04) 1px, transparent 1px)
+  `,
+  gridPatternSize: '48px 48px',
+  shadow: {
+    card: '0 10px 30px rgba(0,0,0,0.35)',
+    glow: '0 0 40px rgba(0,212,255,0.18)',
+    glowStrong: '0 0 60px rgba(0,212,255,0.35)',
+  },
+  ease: {
+    out: 'cubic-bezier(0.16, 1, 0.3, 1)',
+    spring: 'cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+  },
+}
+
+function HeroBackdrop() {
+  return (
+    <div aria-hidden style={{ position:'fixed', top:0, left:0, right:0, bottom:0, pointerEvents:'none', overflow:'hidden', zIndex:-1 }}>
+      <div style={{
+        position:'absolute',
+        inset:0,
+        backgroundImage:theme.gridPattern,
+        backgroundSize:theme.gridPatternSize,
+        maskImage:'radial-gradient(ellipse at 50% 40%, #000 35%, transparent 75%)',
+        WebkitMaskImage:'radial-gradient(ellipse at 50% 40%, #000 35%, transparent 75%)',
+        opacity:0.7
+      }} />
+      <div style={{ position:'absolute', inset:0, background:theme.gradientHero }} />
+      <div style={{
+        position:'absolute',
+        top:'20%',
+        left:'50%',
+        transform:'translateX(-50%)',
+        width:720,
+        height:720,
+        borderRadius:'50%',
+        background:'radial-gradient(circle, rgba(0,212,255,0.18) 0%, transparent 70%)',
+        filter:'blur(20px)'
+      }} />
+    </div>
+  )
 }
 
 function Spinner({ size = 20 }) {
@@ -54,12 +113,12 @@ function StatusDot({ active }) {
 
 function Card({ children, style, ...props }) {
   const [h,sH]=useState(false)
-  return <div onMouseEnter={()=>sH(true)} onMouseLeave={()=>sH(false)} style={{ background:`linear-gradient(135deg, ${theme.surface}, ${theme.surface2})`, border:`1px solid ${h?theme.primary+'66':theme.border}`, borderRadius:theme.radius, padding:24, transition:'all 0.3s cubic-bezier(0.175,0.885,0.32,1.275)', boxShadow:h?theme.glow:'none', transform:h?'translateY(-2px)':'none', ...style }} {...props}>{children}</div>
+  return <motion.div onMouseEnter={()=>sH(true)} onMouseLeave={()=>sH(false)} initial={false} animate={{ scale:h?1.02:1, boxShadow:h?theme.shadow.glow:theme.shadow.card }} transition={{ duration:0.3, ease:theme.ease.spring }} style={{ background:theme.gradientSurface, border:`1px solid ${h?theme.primary+'66':theme.border}`, borderRadius:theme.radiusMd, padding:24, ...style }} {...props}>{children}</motion.div>
 }
 
 function GlowButton({ children, onClick, disabled, loading, variant='primary', style, ...props }) {
   const isPrimary=variant==='primary'
-  return <button onClick={onClick} disabled={disabled||loading} style={{ padding:'14px 32px', borderRadius:theme.radiusSm, cursor:disabled?'not-allowed':'pointer', fontSize:14, fontWeight:700, letterSpacing:'0.5px', background:isPrimary?'linear-gradient(135deg, #00d4ff, #0099cc)':'transparent', color:isPrimary?'#000':'#00d4ff', border:isPrimary?'none':'1px solid #00d4ff44', transition:'all 0.3s ease', opacity:disabled?0.5:1, display:'inline-flex', alignItems:'center', gap:8, boxShadow:isPrimary?'0 4px 20px rgba(0,212,255,0.3)':'none', ...style }} onMouseEnter={e=>{if(!disabled){e.currentTarget.style.transform='translateY(-2px)';e.currentTarget.style.boxShadow='0 8px 30px rgba(0,212,255,0.4)'}}} onMouseLeave={e=>{e.currentTarget.style.transform='none';e.currentTarget.style.boxShadow=isPrimary?'0 4px 20px rgba(0,212,255,0.3)':'none'}} {...props}>{loading&&<Spinner size={18}/>}{children}</button>
+  return <motion.button onClick={onClick} disabled={disabled||loading} initial={false} whileHover={disabled||loading ? undefined : { scale:1.02, boxShadow:isPrimary?'0 8px 30px rgba(0,212,255,0.4)':`0 8px 30px ${theme.primary}33` }} whileTap={disabled||loading ? undefined : { scale:0.98 }} style={{ padding:'14px 32px', borderRadius:theme.radiusSm, cursor:disabled?'not-allowed':'pointer', fontSize:14, fontWeight:700, letterSpacing:'0.5px', fontFamily:theme.navFont, background:isPrimary?theme.gradientPrimary:'transparent', color:isPrimary?'#000':theme.primary, border:isPrimary?'none':`1px solid ${theme.primary}44`, transition:'all 0.3s ease', opacity:disabled?0.5:1, display:'inline-flex', alignItems:'center', gap:8, boxShadow:isPrimary?'0 4px 20px rgba(0,212,255,0.3)':'none', ...style }} {...props}>{loading&&<Spinner size={18}/>}{children}</motion.button>
 }
 
 function CountUp({ end, duration=1500 }) {
@@ -69,16 +128,17 @@ function CountUp({ end, duration=1500 }) {
 }
 
 function SectionHeader({ badge, title, subtitle }) {
-  return <div style={{ textAlign:'center', marginBottom:48 }}>
-    <span style={{ display:'inline-block', padding:'6px 16px', background:theme.primaryDim, border:`1px solid ${theme.primary}33`, borderRadius:'20px', fontSize:11, fontWeight:700, color:theme.primary, textTransform:'uppercase', letterSpacing:'1.5px', marginBottom:16 }}>{badge}</span>
-    <h1 style={{ fontSize:36, fontWeight:800, color:'#fff', marginBottom:12, letterSpacing:'-1px' }}>{title}</h1>
-    <p style={{ color:theme.textMuted, fontSize:16, maxWidth:600, margin:'0 auto', lineHeight:1.6 }}>{subtitle}</p>
-  </div>
+  return <motion.div initial={{ opacity:0, y:20 }} animate={{ opacity:1, y:0 }} transition={{ duration:0.5, ease:theme.ease.out }} style={{ textAlign:'center', marginBottom:48 }}>
+    <motion.span initial={{ opacity:0, scale:0.9 }} animate={{ opacity:1, scale:1 }} transition={{ delay:0.1, duration:0.4, ease:theme.ease.spring }} style={{ display:'inline-block', padding:'6px 16px', background:theme.primaryDim, border:`1px solid ${theme.primary}33`, borderRadius:'20px', fontSize:11, fontWeight:700, color:theme.primary, textTransform:'uppercase', letterSpacing:'1.5px', marginBottom:16 }}>{badge}</motion.span>
+    <motion.h1 initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.2, duration:0.5, ease:theme.ease.out }} style={{ fontSize:36, fontWeight:800, color:'#fff', marginBottom:12, letterSpacing:'-1px' }}>{title}</motion.h1>
+    <motion.p initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.3, duration:0.5, ease:theme.ease.out }} style={{ color:theme.textMuted, fontSize:16, maxWidth:600, margin:'0 auto', lineHeight:1.6 }}>{subtitle}</motion.p>
+  </motion.div>
 }
 
 export default function ModulesApp() {
   const [page, setPage] = useState('ai-analyzer')
   const [scrolled, setScrolled] = useState(false)
+  const reducedMotion = useReducedMotion() ?? false
   useEffect(()=>{const onScroll=()=>setScrolled(window.scrollY>20);window.addEventListener('scroll',onScroll,{passive:true});return()=>window.removeEventListener('scroll',onScroll)},[])
 
   const tabs = [
@@ -89,7 +149,8 @@ export default function ModulesApp() {
     {id:'breach-intel',label:'Sizinti',icon:'🔓'},
   ]
 
-  return <div style={{ minHeight:'100vh', background:theme.bg, color:theme.text }}>
+  return <div style={{ minHeight:'100vh', background:theme.bg, color:theme.text, position:'relative' }}>
+    <HeroBackdrop />
     <style>{`
       @keyframes spin { to { transform:rotate(360deg) } }
       @keyframes fadeInUp { from { opacity:0; transform:translateY(20px) } to { opacity:1; transform:translateY(0) } }
@@ -107,32 +168,35 @@ export default function ModulesApp() {
       ::-webkit-scrollbar-thumb { background:${theme.border}; border-radius:3px }
     `}</style>
 
-    <nav style={{ position:'fixed', top:0, left:0, right:0, zIndex:1000, background:scrolled?'rgba(8,12,20,0.95)':'rgba(8,12,20,0.8)', backdropFilter:'blur(20px)', borderBottom:`1px solid ${scrolled?theme.border:'transparent'}`, transition:'all 0.3s ease', padding:'0 24px' }}>
+    <nav style={{ position:'fixed', top:0, left:0, right:0, zIndex:1000, background:scrolled?'rgba(8,12,20,0.92)':'rgba(8,12,20,0.55)', backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)', borderBottom:`1px solid ${scrolled?theme.border:'transparent'}`, transition:'background 220ms ease, border-color 220ms ease', padding:'0 24px' }}>
       <div style={{ maxWidth:1400, margin:'0 auto', display:'flex', alignItems:'center', justifyContent:'space-between', height:70 }}>
         <div style={{ display:'flex', alignItems:'center', gap:12 }}>
           <svg width="32" height="32" viewBox="0 0 36 36" fill="none">
-            <path d="M18 4L6 11V18C6 23.5 10 28.5 18 30C26 28.5 30 23.5 30 18V11L18 4Z" stroke="#00d4ff" strokeWidth="2" fill="none"/>
-            <path d="M14 18L17 21L23 15" stroke="#00d4ff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M18 4L6 11V18C6 23.5 10 28.5 18 30C26 28.5 30 23.5 30 18V11L18 4Z" stroke={theme.primary} strokeWidth="2" fill="none"/>
+            <path d="M14 18L17 21L23 15" stroke={theme.primary} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
           <span style={{ fontSize:20, fontWeight:700, color:'#fff', letterSpacing:'-0.5px' }}>Aegis<span style={{ color:theme.primary }}>Nexus</span></span>
           <span style={{ fontSize:11, color:theme.textMuted, marginLeft:4 }}>Modüller</span>
         </div>
         <div style={{ display:'flex', gap:4, background:theme.surface, borderRadius:theme.radiusSm, padding:3 }}>
-          {tabs.map(t => <button key={t.id} onClick={()=>setPage(t.id)} style={{ padding:'8px 18px', borderRadius:'6px', border:'none', cursor:'pointer', fontSize:13, fontWeight:600, background:page===t.id?theme.primary:'transparent', color:page===t.id?'#000':theme.textMuted, transition:'all 0.2s ease', display:'flex', alignItems:'center', gap:6 }}><span>{t.icon}</span><span>{t.label}</span></button>)}
+          {tabs.map(t => <motion.button key={t.id} onClick={()=>setPage(t.id)} initial={false} whileHover={reducedMotion ? undefined : { scale:1.02 }} whileTap={reducedMotion ? undefined : { scale:0.98 }} style={{ padding:'8px 18px', borderRadius:'6px', border:'none', cursor:'pointer', fontSize:13, fontWeight:600, fontFamily:theme.navFont, background:page===t.id?theme.primary:'transparent', color:page===t.id?'#000':theme.textMuted, transition:'all 0.2s ease', display:'flex', alignItems:'center', gap:6, position:'relative' }}>
+            <span>{t.icon}</span><span>{t.label}</span>
+            {page===t.id && <motion.span initial={{scaleX:0}} animate={{scaleX:1}} transition={{duration:0.3}} style={{ position:'absolute', bottom:0, left:0, right:0, height:2, background:theme.primary, borderRadius:1 }} />}
+          </motion.button>)}
         </div>
-        <a href="https://aegisnexus.dev" style={{ fontSize:13, color:theme.textMuted, textDecoration:'none', padding:'8px 16px', borderRadius:theme.radiusSm, border:`1px solid ${theme.border}`, transition:'all 0.2s' }}
-          onMouseEnter={e=>{e.currentTarget.style.color=theme.primary;e.currentTarget.style.borderColor=theme.primary+'44'}}
-          onMouseLeave={e=>{e.currentTarget.style.color=theme.textMuted;e.currentTarget.style.borderColor=theme.border}}>← Ana Sayfa</a>
+        <motion.a href="https://aegisnexus.dev" style={{ fontSize:13, color:theme.textMuted, textDecoration:'none', padding:'8px 16px', borderRadius:theme.radiusSm, border:`1px solid ${theme.border}`, transition:'all 0.2s' }}
+          whileHover={{ scale:1.02, borderColor:theme.primary+'44', color:theme.primary }}
+          whileTap={{ scale:0.98 }}>← Ana Sayfa</motion.a>
       </div>
     </nav>
 
-    <main style={{ paddingTop:86, maxWidth:1400, margin:'0 auto', padding:'86px 24px 0' }}>
+    <motion.main initial={{ opacity:0, y:20 }} animate={{ opacity:1, y:0 }} transition={{ duration:0.5, ease:theme.ease.out }} style={{ paddingTop:86, maxWidth:1400, margin:'0 auto', padding:'86px 24px 0' }}>
       {page==='ai-analyzer' && <AIAnalyzer />}
       {page==='phishing-detector' && <PhishingDetector />}
       {page==='victim-atlas' && <VictimAtlas />}
       {page==='honeypot' && <HoneypotIOC />}
       {page==='breach-intel' && <BreachIntel />}
-    </main>
+    </motion.main>
     <footer style={{ borderTop:`1px solid ${theme.border}`, padding:'24px', textAlign:'center', color:theme.textMuted, fontSize:13, marginTop:80 }}>
       <div style={{ maxWidth:1400, margin:'0 auto' }}>
         <p>AegisNexus Modüller &copy; 2026</p>

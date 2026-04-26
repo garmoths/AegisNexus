@@ -79,7 +79,8 @@ def init_database():
                 risk_level TEXT DEFAULT 'unknown',
                 is_safe BOOLEAN DEFAULT FALSE,
                 sources TEXT,
-                checked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                checked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(url)
             )
         """)
         
@@ -202,6 +203,12 @@ def write_phishing_url(
                 cursor.execute("""
                     INSERT INTO url_scan_events (url, domain, risk_score, risk_level, is_safe, sources, checked_at)
                     VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    ON CONFLICT(url) DO UPDATE SET
+                        risk_score = excluded.risk_score,
+                        risk_level = excluded.risk_level,
+                        is_safe = excluded.is_safe,
+                        sources = excluded.sources,
+                        checked_at = CURRENT_TIMESTAMP
                 """, (url, domain, risk_score, risk_level, int(is_safe), sources_json))
 
             _prune_cache(cursor)
@@ -408,6 +415,78 @@ def cleanup_old_records(days: int = 90) -> int:
     except Exception as e:
         logger.error(f"Failed to cleanup old records: {e}")
         return 0
+
+def cleanup_empty_records(days: int = 30) -> int:
+    """Sonuçları 0 olan ve kaynak bilgisi olmayan kayıtları temizle"""
+    try:
+        _ensure_initialized()
+        cutoff_date = datetime.now() - timedelta(days=days)
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Önce silinecek kayıtları görüntüle
+            cursor.execute("""
+                SELECT COUNT(*) as count FROM phishing_urls
+                WHERE (sources = '[]' OR sources IS NULL)
+                AND checked_at >= ?
+            """, (cutoff_date.isoformat(),))
+            count = cursor.fetchone()['count']
+            logger.info(f"Found {count} empty source records to clean up")
+            
+            # Kayıtları sil
+            cursor.execute("""
+                DELETE FROM phishing_urls
+                WHERE (sources = '[]' OR sources IS NULL)
+                AND checked_at >= ?
+            """, (cutoff_date.isoformat(),))
+            
+            deleted = cursor.rowcount
+            conn.commit()
+            
+            logger.info(f"Cleaned up {deleted} empty source phishing records")
+            return deleted
+            
+    except Exception as e:
+        logger.error(f"Failed to cleanup empty records: {e}")
+        return 0
+
+def detect_skipped_urls(days: int = 30) -> List[Dict]:
+    """Sources dolu ama risk_score=0 olan URL'leri tespit et"""
+    try:
+        _ensure_initialized()
+        cutoff_date = datetime.now() - timedelta(days=days)
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT url, domain, risk_score, risk_level, sources, checked_at
+                FROM phishing_urls
+                WHERE risk_score = 0
+                AND sources IS NOT NULL
+                AND sources != '[]'
+                AND checked_at >= ?
+                ORDER BY checked_at DESC
+            """, (cutoff_date.isoformat(),))
+            
+            results = []
+            for row in cursor.fetchall():
+                results.append({
+                    'url': row['url'],
+                    'domain': row['domain'],
+                    'risk_score': row['risk_score'],
+                    'risk_level': row['risk_level'],
+                    'sources': json.loads(row['sources']) if row['sources'] else [],
+                    'checked_at': row['checked_at']
+                })
+            
+            logger.warning(f"Found {len(results)} URLs with sources but risk_score=0 (possibly skipped or failed)")
+            return results
+            
+    except Exception as e:
+        logger.error(f"Failed to detect skipped URLs: {e}")
+        return []
 
 # Veritabanını başlat
 if __name__ == "__main__":
