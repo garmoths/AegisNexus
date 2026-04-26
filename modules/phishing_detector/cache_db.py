@@ -417,7 +417,7 @@ def cleanup_old_records(days: int = 90) -> int:
         return 0
 
 def cleanup_empty_records(days: int = 30) -> int:
-    """Sonuçları 0 olan ve kaynak bilgisi olmayan kayıtları temizle"""
+    """Risk_score=0 olan (hiç taratılmamış) kayıtları temizle"""
     try:
         _ensure_initialized()
         cutoff_date = datetime.now() - timedelta(days=days)
@@ -428,28 +428,150 @@ def cleanup_empty_records(days: int = 30) -> int:
             # Önce silinecek kayıtları görüntüle
             cursor.execute("""
                 SELECT COUNT(*) as count FROM phishing_urls
-                WHERE (sources = '[]' OR sources IS NULL)
+                WHERE risk_score = 0
                 AND checked_at >= ?
             """, (cutoff_date.isoformat(),))
             count = cursor.fetchone()['count']
-            logger.info(f"Found {count} empty source records to clean up")
+            logger.info(f"Found {count} unscanned records (risk_score=0) to clean up")
             
             # Kayıtları sil
             cursor.execute("""
                 DELETE FROM phishing_urls
-                WHERE (sources = '[]' OR sources IS NULL)
+                WHERE risk_score = 0
                 AND checked_at >= ?
             """, (cutoff_date.isoformat(),))
             
             deleted = cursor.rowcount
             conn.commit()
             
-            logger.info(f"Cleaned up {deleted} empty source phishing records")
+            logger.info(f"Cleaned up {deleted} unscanned phishing records")
             return deleted
             
     except Exception as e:
-        logger.error(f"Failed to cleanup empty records: {e}")
+        logger.error(f"Failed to cleanup unscanned records: {e}")
         return 0
+
+def analyze_records(days: int = 30) -> Dict[str, Any]:
+    """Kayıtları analiz et ve temizleme kriterlerine göre grupla"""
+    try:
+        _ensure_initialized()
+        cutoff_date = datetime.now() - timedelta(days=days)
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Toplam kayıt sayısı
+            cursor.execute("SELECT COUNT(*) as total FROM phishing_urls WHERE checked_at >= ?", (cutoff_date.isoformat(),))
+            total = cursor.fetchone()['total']
+            
+            # Kriter bazlı analiz
+            cursor.execute("""
+                SELECT 
+                    CASE 
+                        WHEN risk_score = 0 THEN 'unscanned'
+                        WHEN (sources = '[]' OR sources IS NULL) THEN 'no_sources'
+                        WHEN raw_data IS NULL THEN 'no_raw_data'
+                        ELSE 'valid'
+                    END as category,
+                    COUNT(*) as count
+                FROM phishing_urls
+                WHERE checked_at >= ?
+                GROUP BY category
+            """, (cutoff_date.isoformat(),))
+            
+            categories = {row['category']: row['count'] for row in cursor.fetchall()}
+            
+            return {
+                'total_records': total,
+                'categories': categories,
+                'days': days,
+                'cutoff_date': cutoff_date.isoformat()
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to analyze records: {e}")
+        return {
+            'total_records': 0,
+            'categories': {},
+            'days': days,
+            'error': str(e)
+        }
+
+def cleanup_records(criteria: Dict[str, Any], dry_run: bool = False) -> Dict[str, Any]:
+    """Profesyonel cleanup fonksiyonu - kriter bazlı temizleme
+    
+    Args:
+        criteria: {
+            'days': int (default: 30),
+            'unscanned': bool (risk_score=0),
+            'no_sources': bool (sources boş),
+            'no_raw_data': bool (raw_data boş)
+        }
+        dry_run: True ise sadece silinecekleri görüntüle, silme
+    """
+    try:
+        _ensure_initialized()
+        days = criteria.get('days', 30)
+        cutoff_date = datetime.now() - timedelta(days=days)
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # WHERE clause oluştur
+            conditions = ["checked_at >= ?"]
+            params = [cutoff_date.isoformat()]
+            
+            if criteria.get('unscanned'):
+                conditions.append("risk_score = 0")
+            
+            if criteria.get('no_sources'):
+                conditions.append("(sources = '[]' OR sources IS NULL)")
+            
+            if criteria.get('no_raw_data'):
+                conditions.append("raw_data IS NULL")
+            
+            where_clause = " AND ".join(conditions)
+            
+            # Önce silinecek kayıtları görüntüle
+            cursor.execute(f"""
+                SELECT COUNT(*) as count FROM phishing_urls
+                WHERE {where_clause}
+            """, params)
+            count = cursor.fetchone()['count']
+            
+            if dry_run:
+                logger.info(f"Dry run: Would delete {count} records")
+                return {
+                    'deleted': 0,
+                    'would_delete': count,
+                    'dry_run': True,
+                    'criteria': criteria
+                }
+            
+            # Kayıtları sil
+            cursor.execute(f"""
+                DELETE FROM phishing_urls
+                WHERE {where_clause}
+            """, params)
+            
+            deleted = cursor.rowcount
+            conn.commit()
+            
+            logger.info(f"Cleaned up {deleted} records with criteria: {criteria}")
+            return {
+                'deleted': deleted,
+                'would_delete': 0,
+                'dry_run': False,
+                'criteria': criteria
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to cleanup records: {e}")
+        return {
+            'deleted': 0,
+            'error': str(e),
+            'criteria': criteria
+        }
 
 def detect_skipped_urls(days: int = 30) -> List[Dict]:
     """Sources dolu ama risk_score=0 olan URL'leri tespit et"""

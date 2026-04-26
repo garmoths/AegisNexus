@@ -489,3 +489,52 @@ def get_skipped_urls(days: int = 30):
             "days": days,
             "module": "01_phishing_detector"
         }
+
+
+@router.get("/cleanup/analyze")
+def analyze_cleanup(days: int = 30):
+    """Kayıtları analiz et ve temizleme kriterlerine göre grupla"""
+    try:
+        from .cache_db import analyze_records
+        analysis = analyze_records(days=days)
+        return {
+            "analysis": analysis,
+            "module": "01_phishing_detector"
+        }
+    except Exception as e:
+        logger.error(f"Cleanup analysis error: {e}")
+        return {
+            "analysis": {
+                "total_records": 0,
+                "categories": {},
+                "error": str(e)
+            },
+            "module": "01_phishing_detector"
+        }
+
+
+@router.post("/cleanup")
+def perform_cleanup(days: int = 30, unscanned: bool = True, no_sources: bool = False, no_raw_data: bool = False, dry_run: bool = False):
+    """Profesyonel cleanup - kriter bazlı temizleme"""
+    try:
+        from .cache_db import cleanup_records
+        criteria = {
+            'days': days,
+            'unscanned': unscanned,
+            'no_sources': no_sources,
+            'no_raw_data': no_raw_data
+        }
+        result = cleanup_records(criteria, dry_run=dry_run)
+        return {
+            "result": result,
+            "module": "01_phishing_detector"
+        }
+    except Exception as e:
+        logger.error(f"Cleanup error: {e}")
+        return {
+            "result": {
+                "deleted": 0,
+                "error": str(e)
+            },
+            "module": "01_phishing_detector"
+        }
