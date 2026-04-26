@@ -878,111 +878,220 @@ function BreachIntel() {
   const [email, setEmail] = useState('')
   const [checking, setChecking] = useState(false)
   const [result, setResult] = useState(null)
-  const [stats, setStats] = useState(null)
   const [toast, setToast] = useState({ message:'', type:'success', visible:false })
 
-  async function loadStats(){
-    try{
-      const r=await fetch(`${API}/breach/stats`);
-      const d=await r.json();
-      setStats(d)
-    }catch{
-      setStats(null)
-    }
-  }
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(()=>{loadStats()},[])
-
   async function handleCheck() {
-    if(!email||!email.includes('@')){showToast('Gecerli bir e-posta adresi girin','error');return}
+    if(!email||!email.includes('@')){showToast('Geçerli bir e-posta adresi girin','error');return}
     setChecking(true);setResult(null)
     try{
       const r=await fetch(`${API}/breach/check-email`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})})
-      if(!r.ok){const e=await r.json();throw new Error(e.message||e.detail||'Sorgu hatasi')}
+      if(!r.ok){const e=await r.json();throw new Error(e.message||e.detail||'Sorgu hatası')}
       const d=await r.json();setResult(d)
-    }catch(e){showToast('Sorgu hatasi: '+e.message,'error')}
+    }catch(e){showToast('Sorgu hatası: '+e.message,'error')}
     setChecking(false)
   }
 
   function showToast(msg,t='success'){setToast({message:msg,type:t,visible:true});setTimeout(()=>setToast(t=>({...t,visible:false})),3000)}
 
-  const riskDefs=stats?.risk_score_definitions||{}
-  const socialImpact=stats?.social_impact||{}
-
   return <div style={{ animation:'fadeInUp 0.5s ease' }}>
     <Toast {...toast}/>
-    <SectionHeader badge="Sizinti Istihbarati" title="Veri Ihlali & Dark Web Taramasi" subtitle="E-posta adresinizin sizdirilip sizdirilmadigini kontrol edin. HIBP, dark web ve sizinti veritabanlarinda arama yapin."/>
-    <div style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:16, marginBottom:32 }}>
-      <Card style={{ textAlign:'center', padding:'20px' }}><p style={{ fontSize:11, color:theme.textMuted, textTransform:'uppercase', fontWeight:600, letterSpacing:'1px', marginBottom:8 }}>Izlenen E-posta</p><p style={{ fontSize:28, fontWeight:800, color:theme.primary }}>{stats?.monitored_emails||0}</p></Card>
-      <Card style={{ textAlign:'center', padding:'20px' }}><p style={{ fontSize:11, color:theme.textMuted, textTransform:'uppercase', fontWeight:600, letterSpacing:'1px', marginBottom:8 }}>Takip Edilen Ihlal</p><p style={{ fontSize:28, fontWeight:800, color:theme.danger }}>{stats?.total_tracked_breaches||0}</p></Card>
-      <Card style={{ textAlign:'center', padding:'20px' }}><p style={{ fontSize:11, color:theme.textMuted, textTransform:'uppercase', fontWeight:600, letterSpacing:'1px', marginBottom:8 }}>Risk Turu</p><p style={{ fontSize:28, fontWeight:800, color:theme.warning }}>{Object.keys(riskDefs).length}</p></Card>
-      <Card style={{ textAlign:'center', padding:'20px' }}><p style={{ fontSize:11, color:theme.textMuted, textTransform:'uppercase', fontWeight:600, letterSpacing:'1px', marginBottom:8 }}>Sosyal Etki</p><p style={{ fontSize:28, fontWeight:800, color:theme.accent }}>{socialImpact.risk_level||'N/A'}</p></Card>
+    <div style={{ textAlign:'center', marginBottom:48 }}>
+      <span style={{ display:'inline-block', padding:'8px 20px', background:theme.primaryDim, border:`1px solid ${theme.primary}33`, borderRadius:'24px', fontSize:12, fontWeight:700, color:theme.primary, textTransform:'uppercase', letterSpacing:'2px', marginBottom:20 }}>Sızıntı İstihbaratı</span>
+      <h1 style={{ fontSize:48, fontWeight:800, color:'#fff', marginBottom:16, letterSpacing:'-1px', background:'linear-gradient(135deg, #fff 0%, #00d4ff 100%)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>Veri İhlali & Dark Web Taraması</h1>
+      <p style={{ color:theme.textMuted, fontSize:18, maxWidth:700, margin:'0 auto', lineHeight:1.7 }}>E-posta adresinizin sızdırılıp sızdırılmadığını kontrol edin. HIBP, dark web ve sızıntı veritabanlarında anlık tarama yapın.</p>
     </div>
-    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:24, marginBottom:48 }}>
-      <div>
-        <Card style={{ marginBottom:24 }}><h3 style={{ fontSize:16, fontWeight:700, color:'#fff', marginBottom:12, display:'flex', gap:8, alignItems:'center' }}><span>🔓</span> Sizinti Kontrolu Nedir?</h3>
-          <p style={{ fontSize:13, color:theme.textDim, lineHeight:1.7 }}>Veri ihlalleri, hackerlarin sirket veritabanlarini ele gecirmesiyle milyonlarca kullanicinin e-posta, sifre ve kisisel bilgilerinin internete sizmasina neden olur. Bu modul, <strong style={{ color:'#fff' }}>Have I Been Pwned</strong>, <strong style={{ color:'#fff' }}>dark web forumlari</strong> ve <strong style={{ color:'#fff' }}>sizinti veritabanlarinda</strong> tarama yapar.</p>
-        </Card>
-        <Card><h3 style={{ fontSize:14, fontWeight:700, color:'#fff', marginBottom:12 }}>📡 Risk Skorlari</h3><div style={{ display:'flex', flexDirection:'column', gap:6 }}>{Object.entries(riskDefs).length>0?Object.entries(riskDefs).slice(0,10).map(([k,v])=><div key={k} style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', borderBottom:`1px solid ${theme.border}`, fontSize:12 }}><span style={{ color:theme.text }}>{k}</span><span style={{ fontWeight:700, color:v>70?theme.danger:v>40?theme.warning:theme.textMuted }}>{v} puan</span></div>):<p style={{ color:theme.textMuted, fontSize:13 }}>Risk tanimlari yukleniyor...</p>}</div></Card>
-      </div>
-      <Card><h3 style={{ fontSize:16, fontWeight:700, color:'#fff', marginBottom:16, display:'flex', gap:8, alignItems:'center' }}><span>🔍</span> E-posta Sizinti Kontrolu</h3>
-        <p style={{ fontSize:13, color:theme.textDim, marginBottom:16 }}>E-posta adresinizi girin, veri ihlallerinde sizdirilip sizdirilmadigini kontrol edelim.</p>
-        <div style={{ display:'flex', gap:8, marginBottom:16 }}>
-          <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="ornek@email.com" style={{ flex:1, padding:'14px 18px', borderRadius:theme.radiusSm, background:theme.bg, border:`1px solid ${theme.border}`, color:'#fff', fontSize:14, outline:'none' }} onKeyDown={e=>e.key==='Enter'&&handleCheck()}/>
-          <GlowButton onClick={handleCheck} loading={checking} disabled={!email||!email.includes('@')}>{checking?'Taranıyor...':'🔍 Sorgula'}</GlowButton>
+
+    {/* Main Check Section - Full Width */}
+    <div style={{ maxWidth:900, margin:'0 auto 48px' }}>
+      <Card style={{ padding:40, background:`linear-gradient(135deg, ${theme.surface}, ${theme.surface2})`, border:`2px solid ${theme.primary}22` }}>
+        <div style={{ display:'flex', alignItems:'center', gap:16, marginBottom:24 }}>
+          <div style={{ width:64, height:64, borderRadius:'16px', background:theme.primaryDim, display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={theme.primary} strokeWidth="2">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              <path d="M12 8v4"/><path d="M12 16h.01"/>
+            </svg>
+          </div>
+          <div>
+            <h2 style={{ fontSize:24, fontWeight:700, color:'#fff', marginBottom:4 }}>E-posta Sızıntı Kontrolü</h2>
+            <p style={{ color:theme.textMuted, fontSize:14 }}>HIBP API ile gerçek zamanlı sızıntı taraması</p>
+          </div>
         </div>
-        {result&&<div style={{ animation:'scaleIn 0.3s ease', marginTop:24, padding:20, background:theme.bg, borderRadius:theme.radiusSm, border:`1px solid ${theme.border}` }}>
-          {result.status==='error'?<div style={{ textAlign:'center', padding:20 }}><span style={{ fontSize:48, display:'block', marginBottom:12 }}>⚠️</span><p style={{ color:theme.warning, fontSize:16, fontWeight:600 }}>{result.message}</p><p style={{ color:theme.textMuted, fontSize:12, marginTop:8 }}>{result.hint}</p></div>
+        
+        <div style={{ display:'flex', gap:12, marginBottom:8 }}>
+          <input 
+            value={email} 
+            onChange={e=>setEmail(e.target.value)} 
+            placeholder="ornek@email.com" 
+            style={{ 
+              flex:1, 
+              padding:'18px 24px', 
+              borderRadius:theme.radius, 
+              background:theme.bg, 
+              border:`2px solid ${theme.border}`, 
+              color:'#fff', 
+              fontSize:16, 
+              outline:'none',
+              transition:'all 0.3s ease',
+              fontFamily:theme.mono
+            }} 
+            onKeyDown={e=>e.key==='Enter'&&handleCheck()}
+            onFocus={e=>e.currentTarget.style.borderColor=theme.primary}
+            onBlur={e=>e.currentTarget.style.borderColor=theme.border}
+          />
+          <button 
+            onClick={handleCheck} 
+            disabled={!email||!email.includes('@')||checking}
+            style={{
+              padding:'18px 40px',
+              borderRadius:theme.radius,
+              cursor:checking?'not-allowed':'pointer',
+              fontSize:16,
+              fontWeight:700,
+              background:checking?'#444':'linear-gradient(135deg, #00d4ff, #0099cc)',
+              color:'#000',
+              border:'none',
+              transition:'all 0.3s ease',
+              display:'inline-flex',
+              alignItems:'center',
+              gap:12,
+              opacity:checking||!email||!email.includes('@')?0.5:1,
+              boxShadow:checking?'none':'0 4px 20px rgba(0,212,255,0.3)'
+            }}
+          >
+            {checking?<span style={{display:'inline-block',width:20,height:20,border:'2px solid rgba(0,0,0,0.3)',borderTop:'2px solid #000',borderRadius:'50%',animation:'spin 0.8s linear infinite'}}/>:'🔍'}
+            {checking?'Taranıyor...':'Sorgula'}
+          </button>
+        </div>
+        {result&&<div style={{ animation:'scaleIn 0.4s ease', marginTop:32 }}>
+          {result.status==='error'?<div style={{ textAlign:'center', padding:32, background:theme.bg, borderRadius:theme.radius, border:`1px solid ${theme.border}` }}>
+            <span style={{ fontSize:64, display:'block', marginBottom:16 }}>⚠️</span>
+            <p style={{ color:theme.warning, fontSize:18, fontWeight:700, marginBottom:8 }}>{result.message}</p>
+            <p style={{ color:theme.textMuted, fontSize:14 }}>{result.hint}</p>
+          </div>
           :result.breached?<>
-            <div style={{ textAlign:'center', marginBottom:16 }}><span style={{ fontSize:48 }}>⚠️</span><p style={{ color:theme.danger, fontSize:18, fontWeight:700, marginTop:8 }}>Sizinti Tespit Edildi!</p></div>
-            {result.turkish_summary&&<div style={{ padding:12, background:theme.warning+'22', borderRadius:theme.radiusSm, marginBottom:16, borderLeft:`3px solid ${theme.warning}` }}><p style={{ fontSize:13, lineHeight:1.6, color:theme.text }}>{result.turkish_summary}</p></div>}
-            {result.shantaj_risk_analysis&&<div style={{ padding:12, background:theme.accentDim, borderRadius:theme.radiusSm, marginBottom:16, borderLeft:`3px solid ${theme.accent}` }}>
-              <p style={{ fontSize:12, fontWeight:700, color:'#fff', marginBottom:8 }}>🚨 Şantaj Risk Analizi</p>
-              <p style={{ fontSize:11, color:theme.textMuted, marginBottom:6 }}>Risk Skoru: <span style={{ color:theme.danger, fontWeight:700 }}>{result.shantaj_risk_analysis.shantaj_risk_score}/100</span> ({result.shantaj_risk_analysis.risk_level})</p>
-              {result.shantaj_risk_analysis.risk_factors&&<div style={{ marginTop:8 }}><p style={{ fontSize:11, fontWeight:600, color:theme.textMuted, marginBottom:4 }}>Risk Faktörleri:</p>{result.shantaj_risk_analysis.risk_factors.slice(0,3).map((rf,i)=><p key={i} style={{ fontSize:11, color:theme.text, marginLeft:8 }}>• {rf}</p>)}</div>}
+            <div style={{ textAlign:'center', marginBottom:24 }}>
+              <span style={{ fontSize:64 }}>🚨</span>
+              <p style={{ color:theme.danger, fontSize:28, fontWeight:800, marginTop:16 }}>Sızıntı Tespit Edildi!</p>
+              <p style={{ color:theme.textMuted, fontSize:16, marginTop:8 }}>{result.breach_count} olayda verileriniz sızdırılmış</p>
+            </div>
+            
+            {result.turkish_summary&&<div style={{ padding:20, background:theme.warning+'22', borderRadius:theme.radius, marginBottom:24, borderLeft:`4px solid ${theme.warning}` }}>
+              <p style={{ fontSize:16, lineHeight:1.8, color:theme.text, fontWeight:500 }}>{result.turkish_summary}</p>
             </div>}
-            {(result.breaches||[]).map((b,i)=><div key={i} style={{ padding:'12px 14px', marginBottom:8, background:theme.surface2, borderRadius:theme.radiusSm, borderLeft:`3px solid ${theme.accent}` }}>
-              <p style={{ fontSize:13, fontWeight:700, color:'#fff', marginBottom:4 }}>{b.title||b.name||'Bilinmeyen'}</p>
-              <p style={{ fontSize:11, color:theme.textMuted, marginBottom:4 }}>{b.breach_date?new Date(b.breach_date).toLocaleDateString('tr-TR'):''}</p>
-              <p style={{ fontSize:11, color:theme.textMuted }}>Sızan Veriler: {(b.data_classes||[]).join(', ')}</p>
-            </div>)}
-            {result.kvkk_report&&<div style={{ marginTop:16, padding:12, background:theme.primaryDim, borderRadius:theme.radiusSm, borderLeft:`3px solid ${theme.primary}` }}>
-              <p style={{ fontSize:12, fontWeight:700, color:'#fff', marginBottom:6 }}>📄 KVKK Başvuru Raporu</p>
-              <p style={{ fontSize:11, color:theme.textMuted }}>Rapor ID: {result.kvkk_report.report_id}</p>
-              <p style={{ fontSize:11, color:theme.textMuted }}>Başvuru için: <a href="https://www.kvkk.gov.tr" target="_blank" style={{ color:theme.primary }}>kvkk.gov.tr</a></p>
+            
+            {result.shantaj_risk_analysis&&<div style={{ padding:24, background:theme.accentDim, borderRadius:theme.radius, marginBottom:24, border:`1px solid ${theme.accent}33` }}>
+              <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:16 }}>
+                <span style={{ fontSize:32 }}>⚡</span>
+                <div>
+                  <p style={{ fontSize:18, fontWeight:700, color:'#fff' }}>Şantaj Risk Analizi</p>
+                  <p style={{ fontSize:14, color:theme.textMuted }}>AI destekli risk değerlendirmesi</p>
+                </div>
+                <div style={{ marginLeft:'auto', textAlign:'right' }}>
+                  <p style={{ fontSize:36, fontWeight:800, color:theme.danger }}>{result.shantaj_risk_analysis.shantaj_risk_score}</p>
+                  <p style={{ fontSize:12, color:theme.textMuted, textTransform:'uppercase' }}>/100</p>
+                </div>
+              </div>
+              <div style={{ display:'flex', gap:8, marginBottom:16 }}>
+                <span style={{ padding:'6px 16px', borderRadius:'20px', fontSize:13, fontWeight:700, background:theme.danger, color:'#fff' }}>{result.shantaj_risk_analysis.risk_level}</span>
+              </div>
+              {result.shantaj_risk_analysis.risk_factors&&<div>
+                <p style={{ fontSize:13, fontWeight:600, color:theme.textMuted, marginBottom:12, textTransform:'uppercase', letterSpacing:'1px' }}>Risk Faktörleri</p>
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(280px, 1fr))', gap:8 }}>
+                  {result.shantaj_risk_analysis.risk_factors.slice(0,4).map((rf,i)=><div key={i} style={{ padding:'12px 16px', background:theme.bg, borderRadius:theme.radiusSm, display:'flex', gap:8, alignItems:'center' }}>
+                    <span style={{ fontSize:18 }}>⚠️</span>
+                    <p style={{ fontSize:14, color:theme.text }}>{rf}</p>
+                  </div>)}
+                </div>
+              </div>}
+            </div>}
+            
+            <div style={{ marginBottom:24 }}>
+              <p style={{ fontSize:16, fontWeight:700, color:'#fff', marginBottom:16, display:'flex', alignItems:'center', gap:8 }}><span style={{ fontSize:24 }}>📊</span> Sızıntı Detayları</p>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(300px, 1fr))', gap:16 }}>
+                {(result.breaches||[]).map((b,i)=><div key={i} style={{ padding:20, background:theme.surface2, borderRadius:theme.radius, border:`1px solid ${theme.border}`, transition:'all 0.3s ease' }} onMouseEnter={e=>e.currentTarget.style.borderColor=theme.accent} onMouseLeave={e=>e.currentTarget.style.borderColor=theme.border}>
+                  <div style={{ display:'flex', alignItems:'flex-start', gap:12, marginBottom:12 }}>
+                    <div style={{ width:48, height:48, borderRadius:'12px', background:theme.accentDim, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                      <span style={{ fontSize:24 }}>🔓</span>
+                    </div>
+                    <div style={{ flex:1 }}>
+                      <p style={{ fontSize:16, fontWeight:700, color:'#fff', marginBottom:4 }}>{b.title||b.name||'Bilinmeyen'}</p>
+                      <p style={{ fontSize:13, color:theme.textMuted }}>{b.breach_date?new Date(b.breach_date).toLocaleDateString('tr-TR'):''}</p>
+                    </div>
+                  </div>
+                  <div style={{ padding:12, background:theme.bg, borderRadius:theme.radiusSm }}>
+                    <p style={{ fontSize:12, fontWeight:600, color:theme.textMuted, marginBottom:8, textTransform:'uppercase', letterSpacing:'0.5px' }}>Sızan Veriler</p>
+                    <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+                      {(b.data_classes||[]).map((dc,di)=><span key={di} style={{ padding:'4px 12px', borderRadius:'12px', fontSize:12, background:theme.primaryDim, color:theme.primary }}>{dc}</span>)}
+                    </div>
+                  </div>
+                </div>)}
+              </div>
+            </div>
+            
+            {result.kvkk_report&&<div style={{ padding:24, background:theme.primaryDim, borderRadius:theme.radius, border:`1px solid ${theme.primary}33` }}>
+              <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:16 }}>
+                <div style={{ width:48, height:48, borderRadius:'12px', background:theme.primary+'33', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  <span style={{ fontSize:24 }}>📄</span>
+                </div>
+                <div>
+                  <p style={{ fontSize:18, fontWeight:700, color:'#fff' }}>KVKK Başvuru Raporu</p>
+                  <p style={{ fontSize:14, color:theme.textMuted }}>Otomatik oluşturulmuş başvuru belgesi</p>
+                </div>
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:16 }}>
+                <div style={{ padding:16, background:theme.bg, borderRadius:theme.radiusSm }}>
+                  <p style={{ fontSize:12, color:theme.textMuted, marginBottom:4 }}>Rapor ID</p>
+                  <p style={{ fontSize:16, fontWeight:700, color:'#fff', fontFamily:theme.mono }}>{result.kvkk_report.report_id}</p>
+                </div>
+                <div style={{ padding:16, background:theme.bg, borderRadius:theme.radiusSm }}>
+                  <p style={{ fontSize:12, color:theme.textMuted, marginBottom:4 }}>Başvuru</p>
+                  <a href="https://www.kvkk.gov.tr" target="_blank" style={{ fontSize:16, fontWeight:700, color:theme.primary, textDecoration:'none' }}>kvkk.gov.tr</a>
+                </div>
+              </div>
             </div>}
           </>
-          :<div style={{ textAlign:'center', padding:20 }}><span style={{ fontSize:48 }}>✅</span><p style={{ color:theme.success, fontSize:18, fontWeight:700, marginTop:8 }}>Sizinti Bulunamadi</p><p style={{ color:theme.textMuted, fontSize:13, marginTop:4 }}>{email} adresi bilinen sizintilarda yok</p></div>}
+          :<div style={{ textAlign:'center', padding:48, background:theme.bg, borderRadius:theme.radius, border:`1px solid ${theme.border}` }}>
+            <span style={{ fontSize:80 }}>✅</span>
+            <p style={{ color:theme.success, fontSize:28, fontWeight:800, marginTop:20 }}>Sızıntı Bulunamadı</p>
+            <p style={{ color:theme.textMuted, fontSize:16, marginTop:8 }}>{email} adresi bilinen sızıntılarda yok</p>
+          </div>}
         </div>}
       </Card>
     </div>
-    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:24, marginBottom:48 }}>
-      <Card><h3 style={{ fontSize:16, fontWeight:700, color:'#fff', marginBottom:12, display:'flex', gap:8, alignItems:'center' }}><span>🛡️</span> Sifre Guvenlik Onerileri</h3><div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-        {[{icon:'🔑',title:'Essiz Sifre Kullanin',desc:'Her platform icin farkli sifre olusturun'},{icon:'📏',title:'Uzunluk Onemli',desc:'En az 12 karakter, buyuk/kucuk harf + rakam + sembol'},{icon:'🔄',title:'Duzenli Degistirin',desc:'90 gunde bir sifrelerinizi yenileyin'},{icon:'🔐',title:'2FA Acin',desc:'Iki faktorlu kimlik dogrulama kullanin'},{icon:'🕵️',title:'Parola Yoneticisi',desc:'Bitwarden, 1Password gibi araclar kullanin'}].map((item,i)=><div key={i} style={{ display:'flex', gap:12, alignItems:'flex-start', padding:'10px 14px', background:theme.surface, borderRadius:theme.radiusSm }}><span style={{ fontSize:24 }}>{item.icon}</span><div><p style={{ fontSize:13, fontWeight:600, color:'#fff' }}>{item.title}</p><p style={{ fontSize:12, color:theme.textMuted }}>{item.desc}</p></div></div>)}
-      </div></Card>
-      <Card><h3 style={{ fontSize:16, fontWeight:700, color:'#fff', marginBottom:12, display:'flex', gap:8, alignItems:'center' }}><span>🚨</span> Sizinti Sonrasi Mudahale</h3><div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-        {[{step:'01',title:'Panik Yapmayin',desc:'Sakin olun ve adim adim ilerleyin'},{step:'02',title:'Sifrenizi Hemen Degistirin',desc:'Sizdirilan platformdaki sifrenizi yenileyin'},{step:'03',title:'Tum Platformlari Guncelleyin',desc:'Ayni sifreyi kullandiginiz yerleri degistirin'},{step:'04',title:'2FA Aktiflestirin',desc:'Tum kritik hesaplarda 2FA acin'},{step:'05',title:'Hesap Aktivitesini Kontrol Edin',desc:'Supheli girisleri inceleyin'},{step:'06',title:'Izlemeye Devam Edin',desc:'Bu modul ile duzenli kontrol yapin'}].map((item,i)=><div key={i} style={{ display:'flex', gap:12, alignItems:'flex-start' }}><span style={{ width:28, height:28, borderRadius:'50%', background:theme.primaryDim, color:theme.primary, display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:700, flexShrink:0 }}>{item.step}</span><div><p style={{ fontSize:13, fontWeight:600, color:'#fff' }}>{item.title}</p><p style={{ fontSize:12, color:theme.textMuted }}>{item.desc}</p></div></div>)}
-      </div></Card>
+
+    {/* Post-Breach Intervention - Only section below */}
+    <div style={{ maxWidth:900, margin:'0 auto 48px' }}>
+      <Card style={{ padding:40, background:`linear-gradient(135deg, ${theme.surface}, ${theme.surface2})` }}>
+        <div style={{ display:'flex', alignItems:'center', gap:16, marginBottom:24 }}>
+          <div style={{ width:64, height:64, borderRadius:'16px', background:theme.warning+'22', display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <span style={{ fontSize:32 }}>🚨</span>
+          </div>
+          <div>
+            <h2 style={{ fontSize:24, fontWeight:700, color:'#fff', marginBottom:4 }}>Sızıntı Sonrası Müdahale</h2>
+            <p style={{ color:theme.textMuted, fontSize:14 }}>Adım adım eylem planı</p>
+          </div>
+        </div>
+        
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(280px, 1fr))', gap:16 }}>
+          {[
+            {step:'01',icon:'😌',title:'Panik Yapmayın',desc:'Sakin olun ve adım adım ilerleyin'},
+            {step:'02',icon:'🔑',title:'Şifrenizi Hemen Değiştirin',desc:'Sızdırılan platformdaki şifrenizi yenileyin'},
+            {step:'03',icon:'🔄',title:'Tüm Platformları Güncelleyin',desc:'Aynı şifreyi kullandığınız yerleri değiştirin'},
+            {step:'04',icon:'🔐',title:'2FA Aktifleştirin',desc:'Tüm kritik hesaplarda 2FA açın'},
+            {step:'05',icon:'🔍',title:'Hesap Aktivitesini Kontrol Edin',desc:'Şüpheli girişleri inceleyin'},
+            {step:'06',icon:'📊',title:'İzlemeye Devam Edin',desc:'Bu modül ile düzenli kontrol yapın'}
+          ].map((item,i)=><div key={i} style={{ padding:20, background:theme.bg, borderRadius:theme.radius, border:`1px solid ${theme.border}`, transition:'all 0.3s ease' }} onMouseEnter={e=>e.currentTarget.style.borderColor=theme.warning} onMouseLeave={e=>e.currentTarget.style.borderColor=theme.border}>
+            <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:12 }}>
+              <div style={{ width:40, height:40, borderRadius:'12px', background:theme.warning+'22', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                <span style={{ fontSize:20 }}>{item.icon}</span>
+              </div>
+              <span style={{ width:32, height:32, borderRadius:'50%', background:theme.warning+'22', color:theme.warning, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, flexShrink:0 }}>{item.step}</span>
+            </div>
+            <p style={{ fontSize:16, fontWeight:700, color:'#fff', marginBottom:6 }}>{item.title}</p>
+            <p style={{ fontSize:14, color:theme.textMuted, lineHeight:1.5 }}>{item.desc}</p>
+          </div>)}
+        </div>
+      </Card>
     </div>
-    <Card><h3 style={{ fontSize:16, fontWeight:700, color:'#fff', marginBottom:16, display:'flex', gap:8, alignItems:'center' }}><span>📋</span> Bilinen Buyuk Veri Ihlalleri</h3>
-      <div style={{ overflowX:'auto' }}><table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
-        <thead><tr style={{ borderBottom:`2px solid ${theme.border}`, color:theme.textMuted, fontSize:11, textTransform:'uppercase', letterSpacing:'1px' }}><th style={{ textAlign:'left', padding:'12px 8px' }}>Ihlal</th><th style={{ textAlign:'left', padding:'12px 8px' }}>Sirket</th><th style={{ textAlign:'center', padding:'12px 8px' }}>Sizan Veri</th><th style={{ textAlign:'center', padding:'12px 8px' }}>Boyut</th><th style={{ textAlign:'right', padding:'12px 8px' }}>Tarih</th></tr></thead>
-        <tbody>{[
-          {name:'Collection #1',company:'Multiple',data:'Email, Password',size:'773M',date:'2019-01'},
-          {name:'LinkedIn',company:'LinkedIn',data:'Email, Password',size:'500M',date:'2021-06'},
-          {name:'Facebook',company:'Meta',data:'Phone, Email, Name',size:'533M',date:'2021-04'},
-          {name:'Twitter',company:'X Corp',data:'Email, Username',size:'235M',date:'2022-12'},
-          {name:'Adobe',company:'Adobe',data:'Email, Password, CC',size:'153M',date:'2013-10'},
-          {name:'Dropbox',company:'Dropbox',data:'Email, Password',size:'69M',date:'2012-07'},
-          {name:'Yahoo',company:'Yahoo',data:'Email, Password, Name',size:'3B',date:'2013-08'},
-          {name:'Marriott',company:'Marriott',data:'Passport, Name, Email',size:'500M',date:'2018-11'},
-        ].map((b,i)=><tr key={i} style={{ borderBottom:`1px solid ${theme.border}` }} onMouseEnter={e=>e.currentTarget.style.background=theme.surface} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-          <td style={{ padding:'10px 8px' }}><span style={{ color:'#fff', fontWeight:600 }}>{b.name}</span></td>
-          <td style={{ padding:'10px 8px', color:theme.textMuted }}>{b.company}</td>
-          <td style={{ padding:'10px 8px', textAlign:'center', fontSize:12 }}>{b.data}</td>
-          <td style={{ padding:'10px 8px', textAlign:'center' }}><span style={{ padding:'2px 8px', borderRadius:'10px', fontSize:11, background:theme.primaryDim, color:theme.primary }}>{b.size}</span></td>
-          <td style={{ padding:'10px 8px', textAlign:'right', color:theme.textMuted, fontSize:11 }}>{b.date}</td>
-        </tr>)}</tbody></table></div>
-    </Card>
   </div>
 }
