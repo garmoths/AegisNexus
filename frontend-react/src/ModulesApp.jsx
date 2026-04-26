@@ -28,6 +28,8 @@ const theme = {
   radius: '12px',
   radiusSm: '8px',
   glow: '0 0 40px rgba(0,212,255,0.08)',
+  cardShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+  cardShadowHover: '0 35px 60px -15px rgba(0, 212, 255, 0.15)',
 }
 
 function Spinner({ size = 20 }) {
@@ -95,6 +97,10 @@ export default function ModulesApp() {
       @keyframes slideInRight { from { opacity:0; transform:translateX(30px) } to { opacity:1; transform:translateX(0) } }
       @keyframes scaleIn { from { opacity:0; transform:scale(0.9) } to { opacity:1; transform:scale(1) } }
       @keyframes floatPulse { 0% { transform:translateY(0px) } 50% { transform:translateY(-4px) } 100% { transform:translateY(0px) } }
+      @keyframes cardFlip { 0% { transform:rotateY(0deg) } 100% { transform:rotateY(180deg) } }
+      @keyframes cardFlipBack { 0% { transform:rotateY(180deg) } 100% { transform:rotateY(0deg) } }
+      @keyframes glowPulse { 0%, 100% { box-shadow: 0 0 20px rgba(0,212,255,0.3) } 50% { box-shadow: 0 0 40px rgba(0,212,255,0.6) } }
+      @keyframes shimmer { 0% { background-position: -200% 0 } 100% { background-position: 200% 0 } }
       * { scrollbar-width:thin; scrollbar-color:${theme.border} transparent; }
       ::-webkit-scrollbar { width:6px }
       ::-webkit-scrollbar-track { background:transparent }
@@ -619,53 +625,54 @@ function VictimAtlas() {
       </div>
     </Card>
 
-    <div style={{ display:'grid', gridTemplateColumns:'repeat(3, minmax(0,1fr))', gap:16 }}>
+    <div style={{ display:'grid', gridTemplateColumns:'repeat(3, minmax(0,1fr))', gap:20 }}>
       {cases.length===0 && <Card style={{ gridColumn:'1 / -1', textAlign:'center', color:theme.textMuted }}>{loading?'Vaka verileri yukleniyor...':'Filtreye uygun vaka bulunamadi'}</Card>}
-      {cases.map((c)=> {
+      {cases.map((c, idx)=> {
         const isFlipped = expanded[c.id] === true
-        return <div key={c.id} style={{ perspective:'1400px', minHeight:420 }}>
+        return <div key={c.id} style={{ perspective:'2000px', minHeight:480 }}>
           <div style={{
             position:'relative',
             width:'100%',
-            minHeight:420,
+            minHeight:480,
             transformStyle:'preserve-3d',
-            transition:'transform 0.7s cubic-bezier(0.22, 1, 0.36, 1)',
+            transition:'transform 0.8s cubic-bezier(0.4, 0, 0.2, 1)',
             transform:isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
           }}>
             <div style={{
               position:'absolute',
               inset:0,
               backfaceVisibility:'hidden',
-              background:`linear-gradient(160deg, ${theme.surface}, ${theme.surface2})`,
-              border:`1px solid ${riskColor(c.severity_score)}44`,
+              background:`linear-gradient(145deg, ${theme.surface}, ${theme.surface2})`,
+              border:`1px solid ${riskColor(c.severity_score)}66`,
               borderRadius:theme.radius,
-              padding:18,
-              boxShadow:'0 20px 40px rgba(0,0,0,0.25)',
+              padding:24,
+              boxShadow:isFlipped ? theme.cardShadowHover : theme.cardShadow,
+              transition:'box-shadow 0.4s ease',
             }}>
-              <div style={{ height:5, borderRadius:99, background:`linear-gradient(90deg, ${riskColor(c.severity_score)}, ${theme.primary})`, marginBottom:12, animation:'floatPulse 2.4s ease-in-out infinite' }} />
-              <div style={{ display:'flex', justifyContent:'space-between', gap:8, marginBottom:10 }}>
-                <span style={{ fontSize:11, color:theme.textMuted }}>{methodLabel(c.attack_method)}</span>
-                <span style={{ fontSize:11, color:riskColor(c.severity_score), fontWeight:700 }}>Risk {c.severity_score}/100</span>
+              <div style={{ height:6, borderRadius:99, background:`linear-gradient(90deg, ${riskColor(c.severity_score)}, ${theme.primary})`, marginBottom:16, animation:'floatPulse 3s ease-in-out infinite' }} />
+              <div style={{ display:'flex', justifyContent:'space-between', gap:8, marginBottom:12 }}>
+                <span style={{ fontSize:12, color:theme.textMuted, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.5px' }}>{methodLabel(c.attack_method)}</span>
+                <span style={{ fontSize:12, color:riskColor(c.severity_score), fontWeight:800, padding:'4px 12px', background:riskColor(c.severity_score)+'22', borderRadius:'20px' }}>Risk {c.severity_score}/100</span>
               </div>
-              <h4 style={{ fontSize:16, color:'#fff', marginBottom:8, lineHeight:1.4 }}>{c.case_title}</h4>
-              <p style={{ fontSize:12, color:theme.textMuted, marginBottom:12 }}>{lossTypeLabel(c.loss_type)} • {platformLabel(c.target_platform)}</p>
-              <div style={{ marginBottom:12 }}>
-                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:6 }}>
-                  <span style={{ fontSize:11, color:theme.textMuted }}>Guven skoru</span>
-                  <span style={{ fontSize:11, color:'#fff', fontWeight:700 }}>{c.confidence_score}%</span>
+              <h4 style={{ fontSize:18, color:'#fff', marginBottom:10, lineHeight:1.4, fontWeight:700 }}>{c.case_title}</h4>
+              <p style={{ fontSize:13, color:theme.textMuted, marginBottom:16 }}>{lossTypeLabel(c.loss_type)} • {platformLabel(c.target_platform)}</p>
+              <div style={{ marginBottom:16 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:8 }}>
+                  <span style={{ fontSize:12, color:theme.textMuted, fontWeight:600 }}>Güven Skoru</span>
+                  <span style={{ fontSize:12, color:'#fff', fontWeight:800 }}>{c.confidence_score}%</span>
                 </div>
-                <div style={{ width:'100%', height:7, borderRadius:99, overflow:'hidden', background:theme.bg }}>
-                  <div style={{ width:`${Math.max(4, Math.min(100, c.confidence_score||0))}%`, height:'100%', background:riskColor(c.confidence_score) }} />
+                <div style={{ width:'100%', height:8, borderRadius:99, overflow:'hidden', background:theme.bg }}>
+                  <div style={{ width:`${Math.max(4, Math.min(100, c.confidence_score||0))}%`, height:'100%', background:riskColor(c.confidence_score), borderRadius:99, transition:'width 1s ease' }} />
                 </div>
               </div>
-              <div style={{ padding:'10px 12px', borderRadius:8, background:theme.surface, border:`1px solid ${theme.border}`, marginBottom:12 }}>
-                <p style={{ fontSize:12, color:theme.warning, margin:0 }}>Kritik Uyari</p>
-                <p style={{ fontSize:12, color:theme.text, margin:'6px 0 0' }}>{c.critical_warning}</p>
+              <div style={{ padding:'14px 16px', borderRadius:theme.radiusSm, background:theme.surface, border:`1px solid ${theme.border}`, marginBottom:16 }}>
+                <p style={{ fontSize:13, color:theme.warning, margin:0, fontWeight:700, marginBottom:6 }}>⚠️ Kritik Uyarı</p>
+                <p style={{ fontSize:13, color:theme.text, margin:0, lineHeight:1.5 }}>{c.critical_warning}</p>
               </div>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:12 }}>
-                <span style={{ fontSize:11, color:theme.textMuted }}>Kartı cevir ve onlem planini gor</span>
-                <button onClick={()=>setExpanded(v=>({...v,[c.id]:true}))} style={{ padding:'10px 14px', borderRadius:theme.radiusSm, cursor:'pointer', border:`1px solid ${theme.primary}44`, background:theme.primaryDim, color:theme.primary, fontWeight:700 }}>
-                  Karti cevir →
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:16 }}>
+                <span style={{ fontSize:12, color:theme.textMuted }}>Kartı çevir ve korunma planını gör</span>
+                <button onClick={()=>setExpanded(v=>({...v,[c.id]:true}))} style={{ padding:'12px 20px', borderRadius:theme.radiusSm, cursor:'pointer', border:`1px solid ${theme.primary}44`, background:theme.primaryDim, color:theme.primary, fontWeight:700, fontSize:13, transition:'all 0.3s ease' }} onMouseEnter={e=>{e.currentTarget.style.background=theme.primary+'33';e.currentTarget.style.transform='translateY(-2px)'}} onMouseLeave={e=>{e.currentTarget.style.background=theme.primaryDim;e.currentTarget.style.transform='none'}}>
+                  Kartı Çevir →
                 </button>
               </div>
             </div>
@@ -674,17 +681,17 @@ function VictimAtlas() {
               inset:0,
               backfaceVisibility:'hidden',
               transform:'rotateY(180deg)',
-              background:`linear-gradient(160deg, ${theme.surface2}, ${theme.surface})`,
-              border:`1px solid ${theme.primary}44`,
+              background:`linear-gradient(145deg, ${theme.surface2}, ${theme.surface})`,
+              border:`1px solid ${theme.primary}66`,
               borderRadius:theme.radius,
-              padding:18,
-              boxShadow:'0 20px 40px rgba(0,0,0,0.3)',
+              padding:24,
+              boxShadow:theme.cardShadowHover,
               overflow:'auto',
             }}>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
-                <p style={{ fontSize:12, color:theme.primary, fontWeight:700, margin:0 }}>Korunma Plani</p>
-                <button onClick={()=>setExpanded(v=>({...v,[c.id]:false}))} style={{ padding:'8px 12px', borderRadius:theme.radiusSm, cursor:'pointer', border:`1px solid ${theme.border}`, background:theme.bg, color:theme.text }}>
-                  ← On yuze don
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
+                <p style={{ fontSize:14, color:theme.primary, fontWeight:700, margin:0 }}>🛡️ Korunma Planı</p>
+                <button onClick={()=>setExpanded(v=>({...v,[c.id]:false}))} style={{ padding:'10px 16px', borderRadius:theme.radiusSm, cursor:'pointer', border:`1px solid ${theme.border}`, background:theme.bg, color:theme.text, fontWeight:600, fontSize:12, transition:'all 0.3s ease' }} onMouseEnter={e=>{e.currentTarget.style.borderColor=theme.primary+'44';e.currentTarget.style.color=theme.primary}} onMouseLeave={e=>{e.currentTarget.style.borderColor=theme.border;e.currentTarget.style.color=theme.text}}>
+                  ← Ön Yüze Dön
                 </button>
               </div>
               <VictimAtlasDefense caseId={c.id} compact />
@@ -725,21 +732,30 @@ function VictimAtlasDefense({ caseId, compact = false }) {
     return ()=>{ mounted = false }
   },[caseId])
 
-  if (loading) return <p style={{ marginTop:10, fontSize:12, color:theme.textMuted }}>Detay yukleniyor...</p>
+  if (loading) return <div style={{ display:'flex', alignItems:'center', gap:8, padding:16, background:theme.bg, borderRadius:theme.radiusSm }}><Spinner size={16}/><span style={{ fontSize:12, color:theme.textMuted }}>Detay yükleniyor...</span></div>
   if (!data) return <p style={{ marginTop:10, fontSize:12, color:theme.textMuted }}>Detay bulunamadi.</p>
 
-  return <div style={{ marginTop:compact ? 0 : 12, padding:12, background:theme.bg, borderRadius:theme.radiusSm, border:`1px solid ${theme.border}` }}>
-    <p style={{ fontSize:12, color:theme.text, marginBottom:10, lineHeight:1.6 }}>{data.narrative_summary}</p>
-    <p style={{ fontSize:11, color:theme.textMuted, marginBottom:8 }}>Adim adim korunma rehberi</p>
-    <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:12 }}>
-      {(data.defense_steps||[]).map((step, idx)=><div key={idx} style={{ display:'flex', gap:10, alignItems:'flex-start', padding:'10px 12px', borderRadius:8, background:theme.surface, border:`1px solid ${theme.border}` }}>
-        <span style={{ color:theme.success, fontWeight:800, minWidth:18 }}>{idx+1}.</span>
-        <span style={{ fontSize:12, color:'#fff', lineHeight:1.5 }}>{step}</span>
+  return <div style={{ marginTop:compact ? 0 : 0 }}>
+    <div style={{ padding:'16px 18px', background:theme.bg, borderRadius:theme.radiusSm, border:`1px solid ${theme.border}`, marginBottom:16 }}>
+      <p style={{ fontSize:13, color:theme.text, marginBottom:12, lineHeight:1.6, fontWeight:500 }}>{data.narrative_summary}</p>
+    </div>
+    
+    <p style={{ fontSize:13, color:theme.primary, fontWeight:700, marginBottom:12, display:'flex', alignItems:'center', gap:6 }}>📋 Adım Adım Korunma Rehberi</p>
+    <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:16 }}>
+      {(data.defense_steps||[]).map((step, idx)=><div key={idx} style={{ display:'flex', gap:12, alignItems:'flex-start', padding:'14px 16px', borderRadius:theme.radiusSm, background:theme.surface, border:`1px solid ${theme.border}`, transition:'all 0.3s ease' }} onMouseEnter={e=>{e.currentTarget.style.borderColor=theme.primary+'44';e.currentTarget.style.transform='translateX(4px)'}} onMouseLeave={e=>{e.currentTarget.style.borderColor=theme.border;e.currentTarget.style.transform='none'}}>
+        <div style={{ minWidth:28, height:28, borderRadius:'50%', background:theme.primaryDim, border:`1px solid ${theme.primary}44`, display:'flex', alignItems:'center', justifyContent:'center', color:theme.primary, fontWeight:800, fontSize:13 }}>{idx+1}</div>
+        <div style={{ flex:1 }}>
+          <p style={{ fontSize:13, color:'#fff', lineHeight:1.6, margin:0, fontWeight:500 }}>{step}</p>
+        </div>
       </div>)}
     </div>
-    {Array.isArray(data.evidence) && data.evidence.length>0 && <div>
-      <p style={{ fontSize:11, color:theme.textMuted, marginBottom:6 }}>Kaynak baglantilari</p>
-      {data.evidence.slice(0,3).map((ev, idx)=><a key={idx} href={ev.url} target="_blank" rel="noreferrer" style={{ display:'block', fontSize:11, color:theme.primary, marginBottom:4, textDecoration:'none' }}>{ev.title || ev.url}</a>)}
+    
+    {Array.isArray(data.evidence) && data.evidence.length>0 && <div style={{ padding:'14px 16px', background:theme.surface, borderRadius:theme.radiusSm, border:`1px solid ${theme.border}` }}>
+      <p style={{ fontSize:12, color:theme.textMuted, marginBottom:10, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.5px' }}>🔗 Kaynak Bağlantıları</p>
+      {data.evidence.slice(0,3).map((ev, idx)=><a key={idx} href={ev.url} target="_blank" rel="noreferrer" style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 12px', background:theme.bg, borderRadius:6, fontSize:12, color:theme.primary, textDecoration:'none', marginBottom:6, transition:'all 0.2s ease' }} onMouseEnter={e=>{e.currentTarget.style.background=theme.primary+'22';e.currentTarget.style.transform='translateX(4px)'}} onMouseLeave={e=>{e.currentTarget.style.background=theme.bg;e.currentTarget.style.transform='none'}}>
+        <span>📄</span>
+        <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{ev.title || ev.url}</span>
+      </a>)}
     </div>}
   </div>
 }
