@@ -284,7 +284,7 @@ curl -X POST https://api.aegisnexus.dev/api/v2/ai-analyzer/analyze \
 
 ## 06 - Victim Atlas (Siber Mağduriyet Atlası)
 
-**Özet:** Victim Atlas, siber mağduriyet vakalarının arşivlendiği ve analiz edildiği insan odaklı bir modüldür. Phishing, smishing, sahte mobil uygulama gibi saldırı yöntemlerini sınıflandırır; banka hesabı, kimlik, kredi kartı gibi kayıp tiplerini analiz eder. Hot set yönetimi ile kritik vakaları önceliklendirir ve LLM tabanlı vaka çıkarımı ile otomatik veri işleme yapar. Kullanıcıların benzer mağduriyetlerden korunmasına yardımcı olur.
+**Özet:** Victim Atlas, siber mağduriyet vakalarının sistematik arşivlenmesi ve analiz edildiği insan odaklı bir modüldür. Bireysel düzeyde, kullanıcıların karşılaştığı phishing, smishing, sahte mobil uygulama gibi saldırı yöntemlerini sınıflandırır; banka hesabı, kimlik, kredi kartı gibi kayıp tiplerini analiz eder ve benzer mağduriyetlerden korunmasına rehberlik eder. Sosyal düzeyde, toplumda görülen siber tehdit trendlerini izler, kritik vakaları hot set yönetimi ile önceliklendirir ve LLM tabanlı vaka çıkarımı ile otomatik veri işleme yaparak politika yapıcılara ve güvenlik ekiplerine istihbarat sağlar. Bu çift yönlü yaklaşım, hem bireysel kullanıcıların farkındalığını artırır hem de toplumsal siber güvenlik stratejilerinin geliştirilmesine katkıda bulunur.
 
 **Açıklama:** İnsan odaklı siber mağduriyet arşivi ve savunma rehberi modülü. Siber mağduriyet vakalarını takip eder ve analiz eder.
 
