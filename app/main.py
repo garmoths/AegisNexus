@@ -171,5 +171,3 @@ async def dashboard_page():
         "Hata": "dashboard.html bulunamadı.",
         "Aranan_Yol": str(DASHBOARD_FILE),
     }
-
-
