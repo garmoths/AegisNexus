@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { motion, useReducedMotion } from 'framer-motion'
+import { motion, useReducedMotion, AnimatePresence } from 'framer-motion'
 
 const API = import.meta.env.VITE_API_BASE_URL || '/api/v2'
 
@@ -381,6 +381,9 @@ function PhishingDetector() {
   const [latestTotal, setLatestTotal] = useState(0)
   const [loadingLatest, setLoadingLatest] = useState(false)
   const [toast, setToast] = useState({ message:'', type:'success', visible:false })
+  const [searchResults, setSearchResults] = useState([])
+  const [showDropdown, setShowDropdown] = useState(false)
+  const searchTimeoutRef = useRef(null)
 
   function showToast(msg,t='success'){setToast({message:msg,type:t,visible:true});setTimeout(()=>setToast(t=>({...t,visible:false})),3000)}
 
@@ -427,6 +430,42 @@ function PhishingDetector() {
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(()=>{loadLatest(1);loadScanHistory(1);loadStats()},[loadLatest, loadScanHistory, loadStats])
 
+  // Real-time autocomplete with debouncing
+  useEffect(() => {
+    if (url.length < 3) {
+      setSearchResults([])
+      setShowDropdown(false)
+      return
+    }
+    
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
+    }
+    
+    searchTimeoutRef.current = setTimeout(async () => {
+      try {
+        const r = await fetch(`${API}/phishing/search?q=${encodeURIComponent(url)}`)
+        const d = await r.json()
+        if (d.status === 'success' || d.results || d.data) {
+          setSearchResults(d.results || d.data || [])
+          setShowDropdown(true)
+        } else {
+          setSearchResults([])
+          setShowDropdown(false)
+        }
+      } catch (e) {
+        setSearchResults([])
+        setShowDropdown(false)
+      }
+    }, 500)
+    
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+      }
+    }
+  }, [url])
+
   async function handleCheck() {
     if(!url){showToast('Lutfen bir URL girin','error');return}
     setChecking(true);setResult(null)
@@ -456,9 +495,82 @@ function PhishingDetector() {
     </div>
     <Card style={{ marginBottom:32 }}>
       <h3 style={{ fontSize:18, fontWeight:700, color:'#fff', marginBottom:16, display:'flex', gap:8, alignItems:'center' }}><span>🔍</span> URL Guvenlik Kontrolu</h3>
-      <div style={{ display:'flex', gap:12, marginBottom:16 }}>
-        <input value={url} onChange={e=>setUrl(e.target.value)} placeholder="https://ornek.com/supheli-link" style={{ flex:1, padding:'14px 18px', borderRadius:theme.radiusSm, background:theme.bg, border:`1px solid ${theme.border}`, color:'#fff', fontSize:14, outline:'none' }} onKeyDown={e=>e.key==='Enter'&&handleCheck()}/>
-        <GlowButton onClick={handleCheck} loading={checking} disabled={!url}>{checking?'Taranıyor...':'🔍 Tara'}</GlowButton>
+      <div style={{ position:'relative' }}>
+        <div style={{ display:'flex', gap:12, marginBottom:16 }}>
+          <input 
+            value={url} 
+            onChange={e=>setUrl(e.target.value)} 
+            placeholder="https://ornek.com/supheli-link" 
+            style={{ 
+              flex:1, 
+              padding:'14px 18px', 
+              borderRadius:theme.radiusSm, 
+              background:theme.bg, 
+              border:`1px solid ${theme.border}`, 
+              color:'#fff', 
+              fontSize:14, 
+              outline:'none' 
+            }} 
+            onKeyDown={e=>e.key==='Enter'&&handleCheck()}
+          />
+          <GlowButton onClick={handleCheck} loading={checking} disabled={!url}>{checking?'Taranıyor...':'🔍 Tara'}</GlowButton>
+        </div>
+        
+        {/* Autocomplete Dropdown */}
+        <AnimatePresence>
+          {showDropdown && searchResults.length > 0 && (
+            <motion.div
+              initial={{ opacity:0, y:-10 }}
+              animate={{ opacity:1, y:0 }}
+              exit={{ opacity:0, y:-10 }}
+              transition={{ duration:0.2, ease:theme.ease.out }}
+              style={{
+                position:'absolute',
+                top:'100%',
+                left:0,
+                right:0,
+                marginTop:8,
+                background:theme.bgDeep,
+                borderRadius:theme.radiusSm,
+                border:`1px solid ${theme.border}`,
+                maxHeight:300,
+                overflowY:'auto',
+                zIndex:100,
+                boxShadow:theme.shadow.glow
+              }}
+            >
+              {searchResults.slice(0, 10).map((item, i) => (
+                <motion.div
+                  key={i}
+                  initial={{ opacity:0, x:-10 }}
+                  animate={{ opacity:1, x:0 }}
+                  transition={{ delay:i * 0.05, duration:0.2 }}
+                  onClick={() => {
+                    setUrl(item.url || '')
+                    setShowDropdown(false)
+                    setTimeout(() => handleCheck(), 100)
+                  }}
+                  style={{
+                    padding:'12px 16px',
+                    borderBottom:`1px solid ${theme.border}`,
+                    cursor:'pointer',
+                    transition:'background 0.2s ease'
+                  }}
+                  whileHover={{ background:theme.surface }}
+                >
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
+                    <span style={{ color:theme.primary, fontFamily:theme.mono, fontSize:12, wordBreak:'break-all' }}>{item.url||'-'}</span>
+                    <span style={{ padding:'4px 10px', borderRadius:'10px', fontSize:10, background:(item.risk_score||0)>50?theme.accentDim:theme.primaryDim, color:(item.risk_score||0)>50?theme.accent:theme.primary }}>{item.risk_level||'Bilinmiyor'}</span>
+                  </div>
+                  <div style={{ display:'flex', gap:16, fontSize:11, color:theme.textMuted }}>
+                    <span>Risk: <span style={{ color:(item.risk_score||0)>50?theme.accent:theme.primary, fontWeight:600 }}>{item.risk_score||'-'}</span></span>
+                    <span>Domain: {item.domain||'-'}</span>
+                  </div>
+                </motion.div>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
       {scanHistory.length>0&&<div style={{ marginTop:12, padding:12, background:theme.surface, borderRadius:theme.radiusSm, border:`1px solid ${theme.borderLight}` }}>
         <p style={{ fontSize:11, color:theme.textMuted, marginBottom:8, fontWeight:600 }}>Son 20 taranan URL (tıklayarak kontrol edin):</p>
@@ -828,6 +940,9 @@ function HoneypotIOC() {
   const [searching, setSearching] = useState(false)
   const [activeTab, setActiveTab] = useState('dashboard')
   const [toast, setToast] = useState({ message:'', type:'success', visible:false })
+  const [currentSlide, setCurrentSlide] = useState(0)
+  const [showDropdown, setShowDropdown] = useState(false)
+  const searchTimeoutRef = useRef(null)
 
   async function loadIoCStats(){
     try{
@@ -846,7 +961,6 @@ function HoneypotIOC() {
   }
   async function loadIoCList(){
     try{
-      // Fetch from all risk levels to get a good mix
       const levels=['critical','high','medium','low'];
       let allIocs=[];
       for(const level of levels){
@@ -871,7 +985,55 @@ function HoneypotIOC() {
   }
   async function handleSearch(){if(!searchQuery)return;setSearching(true);try{const r=await fetch(`${API}/honeypot/ioc/search?q=${encodeURIComponent(searchQuery)}`);const d=await r.json();if(d.status==='success'||d.results){setSearchResults(d.results||d.data||d.iocs||[]);setActiveTab('search-results')}else{showToast('Arama sonucu bulunamadi veya hata: '+d.message,'error')}}catch(e){showToast('Arama hatasi: '+e.message,'error')};setSearching(false)}
   function showToast(msg,t='success'){setToast({message:msg,type:t,visible:true});setTimeout(()=>setToast(v=>({...v,visible:false})),3000)}
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+  
+  // Real-time autocomplete with debouncing
+  useEffect(() => {
+    if (searchQuery.length < 2) {
+      setSearchResults([])
+      setShowDropdown(false)
+      return
+    }
+    
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
+    }
+    
+    searchTimeoutRef.current = setTimeout(async () => {
+      setSearching(true)
+      try {
+        const r = await fetch(`${API}/honeypot/ioc/search?q=${encodeURIComponent(searchQuery)}`)
+        const d = await r.json()
+        if (d.status === 'success' || d.results) {
+          setSearchResults(d.results || d.data || d.iocs || [])
+          setShowDropdown(true)
+        } else {
+          setSearchResults([])
+          setShowDropdown(false)
+        }
+      } catch (e) {
+        setSearchResults([])
+        setShowDropdown(false)
+      }
+      setSearching(false)
+    }, 500)
+    
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+      }
+    }
+  }, [searchQuery])
+  
+  // Auto slide for latest IOCs
+  useEffect(() => {
+    if (iocList.length > 0) {
+      const interval = setInterval(() => {
+        setCurrentSlide(prev => (prev + 1) % Math.min(iocList.length, 5))
+      }, 4000)
+      return () => clearInterval(interval)
+    }
+  }, [iocList])
+  
   useEffect(()=>{loadIoCStats();loadIoCList()},[])
 
   const statsData=iocStats?.stats||iocStats||{}
@@ -884,54 +1046,397 @@ function HoneypotIOC() {
   const mediumRisk=statsData?.medium_risk_count||iocStats?.medium_risk_count||0
   const lowRisk=statsData?.low_risk_count||iocStats?.low_risk_count||0
 
-  return <div style={{ animation:'fadeInUp 0.5s ease' }}>
+  return <div>
     <Toast {...toast}/>
-    <SectionHeader badge="IOC / Tuzak Modulu" title="Tehdit Istihbarati & IOC Analizi" subtitle={`${totalIocs.toLocaleString('tr-TR')}+ tehdit indikatoru. Gercek zamanli IOC taramasi, risk analizi ve kaynak dagilimi.`}/>
-    <div style={{ display:'grid', gridTemplateColumns:'repeat(5, 1fr)', gap:16, marginBottom:32 }}>
-      <Card style={{ textAlign:'center', padding:'16px 8px' }}><p style={{ fontSize:10, color:theme.textMuted, textTransform:'uppercase', fontWeight:600, letterSpacing:'1px', marginBottom:6 }}>Toplam IOC</p><p style={{ fontSize:24, fontWeight:800, color:theme.primary }}><CountUp end={totalIocs}/></p></Card>
-      <Card style={{ textAlign:'center', padding:'16px 8px' }}><p style={{ fontSize:10, color:theme.textMuted, textTransform:'uppercase', fontWeight:600, letterSpacing:'1px', marginBottom:6 }}>Yuksek Risk</p><p style={{ fontSize:24, fontWeight:800, color:theme.danger }}><CountUp end={highRisk}/></p></Card>
-      <Card style={{ textAlign:'center', padding:'16px 8px' }}><p style={{ fontSize:10, color:theme.textMuted, textTransform:'uppercase', fontWeight:600, letterSpacing:'1px', marginBottom:6 }}>Orta Risk</p><p style={{ fontSize:24, fontWeight:800, color:theme.warning }}><CountUp end={mediumRisk}/></p></Card>
-      <Card style={{ textAlign:'center', padding:'16px 8px' }}><p style={{ fontSize:10, color:theme.textMuted, textTransform:'uppercase', fontWeight:600, letterSpacing:'1px', marginBottom:6 }}>Dusuk Risk</p><p style={{ fontSize:24, fontWeight:800, color:theme.success }}><CountUp end={lowRisk}/></p></Card>
-      <Card style={{ textAlign:'center', padding:'16px 8px' }}><p style={{ fontSize:10, color:theme.textMuted, textTransform:'uppercase', fontWeight:600, letterSpacing:'1px', marginBottom:6 }}>Kaynak</p><p style={{ fontSize:24, fontWeight:800, color:theme.warning }}>{sourceBreakdown.length}</p></Card>
-    </div>
-    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:24, marginBottom:32 }}>
-      <div>
-        <Card style={{ marginBottom:24 }}>
-          <h3 style={{ fontSize:15, fontWeight:700, color:'#fff', marginBottom:16 }}>📊 Risk Dagilimi</h3>
-          {riskDist.length>0?<div style={{ display:'flex', flexDirection:'column', gap:10 }}>{riskDist.map((item,i)=>{const colors=['#22c55e','#84cc16','#f59e0b','#ff6b35','#ef4444'];return <div key={i}><div style={{ display:'flex', justifyContent:'space-between', fontSize:12, marginBottom:4 }}><span style={{ color:theme.textMuted }}>{item.range}</span><span style={{ color:'#fff', fontWeight:600 }}>{item.count} ({item.percentage?.toFixed(1)}%)</span></div><div style={{ height:10, background:theme.surface, borderRadius:5, overflow:'hidden' }}><div style={{ height:'100%', width:`${Math.min(item.percentage,100)}%`, background:colors[i]||theme.primary, borderRadius:5, transition:'width 1s ease' }}/></div></div>})}</div>:<p style={{ color:theme.textMuted, fontSize:13 }}>Veri yukleniyor...</p>}
-        </Card>
-        <Card><h3 style={{ fontSize:15, fontWeight:700, color:'#fff', marginBottom:12 }}>📡 Kaynak Dagilimi</h3>{sourceBreakdown.length>0?sourceBreakdown.slice(0,8).map((s,i)=><div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 0', borderBottom:`1px solid ${theme.border}` }}><span style={{ fontSize:13, color:theme.text }}>{s.source}</span><span style={{ fontSize:13, fontWeight:700, color:theme.primary }}>{(s.count||0).toLocaleString('tr-TR')}</span></div>):<p style={{ color:theme.textMuted, fontSize:13 }}>Veri yukleniyor...</p>}</Card>
+    
+    {/* Hero Section - Merged Search & Latest IOCs */}
+    <motion.div 
+      initial={{ opacity:0, y:30 }}
+      animate={{ opacity:1, y:0 }}
+      transition={{ duration:0.6, ease:theme.ease.out }}
+      style={{ 
+        background:theme.gradientHero,
+        borderRadius:theme.radiusLg,
+        padding:48,
+        marginBottom:32,
+        position:'relative',
+        overflow:'hidden',
+        border:`1px solid ${theme.border}`
+      }}
+    >
+      <div style={{ position:'absolute', top:0, left:0, right:0, bottom:0, opacity:0.1, backgroundImage:theme.gridPattern, backgroundSize:'40px 40px' }} />
+      <div style={{ position:'relative', zIndex:1 }}>
+        <motion.div 
+          initial={{ opacity:0, scale:0.9 }}
+          animate={{ opacity:1, scale:1 }}
+          transition={{ delay:0.2, duration:0.5, ease:theme.ease.spring }}
+          style={{ textAlign:'center', marginBottom:32 }}
+        >
+          <span style={{ display:'inline-block', padding:'8px 20px', background:theme.primaryDim, border:`1px solid ${theme.primary}33`, borderRadius:'24px', fontSize:12, fontWeight:700, color:theme.primary, textTransform:'uppercase', letterSpacing:'2px', marginBottom:16 }}>IOC / Tuzak Modulu</span>
+          <h1 style={{ fontSize:42, fontWeight:800, color:'#fff', marginBottom:12, letterSpacing:'-1px' }}>Tehdit Istihbarati & IOC Analizi</h1>
+          <p style={{ color:theme.textMuted, fontSize:16, maxWidth:600, margin:'0 auto' }}>{totalIocs.toLocaleString('tr-TR')}+ tehdit indikatoru. Gercek zamanli IOC taramasi, risk analizi ve kaynak dagilimi.</p>
+        </motion.div>
+
+        {/* Search Section */}
+        <motion.div 
+          initial={{ opacity:0, y:20 }}
+          animate={{ opacity:1, y:0 }}
+          transition={{ delay:0.3, duration:0.5, ease:theme.ease.out }}
+          style={{ maxWidth:700, margin:'0 auto 32px', position:'relative' }}
+        >
+          <div style={{ display:'flex', gap:12, background:theme.bg, padding:8, borderRadius:theme.radiusLg, border:`2px solid ${theme.border}`, boxShadow:theme.shadow.glow }}>
+            <input 
+              value={searchQuery} 
+              onChange={e=>setSearchQuery(e.target.value)} 
+              placeholder="IP, domain, URL veya hash arat..." 
+              style={{ 
+                flex:1, 
+                padding:'16px 24px', 
+                borderRadius:theme.radiusMd, 
+                background:'transparent', 
+                border:'none', 
+                color:'#fff', 
+                fontSize:16, 
+                outline:'none',
+                fontFamily:theme.mono
+              }} 
+              onKeyDown={e=>e.key==='Enter'&&handleSearch()}
+            />
+            <motion.button 
+              onClick={handleSearch}
+              disabled={searching}
+              whileHover={{ scale:1.02 }}
+              whileTap={{ scale:0.98 }}
+              style={{
+                padding:'16px 32px',
+                borderRadius:theme.radiusMd,
+                cursor:searching?'not-allowed':'pointer',
+                fontSize:15,
+                fontWeight:700,
+                background:searching?'#444':theme.gradientPrimary,
+                color:searching?'#888':'#000',
+                border:'none',
+                display:'inline-flex',
+                alignItems:'center',
+                gap:8,
+                opacity:searching?0.5:1
+              }}
+            >
+              {searching?'Aranıyor...':'🔎 Ara'}
+            </motion.button>
+          </div>
+          
+          {/* Autocomplete Dropdown */}
+          <AnimatePresence>
+            {showDropdown && searchResults.length > 0 && (
+              <motion.div
+                initial={{ opacity:0, y:-10 }}
+                animate={{ opacity:1, y:0 }}
+                exit={{ opacity:0, y:-10 }}
+                transition={{ duration:0.2, ease:theme.ease.out }}
+                style={{
+                  position:'absolute',
+                  top:'100%',
+                  left:0,
+                  right:0,
+                  marginTop:8,
+                  background:theme.bgDeep,
+                  borderRadius:theme.radiusMd,
+                  border:`1px solid ${theme.border}`,
+                  maxHeight:300,
+                  overflowY:'auto',
+                  zIndex:100,
+                  boxShadow:theme.shadow.glow
+                }}
+              >
+                {searchResults.slice(0, 10).map((item, i) => (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity:0, x:-10 }}
+                    animate={{ opacity:1, x:0 }}
+                    transition={{ delay:i * 0.05, duration:0.2 }}
+                    onClick={() => {
+                      setSearchQuery(item.value || item.ioc_value || item.ioc || item.indicator || '')
+                      setShowDropdown(false)
+                      handleSearch()
+                    }}
+                    style={{
+                      padding:'12px 16px',
+                      borderBottom:`1px solid ${theme.border}`,
+                      cursor:'pointer',
+                      transition:'background 0.2s ease'
+                    }}
+                    whileHover={{ background:theme.surface }}
+                  >
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
+                      <span style={{ color:theme.primary, fontFamily:theme.mono, fontSize:13, wordBreak:'break-all' }}>{item.value||item.ioc_value||item.ioc||item.indicator||'-'}</span>
+                      <span style={{ padding:'4px 10px', borderRadius:'10px', fontSize:10, background:theme.primaryDim, color:theme.primary }}>{item.ioc_type||item.type||item.threat_type||'-'}</span>
+                    </div>
+                    <div style={{ display:'flex', gap:16, fontSize:11, color:theme.textMuted }}>
+                      <span>Risk: <span style={{ color:(item.risk_score||0)>75?theme.accent:(item.risk_score||0)>40?theme.warning:theme.primary, fontWeight:600 }}>{item.risk_score||'-'}</span></span>
+                      <span>Kaynak: {item.source||'-'}</span>
+                    </div>
+                  </motion.div>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
+
+        {/* Latest IOCs Preview - Slide */}
+        {iocList.length > 0 && (
+          <motion.div
+            initial={{ opacity:0, y:20 }}
+            animate={{ opacity:1, y:0 }}
+            transition={{ delay:0.4, duration:0.5, ease:theme.ease.out }}
+            style={{ 
+              maxWidth:900, 
+              margin:'0 auto',
+              background:theme.bgDeep,
+              borderRadius:theme.radiusLg,
+              padding:24,
+              border:`1px solid ${theme.border}`
+            }}
+          >
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
+              <h3 style={{ fontSize:14, fontWeight:700, color:'#fff' }}>📋 Son Eklenen IOC'lar</h3>
+              <div style={{ display:'flex', gap:8 }}>
+                {iocList.slice(0, 5).map((_, i) => (
+                  <div 
+                    key={i}
+                    onClick={() => setCurrentSlide(i)}
+                    style={{ 
+                      width:8, 
+                      height:8, 
+                      borderRadius:'50%', 
+                      background:currentSlide === i ? theme.primary : theme.border,
+                      cursor:'pointer',
+                      transition:'all 0.3s ease'
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+            <AnimatePresence mode='wait'>
+              <motion.div
+                key={currentSlide}
+                initial={{ opacity:0, x:50 }}
+                animate={{ opacity:1, x:0 }}
+                exit={{ opacity:0, x:-50 }}
+                transition={{ duration:0.4, ease:theme.ease.out }}
+                style={{ 
+                  padding:20, 
+                  background:theme.surface, 
+                  borderRadius:theme.radiusMd,
+                  border:`1px solid ${theme.border}`
+                }}
+              >
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+                  <span style={{ color:theme.primary, fontFamily:theme.mono, fontSize:13, wordBreak:'break-all' }}>{iocList[currentSlide]?.value||iocList[currentSlide]?.ioc_value||iocList[currentSlide]?.ioc||iocList[currentSlide]?.indicator||'-'}</span>
+                  <span style={{ padding:'4px 12px', borderRadius:'12px', fontSize:11, background:theme.primaryDim, color:theme.primary }}>{iocList[currentSlide]?.type||iocList[currentSlide]?.ioc_type||'-'}</span>
+                </div>
+                <div style={{ display:'flex', gap:24, fontSize:12, color:theme.textMuted }}>
+                  <span>Risk: <span style={{ color:(iocList[currentSlide]?.risk_score||0)>75?theme.accent:(iocList[currentSlide]?.risk_score||0)>40?theme.warning:theme.primary, fontWeight:600 }}>{iocList[currentSlide]?.risk_score||'-'}</span></span>
+                  <span>Kaynak: {iocList[currentSlide]?.source||'-'}</span>
+                  <span>Tarih: {iocList[currentSlide]?.created_at?new Date(iocList[currentSlide].created_at).toLocaleDateString('tr-TR'):iocList[currentSlide]?.date?new Date(iocList[currentSlide].date).toLocaleDateString('tr-TR'):'-'}</span>
+                </div>
+              </motion.div>
+            </AnimatePresence>
+          </motion.div>
+        )}
       </div>
-      <div>
-        <Card style={{ marginBottom:24 }}>
-          <h3 style={{ fontSize:15, fontWeight:700, color:'#fff', marginBottom:16 }}>📈 Haftalik IOC Artisi</h3>
-          {weeklyGrowth.length>0?<div style={{ display:'flex', gap:8, alignItems:'flex-end', height:160 }}>{weeklyGrowth.map((item,i)=>{const maxVal=Math.max(...weeklyGrowth.map(w=>w.count),1);const h=(item.count/maxVal)*100;return <div key={i} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:4 }}><span style={{ fontSize:9, color:theme.textMuted }}>{item.count}</span><div style={{ width:'100%', height:`${h}%`, minHeight:4, background:`linear-gradient(to top, ${theme.primary}, ${theme.primary}88)`, borderRadius:'4px 4px 0 0', transition:'height 1s ease' }}/><span style={{ fontSize:8, color:theme.textMuted, transform:'rotate(-45deg)', marginTop:4, whiteSpace:'nowrap' }}>{item.date?.slice(5)||''}</span></div>})}</div>:<p style={{ color:theme.textMuted, fontSize:13 }}>Veri yukleniyor...</p>}
-        </Card>
-        <Card><h3 style={{ fontSize:15, fontWeight:700, color:'#fff', marginBottom:12, display:'flex', gap:8, alignItems:'center' }}><span>🔎</span> IOC Sorgula</h3>
-          <div style={{ display:'flex', gap:8 }}><input value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} placeholder="IP, domain, URL veya hash..." style={{ flex:1, padding:'12px 16px', borderRadius:theme.radiusSm, background:theme.bg, border:`1px solid ${theme.border}`, color:'#fff', fontSize:13, outline:'none' }} onKeyDown={e=>e.key==='Enter'&&handleSearch()}/><GlowButton onClick={handleSearch} loading={searching}>Ara</GlowButton></div>
-          {activeTab==='search-results'&&<div style={{ marginTop:16, maxHeight:300, overflowY:'auto' }}><p style={{ fontSize:12, color:theme.textMuted, marginBottom:8 }}>{searchResults.length} sonuc bulundu</p>{searchResults.length>0?searchResults.slice(0,15).map((item,i)=><div key={i} style={{ padding:'10px', marginBottom:6, background:theme.surface, borderRadius:theme.radiusSm, border:`1px solid ${theme.border}`, fontSize:12 }}><div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}><span style={{ color:theme.primary, fontFamily:theme.mono, fontSize:11 }}>{item.value||item.ioc_value||item.ioc||item.indicator}</span><span style={{ padding:'2px 8px', borderRadius:'10px', fontSize:10, background:theme.accentDim, color:theme.accent }}>{item.ioc_type||item.type||item.threat_type||'unknown'}</span></div><p style={{ color:theme.textMuted, marginTop:4, fontSize:11 }}>Risk: {item.risk_score||'N/A'} • Kaynak: {item.source||'N/A'} • Tespit: {(item.detection_count||0)+'kez'}</p></div>):<p style={{ color:theme.textMuted, fontSize:13, textAlign:'center' }}>Sonuc bulunamadi</p>}</div>}
-        </Card>
-      </div>
-    </div>
-    <div style={{ display:'grid', gridTemplateColumns:'1fr 2fr', gap:24, marginBottom:48 }}>
-      <Card><h3 style={{ fontSize:15, fontWeight:700, color:'#fff', marginBottom:12 }}>🔥 En Cok Gorulen Tehditler</h3>{topThreats.length>0?topThreats.slice(0,10).map((t,i)=><div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 0', borderBottom:`1px solid ${theme.border}` }}><span style={{ fontSize:12, color:'#fff' }}>{i+1}. {(t.type||t.threat_type||t.name||'').toUpperCase()}</span><span style={{ fontSize:13, fontWeight:700, color:theme.danger }}>{(t.count||0).toLocaleString('tr-TR')}</span></div>):<p style={{ color:theme.textMuted, fontSize:13 }}>Veri yukleniyor...</p>}</Card>
-      <Card><h3 style={{ fontSize:15, fontWeight:700, color:'#fff', marginBottom:16, display:'flex', gap:8, alignItems:'center' }}><span>📋</span> Son Eklenen IOC'ler<span style={{ fontSize:11, color:theme.textMuted, fontWeight:400, marginLeft:'auto' }}>Son 25 kayit</span></h3>
-        <div style={{ overflowX:'auto', maxHeight:400, overflowY:'auto' }}>
+    </motion.div>
+
+    {/* Stats Grid */}
+    <motion.div 
+      initial={{ opacity:0, y:20 }}
+      animate={{ opacity:1, y:0 }}
+      transition={{ delay:0.5, duration:0.5, ease:theme.ease.out }}
+      style={{ display:'grid', gridTemplateColumns:'repeat(5, 1fr)', gap:16, marginBottom:32 }}
+    >
+      {[
+        { label:'Toplam IOC', value:totalIocs, color:theme.primary },
+        { label:'Yuksek Risk', value:highRisk, color:theme.danger },
+        { label:'Orta Risk', value:mediumRisk, color:theme.warning },
+        { label:'Dusuk Risk', value:lowRisk, color:theme.success },
+        { label:'Kaynak', value:sourceBreakdown.length, color:theme.warning }
+      ].map((stat, i) => (
+        <motion.div
+          key={i}
+          initial={{ opacity:0, y:20 }}
+          animate={{ opacity:1, y:0 }}
+          transition={{ delay:0.6 + i * 0.1, duration:0.4, ease:theme.ease.spring }}
+        >
+          <Card style={{ textAlign:'center', padding:'20px 12px' }}>
+            <p style={{ fontSize:10, color:theme.textMuted, textTransform:'uppercase', fontWeight:600, letterSpacing:'1px', marginBottom:8 }}>{stat.label}</p>
+            <p style={{ fontSize:28, fontWeight:800, color:stat.color }}><CountUp end={stat.value}/></p>
+          </Card>
+        </motion.div>
+      ))}
+    </motion.div>
+
+    {/* Charts Section */}
+    <motion.div 
+      initial={{ opacity:0, y:20 }}
+      animate={{ opacity:1, y:0 }}
+      transition={{ delay:0.8, duration:0.5, ease:theme.ease.out }}
+      style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:24, marginBottom:32 }}
+    >
+      {/* Risk Distribution - Donut Chart Style */}
+      <Card>
+        <h3 style={{ fontSize:15, fontWeight:700, color:'#fff', marginBottom:20 }}>📊 Risk Dagilimi</h3>
+        {riskDist.length>0?(
+          <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+            {riskDist.map((item,i)=>{
+              const colors=['#22c55e','#84cc16','#f59e0b','#ff6b35','#ef4444'];
+              return (
+                <motion.div 
+                  key={i}
+                  initial={{ opacity:0, x:-20 }}
+                  animate={{ opacity:1, x:0 }}
+                  transition={{ delay:0.9 + i * 0.1, duration:0.4, ease:theme.ease.out }}
+                >
+                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, marginBottom:6 }}>
+                    <span style={{ color:theme.textMuted }}>{item.range}</span>
+                    <span style={{ color:'#fff', fontWeight:600 }}>{item.count} ({item.percentage?.toFixed(1)}%)</span>
+                  </div>
+                  <div style={{ height:12, background:theme.surface, borderRadius:6, overflow:'hidden' }}>
+                    <motion.div 
+                      initial={{ width:0 }}
+                      animate={{ width:`${Math.min(item.percentage,100)}%` }}
+                      transition={{ delay:1 + i * 0.1, duration:0.8, ease:theme.ease.out }}
+                      style={{ height:'100%', background:colors[i]||theme.primary, borderRadius:6 }}
+                    />
+                  </div>
+                </motion.div>
+              )
+            })}
+          </div>
+        ):<p style={{ color:theme.textMuted, fontSize:13 }}>Veri yukleniyor...</p>}
+      </Card>
+
+      {/* Weekly Growth - Line Chart Style */}
+      <Card>
+        <h3 style={{ fontSize:15, fontWeight:700, color:'#fff', marginBottom:20 }}>📈 Haftalik IOC Artisi</h3>
+        {weeklyGrowth.length>0?(
+          <div style={{ display:'flex', gap:6, alignItems:'flex-end', height:180, padding:'0 8px' }}>
+            {weeklyGrowth.map((item,i)=>{
+              const maxVal=Math.max(...weeklyGrowth.map(w=>w.count),1);
+              const h=(item.count/maxVal)*100;
+              return (
+                <motion.div 
+                  key={i}
+                  initial={{ opacity:0, y:20 }}
+                  animate={{ opacity:1, y:0 }}
+                  transition={{ delay:1 + i * 0.05, duration:0.4, ease:theme.ease.spring }}
+                  style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:6 }}
+                >
+                  <span style={{ fontSize:10, color:theme.textMuted, fontWeight:600 }}>{item.count}</span>
+                  <motion.div 
+                    initial={{ height:0 }}
+                    animate={{ height:`${h}%` }}
+                    transition={{ delay:1.2 + i * 0.05, duration:0.6, ease:theme.ease.out }}
+                    style={{ 
+                      width:'100%', 
+                      minHeight:4, 
+                      background:`linear-gradient(to top, ${theme.primary}, ${theme.primary}88)`, 
+                      borderRadius:'4px 4px 0 0' 
+                    }}
+                  />
+                  <span style={{ fontSize:8, color:theme.textMuted, transform:'rotate(-45deg)', marginTop:4, whiteSpace:'nowrap' }}>{item.date?.slice(5)||''}</span>
+                </motion.div>
+              )
+            })}
+          </div>
+        ):<p style={{ color:theme.textMuted, fontSize:13 }}>Veri yukleniyor...</p>}
+      </Card>
+    </motion.div>
+
+    {/* Source Breakdown & Top Threats */}
+    <motion.div 
+      initial={{ opacity:0, y:20 }}
+      animate={{ opacity:1, y:0 }}
+      transition={{ delay:1.2, duration:0.5, ease:theme.ease.out }}
+      style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:24, marginBottom:32 }}
+    >
+      <Card>
+        <h3 style={{ fontSize:15, fontWeight:700, color:'#fff', marginBottom:16 }}>📡 Kaynak Dagilimi</h3>
+        {sourceBreakdown.length>0?sourceBreakdown.slice(0,8).map((s,i)=>(
+          <motion.div 
+            key={i}
+            initial={{ opacity:0, x:-20 }}
+            animate={{ opacity:1, x:0 }}
+            transition={{ delay:1.3 + i * 0.05, duration:0.4, ease:theme.ease.out }}
+            style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 0', borderBottom:`1px solid ${theme.border}` }}
+          >
+            <span style={{ fontSize:13, color:theme.text }}>{s.source}</span>
+            <span style={{ fontSize:13, fontWeight:700, color:theme.primary }}>{(s.count||0).toLocaleString('tr-TR')}</span>
+          </motion.div>
+        )):<p style={{ color:theme.textMuted, fontSize:13 }}>Veri yukleniyor...</p>}
+      </Card>
+
+      <Card>
+        <h3 style={{ fontSize:15, fontWeight:700, color:'#fff', marginBottom:16 }}>🔥 En Cok Gorulen Tehditler</h3>
+        {topThreats.length>0?topThreats.slice(0,10).map((t,i)=>(
+          <motion.div 
+            key={i}
+            initial={{ opacity:0, x:20 }}
+            animate={{ opacity:1, x:0 }}
+            transition={{ delay:1.3 + i * 0.05, duration:0.4, ease:theme.ease.out }}
+            style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 0', borderBottom:`1px solid ${theme.border}` }}
+          >
+            <span style={{ fontSize:12, color:'#fff' }}>{i+1}. {(t.type||t.threat_type||t.name||'').toUpperCase()}</span>
+            <span style={{ fontSize:13, fontWeight:700, color:theme.danger }}>{(t.count||0).toLocaleString('tr-TR')}</span>
+          </motion.div>
+        )):<p style={{ color:theme.textMuted, fontSize:13 }}>Veri yukleniyor...</p>}
+      </Card>
+    </motion.div>
+
+    {/* Full IOC Table */}
+    <motion.div
+      initial={{ opacity:0, y:20 }}
+      animate={{ opacity:1, y:0 }}
+      transition={{ delay:1.4, duration:0.5, ease:theme.ease.out }}
+    >
+      <Card>
+        <h3 style={{ fontSize:15, fontWeight:700, color:'#fff', marginBottom:16, display:'flex', gap:8, alignItems:'center' }}>
+          <span>📋</span> Tum IOC'lar
+          <span style={{ fontSize:11, color:theme.textMuted, fontWeight:400, marginLeft:'auto' }}>{iocList.length} kayit</span>
+        </h3>
+        <div style={{ overflowX:'auto', maxHeight:500, overflowY:'auto' }}>
           <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
-            <thead style={{ position:'sticky', top:0, background:theme.surface2, zIndex:1 }}><tr style={{ borderBottom:`2px solid ${theme.border}`, color:theme.textMuted, fontSize:10, textTransform:'uppercase', letterSpacing:'1px' }}><th style={{ textAlign:'left', padding:'10px 6px' }}>Gosterge</th><th style={{ textAlign:'center', padding:'10px 6px' }}>Tur</th><th style={{ textAlign:'center', padding:'10px 6px' }}>Risk</th><th style={{ textAlign:'center', padding:'10px 6px' }}>Kaynak</th><th style={{ textAlign:'right', padding:'10px 6px' }}>Tarih</th></tr></thead>
-            <tbody>{iocList.length===0&&<tr><td colSpan={5} style={{ textAlign:'center', padding:24, color:theme.textMuted }}>Veri yukleniyor...</td></tr>}
-              {iocList.map((item,i)=><tr key={item.id||i} style={{ borderBottom:`1px solid ${theme.border}` }} onMouseEnter={e=>e.currentTarget.style.background=theme.surface} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                <td style={{ padding:'8px 6px' }}><span style={{ color:theme.primary, fontFamily:theme.mono, fontSize:11, wordBreak:'break-all' }}>{item.value||item.ioc_value||item.ioc||item.indicator||'-'}</span></td>
-                <td style={{ padding:'8px 6px', textAlign:'center' }}><span style={{ padding:'2px 6px', borderRadius:'8px', fontSize:10, background:theme.primaryDim, color:theme.primary }}>{item.type||item.ioc_type||'-'}</span></td>
-                <td style={{ padding:'8px 6px', textAlign:'center' }}><span style={{ padding:'2px 6px', borderRadius:'8px', fontSize:10, fontWeight:600, background:(item.risk_score||0)>75?theme.accentDim:(item.risk_score||0)>40?theme.warning+'22':theme.primaryDim, color:(item.risk_score||0)>75?theme.accent:(item.risk_score||0)>40?theme.warning:theme.primary }}>{item.risk_score||item.risk_score||'-'}</span></td>
-                <td style={{ padding:'8px 6px', textAlign:'center', color:theme.textMuted, fontSize:11 }}>{item.source||'-'}</td>
-                <td style={{ padding:'8px 6px', textAlign:'right', color:theme.textMuted, fontSize:10 }}>{item.created_at?new Date(item.created_at).toLocaleDateString('tr-TR'):item.date?new Date(item.date).toLocaleDateString('tr-TR'):'-'}</td>
-              </tr>)}
+            <thead style={{ position:'sticky', top:0, background:theme.surface2, zIndex:1 }}>
+              <tr style={{ borderBottom:`2px solid ${theme.border}`, color:theme.textMuted, fontSize:10, textTransform:'uppercase', letterSpacing:'1px' }}>
+                <th style={{ textAlign:'left', padding:'12px 8px' }}>Gosterge</th>
+                <th style={{ textAlign:'center', padding:'12px 8px' }}>Tur</th>
+                <th style={{ textAlign:'center', padding:'12px 8px' }}>Risk</th>
+                <th style={{ textAlign:'center', padding:'12px 8px' }}>Kaynak</th>
+                <th style={{ textAlign:'right', padding:'12px 8px' }}>Tarih</th>
+              </tr>
+            </thead>
+            <tbody>
+              {iocList.length===0&&<tr><td colSpan={5} style={{ textAlign:'center', padding:32, color:theme.textMuted }}>Veri yukleniyor...</td></tr>}
+              {iocList.map((item,i)=>(
+                <motion.tr 
+                  key={item.id||i}
+                  initial={{ opacity:0, y:10 }}
+                  animate={{ opacity:1, y:0 }}
+                  transition={{ delay:1.5 + i * 0.02, duration:0.3, ease:theme.ease.out }}
+                  style={{ borderBottom:`1px solid ${theme.border}` }}
+                  whileHover={{ background:theme.surface }}
+                >
+                  <td style={{ padding:'10px 8px' }}><span style={{ color:theme.primary, fontFamily:theme.mono, fontSize:11, wordBreak:'break-all' }}>{item.value||item.ioc_value||item.ioc||item.indicator||'-'}</span></td>
+                  <td style={{ padding:'10px 8px', textAlign:'center' }}><span style={{ padding:'4px 10px', borderRadius:'10px', fontSize:10, background:theme.primaryDim, color:theme.primary }}>{item.type||item.ioc_type||'-'}</span></td>
+                  <td style={{ padding:'10px 8px', textAlign:'center' }}><span style={{ padding:'4px 10px', borderRadius:'10px', fontSize:10, fontWeight:600, background:(item.risk_score||0)>75?theme.accentDim:(item.risk_score||0)>40?theme.warning+'22':theme.primaryDim, color:(item.risk_score||0)>75?theme.accent:(item.risk_score||0)>40?theme.warning:theme.primary }}>{item.risk_score||'-'}</span></td>
+                  <td style={{ padding:'10px 8px', textAlign:'center', color:theme.textMuted, fontSize:11 }}>{item.source||'-'}</td>
+                  <td style={{ padding:'10px 8px', textAlign:'right', color:theme.textMuted, fontSize:10 }}>{item.created_at?new Date(item.created_at).toLocaleDateString('tr-TR'):item.date?new Date(item.date).toLocaleDateString('tr-TR'):'-'}</td>
+                </motion.tr>
+              ))}
             </tbody>
           </table>
         </div>
       </Card>
-    </div>
+    </motion.div>
   </div>
 }
 

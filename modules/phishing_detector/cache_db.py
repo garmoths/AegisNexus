@@ -166,6 +166,11 @@ def write_phishing_url(
 ) -> bool:
     """URL tarama sonucunu veritabanına yaz"""
     try:
+        # risk_score=0 ise hiç kaydetme
+        if risk_score == 0:
+            logger.info(f"Skipping URL with risk_score=0: {url}")
+            return True
+            
         _ensure_initialized()
         parsed = urlparse(url)
         domain = (parsed.netloc or parsed.path or "").lower()
@@ -212,15 +217,6 @@ def write_phishing_url(
                 """, (url, domain, risk_score, risk_level, int(is_safe), sources_json))
 
             _prune_cache(cursor)
-            
-            # Otomatik cleanup: risk_score=0 olan kayıtları hemen temizle
-            cursor.execute("""
-                DELETE FROM phishing_urls
-                WHERE risk_score = 0
-            """)
-            auto_deleted = cursor.rowcount
-            if auto_deleted > 0:
-                logger.info(f"Auto-cleaned {auto_deleted} unscanned records")
             
             conn.commit()
             logger.debug(f"Phishing URL cached: {url} (risk: {risk_score})")
