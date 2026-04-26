@@ -82,6 +82,7 @@ export default function ModulesApp() {
   const tabs = [
     {id:'ai-analyzer',label:'AI Analiz',icon:'🤖'},
     {id:'phishing-detector',label:'Phishing',icon:'🎣'},
+    {id:'victim-atlas',label:'Magduriyet Atlasi',icon:'🧭'},
     {id:'honeypot',label:'IOC / Tuzak',icon:'🕸️'},
     {id:'breach-intel',label:'Sizinti',icon:'🔓'},
   ]
@@ -121,6 +122,7 @@ export default function ModulesApp() {
     <main style={{ paddingTop:86, maxWidth:1400, margin:'0 auto', padding:'86px 24px 0' }}>
       {page==='ai-analyzer' && <AIAnalyzer />}
       {page==='phishing-detector' && <PhishingDetector />}
+      {page==='victim-atlas' && <VictimAtlas />}
       {page==='honeypot' && <HoneypotIOC />}
       {page==='breach-intel' && <BreachIntel />}
     </main>
@@ -436,6 +438,182 @@ function PhishingDetector() {
         <button onClick={()=>loadLatest(pageNum+1)} disabled={pageNum>=totalPages||loadingLatest} style={{ padding:'8px 16px', borderRadius:theme.radiusSm, border:`1px solid ${theme.border}`, background:theme.surface, color:pageNum>=totalPages?theme.textMuted:'#fff', cursor:pageNum>=totalPages?'not-allowed':'pointer', fontSize:13, fontWeight:600 }}>Sonraki →</button>
       </div>}
     </Card>
+  </div>
+}
+
+/* ===============================================
+   VICTIM ATLAS
+   =============================================== */
+function VictimAtlas() {
+  const [cases, setCases] = useState([])
+  const [stats, setStats] = useState(null)
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [total, setTotal] = useState(0)
+  const [query, setQuery] = useState('')
+  const [attackMethod, setAttackMethod] = useState('')
+  const [lossType, setLossType] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [expanded, setExpanded] = useState({})
+  const [toast, setToast] = useState({ message:'', type:'success', visible:false })
+
+  useEffect(()=>{loadStats(); loadCases(1)},[])
+
+  async function loadStats() {
+    try {
+      const r = await fetch(`${API}/victim-atlas/stats`)
+      if(!r.ok) throw new Error('stats failed')
+      const d = await r.json()
+      setStats(d.stats || {})
+    } catch {
+      setStats(null)
+    }
+  }
+
+  async function loadCases(nextPage=1) {
+    try {
+      setLoading(true)
+      const params = new URLSearchParams({
+        page: String(nextPage),
+        limit: '12',
+        confidence_min: '60',
+        hot_set_only: 'true',
+      })
+      if (query.trim()) params.set('q', query.trim())
+      if (attackMethod) params.set('attack_method', attackMethod)
+      if (lossType) params.set('loss_type', lossType)
+      const r = await fetch(`${API}/victim-atlas/cases?${params.toString()}`)
+      if(!r.ok) throw new Error(`cases failed (${r.status})`)
+      const d = await r.json()
+      setCases(d.data || [])
+      setPage(d.page || nextPage)
+      setTotalPages(d.total_pages || 1)
+      setTotal(d.total || 0)
+    } catch (e) {
+      showToast('Vaka listesi alinamadi: '+e.message, 'error')
+      setCases([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function showToast(msg, type='success') {
+    setToast({message:msg, type, visible:true})
+    setTimeout(()=>setToast(t=>({...t, visible:false})), 2500)
+  }
+
+  function riskColor(score=0) {
+    if (score >= 75) return theme.danger
+    if (score >= 55) return theme.warning
+    return theme.primary
+  }
+
+  return <div style={{ animation:'fadeInUp 0.5s ease' }}>
+    <Toast {...toast}/>
+    <SectionHeader
+      badge="Magduriyet Atlasi"
+      title="Siber Magduriyet Arsivi ve Savunma Rehberi"
+      subtitle="Guvenilir kaynaklardan derlenen vakalar: nasil kandirildilar, ne kaybettiler, nasil korunurlardi."
+    />
+
+    <div style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:16, marginBottom:24 }}>
+      <Card style={{ textAlign:'center', padding:'18px' }}><p style={{ fontSize:11, color:theme.textMuted, textTransform:'uppercase', marginBottom:8 }}>Toplam Vaka</p><p style={{ fontSize:30, fontWeight:800, color:theme.primary }}><CountUp end={stats?.total_cases||0}/></p></Card>
+      <Card style={{ textAlign:'center', padding:'18px' }}><p style={{ fontSize:11, color:theme.textMuted, textTransform:'uppercase', marginBottom:8 }}>Hot Set</p><p style={{ fontSize:30, fontWeight:800, color:theme.accent }}><CountUp end={stats?.hot_cases||0}/></p></Card>
+      <Card style={{ textAlign:'center', padding:'18px' }}><p style={{ fontSize:11, color:theme.textMuted, textTransform:'uppercase', marginBottom:8 }}>Yuksek Guven</p><p style={{ fontSize:30, fontWeight:800, color:theme.success }}><CountUp end={stats?.high_confidence_cases||0}/></p></Card>
+      <Card style={{ textAlign:'center', padding:'18px' }}><p style={{ fontSize:11, color:theme.textMuted, textTransform:'uppercase', marginBottom:8 }}>Listelenen</p><p style={{ fontSize:30, fontWeight:800, color:theme.warning }}><CountUp end={total||0}/></p></Card>
+    </div>
+
+    <Card style={{ marginBottom:24, padding:16 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr 1fr auto', gap:10 }}>
+        <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Vaka, warning veya ozet icinde ara..." style={{ padding:'12px 14px', borderRadius:theme.radiusSm, background:theme.bg, border:`1px solid ${theme.border}`, color:'#fff', outline:'none' }} onKeyDown={e=>e.key==='Enter'&&loadCases(1)} />
+        <select value={attackMethod} onChange={e=>setAttackMethod(e.target.value)} style={{ padding:'12px 10px', borderRadius:theme.radiusSm, background:theme.bg, border:`1px solid ${theme.border}`, color:'#fff' }}>
+          <option value="">Tum yontemler</option>
+          <option value="phishing">phishing</option>
+          <option value="smishing">smishing</option>
+          <option value="vishing">vishing</option>
+          <option value="social_engineering">social_engineering</option>
+          <option value="malware_assisted">malware_assisted</option>
+        </select>
+        <select value={lossType} onChange={e=>setLossType(e.target.value)} style={{ padding:'12px 10px', borderRadius:theme.radiusSm, background:theme.bg, border:`1px solid ${theme.border}`, color:'#fff' }}>
+          <option value="">Tum kayip tipleri</option>
+          <option value="bank_account">bank_account</option>
+          <option value="social_media">social_media</option>
+          <option value="ecommerce">ecommerce</option>
+          <option value="corporate_account">corporate_account</option>
+          <option value="crypto_wallet">crypto_wallet</option>
+          <option value="device_compromise">device_compromise</option>
+        </select>
+        <GlowButton onClick={()=>loadCases(1)} loading={loading}>Filtrele</GlowButton>
+      </div>
+    </Card>
+
+    <div style={{ display:'grid', gridTemplateColumns:'repeat(3, minmax(0,1fr))', gap:16 }}>
+      {cases.length===0 && <Card style={{ gridColumn:'1 / -1', textAlign:'center', color:theme.textMuted }}>{loading?'Vaka verileri yukleniyor...':'Filtreye uygun vaka bulunamadi'}</Card>}
+      {cases.map((c)=> {
+        const isOpen = expanded[c.id] === true
+        return <Card key={c.id} style={{ padding:18, border:`1px solid ${riskColor(c.severity_score)}44` }}>
+          <div style={{ display:'flex', justifyContent:'space-between', gap:8, marginBottom:10 }}>
+            <span style={{ fontSize:11, color:theme.textMuted }}>{c.attack_method}</span>
+            <span style={{ fontSize:11, color:riskColor(c.severity_score), fontWeight:700 }}>SEV {c.severity_score}</span>
+          </div>
+          <h4 style={{ fontSize:15, color:'#fff', marginBottom:8, lineHeight:1.4 }}>{c.case_title}</h4>
+          <p style={{ fontSize:12, color:theme.textMuted, marginBottom:12 }}>{c.loss_type} • {c.target_platform}</p>
+          <div style={{ padding:'10px 12px', borderRadius:8, background:theme.surface, border:`1px solid ${theme.border}`, marginBottom:12 }}>
+            <p style={{ fontSize:12, color:theme.warning, margin:0 }}>Kritik Uyari</p>
+            <p style={{ fontSize:12, color:theme.text, margin:'6px 0 0' }}>{c.critical_warning}</p>
+          </div>
+          <button onClick={()=>setExpanded(v=>({...v,[c.id]:!isOpen}))} style={{ width:'100%', padding:'10px 12px', borderRadius:theme.radiusSm, cursor:'pointer', border:`1px solid ${theme.primary}44`, background:theme.primaryDim, color:theme.primary, fontWeight:700 }}>
+            {isOpen ? 'Savunma adimlarini gizle' : 'Savunma adimlarini goster'}
+          </button>
+          {isOpen && <VictimAtlasDefense caseId={c.id} />}
+        </Card>
+      })}
+    </div>
+
+    {totalPages>1 && <div style={{ display:'flex', justifyContent:'center', gap:8, marginTop:20 }}>
+      <button onClick={()=>loadCases(page-1)} disabled={page<=1||loading} style={{ padding:'8px 14px', borderRadius:theme.radiusSm, border:`1px solid ${theme.border}`, background:theme.surface, color:page<=1?theme.textMuted:'#fff', cursor:page<=1?'not-allowed':'pointer' }}>← Onceki</button>
+      <span style={{ padding:'8px 14px', color:theme.textMuted }}>Sayfa {page} / {totalPages}</span>
+      <button onClick={()=>loadCases(page+1)} disabled={page>=totalPages||loading} style={{ padding:'8px 14px', borderRadius:theme.radiusSm, border:`1px solid ${theme.border}`, background:theme.surface, color:page>=totalPages?theme.textMuted:'#fff', cursor:page>=totalPages?'not-allowed':'pointer' }}>Sonraki →</button>
+    </div>}
+  </div>
+}
+
+function VictimAtlasDefense({ caseId }) {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(()=>{
+    let mounted = true
+    async function load() {
+      try {
+        setLoading(true)
+        const r = await fetch(`${API}/victim-atlas/cases/${caseId}`)
+        if(!r.ok) throw new Error('detail failed')
+        const d = await r.json()
+        if(mounted) setData(d.data || null)
+      } catch {
+        if(mounted) setData(null)
+      } finally {
+        if(mounted) setLoading(false)
+      }
+    }
+    load()
+    return ()=>{ mounted = false }
+  },[caseId])
+
+  if (loading) return <p style={{ marginTop:10, fontSize:12, color:theme.textMuted }}>Detay yukleniyor...</p>
+  if (!data) return <p style={{ marginTop:10, fontSize:12, color:theme.textMuted }}>Detay bulunamadi.</p>
+
+  return <div style={{ marginTop:12, padding:12, background:theme.bg, borderRadius:theme.radiusSm, border:`1px solid ${theme.border}` }}>
+    <p style={{ fontSize:12, color:theme.text, marginBottom:10 }}>{data.narrative_summary}</p>
+    <p style={{ fontSize:11, color:theme.textMuted, marginBottom:8 }}>Nasil korunurdun?</p>
+    <ol style={{ margin:'0 0 12px 16px', padding:0 }}>
+      {(data.defense_steps||[]).map((step, idx)=><li key={idx} style={{ fontSize:12, color:'#fff', marginBottom:6 }}>{step}</li>)}
+    </ol>
+    {Array.isArray(data.evidence) && data.evidence.length>0 && <div>
+      <p style={{ fontSize:11, color:theme.textMuted, marginBottom:6 }}>Kaynaklar</p>
+      {data.evidence.slice(0,3).map((ev, idx)=><a key={idx} href={ev.url} target="_blank" rel="noreferrer" style={{ display:'block', fontSize:11, color:theme.primary, marginBottom:4, textDecoration:'none' }}>{ev.title || ev.url}</a>)}
+    </div>}
   </div>
 }
 

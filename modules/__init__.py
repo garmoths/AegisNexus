@@ -33,6 +33,9 @@ from .threat_responder import router as threat_responder_router
 # 06 - AI Analyzer (AI Güvenlik Asistanı)
 from .ai_analyzer import router as ai_analyzer_router
 
+# 07 - Victim Atlas (Siber Magduriyet Atlasi)
+from .victim_atlas import router as victim_atlas_router
+
 router = None  # Placeholder for direct router access
 
 __all__ = [
@@ -42,4 +45,5 @@ __all__ = [
     "password_shield_router",
     "threat_responder_router",
     "ai_analyzer_router",
+    "victim_atlas_router",
 ]

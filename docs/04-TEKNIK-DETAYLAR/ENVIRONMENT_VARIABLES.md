@@ -47,6 +47,27 @@ If both singular and plural are present, plural key list is preferred.
 - `CERTSTREAM_KEYWORDS` (optional): Comma-separated phishing keyword list for CertStream domain heuristic.
 - `CERTSTREAM_ALLOW_GENERIC_DOMAINS` (optional): Şüpheli eşleşme yoksa genel domain fallback aktif (`1` default).
 
+## Victim Atlas Module
+- `VICTIM_ATLAS_DB_PATH` (optional): Separate SQLite DB path. Default `data/victim_atlas.db`.
+- `VICTIM_ATLAS_HOT_SET_LIMIT` (optional): Number of hot cases kept active. Default `1000`.
+- `VICTIM_ATLAS_SOURCE_ITEM_LIMIT` (optional): Max fetched items per source run. Default `40`.
+- `VICTIM_ATLAS_ENRICH_LIMIT` (optional): Enrichment pass limit. Default `500`.
+
+Source toggles (optional, `1` or `0`):
+- `VICTIM_ATLAS_SOURCE_CISA_ADVISORIES`
+- `VICTIM_ATLAS_SOURCE_KREBSONSECURITY`
+- `VICTIM_ATLAS_SOURCE_BLEEPINGCOMPUTER`
+- `VICTIM_ATLAS_SOURCE_PROOFPOINT_BLOG`
+- `VICTIM_ATLAS_SOURCE_REDDIT_SCAM`
+
+Celery daily schedule (UTC):
+- `VICTIM_ATLAS_INGEST_HOUR_UTC` (default `3`)
+- `VICTIM_ATLAS_INGEST_MINUTE` (default `30`)
+- `VICTIM_ATLAS_ENRICH_HOUR_UTC` (default `3`)
+- `VICTIM_ATLAS_ENRICH_MINUTE` (default `50`)
+- `VICTIM_ATLAS_PRUNE_HOUR_UTC` (default `4`)
+- `VICTIM_ATLAS_PRUNE_MINUTE` (default `10`)
+
 ## Security Rules
 1. Do not commit `.env` files.
 2. Keep `.env.example` as non-secret template only.

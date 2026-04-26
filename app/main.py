@@ -23,6 +23,7 @@ from modules import (
     password_shield_router,      # 04 - Kriptografik Kalkan
     threat_responder_router,     # 05 - Tehdit Yanıtlayıcı
     ai_analyzer_router,          # 06 - AI Güvenlik Asistanı
+    victim_atlas_router,         # 07 - Magduriyet Atlasi
 )
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
@@ -99,6 +100,7 @@ app.include_router(breach_intel_router, prefix="/api/v2/breach")
 app.include_router(password_shield_router, prefix="/api/v2/shield")
 app.include_router(threat_responder_router, prefix="/api/v2/responder")
 app.include_router(ai_analyzer_router, prefix="/api/v2/ai-analyzer")
+app.include_router(victim_atlas_router, prefix="/api/v2/victim-atlas")
 app.include_router(contact_router)
 
 
@@ -149,5 +151,4 @@ async def dashboard_page():
         "Hata": "dashboard.html bulunamadı.",
         "Aranan_Yol": str(DASHBOARD_FILE),
     }
-
 
