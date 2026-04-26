@@ -444,7 +444,7 @@ function PhishingDetector() {
     
     searchTimeoutRef.current = setTimeout(async () => {
       try {
-        const r = await fetch(`${API}/phishing/search?q=${encodeURIComponent(url)}`)
+        const r = await fetch(`${API}/phishing/search?url=${encodeURIComponent(url)}`)
         const d = await r.json()
         if (d.status === 'success' || d.results || d.data) {
           setSearchResults(d.results || d.data || [])
@@ -457,7 +457,7 @@ function PhishingDetector() {
         setSearchResults([])
         setShowDropdown(false)
       }
-    }, 500)
+    }, 300)
     
     return () => {
       if (searchTimeoutRef.current) {
@@ -484,137 +484,332 @@ function PhishingDetector() {
   const phCount=stats?.stats?.phishing_count||stats?.phishing_count||0
   const safeCount=stats?.stats?.safe_count||stats?.safe_count||0
 
-  return <div style={{ animation:'fadeInUp 0.5s ease' }}>
+  return <div>
     <Toast {...toast}/>
-    <SectionHeader badge="Phishing Dedektoru" title="URL Guvenlik Tarama Motoru" subtitle="1.2M+ phishing URL veritabani ile anlik guvenlik kontrolu. Aninda sonuc, detayli rapor."/>
-    <div style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:16, marginBottom:32 }}>
-      <Card style={{ textAlign:'center', padding:'20px' }}><p style={{ fontSize:11, color:theme.textMuted, textTransform:'uppercase', fontWeight:600, letterSpacing:'1px', marginBottom:8 }}>Toplam URL</p><p style={{ fontSize:32, fontWeight:800, color:theme.primary }}><CountUp end={totalUrls}/></p></Card>
-      <Card style={{ textAlign:'center', padding:'20px' }}><p style={{ fontSize:11, color:theme.textMuted, textTransform:'uppercase', fontWeight:600, letterSpacing:'1px', marginBottom:8 }}>Phishing</p><p style={{ fontSize:32, fontWeight:800, color:theme.danger }}><CountUp end={phCount}/></p></Card>
-      <Card style={{ textAlign:'center', padding:'20px' }}><p style={{ fontSize:11, color:theme.textMuted, textTransform:'uppercase', fontWeight:600, letterSpacing:'1px', marginBottom:8 }}>Guvenli</p><p style={{ fontSize:32, fontWeight:800, color:theme.success }}><CountUp end={safeCount}/></p></Card>
-      <Card style={{ textAlign:'center', padding:'20px' }}><p style={{ fontSize:11, color:theme.textMuted, textTransform:'uppercase', fontWeight:600, letterSpacing:'1px', marginBottom:8 }}>Bugun Taranan</p><p style={{ fontSize:32, fontWeight:800, color:theme.warning }}><CountUp end={stats?.stats?.today_scans||0}/></p></Card>
-    </div>
-    <Card style={{ marginBottom:32 }}>
-      <h3 style={{ fontSize:18, fontWeight:700, color:'#fff', marginBottom:16, display:'flex', gap:8, alignItems:'center' }}><span>🔍</span> URL Guvenlik Kontrolu</h3>
-      <div style={{ position:'relative' }}>
-        <div style={{ display:'flex', gap:12, marginBottom:16 }}>
-          <input 
-            value={url} 
-            onChange={e=>setUrl(e.target.value)} 
-            placeholder="https://ornek.com/supheli-link" 
-            style={{ 
-              flex:1, 
-              padding:'14px 18px', 
-              borderRadius:theme.radiusSm, 
-              background:theme.bg, 
-              border:`1px solid ${theme.border}`, 
-              color:'#fff', 
-              fontSize:14, 
-              outline:'none' 
-            }} 
-            onKeyDown={e=>e.key==='Enter'&&handleCheck()}
-          />
-          <GlowButton onClick={handleCheck} loading={checking} disabled={!url}>{checking?'Taranıyor...':'🔍 Tara'}</GlowButton>
-        </div>
-        
-        {/* Autocomplete Dropdown */}
-        <AnimatePresence>
-          {showDropdown && searchResults.length > 0 && (
-            <motion.div
-              initial={{ opacity:0, y:-10 }}
-              animate={{ opacity:1, y:0 }}
-              exit={{ opacity:0, y:-10 }}
-              transition={{ duration:0.2, ease:theme.ease.out }}
+    
+    {/* Hero Section */}
+    <motion.div 
+      initial={{ opacity:0, y:30 }}
+      animate={{ opacity:1, y:0 }}
+      transition={{ duration:0.6, ease:theme.ease.out }}
+      style={{ 
+        background:theme.gradientHero,
+        borderRadius:theme.radiusLg,
+        padding:48,
+        marginBottom:32,
+        position:'relative',
+        overflow:'hidden',
+        border:`1px solid ${theme.border}`
+      }}
+    >
+      <div style={{ position:'absolute', top:0, left:0, right:0, bottom:0, opacity:0.1, backgroundImage:theme.gridPattern, backgroundSize:'40px 40px' }} />
+      <div style={{ position:'relative', zIndex:1 }}>
+        <motion.div 
+          initial={{ opacity:0, scale:0.9 }}
+          animate={{ opacity:1, scale:1 }}
+          transition={{ delay:0.2, duration:0.5, ease:theme.ease.spring }}
+          style={{ textAlign:'center', marginBottom:32 }}
+        >
+          <span style={{ display:'inline-block', padding:'8px 20px', background:theme.primaryDim, border:`1px solid ${theme.primary}33`, borderRadius:'24px', fontSize:12, fontWeight:700, color:theme.primary, textTransform:'uppercase', letterSpacing:'2px', marginBottom:16 }}>Phishing Dedektoru</span>
+          <h1 style={{ fontSize:42, fontWeight:800, color:'#fff', marginBottom:12, letterSpacing:'-1px' }}>URL Guvenlik Tarama Motoru</h1>
+          <p style={{ color:theme.textMuted, fontSize:16, maxWidth:600, margin:'0 auto' }}>{totalUrls.toLocaleString('tr-TR')}+ phishing URL veritabani ile anlik guvenlik kontrolu. Aninda sonuc, detayli rapor.</p>
+        </motion.div>
+
+        {/* Search Section */}
+        <motion.div 
+          initial={{ opacity:0, y:20 }}
+          animate={{ opacity:1, y:0 }}
+          transition={{ delay:0.3, duration:0.5, ease:theme.ease.out }}
+          style={{ maxWidth:700, margin:'0 auto', position:'relative' }}
+        >
+          <div style={{ display:'flex', gap:12, background:theme.bg, padding:8, borderRadius:theme.radiusLg, border:`2px solid ${theme.border}`, boxShadow:theme.shadow.glow }}>
+            <input 
+              value={url} 
+              onChange={e=>setUrl(e.target.value)} 
+              placeholder="https://ornek.com/supheli-link" 
+              style={{ 
+                flex:1, 
+                padding:'16px 24px', 
+                borderRadius:theme.radiusMd, 
+                background:'transparent', 
+                border:'none', 
+                color:'#fff', 
+                fontSize:16, 
+                outline:'none',
+                fontFamily:theme.mono
+              }} 
+              onKeyDown={e=>e.key==='Enter'&&handleCheck()}
+            />
+            <motion.button 
+              onClick={handleCheck}
+              disabled={checking}
+              whileHover={{ scale:1.02 }}
+              whileTap={{ scale:0.98 }}
               style={{
-                position:'absolute',
-                top:'100%',
-                left:0,
-                right:0,
-                marginTop:8,
-                background:theme.bgDeep,
-                borderRadius:theme.radiusSm,
-                border:`1px solid ${theme.border}`,
-                maxHeight:300,
-                overflowY:'auto',
-                zIndex:100,
-                boxShadow:theme.shadow.glow
+                padding:'16px 32px',
+                borderRadius:theme.radiusMd,
+                cursor:checking?'not-allowed':'pointer',
+                fontSize:15,
+                fontWeight:700,
+                background:checking?'#444':theme.gradientPrimary,
+                color:checking?'#888':'#000',
+                border:'none',
+                display:'inline-flex',
+                alignItems:'center',
+                gap:8,
+                opacity:checking?0.5:1
               }}
             >
-              {searchResults.slice(0, 10).map((item, i) => (
-                <motion.div
+              {checking?'Taranıyor...':'🔍 Tara'}
+            </motion.button>
+          </div>
+          
+          {/* Autocomplete Dropdown */}
+          <AnimatePresence>
+            {showDropdown && searchResults.length > 0 && (
+              <motion.div
+                initial={{ opacity:0, y:-10 }}
+                animate={{ opacity:1, y:0 }}
+                exit={{ opacity:0, y:-10 }}
+                transition={{ duration:0.2, ease:theme.ease.out }}
+                style={{
+                  position:'absolute',
+                  top:'100%',
+                  left:0,
+                  right:0,
+                  marginTop:8,
+                  background:theme.bgDeep,
+                  borderRadius:theme.radiusLg,
+                  border:`1px solid ${theme.border}`,
+                  maxHeight:300,
+                  overflowY:'auto',
+                  zIndex:100,
+                  boxShadow:theme.shadow.glow
+                }}
+              >
+                {searchResults.slice(0, 10).map((item, i) => (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity:0, x:-10 }}
+                    animate={{ opacity:1, x:0 }}
+                    transition={{ delay:i * 0.05, duration:0.2 }}
+                    onClick={() => {
+                      setUrl(item.url || '')
+                      setShowDropdown(false)
+                      setTimeout(() => handleCheck(), 100)
+                    }}
+                    style={{
+                      padding:'12px 16px',
+                      borderBottom:`1px solid ${theme.border}`,
+                      cursor:'pointer',
+                      transition:'background 0.2s ease'
+                    }}
+                    whileHover={{ background:theme.surface }}
+                  >
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
+                      <span style={{ color:theme.primary, fontFamily:theme.mono, fontSize:13, wordBreak:'break-all' }}>{item.url||'-'}</span>
+                      <span style={{ padding:'4px 10px', borderRadius:'10px', fontSize:10, background:(item.risk_score||0)>50?theme.accentDim:theme.primaryDim, color:(item.risk_score||0)>50?theme.accent:theme.primary }}>{item.risk_level||'Bilinmiyor'}</span>
+                    </div>
+                    <div style={{ display:'flex', gap:16, fontSize:11, color:theme.textMuted }}>
+                      <span>Risk: <span style={{ color:(item.risk_score||0)>50?theme.accent:theme.primary, fontWeight:600 }}>{item.risk_score||'-'}</span></span>
+                      <span>Domain: {item.domain||'-'}</span>
+                    </div>
+                  </motion.div>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
+
+        {/* Scan History Preview */}
+        {scanHistory.length > 0 && (
+          <motion.div
+            initial={{ opacity:0, y:20 }}
+            animate={{ opacity:1, y:0 }}
+            transition={{ delay:0.4, duration:0.5, ease:theme.ease.out }}
+            style={{ 
+              maxWidth:900, 
+              margin:'32px auto 0',
+              background:theme.bgDeep,
+              borderRadius:theme.radiusLg,
+              padding:20,
+              border:`1px solid ${theme.border}`
+            }}
+          >
+            <h3 style={{ fontSize:14, fontWeight:700, color:'#fff', marginBottom:12 }}>📋 Son Taranan URL'ler</h3>
+            <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
+              {scanHistory.slice(0, 8).map((item, i) => (
+                <motion.button
                   key={i}
-                  initial={{ opacity:0, x:-10 }}
-                  animate={{ opacity:1, x:0 }}
-                  transition={{ delay:i * 0.05, duration:0.2 }}
+                  initial={{ opacity:0, scale:0.9 }}
+                  animate={{ opacity:1, scale:1 }}
+                  transition={{ delay:0.5 + i * 0.05, duration:0.3 }}
                   onClick={() => {
-                    setUrl(item.url || '')
-                    setShowDropdown(false)
+                    setUrl(item.url)
                     setTimeout(() => handleCheck(), 100)
                   }}
-                  style={{
-                    padding:'12px 16px',
-                    borderBottom:`1px solid ${theme.border}`,
-                    cursor:'pointer',
-                    transition:'background 0.2s ease'
+                  style={{ 
+                    padding:'6px 14px', 
+                    borderRadius:'16px', 
+                    border:`1px solid ${theme.border}`, 
+                    background:theme.surface, 
+                    cursor:'pointer', 
+                    fontSize:11, 
+                    color:theme.primary, 
+                    fontFamily:theme.mono,
+                    maxWidth:200,
+                    overflow:'hidden',
+                    textOverflow:'ellipsis',
+                    whiteSpace:'nowrap'
                   }}
+                  whileHover={{ background:theme.primaryDim, borderColor:theme.primary }}
+                >
+                  {item.url}
+                </motion.button>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </div>
+    </motion.div>
+
+    {/* Result Display */}
+    {result && (
+      <motion.div
+        initial={{ opacity:0, y:20 }}
+        animate={{ opacity:1, y:0 }}
+        transition={{ duration:0.5, ease:theme.ease.out }}
+        style={{ marginBottom:32 }}
+      >
+        <Card>
+          <div style={{ display:'flex', gap:24, alignItems:'flex-start', flexWrap:'wrap' }}>
+            <RiskGauge score={result.score||0} label="Risk Skoru"/>
+            <div style={{ flex:1, minWidth:250 }}>
+              <div style={{ display:'flex', gap:12, flexWrap:'wrap', marginBottom:12 }}>
+                <span style={{ padding:'6px 16px', borderRadius:'20px', fontSize:13, fontWeight:700, background:result.score>50?theme.accentDim:theme.primaryDim, color:result.score>50?theme.accent:theme.primary }}>{result.risk_level||'Bilinmiyor'}</span>
+              </div>
+              <p style={{ fontSize:13, color:theme.textMuted, wordBreak:'break-all', marginBottom:12, fontFamily:theme.mono }}>{url}</p>
+              {result.details&&Array.isArray(result.details)&&result.details.map((d,i)=><div key={i} style={{ padding:'8px 12px', marginBottom:6, background:theme.primaryDim, borderRadius:8, fontSize:13, color:theme.text }}>• {d}</div>)}
+              {result.sources&&Array.isArray(result.sources)&&result.sources.map((s,i)=><div key={i} style={{ padding:'8px 12px', marginBottom:6, background:theme.surface, borderRadius:8, fontSize:13, display:'flex', gap:8, alignItems:'center' }}><span style={{ color:theme.textMuted }}>Kaynak:</span><span style={{ color:'#fff', fontWeight:600 }}>{s.name}</span><span style={{ marginLeft:'auto', color:s.status?.includes('Başarısız')?theme.danger:theme.success }}>{s.status}</span></div>)}
+            </div>
+          </div>
+        </Card>
+      </motion.div>
+    )}
+
+    {/* Stats Grid */}
+    <motion.div 
+      initial={{ opacity:0, y:20 }}
+      animate={{ opacity:1, y:0 }}
+      transition={{ delay:0.5, duration:0.5, ease:theme.ease.out }}
+      style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:16, marginBottom:32 }}
+    >
+      {[
+        { label:'Toplam URL', value:totalUrls, color:theme.primary },
+        { label:'Phishing', value:phCount, color:theme.danger },
+        { label:'Guvenli', value:safeCount, color:theme.success },
+        { label:'Bugun Taranan', value:stats?.stats?.today_scans||0, color:theme.warning }
+      ].map((stat, i) => (
+        <motion.div
+          key={i}
+          initial={{ opacity:0, y:20 }}
+          animate={{ opacity:1, y:0 }}
+          transition={{ delay:0.6 + i * 0.1, duration:0.4, ease:theme.ease.spring }}
+        >
+          <Card style={{ textAlign:'center', padding:'24px 16px' }}>
+            <p style={{ fontSize:10, color:theme.textMuted, textTransform:'uppercase', fontWeight:600, letterSpacing:'1px', marginBottom:8 }}>{stat.label}</p>
+            <p style={{ fontSize:32, fontWeight:800, color:stat.color }}><CountUp end={stat.value}/></p>
+          </Card>
+        </motion.div>
+      ))}
+    </motion.div>
+    {/* Latest Phishing Data Table */}
+    <motion.div
+      initial={{ opacity:0, y:20 }}
+      animate={{ opacity:1, y:0 }}
+      transition={{ delay:0.7, duration:0.5, ease:theme.ease.out }}
+    >
+      <Card>
+        <h3 style={{ fontSize:15, fontWeight:700, color:'#fff', marginBottom:16, display:'flex', gap:8, alignItems:'center' }}>
+          <span>📋</span> Son Phishing Verileri
+          <span style={{ fontSize:11, color:theme.textMuted, fontWeight:400, marginLeft:'auto' }}>{latestTotal.toLocaleString('tr-TR')} kayıt • {totalPages} sayfa</span>
+        </h3>
+        <div style={{ overflowX:'auto', maxHeight:500, overflowY:'auto' }}>
+          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+            <thead style={{ position:'sticky', top:0, background:theme.surface2, zIndex:1 }}>
+              <tr style={{ borderBottom:`2px solid ${theme.border}`, color:theme.textMuted, fontSize:10, textTransform:'uppercase', letterSpacing:'1px' }}>
+                <th style={{ textAlign:'left', padding:'12px 8px' }}>URL</th>
+                <th style={{ textAlign:'left', padding:'12px 8px' }}>Domain</th>
+                <th style={{ textAlign:'center', padding:'12px 8px' }}>Hedef</th>
+                <th style={{ textAlign:'center', padding:'12px 8px' }}>Durum</th>
+                <th style={{ textAlign:'right', padding:'12px 8px' }}>Tarih</th>
+              </tr>
+            </thead>
+            <tbody>
+              {latestFeeds.length===0&&<tr><td colSpan={5} style={{ textAlign:'center', padding:32, color:theme.textMuted }}>{loadingLatest?'Veri yukleniyor...':'Kayit bulunamadi'}</td></tr>}
+              {latestFeeds.map((item,i)=>(
+                <motion.tr 
+                  key={item.id||i}
+                  initial={{ opacity:0, y:10 }}
+                  animate={{ opacity:1, y:0 }}
+                  transition={{ delay:0.8 + i * 0.02, duration:0.3, ease:theme.ease.out }}
+                  style={{ borderBottom:`1px solid ${theme.border}`, cursor:'pointer' }}
+                  onClick={()=>{setUrl(item.url);setTimeout(()=>handleCheck(),100)}}
                   whileHover={{ background:theme.surface }}
                 >
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
-                    <span style={{ color:theme.primary, fontFamily:theme.mono, fontSize:12, wordBreak:'break-all' }}>{item.url||'-'}</span>
-                    <span style={{ padding:'4px 10px', borderRadius:'10px', fontSize:10, background:(item.risk_score||0)>50?theme.accentDim:theme.primaryDim, color:(item.risk_score||0)>50?theme.accent:theme.primary }}>{item.risk_level||'Bilinmiyor'}</span>
-                  </div>
-                  <div style={{ display:'flex', gap:16, fontSize:11, color:theme.textMuted }}>
-                    <span>Risk: <span style={{ color:(item.risk_score||0)>50?theme.accent:theme.primary, fontWeight:600 }}>{item.risk_score||'-'}</span></span>
-                    <span>Domain: {item.domain||'-'}</span>
-                  </div>
-                </motion.div>
+                  <td style={{ padding:'10px 8px', maxWidth:300, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}><span style={{ color:theme.text, fontSize:12, fontFamily:theme.mono }}>{item.url}</span></td>
+                  <td style={{ padding:'10px 8px' }}><span style={{ color:theme.primary, fontSize:12 }}>{item.domain||'-'}</span></td>
+                  <td style={{ padding:'10px 8px', textAlign:'center' }}><span style={{ padding:'4px 10px', borderRadius:'10px', fontSize:10, background:theme.accentDim, color:theme.accent }}>{item.target||'Phishing'}</span></td>
+                  <td style={{ padding:'10px 8px', textAlign:'center' }}><span style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:4, fontSize:12 }}><StatusDot active={normalizeStatus(item.status)}/>{item.status||'Bilinmiyor'}</span></td>
+                  <td style={{ padding:'10px 8px', textAlign:'right', color:theme.textMuted, fontSize:10 }}>{item.submission_time?new Date(item.submission_time).toLocaleDateString('tr-TR'):item.created_at?new Date(item.created_at).toLocaleDateString('tr-TR'):'-'}</td>
+                </motion.tr>
               ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-      {scanHistory.length>0&&<div style={{ marginTop:12, padding:12, background:theme.surface, borderRadius:theme.radiusSm, border:`1px solid ${theme.borderLight}` }}>
-        <p style={{ fontSize:11, color:theme.textMuted, marginBottom:8, fontWeight:600 }}>Son 20 taranan URL (tıklayarak kontrol edin):</p>
-        <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
-          {scanHistory.slice(0,20).map((item,i)=><button key={`${item.checked_at||''}-${i}`} onClick={()=>{setUrl(item.url);setTimeout(()=>handleCheck(),100)}} style={{ padding:'5px 12px', borderRadius:'16px', border:`1px solid ${theme.border}`, background:theme.surface2, cursor:'pointer', fontSize:11, color:theme.primary, fontFamily:theme.mono, maxWidth:280, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.url}</button>)}
+            </tbody>
+          </table>
         </div>
-      </div>}
-      {result&&<div style={{ animation:'scaleIn 0.3s ease', padding:20, background:theme.bg, borderRadius:theme.radiusSm, border:`1px solid ${theme.border}` }}>
-        <div style={{ display:'flex', gap:24, alignItems:'flex-start', flexWrap:'wrap' }}>
-          <RiskGauge score={result.score||0} label="Risk Skoru"/>
-          <div style={{ flex:1, minWidth:250 }}>
-            <div style={{ display:'flex', gap:12, flexWrap:'wrap', marginBottom:12 }}>
-              <span style={{ padding:'4px 14px', borderRadius:'20px', fontSize:12, fontWeight:700, background:result.score>50?theme.accentDim:theme.primaryDim, color:result.score>50?theme.accent:theme.primary }}>{result.risk_level||'Bilinmiyor'}</span>
-            </div>
-            <p style={{ fontSize:12, color:theme.textMuted, wordBreak:'break-all', marginBottom:12, fontFamily:theme.mono }}>{url}</p>
-            {result.details&&Array.isArray(result.details)&&result.details.map((d,i)=><div key={i} style={{ padding:'6px 10px', marginBottom:4, background:theme.primaryDim, borderRadius:6, fontSize:12, color:theme.text }}>• {d}</div>)}
-            {result.sources&&Array.isArray(result.sources)&&result.sources.map((s,i)=><div key={i} style={{ padding:'6px 10px', marginBottom:4, background:theme.surface, borderRadius:6, fontSize:12, display:'flex', gap:8, alignItems:'center' }}><span style={{ color:theme.textMuted }}>Kaynak:</span><span style={{ color:'#fff', fontWeight:600 }}>{s.name}</span><span style={{ marginLeft:'auto', color:s.status?.includes('Başarısız')?theme.danger:theme.success }}>{s.status}</span></div>)}
-          </div>
-        </div>
-      </div>}
-    </Card>
-    <Card>
-      <h3 style={{ fontSize:16, fontWeight:700, color:'#fff', marginBottom:16, display:'flex', gap:8, alignItems:'center' }}><span>📋</span> Son Phishing Verileri<span style={{ fontSize:11, color:theme.textMuted, fontWeight:400, marginLeft:'auto' }}>Toplam {latestTotal.toLocaleString('tr-TR')} kayıt • {totalPages} sayfa</span></h3>
-      <div style={{ overflowX:'auto', border:`1px solid ${theme.borderLight}`, borderRadius:theme.radiusSm }}>
-        <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
-          <thead><tr style={{ borderBottom:`2px solid ${theme.border}`, color:theme.textMuted, fontSize:11, textTransform:'uppercase', letterSpacing:'1px' }}><th style={{ textAlign:'left', padding:'12px 8px' }}>URL</th><th style={{ textAlign:'left', padding:'12px 8px' }}>Domain</th><th style={{ textAlign:'center', padding:'12px 8px' }}>Hedef</th><th style={{ textAlign:'center', padding:'12px 8px' }}>Durum</th><th style={{ textAlign:'right', padding:'12px 8px' }}>Tarih</th></tr></thead>
-          <tbody>
-            {latestFeeds.length===0&&<tr><td colSpan={5} style={{ textAlign:'center', padding:32, color:theme.textMuted }}>{loadingLatest?'Veri yukleniyor...':'Kayit bulunamadi'}</td></tr>}
-            {latestFeeds.map((item,i)=><tr key={item.id||i} style={{ borderBottom:`1px solid ${theme.border}`, cursor:'pointer' }} onClick={()=>{setUrl(item.url);setTimeout(()=>handleCheck(),100)}} onMouseEnter={e=>e.currentTarget.style.background=theme.surface} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-              <td style={{ padding:'10px 8px', maxWidth:300, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}><span style={{ color:theme.text, fontSize:12, fontFamily:theme.mono }}>{item.url}</span></td>
-              <td style={{ padding:'10px 8px' }}><span style={{ color:theme.primary, fontSize:12 }}>{item.domain||'-'}</span></td>
-              <td style={{ padding:'10px 8px', textAlign:'center' }}><span style={{ padding:'2px 8px', borderRadius:'10px', fontSize:11, background:theme.accentDim, color:theme.accent }}>{item.target||'Phishing'}</span></td>
-              <td style={{ padding:'10px 8px', textAlign:'center' }}><span style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:4, fontSize:12 }}><StatusDot active={normalizeStatus(item.status)}/>{item.status||'Bilinmiyor'}</span></td>
-              <td style={{ padding:'10px 8px', textAlign:'right', color:theme.textMuted, fontSize:11 }}>{item.submission_time?new Date(item.submission_time).toLocaleDateString('tr-TR'):item.created_at?new Date(item.created_at).toLocaleDateString('tr-TR'):'-'}</td>
-            </tr>)}
-          </tbody>
-        </table>
-      </div>
-      {totalPages>1&&<div style={{ display:'flex', justifyContent:'center', gap:8, marginTop:20 }}>
-        <button onClick={()=>loadLatest(pageNum-1)} disabled={pageNum<=1||loadingLatest} style={{ padding:'8px 16px', borderRadius:theme.radiusSm, border:`1px solid ${theme.border}`, background:theme.surface, color:pageNum<=1?theme.textMuted:'#fff', cursor:pageNum<=1?'not-allowed':'pointer', fontSize:13, fontWeight:600 }}>← Onceki</button>
-        <span style={{ padding:'8px 16px', color:theme.textMuted, fontSize:13 }}>Sayfa {pageNum} / {totalPages}</span>
-        <button onClick={()=>loadLatest(pageNum+1)} disabled={pageNum>=totalPages||loadingLatest} style={{ padding:'8px 16px', borderRadius:theme.radiusSm, border:`1px solid ${theme.border}`, background:theme.surface, color:pageNum>=totalPages?theme.textMuted:'#fff', cursor:pageNum>=totalPages?'not-allowed':'pointer', fontSize:13, fontWeight:600 }}>Sonraki →</button>
-      </div>}
-    </Card>
+        {totalPages>1&&<div style={{ display:'flex', justifyContent:'center', gap:8, marginTop:20 }}>
+          <motion.button 
+            onClick={()=>loadLatest(pageNum-1)} 
+            disabled={pageNum<=1||loadingLatest}
+            whileHover={{ scale:1.02 }}
+            whileTap={{ scale:0.98 }}
+            style={{ 
+              padding:'8px 16px', 
+              borderRadius:theme.radiusSm, 
+              border:`1px solid ${theme.border}`, 
+              background:theme.surface, 
+              color:pageNum<=1?theme.textMuted:'#fff', 
+              cursor:pageNum<=1?'not-allowed':'pointer', 
+              fontSize:13, 
+              fontWeight:600,
+              opacity:pageNum<=1?0.5:1
+            }}
+          >
+            ← Onceki
+          </motion.button>
+          <span style={{ padding:'8px 16px', color:theme.textMuted, fontSize:13 }}>Sayfa {pageNum} / {totalPages}</span>
+          <motion.button 
+            onClick={()=>loadLatest(pageNum+1)} 
+            disabled={pageNum>=totalPages||loadingLatest}
+            whileHover={{ scale:1.02 }}
+            whileTap={{ scale:0.98 }}
+            style={{ 
+              padding:'8px 16px', 
+              borderRadius:theme.radiusSm, 
+              border:`1px solid ${theme.border}`, 
+              background:theme.surface, 
+              color:pageNum>=totalPages?theme.textMuted:'#fff', 
+              cursor:pageNum>=totalPages?'not-allowed':'pointer', 
+              fontSize:13, 
+              fontWeight:600,
+              opacity:pageNum>=totalPages?0.5:1
+            }}
+          >
+            Sonraki →
+          </motion.button>
+        </div>}
+      </Card>
+    </motion.div>
   </div>
 }
 
