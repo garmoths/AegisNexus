@@ -467,7 +467,8 @@ def get_scan_history(limit: int = 20, page: int = 1, days: int = 30) -> Dict[str
     try:
         _ensure_initialized()
         page = max(page, 1)
-        limit = max(limit, 1)
+        # Son tarananlar modülünde minimum 20 gösterim standardı
+        limit = max(limit, 20)
         offset = (page - 1) * limit
         cutoff_date = datetime.now() - timedelta(days=days)
 
