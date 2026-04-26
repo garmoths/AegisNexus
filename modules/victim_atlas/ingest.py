@@ -161,6 +161,43 @@ CRITICAL_WARNING: Dict[str, str] = {
     "phishing": "Sadece resmi alana manuel gidisle oturum ac; e-posta linkinden giris yapma.",
 }
 
+ATTACK_METHOD_TR: Dict[str, str] = {
+    "phishing": "Oltalama",
+    "smishing": "SMS Oltalamasi",
+    "vishing": "Telefon Dolandiriciligi",
+    "social_engineering": "Sosyal Muhendislik",
+    "malware_assisted": "Zararli Yazilim Destekli Saldiri",
+    "sahte_mobil_uygulama": "Sahte Mobil Uygulama Tuzagi",
+    "banka_taklit": "Banka Taklit Senaryosu",
+}
+
+LOSS_TYPE_TR: Dict[str, str] = {
+    "bank_account": "Banka Hesabi Magduriyeti",
+    "social_media": "Sosyal Medya Hesap Magduriyeti",
+    "ecommerce": "E-Ticaret Magduriyeti",
+    "corporate_account": "Kurumsal Hesap Magduriyeti",
+    "crypto_wallet": "Kripto Cuzdan Magduriyeti",
+    "device_compromise": "Cihaz Ele Gecirme Magduriyeti",
+}
+
+PLATFORM_TR: Dict[str, str] = {
+    "banking": "Bankacilik",
+    "instagram": "Instagram",
+    "whatsapp": "WhatsApp",
+    "telegram": "Telegram",
+    "microsoft365": "Microsoft 365",
+    "ecommerce": "E-Ticaret",
+    "crypto": "Kripto",
+    "sikayet_platformu": "Sikayet Platformu",
+    "general": "Genel",
+}
+
+GENERIC_DEFENSE_STEPS = [
+    "Resmi kurum/marka baglantisini tarayicidan kendin yazarak ac.",
+    "2FA/MFA aktif degilse hemen ac ve tek kullanimlik kodlarini paylasma.",
+    "Supheli olayda banka/kurum destek hattina resmi kanaldan kayit olustur.",
+]
+
 
 def _http_session() -> requests.Session:
     session = requests.Session()
@@ -295,6 +332,74 @@ def _pick_label(blob: str, mapping: Dict[str, Iterable[str]], fallback: str) -> 
     return fallback
 
 
+def _tr_method(value: str) -> str:
+    return ATTACK_METHOD_TR.get(value, value)
+
+
+def _tr_loss(value: str) -> str:
+    return LOSS_TYPE_TR.get(value, value)
+
+
+def _tr_platform(value: str) -> str:
+    return PLATFORM_TR.get(value, value)
+
+
+def _is_probably_turkish(text: str) -> bool:
+    lowered = text.lower()
+    tr_keywords = (
+        "dolandir",
+        "magdur",
+        "banka",
+        "hesap",
+        "sahte",
+        "uygulama",
+        "sms",
+        "kargo",
+        "odeme",
+        "sifre",
+    )
+    return any(keyword in lowered for keyword in tr_keywords)
+
+
+def _build_case_title(document_title: str, attack_method: str, loss_type: str, target_platform: str) -> str:
+    attack_tr = _tr_method(attack_method)
+    loss_tr = _tr_loss(loss_type)
+    platform_tr = _tr_platform(target_platform)
+    if _is_probably_turkish(document_title):
+        base = document_title
+    else:
+        base = f"{platform_tr} hedefli {attack_tr}"
+    return f"{base} - {loss_tr}"
+
+
+def _build_summary(document_title: str, raw_text: str, attack_method: str, loss_type: str, target_platform: str) -> str:
+    attack_tr = _tr_method(attack_method)
+    loss_tr = _tr_loss(loss_type)
+    platform_tr = _tr_platform(target_platform)
+    evidence = (raw_text or document_title or "").strip()
+    evidence_short = evidence[:220]
+    return (
+        f"Bu vaka, {platform_tr} alaninda {attack_tr} yontemiyle gelisen bir {loss_tr.lower()} senaryosudur. "
+        f"Kullanici genellikle sahte baglanti, sahte uygulama veya taklit iletisime yonlendirilir. "
+        f"Olay ozeti: {evidence_short}"
+    )
+
+
+def _build_defense_steps(attack_method: str, loss_type: str) -> List[str]:
+    base_steps = list(DEFENSE_STEPS.get(attack_method, DEFENSE_STEPS["phishing"]))
+    if loss_type == "bank_account":
+        base_steps.append("Hesap hareketleri icin anlik bildirim ac; supheli transferde bankadan kart/hesap dondurma talep et.")
+    elif loss_type == "social_media":
+        base_steps.append("Hesap kurtarma e-postasi ve telefonunu guncelle; bilinmeyen cihaz oturumlarini kapat.")
+    elif loss_type == "ecommerce":
+        base_steps.append("Satici ve odeme sayfasinin alan adini resmi site ile karsilastir; sanal kart kullan.")
+
+    for step in GENERIC_DEFENSE_STEPS:
+        if step not in base_steps:
+            base_steps.append(step)
+    return base_steps[:7]
+
+
 def _build_slug(title: str, attack_method: str, loss_type: str, target_platform: str, seed: str) -> str:
     tokens = re.findall(r"[a-z0-9]{4,}", title.lower())
     base = "-".join(tokens[:6]) if tokens else "incident"
@@ -334,13 +439,14 @@ def extract_case_fields(document: Dict[str, str], trust_tier: str) -> Dict[str, 
     incident_end = first_seen
     seed = f"{document.get('url','')}-{title}-{attack_method}-{loss_type}-{target_platform}"
 
-    summary = raw_text[:360] if raw_text else title
-    defense_steps = DEFENSE_STEPS.get(attack_method, DEFENSE_STEPS["phishing"])
+    generated_title = _build_case_title(title, attack_method, loss_type, target_platform)
+    summary = _build_summary(title, raw_text, attack_method, loss_type, target_platform)
+    defense_steps = _build_defense_steps(attack_method, loss_type)
     warning = CRITICAL_WARNING.get(attack_method, CRITICAL_WARNING["phishing"])
 
     return {
-        "case_slug": _build_slug(title, attack_method, loss_type, target_platform, seed),
-        "case_title": title[:240],
+        "case_slug": _build_slug(generated_title, attack_method, loss_type, target_platform, seed),
+        "case_title": generated_title[:240],
         "incident_period_start": incident_start[:64],
         "incident_period_end": incident_end[:64],
         "attack_method": attack_method,
