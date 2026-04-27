@@ -2,6 +2,7 @@
 AI Analyzer API Router
 07 - AI Security Assistant Endpoints
 """
+import re
 from fastapi import APIRouter, Depends, HTTPException, Body
 from pydantic import BaseModel, Field
 from typing import Optional, List
