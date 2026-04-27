@@ -130,6 +130,13 @@ def analyze_message(
         
         legacy_result["detailed_analysis"]["advanced_breakdown"] = advanced_result["breakdown"]
         legacy_result["detailed_analysis"]["hard_override"] = advanced_result["hard_override"]
+        
+        # Clear old ML analysis data that conflicts with new algorithm
+        legacy_result["detailed_analysis"]["ai_analysis"]["is_phishing"] = is_phishing
+        legacy_result["detailed_analysis"]["ai_analysis"]["is_scam"] = is_phishing
+        legacy_result["detailed_analysis"]["ai_analysis"]["threat_level"] = legacy_result["security_assessment"]["threat_level"]
+        legacy_result["detailed_analysis"]["ai_analysis"]["confidence_score"] = int(round(final_confidence * 100))
+        
         legacy_result["summary"] = f"[{final_verdict}] {advanced_result['reason']} (Skor: {advanced_result['score']:.2f}, Güven: {advanced_result['confidence']:.2f})"
         
         logger.info(f"Advanced analysis completed: {final_verdict} (score: {final_score:.1f})")
