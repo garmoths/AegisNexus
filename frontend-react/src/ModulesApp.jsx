@@ -261,108 +261,785 @@ function AIAnalyzer() {
   const threats = da?.ai_analysis?.identified_threats||da?.identified_threats||[]
   const suspects = da?.ai_analysis?.suspicious_elements||da?.suspicious_elements||[]
 
-  return <div style={{ animation:'fadeInUp 0.5s ease' }}>
+  return <div>
     <Toast {...toast} />
-    <SectionHeader badge="AI Analiz Modulu" title="Yapay Zeka ile Guvenlik Analizi" subtitle="Mesaj, e-posta veya metinlerinizi AI ile analiz edin. Phishing, sosyal muhendislik ve kotu amacli icerikleri tespit edin." />
-    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:24, marginBottom:48 }}>
-      <Card style={{ animation:'slideInLeft 0.5s ease' }}>
-        <h3 style={{ fontSize:18, fontWeight:700, color:'#fff', marginBottom:16, display:'flex', gap:8, alignItems:'center' }}><span>📝</span> Analiz Edilecek Metin</h3>
-        <div style={{ display:'flex', gap:8, marginBottom:16, flexWrap:'wrap' }}>
-          {[{id:'email',label:'📧 E-posta'},{id:'sms',label:'💬 SMS'},{id:'whatsapp',label:'📱 WhatsApp'},{id:'social_media',label:'🌐 Sosyal Medya'}].map(c=>
-            <button key={c.id} onClick={()=>setContext(c.id)} style={{ padding:'6px 14px', borderRadius:'20px', border:'1px solid', cursor:'pointer', fontSize:12, fontWeight:600, background:context===c.id?theme.primary:'transparent', borderColor:context===c.id?theme.primary:theme.border, color:context===c.id?'#000':theme.textMuted, transition:'all 0.2s' }}>{c.label}</button>
+    
+    {/* Hero Section - Main Site Style */}
+    <motion.div 
+      initial={{ opacity:0, y:30 }}
+      animate={{ opacity:1, y:0 }}
+      transition={{ duration:0.8, ease:theme.ease.out }}
+      style={{ 
+        position:'relative',
+        padding:'120px 24px 80px',
+        marginBottom:32,
+        overflow:'hidden'
+      }}
+    >
+      <div aria-hidden style={{ position:'absolute', inset:0, pointerEvents:'none', overflow:'hidden' }}>
+        <div style={{ position:'absolute', inset:0, backgroundImage:theme.gridPattern, backgroundSize:theme.gridPatternSize, maskImage:'radial-gradient(ellipse at 50% 40%, #000 35%, transparent 75%)', WebkitMaskImage:'radial-gradient(ellipse at 50% 40%, #000 35%, transparent 75%)', opacity:0.7 }} />
+        <div style={{ position:'absolute', inset:0, background:theme.gradientHero }} />
+        <div style={{ position:'absolute', top:'20%', left:'50%', transform:'translateX(-50%)', width:'600px', height:'600px', background:theme.primary, borderRadius:'50%', filter:'blur(120px)', opacity:0.15 }} />
+        <div style={{ position:'absolute', bottom:'20%', right:'20%', width:'400px', height:'400px', background:theme.accent, borderRadius:'50%', filter:'blur(100px)', opacity:0.1 }} />
+      </div>
+      
+      <div style={{ position:'relative', zIndex:1, maxWidth:1200, margin:'0 auto' }}>
+        <motion.div 
+          initial={{ opacity:0, y:20 }}
+          animate={{ opacity:1, y:0 }}
+          transition={{ delay:0.2, duration:0.6, ease:theme.ease.out }}
+          style={{ textAlign:'center', marginBottom:48 }}
+        >
+          <span style={{ display:'inline-block', padding:'10px 24px', background:theme.primaryDim, border:`1px solid ${theme.primary}33`, borderRadius:'30px', fontSize:13, fontWeight:700, color:theme.primary, textTransform:'uppercase', letterSpacing:'3px', marginBottom:24 }}>AI Analiz Modulu</span>
+          <h1 style={{ fontSize:56, fontWeight:800, color:'#fff', marginBottom:20, letterSpacing:'-2px', lineHeight:1.1 }}>Yapay Zeka ile Guvenlik Analizi</h1>
+          <p style={{ color:theme.textMuted, fontSize:18, maxWidth:700, margin:'0 auto', lineHeight:1.6 }}>Mesaj, e-posta veya metinlerinizi AI ile analiz edin. Phishing, sosyal muhendislik ve kotu amacli icerikleri tespit edin.</p>
+        </motion.div>
+      </div>
+    </motion.div>
+
+    {/* Main Content - Glassmorphism Cards */}
+    <motion.div 
+      initial={{ opacity:0, y:20 }}
+      animate={{ opacity:1, y:0 }}
+      transition={{ delay:0.4, duration:0.6, ease:theme.ease.out }}
+      style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:24, marginBottom:48 }}
+    >
+      <Card style={{ 
+        background:'rgba(255,255,255,0.03)',
+        backdropFilter:'blur(10px)',
+        WebkitBackdropFilter:'blur(10px)',
+        border:`1px solid ${theme.border}`,
+        padding:32
+      }}>
+        <motion.h3 
+          initial={{ opacity:0, x:-20 }}
+          animate={{ opacity:1, x:0 }}
+          transition={{ delay:0.5, duration:0.4 }}
+          style={{ fontSize:20, fontWeight:700, color:'#fff', marginBottom:24, display:'flex', gap:10, alignItems:'center' }}
+        >
+          <span>📝</span> Analiz Edilecek Metin
+        </motion.h3>
+        
+        <motion.div 
+          initial={{ opacity:0, y:10 }}
+          animate={{ opacity:1, y:0 }}
+          transition={{ delay:0.6, duration:0.4 }}
+          style={{ display:'flex', gap:10, marginBottom:20, flexWrap:'wrap' }}
+        >
+          {[{id:'email',label:'📧 E-posta',icon:'📧'},{id:'sms',label:'💬 SMS',icon:'💬'},{id:'whatsapp',label:'📱 WhatsApp',icon:'📱'},{id:'social_media',label:'🌐 Sosyal Medya',icon:'🌐'}].map((c,i)=>
+            <motion.button 
+              key={c.id} 
+              onClick={()=>setContext(c.id)} 
+              whileHover={{ scale:1.05 }}
+              whileTap={{ scale:0.95 }}
+              initial={{ opacity:0, y:10 }}
+              animate={{ opacity:1, y:0 }}
+              transition={{ delay:0.7 + i*0.1, duration:0.3 }}
+              style={{ 
+                padding:'10px 18px', 
+                borderRadius:'24px', 
+                border:'1px solid', 
+                cursor:'pointer', 
+                fontSize:13, 
+                fontWeight:600, 
+                background:context===c.id?theme.primary:'rgba(255,255,255,0.05)', 
+                borderColor:context===c.id?theme.primary:theme.border, 
+                color:context===c.id?'#000':theme.textMuted,
+                transition:'all 0.3s ease'
+              }}
+            >
+              {c.icon} {c.label.replace(/^[^ ]+ /, '')}
+            </motion.button>
           )}
-        </div>
-        <textarea value={message} onChange={e=>setMessage(e.target.value)} placeholder="Analiz edilecek metni buraya yapistirin veya yazin..." rows={8} style={{ width:'100%', padding:16, borderRadius:theme.radiusSm, background:theme.bg, border:`1px solid ${theme.border}`, color:theme.text, fontSize:14, resize:'vertical', outline:'none', lineHeight:1.6 }} />
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:12 }}>
-          <span style={{ fontSize:12, color:theme.textMuted }}>{message.length} karakter</span>
-          <GlowButton onClick={handleAnalyze} loading={analyzing} disabled={message.length<10}>{analyzing?'Analiz Ediliyor...':'🔍 Analiz Et'}</GlowButton>
-        </div>
-        <div style={{ marginTop:24 }}>
-          <p style={{ fontSize:12, color:theme.textMuted, fontWeight:600, marginBottom:8, textTransform:'uppercase', letterSpacing:'1px' }}>Ornek Metinler</p>
-          {examples.map((ex,i)=><button key={i} onClick={()=>setMessage(ex.text)} style={{ padding:'10px 14px', borderRadius:theme.radiusSm, border:`1px solid ${theme.border}`, background:theme.surface, cursor:'pointer', textAlign:'left', fontSize:12, color:theme.textMuted, lineHeight:1.4, transition:'all 0.2s', display:'block', width:'100%', marginBottom:8 }}
-            onMouseEnter={e=>{e.currentTarget.style.borderColor=theme.primary+'44';e.currentTarget.style.background=theme.surface2}}
-            onMouseLeave={e=>{e.currentTarget.style.borderColor=theme.border;e.currentTarget.style.background=theme.surface}}>
-            <span style={{ color:theme.primary, fontWeight:600, fontSize:11 }}>{ex.label}</span><br/>{ex.text.substring(0,70)}...
-          </button>)}
-        </div>
+        </motion.div>
+        
+        <motion.textarea 
+          initial={{ opacity:0 }}
+          animate={{ opacity:1 }}
+          transition={{ delay:0.8, duration:0.4 }}
+          value={message} 
+          onChange={e=>setMessage(e.target.value)} 
+          placeholder="Analiz edilecek metni buraya yapistirin veya yazin..." 
+          rows={8} 
+          style={{ 
+            width:'100%', 
+            padding:20, 
+            borderRadius:theme.radius.md,
+            background:'rgba(255,255,255,0.05)',
+            border:`1px solid ${theme.border}`,
+            color:'#fff', 
+            fontSize:15, 
+            resize:'vertical', 
+            outline:'none', 
+            lineHeight:1.7,
+            fontFamily:theme.mono,
+            transition:'border-color 0.3s ease'
+          }} 
+        />
+        
+        <motion.div 
+          initial={{ opacity:0 }}
+          animate={{ opacity:1 }}
+          transition={{ delay:0.9, duration:0.4 }}
+          style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:16 }}
+        >
+          <span style={{ fontSize:13, color:theme.textMuted, fontFamily:theme.mono }}>{message.length} karakter</span>
+          <motion.button
+            onClick={handleAnalyze}
+            disabled={analyzing || message.length<10}
+            whileHover={{ scale:1.02, boxShadow:'0 8px 30px rgba(0,212,255,0.4)' }}
+            whileTap={{ scale:0.98 }}
+            style={{
+              padding:'14px 32px',
+              borderRadius:theme.radius.md,
+              cursor:analyzing?'not-allowed':'pointer',
+              fontSize:15,
+              fontWeight:700,
+              letterSpacing:'0.5px',
+              background:analyzing?'#444':theme.gradientPrimary,
+              color:analyzing?'#888':'#000',
+              border:'none',
+              display:'inline-flex',
+              alignItems:'center',
+              gap:10,
+              opacity:analyzing?0.5:1,
+              boxShadow:analyzing?'none':'0 4px 20px rgba(0,212,255,0.3)',
+              transition:'all 0.3s ease'
+            }}
+          >
+            {analyzing?'Analiz Ediliyor...':'🔍 Analiz Et'}
+          </motion.button>
+        </motion.div>
+        
+        <motion.div 
+          initial={{ opacity:0, y:10 }}
+          animate={{ opacity:1, y:0 }}
+          transition={{ delay:1.0, duration:0.4 }}
+          style={{ marginTop:28 }}
+        >
+          <p style={{ fontSize:12, color:theme.textMuted, fontWeight:700, marginBottom:12, textTransform:'uppercase', letterSpacing:'2px' }}>Ornek Metinler</p>
+          {examples.map((ex,i)=>
+            <motion.button 
+              key={i} 
+              onClick={()=>setMessage(ex.text)} 
+              initial={{ opacity:0, x:-10 }}
+              animate={{ opacity:1, x:0 }}
+              transition={{ delay:1.1 + i*0.1, duration:0.3 }}
+              whileHover={{ background:'rgba(0,212,255,0.1)', borderColor:theme.primary, x:4 }}
+              style={{ 
+                padding:'14px 18px', 
+                borderRadius:theme.radius.md, 
+                border:`1px solid ${theme.border}`, 
+                background:'rgba(255,255,255,0.03)', 
+                cursor:'pointer', 
+                textAlign:'left', 
+                fontSize:13, 
+                color:theme.textMuted, 
+                lineHeight:1.5, 
+                transition:'all 0.3s ease', 
+                display:'block', 
+                width:'100%', 
+                marginBottom:10 
+              }}
+            >
+              <span style={{ color:theme.primary, fontWeight:700, fontSize:12, display:'block', marginBottom:4 }}>{ex.label}</span>
+              {ex.text.substring(0,80)}...
+            </motion.button>
+          )}
+        </motion.div>
       </Card>
-      <Card ref={resultRef} style={{ animation:'slideInRight 0.5s ease' }}>
-        <h3 style={{ fontSize:18, fontWeight:700, color:'#fff', marginBottom:16, display:'flex', gap:8, alignItems:'center' }}><span>📊</span> Analiz Sonuclari</h3>
-        {!result&&!analyzing&&<div style={{ textAlign:'center', padding:'60px 20px', color:theme.textMuted }}><span style={{ fontSize:48, display:'block', marginBottom:16 }}>🔍</span><p style={{ fontSize:14 }}>Henuz analiz yapilmadi</p><p style={{ fontSize:12, marginTop:8 }}>Sol taraftaki metni girin ve "Analiz Et" butonuna tiklayin</p></div>}
-        {analyzing&&<div style={{ textAlign:'center', padding:'60px 20px' }}><Spinner size={40}/><p style={{ marginTop:16, color:theme.textMuted, fontSize:14 }}>AI analiz ediyor...</p></div>}
+      
+      <Card 
+        ref={resultRef} 
+        style={{ 
+          background:'rgba(255,255,255,0.03)',
+          backdropFilter:'blur(10px)',
+          WebkitBackdropFilter:'blur(10px)',
+          border:`1px solid ${theme.border}`,
+          padding:32,
+          minHeight:500
+        }}
+      >
+        <motion.h3 
+          initial={{ opacity:0, x:20 }}
+          animate={{ opacity:1, x:0 }}
+          transition={{ delay:0.5, duration:0.4 }}
+          style={{ fontSize:20, fontWeight:700, color:'#fff', marginBottom:24, display:'flex', gap:10, alignItems:'center' }}
+        >
+          <span>📊</span> Analiz Sonuclari
+        </motion.h3>
+        
+        {!result&&!analyzing&&
+          <motion.div 
+            initial={{ opacity:0, scale:0.9 }}
+            animate={{ opacity:1, scale:1 }}
+            transition={{ delay:0.6, duration:0.4 }}
+            style={{ textAlign:'center', padding:'80px 20px', color:theme.textMuted }}
+          >
+            <span style={{ fontSize:64, display:'block', marginBottom:20, opacity:0.5 }}>🔍</span>
+            <p style={{ fontSize:16, marginBottom:8 }}>Henuz analiz yapilmadi</p>
+            <p style={{ fontSize:14, opacity:0.7 }}>Sol taraftaki metni girin ve "Analiz Et" butonuna tiklayin</p>
+          </motion.div>
+        }
+        
+        {analyzing&&
+          <motion.div 
+            initial={{ opacity:0 }}
+            animate={{ opacity:1 }}
+            style={{ textAlign:'center', padding:'80px 20px' }}
+          >
+            <Spinner size={48}/>
+            <motion.p 
+              initial={{ opacity:0, y:10 }}
+              animate={{ opacity:1, y:0 }}
+              transition={{ delay:0.3 }}
+              style={{ marginTop:20, color:theme.textMuted, fontSize:15 }}
+            >
+              AI analiz ediyor...
+            </motion.p>
+          </motion.div>
+        }
+        
         {result&&<ResultContent score={score} threatLevel={sa.threat_level||'medium'} isPhishing={isPhishing} isScam={isScam} sa={sa} da={da} recs={recs} beliefs={beliefs} threats={threats} suspects={suspects} result={result} />}
       </Card>
-    </div>
-    <Card style={{ marginBottom:48 }}>
-      <h3 style={{ fontSize:16, fontWeight:700, color:'#fff', marginBottom:16, display:'flex', gap:8, alignItems:'center' }}><span>📜</span> Son Analizler</h3>
-      {history.length===0?<p style={{ color:theme.textMuted, fontSize:13, textAlign:'center', padding:20 }}>Henuz analiz yapilmadi</p>:
-      <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-        {history.map(h=><div key={h.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'12px 16px', background:theme.surface, borderRadius:theme.radiusSm, border:`1px solid ${theme.border}` }}>
-          <div style={{ flex:1, overflow:'hidden' }}><p style={{ fontSize:13, color:'#fff', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{h.url||h.message||h.text}</p><p style={{ fontSize:11, color:theme.textMuted, marginTop:2 }}>{h.created_at?new Date(h.created_at).toLocaleString('tr-TR'):''}</p></div>
-          <RiskBadge level={h.risk_level||h.threat_level||'safe'} />
-        </div>)}
-      </div>}
-    </Card>
+    </motion.div>
+    
+    {/* History Section */}
+    <motion.div
+      initial={{ opacity:0, y:20 }}
+      animate={{ opacity:1, y:0 }}
+      transition={{ delay:0.8, duration:0.6, ease:theme.ease.out }}
+    >
+      <Card style={{ 
+        background:'rgba(255,255,255,0.03)',
+        backdropFilter:'blur(10px)',
+        WebkitBackdropFilter:'blur(10px)',
+        border:`1px solid ${theme.border}`,
+        padding:32,
+        marginBottom:48
+      }}>
+        <h3 style={{ fontSize:18, fontWeight:700, color:'#fff', marginBottom:20, display:'flex', gap:10, alignItems:'center' }}>
+          <span>📜</span> Son Analizler
+        </h3>
+        {history.length===0?
+          <p style={{ color:theme.textMuted, fontSize:14, textAlign:'center', padding:40 }}>Henuz analiz yapilmadi</p>:
+          <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+            {history.map((h,i)=>
+              <motion.div 
+                key={h.id} 
+                initial={{ opacity:0, y:10 }}
+                animate={{ opacity:1, y:0 }}
+                transition={{ delay:0.9 + i*0.05, duration:0.3 }}
+                whileHover={{ background:'rgba(255,255,255,0.05)' }}
+                style={{ 
+                  display:'flex', 
+                  justifyContent:'space-between', 
+                  alignItems:'center', 
+                  padding:'14px 18px', 
+                  background:'rgba(255,255,255,0.03)', 
+                  borderRadius:theme.radius.md, 
+                  border:`1px solid ${theme.border}`,
+                  transition:'all 0.3s ease',
+                  cursor:'pointer'
+                }}
+              >
+                <div style={{ flex:1, overflow:'hidden' }}>
+                  <p style={{ fontSize:14, color:'#fff', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', fontFamily:theme.mono }}>{h.url||h.message||h.text}</p>
+                  <p style={{ fontSize:12, color:theme.textMuted, marginTop:4 }}>{h.created_at?new Date(h.created_at).toLocaleString('tr-TR'):''}</p>
+                </div>
+                <RiskBadge level={h.risk_level||h.threat_level||'safe'} />
+              </motion.div>
+            )}
+          </div>
+        }
+      </Card>
+    </motion.div>
   </div>
 }
 
 function ResultContent({ score, threatLevel, isPhishing, isScam, sa, da, recs, beliefs, threats, suspects, result }) {
-  const confidence = da?.ai_analysis?.confidence_score || 0
-  const confidencePercentage = Math.round(confidence)
-  const confidenceColor = confidence > 75 ? theme.danger : confidence > 50 ? theme.warning : confidence > 25 ? theme.primary : theme.success
+  const confidence = da?.ai_analysis?.confidence_score || da?.advanced_breakdown?.confidence || 0
+  const confidencePercentage = Math.round(confidence * 100)
+  const confidenceColor = confidence > 0.75 ? theme.danger : confidence > 0.50 ? theme.warning : confidence > 0.25 ? theme.primary : theme.success
+  
+  // Get advanced breakdown data
+  const breakdown = da?.advanced_breakdown || {}
+  const sUrl = breakdown.s_url || 0
+  const sText = breakdown.s_text || 0
+  const sLlm = breakdown.s_llm || 0
+  const sUrgency = breakdown.s_urgency || 0
+  const sEmotion = breakdown.s_emotion || 0
+  const hardOverride = da?.hard_override || false
 
-  return <div style={{ animation:'scaleIn 0.3s ease' }}>
-    <div style={{ display:'flex', gap:24, alignItems:'center', marginBottom:20, flexWrap:'wrap' }}>
-      <RiskGauge score={score} label="Risk Skoru" />
-      <div style={{ flex:1 }}>
-        <div style={{ display:'flex', gap:12, flexWrap:'wrap', marginBottom:12 }}>
-          <RiskBadge level={threatLevel} size="md" />
-          <span style={{ padding:'6px 16px', borderRadius:'20px', fontSize:13, fontWeight:700, background:isPhishing?theme.accentDim:theme.primaryDim, color:isPhishing?theme.accent:theme.primary }}>{isPhishing?'⚠️ Phishing':'✅ Guvenli'}</span>
-          {isScam&&<span style={{ padding:'6px 16px', borderRadius:'20px', fontSize:13, fontWeight:700, background:theme.accentDim, color:theme.accent }}>🛑 Scam</span>}
+  return <motion.div 
+    initial={{ opacity:0, scale:0.95 }}
+    animate={{ opacity:1, scale:1 }}
+    transition={{ duration:0.5, ease:theme.ease.out }}
+  >
+    {/* Hero Result Card */}
+    <motion.div 
+      initial={{ opacity:0, y:20 }}
+      animate={{ opacity:1, y:0 }}
+      transition={{ delay:0.1, duration:0.4 }}
+      style={{ 
+        display:'flex', 
+        gap:32, 
+        alignItems:'stretch', 
+        marginBottom:28, 
+        flexWrap:'wrap',
+        background: 'linear-gradient(135deg, rgba(0,212,255,0.1) 0%, rgba(255,0,128,0.05) 100%)',
+        borderRadius: theme.radius.lg,
+        padding: '24px 28px',
+        border: `1px solid ${theme.border}`,
+        backdropFilter: 'blur(10px)'
+      }}
+    >
+      {/* Left: Big Gauge */}
+      <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', minWidth:140 }}>
+        <RiskGauge score={score} label="Risk Skoru" size="lg" />
+        {hardOverride && (
+          <span style={{ 
+            marginTop:12, 
+            padding:'6px 14px', 
+            borderRadius:20, 
+            fontSize:11, 
+            fontWeight:800, 
+            background: theme.accentDim,
+            color: theme.accent,
+            textTransform: 'uppercase',
+            letterSpacing: 0.5
+          }}>
+            🚨 HARD OVERRIDE
+          </span>
+        )}
+      </div>
+      
+      {/* Right: Details */}
+      <div style={{ flex:1, minWidth:280, display:'flex', flexDirection:'column', gap:16 }}>
+        {/* Badges */}
+        <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
+          <RiskBadge level={threatLevel} size="lg" />
+          <span style={{ 
+            padding:'10px 20px', 
+            borderRadius:'28px', 
+            fontSize:15, 
+            fontWeight:800, 
+            background: isPhishing ? 'linear-gradient(135deg, #ff4444, #ff6b6b)' : 'linear-gradient(135deg, #00d4ff, #0099cc)',
+            color: '#fff',
+            boxShadow: isPhishing ? '0 4px 15px rgba(255,68,68,0.3)' : '0 4px 15px rgba(0,212,255,0.3)'
+          }}>
+            {isPhishing ? '⚠️ TEHLİKELİ' : '✅ GÜVENLİ'}
+          </span>
+          {isScam && <span style={{ 
+            padding:'10px 20px', 
+            borderRadius:'28px', 
+            fontSize:15, 
+            fontWeight:800, 
+            background: 'linear-gradient(135deg, #ff8c00, #ffa500)', 
+            color: '#fff',
+            boxShadow: '0 4px 15px rgba(255,140,0,0.3)'
+          }}>🛑 SCAM</span>}
         </div>
-        <p style={{ fontSize:13, color:theme.textMuted }}>Guvenlik Durumu: <strong style={{ color:score>70?'#ef4444':score>40?'#f59e0b':'#22c55e' }}>{sa.safety_status||'Bilinmiyor'}</strong> • Aksiyon: {sa.action_required||'YOK'}</p>
-        <div style={{ marginTop:12, padding:12, background:theme.surface, borderRadius:theme.radiusSm, border:`1px solid ${theme.border}` }}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
-            <span style={{ fontSize:12, fontWeight:700, color:theme.textMuted }}>🤖 AI Guvenilirlik Skoru</span>
-            <span style={{ fontSize:14, fontWeight:800, color:confidenceColor }}>{confidencePercentage}%</span>
+        
+        {/* Status Line */}
+        <div style={{ 
+          padding: '14px 18px', 
+          background: 'rgba(0,0,0,0.2)', 
+          borderRadius: theme.radius.md,
+          border: `1px solid ${theme.border}`
+        }}>
+          <p style={{ fontSize:15, color:theme.text, margin:0 }}>
+            <span style={{ color: theme.textMuted }}>Güvenlik Durumu:</span>{' '}
+            <strong style={{ 
+              color: score > 70 ? theme.danger : score > 40 ? theme.warning : theme.success,
+              fontSize: 16
+            }}>
+              {sa.safety_status || 'Bilinmiyor'}
+            </strong>
+          </p>
+          <p style={{ fontSize:15, color:theme.text, margin:'8px 0 0 0' }}>
+            <span style={{ color: theme.textMuted }}>Gerekli Aksiyon:</span>{' '}
+            <strong style={{ color: theme.primary }}>{sa.action_required || 'YOK'}</strong>
+          </p>
+        </div>
+        
+        {/* Confidence Bar */}
+        <div style={{ 
+          padding: '16px 18px', 
+          background: 'rgba(255,255,255,0.03)', 
+          borderRadius: theme.radius.md, 
+          border: `1px solid ${theme.border}` 
+        }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+            <span style={{ fontSize:14, fontWeight:700, color:theme.textMuted }}>🤖 AI Güvenilirlik Skoru</span>
+            <span style={{ fontSize:18, fontWeight:800, color:confidenceColor }}>{confidencePercentage}%</span>
           </div>
-          <div style={{ width:'100%', height:8, background:theme.bg, borderRadius:4, overflow:'hidden' }}>
-            <div style={{ width:`${confidencePercentage}%`, height:'100%', background:confidenceColor, borderRadius:4, transition:'width 0.5s ease' }} />
+          <div style={{ width:'100%', height:12, background:'rgba(255,255,255,0.08)', borderRadius:6, overflow:'hidden' }}>
+            <motion.div 
+              initial={{ width:0 }}
+              animate={{ width:`${confidencePercentage}%` }}
+              transition={{ delay:0.3, duration:0.8, ease:'easeOut' }}
+              style={{ 
+                height:'100%', 
+                background: `linear-gradient(90deg, ${confidenceColor}, ${confidenceColor}aa)`, 
+                borderRadius:6,
+                boxShadow: `0 0 10px ${confidenceColor}50`
+              }} 
+            />
           </div>
-          <p style={{ fontSize:11, color:theme.textMuted, marginTop:6 }}>Yapay zeka modeli bu analizi %{confidencePercentage} guvenilirlik ile tamamladi.</p>
+          <p style={{ fontSize:13, color:theme.textMuted, marginTop:10, lineHeight:1.5 }}>
+            Bu analiz %{confidencePercentage} güvenilirlikle tamamlandı. 
+            {confidence < 0.5 ? 'Düşük güven - sonuçları dikkatle değerlendirin.' : 'Yüksek güven - sonuçlar güvenilir.'}
+          </p>
         </div>
       </div>
+    </motion.div>
+    
+    {result.summary&&
+      <motion.div
+        initial={{ opacity:0, y:10 }}
+        animate={{ opacity:1, y:0 }}
+        transition={{ delay:0.2, duration:0.4 }}
+      >
+        <Card style={{ 
+          padding:20, 
+          marginBottom:20, 
+          maxHeight:140, 
+          overflowY:'auto',
+          background:'rgba(255,255,255,0.03)',
+          border:`1px solid ${theme.border}`
+        }}>
+          <p style={{ fontSize:14, lineHeight:1.7, color:theme.text, whiteSpace:'pre-wrap' }}>{result.summary}</p>
+        </Card>
+      </motion.div>
+    }
+    
+    {/* Analysis Sections Grid */}
+    <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(280px, 1fr))', gap:16, marginBottom:28 }}>
+      {[
+        { 
+          title:'🚨 Tespit Edilen Tehditler', 
+          items:threats, 
+          color:theme.accent, 
+          bg:'rgba(255,0,64,0.08)',
+          icon: '⚠️',
+          emptyMsg: 'Tehdit tespit edilmedi'
+        },
+        { 
+          title:'🧠 Psikolojik Tetikleyiciler', 
+          items:beliefs, 
+          color:theme.warning, 
+          bg:'rgba(255,193,7,0.08)',
+          icon: '🎯',
+          emptyMsg: 'Tetikleyici tespit edilmedi'
+        },
+        { 
+          title:'🔍 Şüpheli Öğeler', 
+          items:suspects, 
+          color:theme.primary, 
+          bg:'rgba(0,212,255,0.08)',
+          icon: '🔎',
+          emptyMsg: 'Şüpheli öğe yok'
+        },
+        { 
+          title:'🔗 URL Analizi', 
+          items:da?.url_analysis||[], 
+          color:theme.primary, 
+          bg:'rgba(0,212,255,0.05)',
+          icon: '🌐',
+          isUrl:true,
+          emptyMsg: 'URL bulunamadı'
+        }
+      ].map((section,i)=> (
+        <motion.div
+          key={i}
+          initial={{ opacity:0, y:20 }}
+          animate={{ opacity:1, y:0 }}
+          transition={{ delay:0.3 + i*0.08, duration:0.4 }}
+        >
+          <Card style={{ 
+            padding:20, 
+            maxHeight:260, 
+            overflowY:'auto',
+            background: `linear-gradient(135deg, ${section.bg} 0%, rgba(255,255,255,0.02) 100%)`,
+            border: `1px solid ${section.color}30`,
+            borderRadius: theme.radius.lg
+          }}>
+            {/* Section Header */}
+            <div style={{ 
+              display:'flex', 
+              alignItems:'center', 
+              gap:10, 
+              marginBottom:16,
+              paddingBottom:12,
+              borderBottom: `1px solid ${section.color}30`
+            }}>
+              <span style={{ fontSize:20 }}>{section.icon}</span>
+              <p style={{ fontSize:14, fontWeight:800, color:section.color, margin:0, letterSpacing:0.5 }}>
+                {section.title}
+              </p>
+              <span style={{ 
+                marginLeft:'auto', 
+                padding:'4px 10px', 
+                borderRadius:12, 
+                fontSize:11, 
+                fontWeight:700,
+                background: section.color + '20',
+                color: section.color
+              }}>
+                {section.items.length}
+              </span>
+            </div>
+            
+            {/* Items */}
+            {section.items.length > 0 ? (
+              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                {section.items.map((item,j)=> (
+                  <motion.div 
+                    key={j}
+                    initial={{ opacity:0, x:-15 }}
+                    animate={{ opacity:1, x:0 }}
+                    transition={{ delay:0.4 + i*0.08 + j*0.05, duration:0.3 }}
+                    style={{ 
+                      padding:'12px 14px', 
+                      background: 'rgba(0,0,0,0.2)', 
+                      borderRadius:10, 
+                      borderLeft:`4px solid ${section.color}`, 
+                      fontSize:13, 
+                      color:theme.text,
+                      lineHeight:1.6,
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                    }}
+                  >
+                    {section.isUrl ? (
+                      <div>
+                        <p style={{ 
+                          wordBreak:'break-all', 
+                          fontFamily:theme.mono, 
+                          fontSize:12,
+                          color: theme.primary,
+                          marginBottom:6
+                        }}>
+                          🔗 {item.url || item}
+                        </p>
+                        <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                          <span style={{ 
+                            fontSize:10, 
+                            padding:'3px 8px', 
+                            borderRadius:6,
+                            background: item.risk_score > 50 ? theme.accentDim : theme.successDim,
+                            color: item.risk_score > 50 ? theme.accent : theme.success
+                          }}>
+                            Risk: {item.risk_score || 'N/A'}/100
+                          </span>
+                          {item.is_suspicious && (
+                            <span style={{ 
+                              fontSize:10, 
+                              padding:'3px 8px', 
+                              borderRadius:6,
+                              background: theme.warningDim,
+                              color: theme.warning
+                            }}>
+                              ⚠️ Şüpheli
+                            </span>
+                          )}
+                        </div>
+                        {item.reason && (
+                          <p style={{ fontSize:11, color:theme.textMuted, marginTop:8, fontStyle:'italic' }}>
+                            {item.reason}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <div style={{ display:'flex', alignItems:'flex-start', gap:8 }}>
+                        <span style={{ color: section.color, fontSize:14 }}>
+                          {section.title.includes('Psikolojik') ? '⚡' : (section.title.includes('Şüpheli') ? '•' : '⚠️')}
+                        </span>
+                        <span>{item}</span>
+                      </div>
+                    )}
+                  </motion.div>
+                ))}
+              </div>
+            ) : (
+              <motion.div
+                initial={{ opacity:0 }}
+                animate={{ opacity:1 }}
+                transition={{ delay:0.5 }}
+                style={{ 
+                  textAlign:'center', 
+                  padding:30,
+                  color:theme.textMuted 
+                }}
+              >
+                <span style={{ fontSize:32, display:'block', marginBottom:10, opacity:0.5 }}>✓</span>
+                <p style={{ fontSize:13, margin:0 }}>{section.emptyMsg}</p>
+              </motion.div>
+            )}
+          </Card>
+        </motion.div>
+      ))}
     </div>
-    {result.summary&&<Card style={{ padding:16, marginBottom:16, maxHeight:120, overflowY:'auto' }}><p style={{ fontSize:13, lineHeight:1.6, color:theme.textDim, whiteSpace:'pre-wrap' }}>{result.summary}</p></Card>}
-    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:20 }}>
-      <Card style={{ padding:16, maxHeight:200, overflowY:'auto' }}><p style={{ fontSize:12, fontWeight:700, color:'#fff', marginBottom:10 }}>🚨 Tespit Edilen Tehditler</p>
-        {threats.length>0?threats.map((t,i)=><div key={i} style={{ padding:'6px 10px', marginBottom:6, background:theme.accentDim, borderRadius:6, borderLeft:`3px solid ${theme.accent}`, fontSize:12, color:theme.text }}>{t}</div>):<p style={{ fontSize:12, color:theme.textMuted }}>Tehdit tespit edilmedi</p>}
-      </Card>
-      <Card style={{ padding:16, maxHeight:200, overflowY:'auto' }}><p style={{ fontSize:12, fontWeight:700, color:'#fff', marginBottom:10 }}>🧠 Psikolojik Tetikleyiciler</p>
-        {beliefs.length>0?beliefs.map((b,i)=><div key={i} style={{ padding:'6px 10px', marginBottom:6, background:theme.warning+'22', borderRadius:6, borderLeft:`3px solid ${theme.warning}`, fontSize:12, color:theme.text }}>⚠️ {b}</div>):<p style={{ fontSize:12, color:theme.textMuted }}>Tetikleyici tespit edilmedi</p>}
-      </Card>
-      <Card style={{ padding:16, maxHeight:200, overflowY:'auto' }}><p style={{ fontSize:12, fontWeight:700, color:'#fff', marginBottom:10 }}>🔍 Supheli Ogeler</p>
-        {suspects.length>0?suspects.map((s,i)=><div key={i} style={{ padding:'6px 10px', marginBottom:6, background:theme.primaryDim, borderRadius:6, borderLeft:`3px solid ${theme.primary}`, fontSize:12, color:theme.text }}>• {s}</div>):<p style={{ fontSize:12, color:theme.textMuted }}>Supheli oge yok</p>}
-      </Card>
-      <Card style={{ padding:16, maxHeight:200, overflowY:'auto' }}><p style={{ fontSize:12, fontWeight:700, color:'#fff', marginBottom:10 }}>🔗 URL Analizi</p>
-        {da?.url_analysis?.length>0?da.url_analysis.map((u,i)=><div key={i} style={{ padding:'6px 10px', marginBottom:6, background:theme.primaryDim, borderRadius:6, fontSize:12, color:theme.text }}><p style={{ wordBreak:'break-all' }}>{u.url||u}</p><span style={{ fontSize:11, color:theme.textMuted }}>Risk: {u.risk_score||'N/A'}</span></div>):<p style={{ fontSize:12, color:theme.textMuted }}>URL bulunamadi</p>}
-      </Card>
-    </div>
-    {recs.length>0&&<div style={{ marginBottom:16 }}><p style={{ fontSize:14, fontWeight:700, color:'#fff', marginBottom:12 }}>💡 Oneriler</p>
-      <div style={{ display:'flex', flexDirection:'column', gap:8, maxHeight:300, overflowY:'auto' }}>
-        {recs.map((rec,i)=><div key={i} style={{ padding:'12px 14px', background:theme.primaryDim, borderRadius:theme.radiusSm, borderLeft:`3px solid ${theme.primary}`, fontSize:13, lineHeight:1.5 }}>{rec.description||rec.message||(typeof rec==='string'?rec:JSON.stringify(rec))}</div>)}
-      </div>
-    </div>}
-  </div>
+    
+    {/* Recommendations Section */}
+    {recs.length > 0 &&
+      <motion.div 
+        initial={{ opacity:0, y:20 }}
+        animate={{ opacity:1, y:0 }}
+        transition={{ delay:0.6, duration:0.4 }}
+        style={{ marginBottom:16 }}
+      >
+        <div style={{ 
+          display:'flex', 
+          alignItems:'center', 
+          gap:12, 
+          marginBottom:18,
+          paddingBottom:12,
+          borderBottom: `1px solid ${theme.border}`
+        }}>
+          <span style={{ fontSize:22 }}>💡</span>
+          <p style={{ fontSize:16, fontWeight:800, color:'#fff', margin:0, letterSpacing:0.5 }}>
+            ÖNERİLER
+          </p>
+          <span style={{ 
+            marginLeft:'auto', 
+            padding:'5px 12px', 
+            borderRadius:14, 
+            fontSize:11, 
+            fontWeight:700,
+            background: theme.primaryDim,
+            color: theme.primary
+          }}>
+            {recs.length} adet
+          </span>
+        </div>
+        
+        <div style={{ display:'flex', flexDirection:'column', gap:12, maxHeight:350, overflowY:'auto' }}>
+          {recs.map((rec,i)=> {
+            const isCritical = rec.priority === 'CRITICAL' || rec.priority === 'HIGH'
+            const recText = rec.description || rec.message || (typeof rec === 'string' ? rec : JSON.stringify(rec))
+            
+            return (
+              <motion.div 
+                key={i}
+                initial={{ opacity:0, x:-20 }}
+                animate={{ opacity:1, x:0 }}
+                transition={{ delay:0.7 + i*0.06, duration:0.3 }}
+                style={{ 
+                  padding:'16px 20px', 
+                  background: isCritical ? 'rgba(255,0,64,0.08)' : 'rgba(0,212,255,0.06)', 
+                  borderRadius:theme.radius.lg, 
+                  borderLeft:`4px solid ${isCritical ? theme.accent : theme.primary}`, 
+                  fontSize:14, 
+                  lineHeight:1.7,
+                  color:theme.text,
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                }}
+              >
+                <div style={{ display:'flex', alignItems:'flex-start', gap:12 }}>
+                  <span style={{ 
+                    fontSize:18, 
+                    filter: isCritical ? 'drop-shadow(0 0 8px rgba(255,0,64,0.5))' : 'none'
+                  }}>
+                    {isCritical ? '🚨' : '💡'}
+                  </span>
+                  <div style={{ flex:1 }}>
+                    {rec.priority && (
+                      <span style={{ 
+                        display:'inline-block',
+                        marginBottom:6,
+                        padding:'3px 10px', 
+                        borderRadius:8, 
+                        fontSize:10, 
+                        fontWeight:800,
+                        textTransform:'uppercase',
+                        letterSpacing:0.5,
+                        background: isCritical ? theme.accentDim : theme.primaryDim,
+                        color: isCritical ? theme.accent : theme.primary
+                      }}>
+                        {rec.priority}
+                      </span>
+                    )}
+                    <p style={{ margin:0, fontSize:14 }}>{recText}</p>
+                    {rec.action && (
+                      <p style={{ 
+                        margin:'8px 0 0 0', 
+                        fontSize:12, 
+                        color:theme.primary,
+                        fontWeight:700
+                      }}>
+                        → {rec.action}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            )
+          })}
+        </div>
+      </motion.div>
+    }
+  </motion.div>
 }
 
-function RiskGauge({ score, label, showPercentage = false }) {
-  const c=2*Math.PI*40;const o=c-(Math.min(score,100)/100)*c
-  const color=score>75?theme.danger:score>50?theme.warning:score>25?theme.primary:theme.success
+function RiskGauge({ score, label, showPercentage = false, size = 'md' }) {
+  const sizeMap = {
+    sm: { width: 80, height: 80, radius: 32, stroke: 6, fontSize: 16 },
+    md: { width: 120, height: 120, radius: 40, stroke: 8, fontSize: 22 },
+    lg: { width: 160, height: 160, radius: 56, stroke: 10, fontSize: 28 }
+  }
+  const { width, height, radius, stroke, fontSize } = sizeMap[size] || sizeMap.md
+  
+  const c = 2 * Math.PI * radius
+  const o = c - (Math.min(score, 100) / 100) * c
+  const color = score > 75 ? theme.danger : score > 50 ? theme.warning : score > 25 ? theme.primary : theme.success
   const percentage = Math.round(score)
+  const center = width / 2
+  
   return <div style={{ display:'inline-flex', flexDirection:'column', alignItems:'center' }}>
-    <svg width="120" height="120" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="none" stroke={theme.border} strokeWidth="8"/><circle cx="50" cy="50" r="40" fill="none" stroke={color} strokeWidth="8" strokeDasharray={c} strokeDashoffset={o} transform="rotate(-90 50 50)" style={{ transition:'stroke-dashoffset 1s ease' }} strokeLinecap="round"/><text x="50" y="50" textAnchor="middle" dominantBaseline="central" fill="#fff" fontSize="22" fontWeight="800" fontFamily="Inter, sans-serif">{showPercentage?`${percentage}%`:score}</text></svg>
-    <p style={{ fontSize:12, color:theme.textMuted, marginTop:8, fontWeight:600 }}>{label}</p>
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+      {/* Background circle */}
+      <circle 
+        cx={center} 
+        cy={center} 
+        r={radius} 
+        fill="none" 
+        stroke={theme.border} 
+        strokeWidth={stroke}
+      />
+      {/* Progress circle with glow */}
+      <circle 
+        cx={center} 
+        cy={center} 
+        r={radius} 
+        fill="none" 
+        stroke={color} 
+        strokeWidth={stroke} 
+        strokeDasharray={c} 
+        strokeDashoffset={o} 
+        transform={`rotate(-90 ${center} ${center})`} 
+        style={{ 
+          transition: 'stroke-dashoffset 1s ease',
+          filter: `drop-shadow(0 0 8px ${color}50)`
+        }} 
+        strokeLinecap="round"
+      />
+      {/* Score text */}
+      <text 
+        x={center} 
+        y={center} 
+        textAnchor="middle" 
+        dominantBaseline="central" 
+        fill="#fff" 
+        fontSize={fontSize} 
+        fontWeight="800" 
+        fontFamily="Inter, sans-serif"
+        style={{ textShadow: `0 0 20px ${color}30` }}
+      >
+        {showPercentage ? `${percentage}%` : score}
+      </text>
+    </svg>
+    <p style={{ fontSize: size === 'lg' ? 14 : 12, color:theme.textMuted, marginTop:10, fontWeight:700, letterSpacing:0.5 }}>{label}</p>
   </div>
 }
 

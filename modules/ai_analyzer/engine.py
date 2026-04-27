@@ -125,7 +125,7 @@ class AIAnalyzerEngine:
         if is_phishing_flag or is_scam_flag or threat_level_str in ("critical", "high"):
             safety_status = "TEHLİKELİ"
             action_required = "ACİL"
-            total_risk = max(total_risk, 75)  # Override to minimum 75
+            # Use calculated total_risk without override
         elif total_risk >= 50:
             safety_status = "TEHLİKELİ"
             action_required = "DİKKAT"
@@ -259,7 +259,6 @@ class AIAnalyzerEngine:
         if is_phishing_flag or is_scam_flag or threat_level_str in ("critical", "high") or total_risk >= 50:
             status = "⚠️ TEHLİKELİ"
             action = "Hemen silin ve göndereni engelleyin"
-            total_risk = max(total_risk, 75)
         elif total_risk >= 25:
             status = "⚡ ŞÜPHELİ"
             action = "Göndereni doğrulamadan işlem yapmayın"
