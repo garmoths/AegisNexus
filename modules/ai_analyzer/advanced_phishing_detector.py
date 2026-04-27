@@ -580,11 +580,11 @@ Metin: """ + message[:2000]
     
     def _get_verdict(self, S_star: float) -> str:
         """Get verdict based on amplified score"""
-        if S_star >= 0.75:
+        if S_star >= 0.60:
             return "PHİSHİNG"
-        elif S_star >= 0.45:
+        elif S_star >= 0.35:
             return "ŞÜPHELİ"
-        elif S_star >= 0.25:
+        elif S_star >= 0.20:
             return "DÜŞÜK RİSK"
         else:
             return "TEMİZ"
