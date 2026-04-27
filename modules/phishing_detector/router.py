@@ -138,7 +138,8 @@ def check_url(request: URLCheckRequest, db: Session = Depends(get_db)):
         requested_url = request.url.strip()
         
         # Cache kontrolü - force_fresh ise bypass et
-        if not request.force_fresh:
+        # TEMPORARILY DISABLED FOR TESTING LOCAL THREAT INTELLIGENCE
+        if False and not request.force_fresh:
             cached_result = get_cached_scan_result(requested_url, days=30)
             if cached_result:
                 sources = []
