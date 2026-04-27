@@ -634,16 +634,37 @@ def calculate_safety_score(input_url, db: Session = None):
             except Exception:
                 page_content = None
 
+    # ---------------------------------------------------------
+# 8. KATMAN: HARİCİ TEHDİT İSTİHBARATI (Local - site reachability'den önce)
+# ---------------------------------------------------------
+    threat_result = None
+    try:
+        threat_result = run_threat_intelligence(check_url)
+        if threat_result["total_penalty"] > 0:
+            score -= threat_result["total_penalty"]
+            risks.extend(threat_result["findings"])
+        else:
+            # VirusTotal temiz (penalty 0) + SSL geçerli = BONUS +25
+            vt_status = threat_result.get("virustotal") or {}
+            if vt_status.get("available") and vt_status.get("malicious", 0) == 0 and vt_status.get("suspicious", 0) == 0:
+                ssl_status = check_ssl_certificate(domain)
+                if ssl_status["valid"] and not ssl_status["expired"]:
+                    score += 25  # VirusTotal + SSL bonus
+                    risks.append("✅ VirusTotal temiz + SSL geçerli = Yüksek güvenlik")
+        sources.extend(threat_result.get("sources", []))
+    except Exception as e:
+        logger.error(f"Threat Intelligence hatası: {e}")
+
     if not site_is_up:
         return {
-            "url": input_url, "score": 0,
+            "url": input_url, "score": score,
             "risk_level": "❌ Siteye Ulaşılamıyor",
             "details": [
                 "Böyle bir site bulunamadı veya sunucusu kapalı.",
                 f"HTTP Durum Kodu: {http_status or 'Bağlantı hatası'}",
                 f"Ağ hatası: {transport_error or 'bilinmiyor'}"
-            ],
-            "sources": [{"name": "HTTP Erişim", "status": "Başarısız ❌"}]
+            ] + risks,
+            "sources": sources + [{"name": "HTTP Erişim", "status": "Başarısız ❌"}]
         }
 
     # ---------------------------------------------------------
@@ -849,25 +870,9 @@ def calculate_safety_score(input_url, db: Session = None):
         logger.error(f"AI Analyzer hatası: {e}")
 
     # ---------------------------------------------------------
-    # 8. KATMAN: HARİCİ TEHDİT İSTİHBARATI (VirusTotal, Google, AbuseIPDB)
+    # 8. KATMAN: HARİCİ TEHDİT İSTİHBARATI (Local - already called before site reachability)
     # ---------------------------------------------------------
-    threat_result = None
-    try:
-        threat_result = run_threat_intelligence(check_url)
-        if threat_result["total_penalty"] > 0:
-            score -= threat_result["total_penalty"]
-            risks.extend(threat_result["findings"])
-        else:
-            # VirusTotal temiz (penalty 0) + SSL geçerli = BONUS +25
-            vt_status = threat_result.get("virustotal") or {}
-            if vt_status.get("available") and vt_status.get("malicious", 0) == 0 and vt_status.get("suspicious", 0) == 0:
-                ssl_status = check_ssl_certificate(domain)
-                if ssl_status["valid"] and not ssl_status["expired"]:
-                    score += 25  # VirusTotal + SSL bonus
-                    risks.append("✅ VirusTotal temiz + SSL geçerli = Yüksek güvenlik")
-        sources.extend(threat_result["sources"])
-    except Exception as e:
-        logger.error(f"Threat Intelligence hatası: {e}")
+    # threat_intelligence already called before site reachability check
 
     # ---------------------------------------------------------
     # 9. SONUÇ
