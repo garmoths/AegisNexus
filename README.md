@@ -14,7 +14,7 @@
 Legacy `v1` endpoints should be treated as compatibility-only and not used for new integrations.
 
 ## Modules
-- 🎣 Phishing Detector (URL tarama + SSL/Domain analizi)
+- 🎣 Phishing Detector (URL tarama + SSL/Domain analizi + Local Threat Intelligence - sıfır external API)
 - 🕸️ Honeypot
 - 📡 Breach Intelligence
 - 🔐 Password Shield

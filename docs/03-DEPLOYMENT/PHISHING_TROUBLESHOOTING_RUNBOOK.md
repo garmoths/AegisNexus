@@ -25,8 +25,9 @@ curl -s -X POST http://127.0.0.1:8000/api/v2/phishing/check-url \
    - Verify reverse proxy to `127.0.0.1:8000`.
    - Verify `CORS_ALLOW_ORIGINS` includes frontend origins.
 3. Slow/timeouts on `check-url`
-   - Threat-intel providers may throttle or timeout.
-   - Validate provider API keys and timeout behavior.
+   - Local threat intelligence kullanılıyor (sıfır external API call)
+   - Threat-intel providers artık local DB ve IP blacklist kullanıyor
+   - Hala yavaşsa: DB connection pool veya CPU kullanımını kontrol et
 4. Empty stats/latest
    - Verify `phishing_urls` table has data.
    - Verify ingestion jobs and credentials.

@@ -41,11 +41,15 @@
 **Amacı:** İnternet üzerindeki kimlik avı siteleri ve kötü amaçlı URL'leri tespit etmek
 
 **Nasıl Çalışır:**
-- 1.2 milyonun üzerinde bilinen zararlı URL veritabanı kullanır
+- 1.5 milyonun üzerinde bilinen zararlı URL veritabanı kullanır
 - Yeni bir URL sorgulandığında, birkaç ms içinde taranır
 - DNS kayıtları kontrol edilir (domain gerçekliği doğrulanır)
 - SSL sertifikası analiz edilir (geçerli mi, kim tarafından verildi?)
 - Makine öğrenmesi kullanarak sayfanın içeriği analiz edilir (phishing clone tespiti)
+- **Local Threat Intelligence (Sıfır External API):**
+  - VirusTotal yerine local DB fuzzy matching
+  - AbuseIPDB yerine IP blacklist (Firehol, Spamhaus, Emerging Threats)
+  - Sıfır external API call, sıfır rate limit
 
 **Sunduğu Hizmetler:**
 ```

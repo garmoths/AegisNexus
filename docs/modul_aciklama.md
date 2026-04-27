@@ -83,7 +83,24 @@ curl -X POST https://api.aegisnexus.dev/api/v2/phishing/check-url \
      - URL yapısı (çok uzun, garip karakterler)
      - TLD güvenilirliği (.com vs .xyz)
 
-### 4. **AI Analyzer Entegrasyonu (Gelişmiş Analiz)**
+### 4. **Local Threat Intelligence (Sıfır External API)**
+   - **VirusTotal Local Replacement:**
+     - Exact URL match (phishing veritabanında tam eşleşme)
+     - Domain exact match (domain bazlı eşleşme)
+     - Fuzzy domain matching (typosquatting tespiti - rapidfuzz)
+     - URL feature scoring (şüpheli URL özellikleri)
+     - **Sıfır external API call, sıfır rate limit**
+   - **AbuseIPDB Local Replacement:**
+     - IP blacklist lookup (Firehol Level 1, Spamhaus DROP/EDROP, Emerging Threats)
+     - CIDR network kontrolü
+     - Günde 1 kez otomatik refresh (Celery beat task)
+   - **Penalty Sistemi:**
+     - malicious >= 3 → 40 penalty
+     - malicious >= 1 → 20 penalty
+     - suspicious >= 1 → 10 penalty
+     - abuse_score >= 70 → 25 penalty
+
+### 5. **AI Analyzer Entegrasyonu (Gelişmiş Analiz)**
    - URL, AI Analyzer modülüne gönderilir
    - **3-Modüllü Hibrit Phishing Tespiti:**
      - **URL Modülü (%40):**
@@ -127,13 +144,15 @@ Tehdit veritabanı sorgusu → Bulunamadı
     ↓
 Güvenlik skoru hesapla → 15/100
     ↓
+Local Threat Intelligence → Fuzzy matching suspicious: 2 (10 penalty)
+    ↓
 AI Analyzer analiz → URL modülü 1.0 (sahte domain), Metin modülü 0.6
     ↓
-Amplifikasyon → Final skor: 61.79%
+Amplifikasyon → Final skor: 51.79% (10 penalty uygulandı)
     ↓
-Risk seviyesi → PHİSHİNG (60% threshold)
+Risk seviyesi → PHİSHİNG (60% threshold'a yakın)
     ↓
-Sonuç dön → {risk: "PHISHING", score: 61.79, details: [...]}
+Sonuç dön → {risk: "PHISHING", score: 51.79, threat_intel: {...}}
     ↓
 Geçmişe kaydet
 ```
