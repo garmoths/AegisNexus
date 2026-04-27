@@ -278,13 +278,13 @@ def get_latest(limit: int = 20, page: int = 1, db: Session = Depends(get_db)):
 
 @router.get("/search")
 def search_urls(url: str, limit: int = 20, page: int = 1, db: Session = Depends(get_db)):
-    """URL içinde arama yap (case-insensitive) - optimized for performance"""
+    """URL içinde arama yap (case-insensitive) - fast search without count()"""
     try:
         if not url:
             raise HTTPException(status_code=400, detail="Arama sorgusu boş olamaz")
         
         offset = (page - 1) * limit
-        # Optimized case-insensitive arama with LIMIT first
+        # Fast search - no count() for performance
         results = db.query(PhishingURL).filter(
             PhishingURL.url.ilike(f"%{url}%")
         ).order_by(PhishingURL.id.desc()).offset(offset).limit(limit).all()
@@ -300,13 +300,12 @@ def search_urls(url: str, limit: int = 20, page: int = 1, db: Session = Depends(
                 "module": "01_phishing_detector"
             }
         
-        # Only count if we have results (for pagination)
-        total = db.query(PhishingURL).filter(
-            PhishingURL.url.ilike(f"%{url}%")
-        ).count()
+        # Approximate pagination - if we got full limit, there are more results
+        has_more = len(results) == limit
+        total = len(results) + (1 if has_more else 0)  # Approximate
+        total_pages = page + (1 if has_more else 0)
         
-        total_pages = (total + limit - 1) // limit if limit else 1
-        logger.info(f"Arama yapıldı: {url} - Sonuç: {total}")
+        logger.info(f"Arama yapıldı: {url} - Sonuç: {len(results)}")
         return {
             "status": "DANGER" if results else "SAFE",
             "data": results,
