@@ -137,32 +137,8 @@ def check_url(request: URLCheckRequest, db: Session = Depends(get_db)):
     try:
         requested_url = request.url.strip()
         
-        # Cache kontrolü - force_fresh ise bypass et
-        # TEMPORARILY DISABLED FOR TESTING LOCAL THREAT INTELLIGENCE
-        if False and not request.force_fresh:
-            cached_result = get_cached_scan_result(requested_url, days=30)
-            if cached_result:
-                sources = []
-                for src in cached_result.get("sources", []):
-                    if isinstance(src, dict):
-                        name = src.get("name")
-                        if name:
-                            sources.append(str(name))
-                    elif isinstance(src, str):
-                        sources.append(src)
-                write_phishing_url(
-                    url=requested_url,
-                    risk_score=int(cached_result.get("score", 0)),
-                    risk_level=str(cached_result.get("risk_level", "unknown")),
-                    is_safe=bool(cached_result.get("score", 0) >= 80),
-                    sources=sources,
-                    raw_data=cached_result,
-                    track_event=True,
-                )
-                cached_result["module"] = "01_phishing_detector"
-                cached_result["cache"] = "30d-hit"
-                logger.info(f"Cache hit: {requested_url} - Skor: {cached_result.get('score')}")
-                return cached_result
+        # Cache kontrolü - DISABLED FOR TESTING LOCAL THREAT INTELLIGENCE
+        # if False and not request.force_fresh:
 
         result = calculate_safety_score(requested_url, db)
         sources = []
