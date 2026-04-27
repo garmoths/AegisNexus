@@ -897,6 +897,7 @@ def calculate_safety_score(input_url, db: Session = None):
         "risk_level": risk_level,
         "details": risks,
         "sources": sources,
+        "threat_intel": threat_result,
     }
 
     # AI ek bilgileri (frontend için)
