@@ -824,17 +824,17 @@ def run_threat_intelligence(url):
     """
     Tüm harici API'leri paralel olmayan şekilde çalıştırır.
     PRIMARY: URLScan.io (reliyable)
-    FALLBACK: VirusTotal (single key, limited)
-    SECONDARY: Google Safe Browsing, AbuseIPDB
+    LOCAL REPLACEMENTS: VirusTotal → local DB, AbuseIPDB → IP blacklist
+    SECONDARY: Google Safe Browsing
     
     validated=True ise: TÜM API'ler başarılı (200 status)
     validated=False ise: En az bir API fail oldu (cache'e alınmaz)
     """
     results = {
         "urlscan": None,           # PRIMARY
-        "virustotal": None,         # FALLBACK (single key)
+        "virustotal": None,         # LOCAL REPLACEMENT
         "google_safe_browsing": None,
-        "abuseipdb": None,
+        "abuseipdb": None,          # LOCAL REPLACEMENT
         "total_penalty": 0,
         "findings": [],
         "sources": [],
@@ -864,9 +864,13 @@ def run_threat_intelligence(url):
         logger.error(f"URLScan err: {e}")
         all_available = False
     
-    # --- VirusTotal (FALLBACK - single key) ---
+    # --- VirusTotal LOCAL REPLACEMENT ---
     try:
-        vt = check_virustotal(url)
+        from .threat_intel_local import check_virustotal_local as check_virustotal
+        from .cache_db import get_db_connection
+        
+        with get_db_connection() as conn:
+            vt = check_virustotal(url, conn)
         results["virustotal"] = vt
         if vt.get("available"):
             results["sources"].append({
@@ -906,25 +910,32 @@ def run_threat_intelligence(url):
         logger.error(f"GSB err: {e}")
         all_available = False
 
-    # --- AbuseIPDB ---
+    # --- AbuseIPDB LOCAL REPLACEMENT ---
     try:
+        from .threat_intel_local import check_abuseipdb_local as check_abuseipdb
+        
+        # Load IP blacklists on first use
+        from .threat_intel_local import load_ip_blacklists
+        load_ip_blacklists("/opt/phishing/ip_lists")
+        
         aipdb = check_abuseipdb(url)
         results["abuseipdb"] = aipdb
-        if aipdb.get("available"):
+        if aipdb.get("abuse_score", 0) >= 70:
             results["sources"].append({
-                "name": "AbuseIPDB",
-                "status": aipdb["status"]
+                "name": "AbuseIPDB (Local)",
+                "status": "IP blacklist match"
             })
-            if aipdb["abuse_score"] >= 70:
-                results["total_penalty"] += 25
-                results["findings"].append(f"🛡️ AbuseIPDB: Yüksek suistimal skoru ({aipdb['abuse_score']}%)")
-            elif aipdb["abuse_score"] >= 30:
-                results["total_penalty"] += 10
-                results["findings"].append(f"⚠️ AbuseIPDB: Orta suistimal skoru ({aipdb['abuse_score']}%)")
-        else:
-            all_available = False
+            results["total_penalty"] += 25
+            results["findings"].append(f"🛡️ AbuseIPDB (Local): Yüksek suistimal skoru ({aipdb['abuse_score']}%)")
+        elif aipdb.get("abuse_score", 0) >= 30:
+            results["sources"].append({
+                "name": "AbuseIPDB (Local)",
+                "status": "IP suspicious"
+            })
+            results["total_penalty"] += 10
+            results["findings"].append(f"⚠️ AbuseIPDB (Local): Orta suistimal skoru ({aipdb['abuse_score']}%)")
     except Exception as e:
-        logger.error(f"AIPDB err: {e}")
+        logger.error(f"AIPDB local err: {e}")
         all_available = False
 
     # Risk skorunu ve seviyesini hesapla

@@ -65,6 +65,13 @@ app.conf.update(
                 hour=int(os.getenv("VICTIM_ATLAS_PRUNE_HOUR_UTC", "4")),
             ),
         },
+        "refresh-ip-blacklists": {
+            "task": "modules.honeypot.celery_tasks.refresh_ip_blacklists",
+            "schedule": crontab(
+                minute=0,
+                hour=2,  # 02:00 UTC daily
+            ),
+        },
     },
 )
 
@@ -215,3 +222,40 @@ def victim_atlas_prune_hotset(self):
         return run_hotset_maintenance()
     except Exception as exc:
         raise self.retry(exc=exc, countdown=120)
+
+
+@app.task(bind=True, max_retries=3, name="modules.honeypot.celery_tasks.refresh_ip_blacklists")
+def refresh_ip_blacklists(self):
+    """Celery beat ile günde 1 kez çalıştır - IP blacklist'leri güncelle"""
+    try:
+        import os
+        import requests
+        
+        SAVE_DIR = "/opt/phishing/ip_lists"
+        os.makedirs(SAVE_DIR, exist_ok=True)
+
+        feeds = {
+            "firehol_level1.netset": "https://iplists.firehol.org/files/firehol_level1.netset",
+            "spamhaus_drop.txt":     "https://www.spamhaus.org/drop/drop.txt",
+            "spamhaus_edrop.txt":    "https://www.spamhaus.org/drop/edrop.txt",
+            "emerging_threats.txt":  "https://rules.emergingthreats.net/fwrules/emerging-Block-IPs.txt",
+        }
+
+        for filename, feed_url in feeds.items():
+            try:
+                r = requests.get(feed_url, timeout=30)
+                r.raise_for_status()
+                with open(f"{SAVE_DIR}/{filename}", 'w') as f:
+                    f.write(r.text)
+                logger.info(f"Downloaded {filename}")
+            except Exception as e:
+                logger.error(f"Failed to download {filename}: {e}")
+
+        # Memory'i de güncelle
+        from modules.phishing_detector.threat_intel_local import load_ip_blacklists
+        count = load_ip_blacklists(SAVE_DIR)
+        logger.info(f"Loaded {count} IP/CIDR to memory")
+        return f"{count} IP/CIDR loaded"
+    except Exception as exc:
+        logger.error(f"IP blacklist refresh failed: {exc}")
+        raise self.retry(exc=exc, countdown=300)
