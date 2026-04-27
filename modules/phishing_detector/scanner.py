@@ -547,6 +547,11 @@ def calculate_safety_score(input_url, db: Session = None):
     # ---------------------------------------------------------
     # 2. KATMAN: INTERNAL DB (VERİTABANI) — hash / tam URL / domain (indeksli)
     # ---------------------------------------------------------
+    # Initialize score, risks, sources early for threat_intelligence
+    score = 100
+    risks = []
+    sources = []
+    
     domain_match = None
     if db:
         exact_match = None
@@ -670,10 +675,6 @@ def calculate_safety_score(input_url, db: Session = None):
     # ---------------------------------------------------------
     # 5. KATMAN: ÇOKLU ANALİZ
     # ---------------------------------------------------------
-    score = 100
-    risks = []
-    sources = []
-
     if restricted_access:
         score -= 5
         risks.append(f"⚠️ Site erişimi kısıtlı görünüyor (HTTP {http_status}). Anti-bot/WAF olabilir.")
