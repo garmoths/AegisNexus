@@ -182,16 +182,73 @@ class AdvancedPhishingDetector:
         # B) SSL Score (30% weight)
         ssl_score = self._check_ssl(url)
         
-        # C) Combine
+        # C) Suspicious Domain Pattern Detection (override if high risk)
+        domain_risk = self._check_suspicious_domain(url)
+        if domain_risk > 0.8:
+            return domain_risk, {"ssl_score": ssl_score, "db_similarity": s_sim, "domain_risk": domain_risk}, False
+        
+        # D) Combine
         s_url = 0.70 * s_sim + 0.30 * ssl_score
         
         breakdown = {
             "ssl_score": ssl_score,
             "db_similarity": s_sim,
-            "max_similarity": max_similarity
+            "max_similarity": max_similarity,
+            "domain_risk": domain_risk
         }
         
         return s_url, breakdown, False
+    
+    def _check_suspicious_domain(self, url: str) -> float:
+        """
+        Check for suspicious domain patterns
+        Returns: 0.0 - 1.0
+        """
+        try:
+            from urllib.parse import urlparse
+            parsed = urlparse(url)
+            domain = parsed.netloc.lower()
+            
+            # Suspicious TLDs and subdomains
+            suspicious_patterns = [
+                # Fake support domains
+                "help-center", "support-center", "helpdesk", "customer-service",
+                # Fake verification domains  
+                "verify-account", "verify", "confirm-account", "auth-verify",
+                # Fake copyright/legal domains
+                "copyright", "legal-notice", "compliance", "appeals",
+                # Suspicious TLDs
+                ".support", ".help", ".center", ".top", ".xyz", ".tk"
+            ]
+            
+            # Check for suspicious patterns in domain
+            risk_score = 0.0
+            for pattern in suspicious_patterns:
+                if pattern in domain:
+                    risk_score += 0.25
+            
+            # Check if domain pretends to be a real service but isn't
+            brand_impersonation = [
+                "instagram", "facebook", "google", "apple", "amazon",
+                "microsoft", "netflix", "paypal", "spotify", "twitter"
+            ]
+            
+            for brand in brand_impersonation:
+                if brand in domain:
+                    # If brand name is in domain but not the official domain
+                    official_domains = [
+                        "instagram.com", "facebook.com", "google.com",
+                        "apple.com", "amazon.com", "microsoft.com",
+                        "netflix.com", "paypal.com", "spotify.com", "twitter.com"
+                    ]
+                    if not any(official in domain for official in official_domains):
+                        risk_score += 0.4
+            
+            return min(risk_score, 1.0)
+            
+        except Exception as e:
+            logger.debug(f"Domain check error: {e}")
+            return 0.0
     
     def _calculate_db_similarity(self, url: str) -> Tuple[float, float]:
         """
@@ -359,17 +416,23 @@ Metin: """ + message[:2000]
             "urgency": [
                 "hemen", "acil", "son gün", "bugün sona eriyor",
                 "urgent", "immediately", "expires today", "act now",
-                "şimdi", "acele", "son tarih", "süre doluyor"
+                "şimdi", "acele", "son tarih", "süre doluyor",
+                "24 saat", "48 saat", "saat içinde", "gün içinde",
+                "24 hours", "48 hours", "hours", "immediate"
             ],
             "threat": [
                 "hesabınız askıya alındı", "yasal işlem", "bloke",
                 "suspended", "legal action", "blocked", "engellendi",
-                "kapatılacak", "silinecek", "askıya alındı"
+                "kapatılacak", "silinecek", "askıya alındı",
+                "kalıcı olarak kapatılması", "geri döndürülemez",
+                "permanently closed", "irreversible", "permanently suspended",
+                "telif hakkı", "copyright", "ihlal", "infringement"
             ],
             "identity": [
                 "şifrenizi girin", "doğrulayın", "kimliğinizi onayla",
                 "verify your identity", "confirm password", "enter credentials",
-                "şifre", "parola", "kart numarası", "cvv"
+                "şifre", "parola", "kart numarası", "cvv",
+                "itiraz formu", "appeal form", "doğrulamanız gerekmektedir"
             ]
         }
         
@@ -378,7 +441,19 @@ Metin: """ + message[:2000]
             if any(kw in text_lower for kw in keywords):
                 hits += 1
         
-        return min(hits / 3.0, 1.0)
+        # If multiple hits from same category, weight more heavily
+        total_matches = sum(1 for category in categories.values() for kw in category if kw in text_lower)
+        
+        # Base score from category hits
+        score = min(hits / 3.0, 1.0)
+        
+        # Boost if multiple keyword matches
+        if total_matches >= 3:
+            score = min(score + 0.2, 1.0)
+        if total_matches >= 5:
+            score = min(score + 0.2, 1.0)
+        
+        return score
     
     def _emotion_score(self, message: str) -> float:
         """
