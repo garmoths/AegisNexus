@@ -57,43 +57,64 @@ class PhishingResult:
 
 
 class AdvancedPhishingDetector:
-    """3-Module Hybrid Phishing Detection System"""
+    """3-Module Hybrid Phishing Detection System with Lazy Loading"""
     
     def __init__(self):
         self.phishing_urls = []
-        self._load_phishing_db()
-        self._init_gemini()
-        self._init_emotion_model()
+        self.gemini_model = None
+        self.emotion_analyzer = None
+        self._db_loaded = False
+        self._gemini_loaded = False
+        self._emotion_loaded = False
     
     def _load_phishing_db(self):
-        """Load phishing URLs from database (1.5M records)"""
+        """Load phishing URLs from database (lazy loading - 10K for memory optimization)"""
+        if self._db_loaded:
+            return
+        
         try:
             with get_db_connection() as conn:
                 cursor = conn.cursor()
-                # Get all phishing URLs from cache
+                # Get recent phishing URLs from cache (reduced from 100K to 10K)
                 cursor.execute("""
                     SELECT DISTINCT url FROM phishing_urls
-                    WHERE risk_score > 40
+                    WHERE risk_score > 50
                     ORDER BY checked_at DESC
-                    LIMIT 100000
+                    LIMIT 10000
                 """)
                 self.phishing_urls = [row[0] for row in cursor.fetchall()]
-                logger.info(f"Loaded {len(self.phishing_urls)} phishing URLs from DB")
+                self._db_loaded = True
+                logger.info(f"Lazy loaded {len(self.phishing_urls)} phishing URLs from DB")
         except Exception as e:
             logger.warning(f"Could not load phishing DB: {e}")
             self.phishing_urls = []
+            self._db_loaded = True
     
     def _init_gemini(self):
-        """Initialize Gemini API"""
+        """Initialize Gemini API (lazy loading)"""
+        if self._gemini_loaded:
+            return
+        
         if GEMINI_API_KEY:
-            genai.configure(api_key=GEMINI_API_KEY)
-            self.gemini_model = genai.GenerativeModel('gemini-2.0-flash')
+            try:
+                genai.configure(api_key=GEMINI_API_KEY)
+                self.gemini_model = genai.GenerativeModel('gemini-2.0-flash')
+                self._gemini_loaded = True
+                logger.info("Lazy loaded Gemini model")
+            except Exception as e:
+                logger.warning(f"Could not load Gemini: {e}")
+                self.gemini_model = None
+                self._gemini_loaded = True
         else:
             logger.warning("GEMINI_API_KEY not found")
             self.gemini_model = None
+            self._gemini_loaded = True
     
     def _init_emotion_model(self):
-        """Initialize emotion analysis model"""
+        """Initialize emotion analysis model (lazy loading)"""
+        if self._emotion_loaded:
+            return
+        
         try:
             self.emotion_analyzer = pipeline(
                 "text-classification",
@@ -101,13 +122,16 @@ class AdvancedPhishingDetector:
                 return_all_scores=True,
                 device=-1  # CPU
             )
+            self._emotion_loaded = True
+            logger.info("Lazy loaded emotion model")
         except Exception as e:
             logger.warning(f"Could not load emotion model: {e}")
             self.emotion_analyzer = None
+            self._emotion_loaded = True
     
     def detect(self, message: str, url: Optional[str] = None) -> PhishingResult:
         """
-        Main detection function
+        Main detection function with lazy loading
         
         Args:
             message: Message text to analyze
@@ -116,6 +140,9 @@ class AdvancedPhishingDetector:
         Returns:
             PhishingResult with verdict and scores
         """
+        # Lazy load models on first use
+        self._load_phishing_db()
+        
         # === MODULE 1: URL ANALYSIS ===
         s_url, url_breakdown, hard_override = self._analyze_url(url)
         
@@ -128,6 +155,10 @@ class AdvancedPhishingDetector:
                 hard_override=True,
                 reason="DB'de benzerlik >= 0.90 - kesin eşleşme"
             )
+        
+        # Lazy load ML models for text/emotion analysis
+        self._init_gemini()
+        self._init_emotion_model()
         
         # === MODULE 2: TEXT + EMOTION ANALYSIS ===
         s_text, text_breakdown = self._analyze_text(message)

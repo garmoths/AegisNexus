@@ -53,6 +53,93 @@ curl -X POST https://api.aegisnexus.dev/api/v2/phishing/check-url \
 
 ---
 
+## URL Analiz Süreci (Phishing Detector)
+
+**Bir URL geldiğinde sistemimiz şu adımları sırasıyla işler:**
+
+### 1. **URL Giriş ve Ön Doğrulama**
+   - Kullanıcı URL'i API'ye gönderir (`/api/v2/phishing/check-url`)
+   - URL formatı geçerliliği kontrol edilir
+   - Rate limiting kontrolü (60 istek/dakika)
+
+### 2. **Tehdit Veritabanı Sorgusu**
+   - URL, phishing veritabanında aranır (1.5M+ kayıt)
+   - Sorgulanan kaynaklar:
+     - GitHub phishing feed'leri
+     - OpenPhish
+     - URLHaus
+     - PhishTank
+     - Kaggle phishing dataset
+     - CertStream (SSL sertifikası doğrulama)
+     - AlienVault OTX (Tehdit İstihbaratı)
+   - Eğer URL veritabanında bulunursa → **DİREKT PHISHING** işaretlenir
+
+### 3. **URL Güvenlik Skoru Hesaplama**
+   - Veritabanında bulunmazsa, güvenlik skoru hesaplanır (0-100)
+   - **Skor hesaplama faktörleri:**
+     - SSL sertifikası geçerliliği (HTTPS var mı?)
+     - Domain yaşı (yeni domain mi?)
+     - Domain similarity (benzer domain mi?)
+     - URL yapısı (çok uzun, garip karakterler)
+     - TLD güvenilirliği (.com vs .xyz)
+
+### 4. **AI Analyzer Entegrasyonu (Gelişmiş Analiz)**
+   - URL, AI Analyzer modülüne gönderilir
+   - **3-Modüllü Hibrit Phishing Tespiti:**
+     - **URL Modülü (%40):**
+       - Levenshtein + Jaro-Winkler fuzzy matching
+       - 1.5M phishing URL veritabanı ile similarity
+       - SSL score hesaplama
+       - Sahte domain pattern detection (help-center.support, verify-account vb.)
+       - Marka taklidi tespiti (instagram.com değil, instagram-fake.com)
+     - **Metin + Duygu Modülü (%35):**
+       - Gemini LLM semantic phishing detection
+       - Aciliyet kuralları (24 saat, kalıcı kapatma, telif hakkı)
+       - VAD emotion analysis (korku, öfke duyguları)
+     - **Güvenilirlik Skoru (%25):**
+       - Veri kalitesi değerlendirmesi
+       - LLM quality score
+       - URL accessibility score
+
+### 5. **Risk Seviyesi Belirleme**
+   - **0-25:** Güvenli (TEMİZ)
+   - **25-35:** Düşük Risk (DÜŞÜK RİSK)
+   - **35-60:** Şüpheli (ŞÜPHELİ)
+   - **60-100:** Phishing (PHİSHİNG)
+
+### 6. **Sonuç Formatlama ve Dönüş**
+   - Risk seviyesi, skor ve detaylar JSON formatında döner
+   - Tarama geçmişi veritabanına kaydedilir
+   - Kullanıcıya öneriler sunulur
+
+### 7. **Tarama Geçmişi Takibi**
+   - Her URL taraması veritabanına kaydedilir
+   - Analiz tarih, skor, risk seviyesi ve kaynaklar saklanır
+   - İstatistikler için kullanılır (tehdit tipi dağılımı vb.)
+
+**Örnek Akış:**
+```
+Kullanıcı → "https://instagram-copyright-help-center.support/login" gönderir
+    ↓
+URL ön doğrulama ✅
+    ↓
+Tehdit veritabanı sorgusu → Bulunamadı
+    ↓
+Güvenlik skoru hesapla → 15/100
+    ↓
+AI Analyzer analiz → URL modülü 1.0 (sahte domain), Metin modülü 0.6
+    ↓
+Amplifikasyon → Final skor: 61.79%
+    ↓
+Risk seviyesi → PHİSHİNG (60% threshold)
+    ↓
+Sonuç dön → {risk: "PHISHING", score: 61.79, details: [...]}
+    ↓
+Geçmişe kaydet
+```
+
+---
+
 ## 02 - Honeypot (IP Avcısı ve IOC Toplayıcı)
 
 **Açıklama:** Dolandırıcıları tersine mühendislik ile avlayan tuzak modülü. Gerçekçi sahte login sayfaları ile dolandırıcıların zamanını tüketir ve IOC (Indicator of Compromise) toplar.

@@ -31,6 +31,10 @@ app.conf.update(
     result_serializer="json",
     timezone=TIMEZONE,
     enable_utc=True,
+    worker_max_tasks_per_child=50,
+    worker_prefetch_multiplier=1,
+    task_time_limit=300,
+    task_soft_time_limit=240,
     beat_schedule={
         "ioc-refresh": {
             "task": "modules.honeypot.celery_tasks.update_ioc_feeds",

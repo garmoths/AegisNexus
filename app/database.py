@@ -11,8 +11,8 @@ load_dotenv()
 # Eğer .env dosyasında bulamazsa varsayılan olarak bunu kullanacak:
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://enes@localhost/phishing_db")
 
-_pool_size = int(os.getenv("DB_POOL_SIZE", "20"))
-_max_overflow = int(os.getenv("DB_MAX_OVERFLOW", "40"))
+_pool_size = int(os.getenv("DB_POOL_SIZE", "5"))
+_max_overflow = int(os.getenv("DB_MAX_OVERFLOW", "2"))
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
