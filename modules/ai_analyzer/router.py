@@ -96,13 +96,38 @@ def analyze_message(
         # Use NEW algorithm's score directly (no override)
         final_score = advanced_result["score"] * 100  # Scale 0-100
         final_verdict = advanced_result["verdict"]
+        final_confidence = advanced_result["confidence"]  # Already 0-1 range
         
         # Update legacy result with new algorithm's scores
         legacy_result["security_assessment"]["risk_level"] = final_verdict.lower()
         legacy_result["security_assessment"]["score"] = round(final_score, 2)
-        legacy_result["security_assessment"]["is_phishing"] = final_verdict == "PHİSHİNG"
-        legacy_result["security_assessment"]["is_scam"] = final_verdict == "PHİSHİNG"
-        legacy_result["security_assessment"]["confidence"] = advanced_result["confidence"]
+        
+        # Fix: is_phishing should be based on new algorithm's verdict
+        is_phishing = final_verdict == "PHİSHİNG"
+        legacy_result["security_assessment"]["is_phishing"] = is_phishing
+        legacy_result["security_assessment"]["is_scam"] = is_phishing
+        
+        # Fix: Use new algorithm's confidence (0-1 range)
+        legacy_result["security_assessment"]["confidence"] = round(final_confidence, 2)
+        
+        # Fix: Override safety_status based on new verdict
+        if final_verdict == "PHİSHİNG":
+            legacy_result["security_assessment"]["safety_status"] = "TEHLİKELİ"
+            legacy_result["security_assessment"]["action_required"] = "ACİL"
+            legacy_result["security_assessment"]["threat_level"] = "critical"
+        elif final_verdict == "ŞÜPHELİ":
+            legacy_result["security_assessment"]["safety_status"] = "ŞÜPHELİ"
+            legacy_result["security_assessment"]["action_required"] = "DİKKAT"
+            legacy_result["security_assessment"]["threat_level"] = "high"
+        elif final_verdict == "DÜŞÜK RİSK":
+            legacy_result["security_assessment"]["safety_status"] = "ŞÜPHELİ"
+            legacy_result["security_assessment"]["action_required"] = "DİKKAT"
+            legacy_result["security_assessment"]["threat_level"] = "medium"
+        else:  # TEMİZ
+            legacy_result["security_assessment"]["safety_status"] = "GÜVENLİ"
+            legacy_result["security_assessment"]["action_required"] = "YOK"
+            legacy_result["security_assessment"]["threat_level"] = "low"
+        
         legacy_result["detailed_analysis"]["advanced_breakdown"] = advanced_result["breakdown"]
         legacy_result["detailed_analysis"]["hard_override"] = advanced_result["hard_override"]
         legacy_result["summary"] = f"[{final_verdict}] {advanced_result['reason']} (Skor: {advanced_result['score']:.2f}, Güven: {advanced_result['confidence']:.2f})"

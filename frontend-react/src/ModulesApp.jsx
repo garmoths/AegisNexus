@@ -558,7 +558,8 @@ function AIAnalyzer() {
 }
 
 function ResultContent({ score, threatLevel, isPhishing, isScam, sa, da, recs, beliefs, threats, suspects, result }) {
-  const confidence = da?.ai_analysis?.confidence_score || da?.advanced_breakdown?.confidence || 0
+  // Use new algorithm's confidence from security_assessment (0-1 range), not old ML confidence
+  const confidence = sa?.confidence || da?.advanced_breakdown?.confidence || 0
   const confidencePercentage = Math.round(confidence * 100)
   const confidenceColor = confidence > 0.75 ? theme.danger : confidence > 0.50 ? theme.warning : confidence > 0.25 ? theme.primary : theme.success
   
