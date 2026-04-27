@@ -869,9 +869,11 @@ def run_threat_intelligence(url):
         from .threat_intel_local import check_virustotal_local as check_virustotal
         from app.database import SessionLocal
         
+        logger.info(f"Calling local VirusTotal replacement for: {url}")
         db = SessionLocal()
         vt = check_virustotal(url, db)
         db.close()
+        logger.info(f"Local VirusTotal result: {vt}")
         results["virustotal"] = vt
         if vt.get("available"):
             results["sources"].append({
