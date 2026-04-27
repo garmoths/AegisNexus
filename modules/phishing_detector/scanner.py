@@ -669,7 +669,8 @@ def calculate_safety_score(input_url, db: Session = None):
                 f"HTTP Durum Kodu: {http_status or 'Bağlantı hatası'}",
                 f"Ağ hatası: {transport_error or 'bilinmiyor'}"
             ] + risks,
-            "sources": sources + [{"name": "HTTP Erişim", "status": "Başarısız ❌"}]
+            "sources": sources + [{"name": "HTTP Erişim", "status": "Başarısız ❌"}],
+            "threat_intel": threat_result,
         }
 
     # ---------------------------------------------------------
