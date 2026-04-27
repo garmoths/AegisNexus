@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 # Bu fonksiyon aynı dict yapısını döndürür, kod değişmez
 # ============================================================
 
-def check_virustotal_local(url: str, conn) -> dict:
+def check_virustotal_local(url: str, db) -> dict:
     """
     Döndürdüğü dict orijinal VirusTotal dict'i ile aynı yapıda:
     {
@@ -30,32 +30,30 @@ def check_virustotal_local(url: str, conn) -> dict:
     }
     Böylece mevcut penalty kodun (>=3, >=1) hiç değişmez.
     """
-    cur = conn.cursor()
+    from app.models import PhishingURL
+    
     domain = urlparse(url).netloc.lower().replace("www.", "")
     malicious_hits = 0
     suspicious_hits = 0
     source = None
 
     # --- KONTROL 1: Exact URL match (feed DB'nde var mı?) ---
-    cur.execute("""
-        SELECT phish_id FROM phishing_urls 
-        WHERE url = %s AND status = 'valid'
-        LIMIT 1
-    """, (url,))
-    if row := cur.fetchone():
+    exact_match = db.query(PhishingURL).filter(
+        PhishingURL.url == url,
+        PhishingURL.status == 'valid'
+    ).first()
+    if exact_match:
         # Direkt DB hit → 5 motor işaretledi gibi davran (40 penalty tetiklenir)
-        return {"malicious": 5, "suspicious": 0, "source": row[0]}
+        return {"malicious": 5, "suspicious": 0, "source": exact_match.phish_id}
 
     # --- KONTROL 2: Domain exact match ---
-    cur.execute("""
-        SELECT phish_id, COUNT(*) as cnt FROM phishing_urls
-        WHERE domain_norm = %s AND status = 'valid'
-        GROUP BY phish_id
-    """, (domain,))
-    rows = cur.fetchall()
-    if rows:
-        total_hits = sum(r[1] for r in rows)
-        source = rows[0][0]
+    domain_matches = db.query(PhishingURL).filter(
+        PhishingURL.domain_norm == domain,
+        PhishingURL.status == 'valid'
+    ).all()
+    if domain_matches:
+        total_hits = len(domain_matches)
+        source = domain_matches[0].phish_id
         if total_hits >= 3:
             return {"malicious": 3, "suspicious": 0, "source": source}
         else:
@@ -63,18 +61,15 @@ def check_virustotal_local(url: str, conn) -> dict:
 
     # --- KONTROL 3: Fuzzy domain match (typosquatting tespiti) ---
     # DB'deki domainleri tek tek değil, sample ile karşılaştır (performans)
-    cur.execute("""
-        SELECT DISTINCT domain_norm FROM phishing_urls
-        WHERE status = 'valid'
-        AND length(domain_norm) BETWEEN %s AND %s
-        LIMIT 5000
-    """, (len(domain) - 3, len(domain) + 3))
+    db_domains = db.query(PhishingURL.domain_norm).filter(
+        PhishingURL.status == 'valid'
+    ).distinct().all()
     
-    db_domains = [r[0] for r in cur.fetchall()]
+    db_domains = [d[0] for d in db_domains if d[0] and len(d[0]) >= len(domain) - 3 and len(d[0]) <= len(domain) + 3]
     best_score = 0
     best_domain = None
     
-    for db_domain in db_domains:
+    for db_domain in db_domains[:5000]:  # Limit for performance
         score = fuzz.token_sort_ratio(domain, db_domain)
         if score > best_score:
             best_score = score
