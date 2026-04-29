@@ -62,10 +62,6 @@ def query_ioc(value: str, ioc_type: str = "domain", timeout: int = 15) -> Dict:
     }
 
     try:
-        headers = {}
-        if ABUSE_CH_API_KEY:
-            headers["API-KEY"] = ABUSE_CH_API_KEY
-
         payload = {
             "query": "search_ioc",
             "search_term": value,
@@ -74,7 +70,6 @@ def query_ioc(value: str, ioc_type: str = "domain", timeout: int = 15) -> Dict:
         resp = requests.post(
             THREATFOX_ENDPOINT,
             json=payload,
-            headers=headers,
             timeout=timeout,
         )
 
@@ -132,10 +127,6 @@ def get_recent_iocs(limit: int = 100, timeout: int = 30) -> List[Dict]:
         return []
 
     try:
-        headers = {}
-        if ABUSE_CH_API_KEY:
-            headers["API-KEY"] = ABUSE_CH_API_KEY
-
         payload = {
             "query": "get_iocs",
             "days": 7,
@@ -145,7 +136,6 @@ def get_recent_iocs(limit: int = 100, timeout: int = 30) -> List[Dict]:
         resp = requests.post(
             THREATFOX_ENDPOINT,
             json=payload,
-            headers=headers,
             timeout=timeout,
         )
 

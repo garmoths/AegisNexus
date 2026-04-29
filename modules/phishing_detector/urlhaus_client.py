@@ -62,14 +62,9 @@ def query_url(url: str, timeout: int = 15) -> Dict:
     }
 
     try:
-        headers = {}
-        if ABUSE_CH_API_KEY:
-            headers["API-KEY"] = ABUSE_CH_API_KEY
-
         resp = requests.post(
             URLHAUS_ENDPOINT,
             data={"url": url},
-            headers=headers,
             timeout=timeout,
         )
 
