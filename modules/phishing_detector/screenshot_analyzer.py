@@ -1,5 +1,5 @@
 """
-Playwright + Claude Vision tabanli ekran goruntusu analizi.
+Playwright + Gemini Vision tabanli ekran goruntusu analizi.
 """
 
 from __future__ import annotations
@@ -11,14 +11,13 @@ import os
 from typing import Any, Dict, Tuple
 
 import requests
+import google.generativeai as genai
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 
 logger = logging.getLogger(__name__)
 
-CLAUDE_MODEL = "claude-sonnet-4-20250514"
-ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
-ANTHROPIC_VERSION = "2023-06-01"
+GEMINI_MODEL = "gemini-2.0-flash"
 MAX_PAGE_TEXT = 3000
 PLAYWRIGHT_TIMEOUT_MS = 15000
 
@@ -128,69 +127,53 @@ def _normalize_result(data: Dict[str, Any]) -> Dict[str, Any]:
     return result
 
 
-def _call_claude(url: str, screenshot_b64: str, http_meta: Dict[str, Any], page_text: str) -> Dict[str, Any]:
-    api_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
+def _call_gemini(url: str, screenshot_b64: str, http_meta: Dict[str, Any], page_text: str) -> Dict[str, Any]:
+    api_key = os.getenv("GEMINI_API_KEY", "").strip()
     if not api_key:
-        raise RuntimeError("ANTHROPIC_API_KEY not configured")
+        raise RuntimeError("GEMINI_API_KEY not configured")
+
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel(
+        model_name=GEMINI_MODEL,
+        system_instruction=SYSTEM_PROMPT,
+        generation_config=genai.GenerationConfig(
+            temperature=0,
+            max_output_tokens=1200,
+            response_mime_type="application/json",
+        ),
+    )
 
     user_payload = {
         "url": url,
         "http_meta": http_meta or {},
         "page_text": _clean_page_text(page_text),
-        "output_requirements": {
-            "format": "json",
-            "strict_schema": True,
-            "language": "tr",
-        },
     }
 
-    body = {
-        "model": CLAUDE_MODEL,
-        "max_tokens": 1200,
-        "temperature": 0,
-        "system": SYSTEM_PROMPT,
-        "messages": [
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": (
-                            "Phishing risk analizi yap. Asagidaki baglamsal veriyi kullan:\n"
-                            f"{json.dumps(user_payload, ensure_ascii=False)}"
-                        ),
-                    },
-                    {
-                        "type": "image",
-                        "source": {"type": "base64", "media_type": "image/png", "data": screenshot_b64},
-                    },
-                ],
-            }
-        ],
+    # Gemini vision: base64 PNG doğrudan Part olarak gönderilir
+    image_part = {
+        "mime_type": "image/png",
+        "data": screenshot_b64,
     }
 
-    response = requests.post(
-        ANTHROPIC_API_URL,
-        headers={
-            "x-api-key": api_key,
-            "anthropic-version": ANTHROPIC_VERSION,
-            "content-type": "application/json",
-        },
-        json=body,
-        timeout=20,
+    text_part = (
+        "Phishing risk analizi yap. Asagidaki baglamsal veriyi kullan:\n"
+        f"{json.dumps(user_payload, ensure_ascii=False)}"
     )
-    response.raise_for_status()
-    payload = response.json()
-    content = payload.get("content", [])
-    text_parts = [part.get("text", "") for part in content if isinstance(part, dict) and part.get("type") == "text"]
-    if not text_parts:
-        raise ValueError("Claude response has no text content")
-    return _extract_json("\n".join(text_parts))
+
+    response = model.generate_content(
+        [text_part, image_part],
+        request_options={"timeout": 25},
+    )
+
+    text = response.text if response.text else ""
+    if not text:
+        raise ValueError("Gemini response has no text content")
+    return _extract_json(text)
 
 
 def analyze(url: str, http_meta: Dict[str, Any] | None = None, page_text: str | None = None) -> Dict[str, Any]:
     """
-    URL ekran goruntusunu alip Claude vision ile phishing analizi yapar.
+    URL ekran goruntusunu alip Gemini vision ile phishing analizi yapar.
     Hata durumunda exception firlatmaz, fallback dondurur.
     """
     normalized_url = (url or "").strip()
@@ -213,13 +196,13 @@ def analyze(url: str, http_meta: Dict[str, Any] | None = None, page_text: str | 
         return _fallback_result()
 
     try:
-        claude_result = _call_claude(
+        gemini_result = _call_gemini(
             url=normalized_url,
             screenshot_b64=screenshot_b64,
             http_meta=http_meta or {},
             page_text=captured_text,
         )
-        return _normalize_result(claude_result)
+        return _normalize_result(gemini_result)
     except Exception as exc:
-        logger.warning(f"Claude screenshot analysis failed for {normalized_url}: {exc}")
+        logger.warning(f"Gemini screenshot analysis failed for {normalized_url}: {exc}")
         return _fallback_result()
