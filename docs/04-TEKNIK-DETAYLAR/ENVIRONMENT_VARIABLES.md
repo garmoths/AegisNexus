@@ -11,17 +11,19 @@
 ## Threat Intel Providers
 - `VIRUSTOTAL_API_KEY` or `VIRUSTOTAL_API_KEYS`
 - `GOOGLE_SAFE_BROWSING_KEY` or `GOOGLE_SAFE_BROWSING_KEYS`
-- `ABUSEIPDB_API_KEY` or `ABUSEIPDB_API_KEYS`
-- `ANTHROPIC_API_KEY` (required for screenshot vision analysis)
+- `ABUSEIPDB_API_KEY` or `ABUSEIPDB_API_KEYS` (free plan: 1000 check/gün — sadece local blacklist fallback aktif, API collector'dan kaldırıldı)
+- `GEMINI_API_KEY` (required for Gemini Vision screenshot analysis — `gemini-2.0-flash` model)
 - `ALIENVAULT_OTX_API_KEY` (required for OTX phishing pulls)
 - `KAGGLE_API_TOKEN` (recommended for Kaggle dataset download)
 - `KAGGLE_USERNAME` + `KAGGLE_KEY` (legacy alternative)
-- `SPAMHAUS_USERNAME` + `SPAMHAUS_PASSWORD` (required for Spamhaus Intel API — login-based auth)
-- `ABUSE_API_KEY` (used by URLhaus and ThreatFox clients)
+- `SPAMHAUS_USERNAME` + `SPAMHAUS_PASSWORD` (required for Spamhaus Intel API — login-based JWT auth, std tier: 150 req/s, 200K req/saat)
+- `ABUSE_API_KEY` (required for URLhaus `Auth-Key` header ve ThreatFox `Auth-Key` header — abuse.ch API erişimi)
 
 If both singular and plural are present, plural key list is preferred.
 
 ## Screenshot Analyzer Runtime
+- `GEMINI_API_KEY` (required): Google Gemini API key for Vision analysis.
+- Model: `gemini-2.0-flash` (Playwright screenshot → base64 PNG → Gemini Vision API → JSON verdict)
 - Playwright Chromium runtime is required for screenshot capture.
 - Install after dependency setup:
   - `playwright install chromium --with-deps`
@@ -37,7 +39,7 @@ If both singular and plural are present, plural key list is preferred.
 - `CELERY_TIMEZONE` (optional): Celery timezone, default `UTC`.
 - `CELERY_IOC_INTERVAL_SECONDS` (optional): IOC refresh interval, default `3600`.
 - `CELERY_PHISHING_INTERVAL_SECONDS` (optional): Phishing refresh interval, default `7200`.
-- `CELERY_IOC_SOURCES` (optional): Comma-separated IOC sources, default `abuse_urlhaus,abuse_phishtank,abuseipdb`.
+- `CELERY_IOC_SOURCES` (optional): Comma-separated IOC sources, default `abuse_urlhaus,abuse_phishtank` (abuseipdb kaldırıldı — local blacklist kullanılıyor).
 - `CELERY_IOC_LIMIT_PER_SOURCE` (optional): Per-source IOC fetch limit, default `1000`.
 
 ## Phishing Multi-Source Collector
