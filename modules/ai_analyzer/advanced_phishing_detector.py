@@ -28,7 +28,12 @@ from dataclasses import dataclass
 # Third-party imports
 from rapidfuzz import fuzz, distance
 import google.generativeai as genai
-from transformers import pipeline
+
+# Suppress transformers ML framework warnings
+import warnings
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")
+    from transformers import pipeline
 
 # Database
 from modules.phishing_detector.cache_db import get_db_connection
