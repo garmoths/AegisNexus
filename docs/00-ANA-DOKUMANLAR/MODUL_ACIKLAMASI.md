@@ -62,6 +62,13 @@
 - **Screenshot Analyzer (Gemini Vision):**
   - Playwright screenshot → base64 PNG → `gemini-2.0-flash` → JSON verdict
   - Brand impersonation, phishing clone, sosyal mühendislik tespiti
+  - `screenshot_b64` alanı ile frontend'de site görseli gösterilir
+- **Frontend Görselleştirme (PhishingResult Component):**
+  - Screenshot thumbnail (tıklayınca tam ekran açılır)
+  - 8 Threat Intel kaynak kartı (URLhaus, Spamhaus Domain/IP, ThreatFox, VirusTotal, GSB, AbuseIPDB, Screenshot Analyzer)
+  - Her kaynak kartı: listed/clean/found badge + penalty göstergesi + detay metni
+  - Görsel tehdit indikatörleri (Gemini Vision threat_indicators)
+  - Taranan kaynaklar listesi (başarı/hata durumuna göre renkli)
 
 **Sunduğu Hizmetler:**
 ```
@@ -389,6 +396,7 @@ phishing_db/
   • ML modeli iyileştirmesi
   • SMS gateway kapasitesi artırma
   • Kubernetes migration planning
+  • Frontend dashboard geliştirmesi (real-time threat intel)
 
 📅 BAŞLAYACAK:
   • Multi-region deployment
@@ -408,5 +416,5 @@ Tehditleri **proaktif tespiti** → **derin analizi** → **otomatik yanıtı** 
 
 **Proje Lideri:** Enes  
 **Son Güncelleme:** 29 Nisan 2026
-**Sürüm:** 2.1 (Threat Intel Integration + Gemini Vision)  
+**Sürüm:** 2.2 (Threat Intel Integration + Gemini Vision + Frontend Visualization)  
 **Repository:** GitHub (Private)

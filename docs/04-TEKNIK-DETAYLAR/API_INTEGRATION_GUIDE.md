@@ -41,8 +41,11 @@ Success or degraded response shape:
       "risk_level": "HIGH",
       "verdict": "Brand impersonation şüphesi",
       "screenshot_analysis": "...",
-      "threat_indicators": [],
-      "recommendation": "..."
+      "threat_indicators": [
+        {"type": "visual", "value": "PayPal logo clone", "reason": "Brand impersonation"}
+      ],
+      "recommendation": "...",
+      "screenshot_b64": "<base64 PNG data — frontend'de görsel göstermek için>"
     },
     "urlhaus": {
       "listed": false,
@@ -138,7 +141,9 @@ Success or degraded response shape:
 - **Fonksiyonlar:** `write_threat_cache(key, data, ttl_seconds)`, `read_threat_cache(key)`
 - **Otomatik:** Cache hit → API çağrısı atlanır, cache miss → API sorgulanıp cache'e yazılır
 
-## Frontend Integration (Fetch)
+## Frontend Integration
+
+### API Fetch
 ```javascript
 const API = import.meta.env.VITE_API_BASE_URL || "/api/v2";
 
@@ -153,6 +158,26 @@ export async function checkUrl(url) {
   return await res.json();
 }
 ```
+
+### PhishingResult Component (React)
+`check-url` yanıtı `PhishingResult` bileşeninde görselleştirilir:
+
+| Bölüm | Açıklama |
+|-------|----------|
+| **Hero Result Card** | Risk gauge + risk level badge + screenshot thumbnail (tıklayınca büyür) + tespit listesi |
+| **Threat Intel Source Cards** | 8 kaynak kartı grid layout: URLhaus, Spamhaus Domain, Spamhaus IP, ThreatFox, VirusTotal, Google Safe Browsing, AbuseIPDB (Local), Screenshot Analyzer — her biri listed/clean/found badge + penalty göstergesi |
+| **Görsel Tehdit İndikatörleri** | Gemini Vision'dan `threat_indicators` listesi (visual/url/domain/ip tipinde, değer + neden) |
+| **Taranan Kaynaklar** | API'den `sources` listesi, başarı/hata durumuna göre renkli |
+
+**Screenshot Display:**
+- `screenshot_b64` alanı varsa → `<img src="data:image/png;base64,...">` thumbnail gösterilir
+- Tıklama → yeni pencerede tam ekran screenshot
+- `screenshot_b64` yoksa → screenshot bölümü gizlenir
+
+**Source Card Renk Kuralları:**
+- 🔴 Kırmızı: `isBad` (listed/found/threat) — `theme.accent`
+- 🟢 Yeşil: `isClean` (clean/safe/not found) — `theme.success`
+- ⚪ Gri: veri yok / N/A — `theme.textMuted`
 
 ## Error Handling Rules
 - `400`: invalid/empty input
