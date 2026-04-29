@@ -49,7 +49,7 @@ def _fallback_result() -> Dict[str, Any]:
         "risk_score": 50,
         "risk_level": "UNKNOWN",
         "verdict": "Ekran görüntüsü alınamadı",
-        "screenshot_analysis": "Playwright veya Claude analizi tamamlanamadı.",
+        "screenshot_analysis": "Playwright veya Gemini analizi tamamlanamadı.",
         "threat_indicators": [],
         "recommendation": "URL'yi manuel olarak inceleyin ve kullanıcı etkileşimini engelleyin.",
         "available": False,
@@ -97,7 +97,7 @@ def _extract_json(text: str) -> Dict[str, Any]:
 
     data = json.loads(raw)
     if not isinstance(data, dict):
-        raise ValueError("Claude response is not JSON object")
+        raise ValueError("Gemini response is not JSON object")
     return data
 
 

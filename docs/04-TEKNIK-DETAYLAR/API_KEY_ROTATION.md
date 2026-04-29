@@ -4,7 +4,7 @@
 - **VirusTotal**: 4 requests/minute limit (çok dar!)
 - **Google Safe Browsing**: 10,000 requests/day
 - **AbuseIPDB**: 1,500 requests/day
-- **Claude Vision (Anthropic)**: request/token kotası ve gecikme riski
+- **Gemini Vision (Google)**: request/token kotası ve gecikme riski
 
 Sistem high-traffic altında bu limitlerde takılı kalıyor.
 
@@ -43,8 +43,8 @@ GOOGLE_SAFE_BROWSING_KEYS=key1,key2
 # AbuseIPDB
 ABUSEIPDB_API_KEYS=key1,key2
 
-# Screenshot Analyzer (Claude Vision)
-ANTHROPIC_API_KEY=sk-ant-...
+# Screenshot Analyzer (Gemini Vision)
+GEMINI_API_KEY=AIza...
 ```
 
 #### 3. Sunucuyu Restart Et
@@ -88,7 +88,7 @@ VIRUSTOTAL_API_KEY=abc123def456
 VIRUSTOTAL_API_KEYS=key1,key2,key3
 GOOGLE_SAFE_BROWSING_KEYS=gkey1,gkey2
 ABUSEIPDB_API_KEYS=akey1,akey2
-ANTHROPIC_API_KEY=sk-ant-...
+GEMINI_API_KEY=AIza...
 ```
 
 ## Rate Limits After Rotation
@@ -99,7 +99,7 @@ ANTHROPIC_API_KEY=sk-ant-...
 | Google Safe | 10,000/day | 30,000/day | 50,000/day |
 | AbuseIPDB | 1,500/day | 4,500/day | 7,500/day |
 
-> Not: URLScan entegrasyonu kaldırıldı. Görsel analiz hattı artık `Playwright + Claude Vision` üzerinden çalışır.
+> Not: URLScan entegrasyonu kaldırıldı. Görsel analiz hattı artık `Playwright + Gemini Vision` üzerinden çalışır.
 
 ## Monitoring
 

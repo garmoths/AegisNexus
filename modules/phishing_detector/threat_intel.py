@@ -716,7 +716,7 @@ def _persist_screenshot_indicators(url: str, indicators: list, confidence: int =
 def run_threat_intelligence(url, http_meta=None, page_text: str = ""):
     """
     Tüm harici API'leri paralel olmayan şekilde çalıştırır.
-    PRIMARY: Screenshot Analyzer (Playwright + Claude vision)
+    PRIMARY: Screenshot Analyzer (Playwright + Gemini Vision)
     LOCAL REPLACEMENTS: VirusTotal → local DB, AbuseIPDB → IP blacklist
     SECONDARY: Google Safe Browsing
     

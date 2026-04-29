@@ -26,8 +26,8 @@ curl -s -X POST http://127.0.0.1:8000/api/v2/phishing/check-url \
    - Verify `CORS_ALLOW_ORIGINS` includes frontend origins.
 3. Slow/timeouts on `check-url`
    - Threat-intel akışı hibrittir: local DB/IP blacklist + screenshot vision analizi.
-   - Screenshot analizi: Playwright Chromium ile ekran görüntüsü + Claude Vision (Anthropic API).
-   - `ANTHROPIC_API_KEY` eksikse veya Playwright runtime yoksa akış kırılmaz, sonuç `UNKNOWN/50` fallback döner.
+   - Screenshot analizi: Playwright Chromium ile ekran görüntüsü + Gemini Vision (Google API, `gemini-2.0-flash`).
+   - `GEMINI_API_KEY` eksikse veya Playwright runtime yoksa akış kırılmaz, sonuç `UNKNOWN/50` fallback döner.
    - Hala yavaşsa: DB connection pool veya CPU kullanımını kontrol et
 4. Empty stats/latest
    - Verify `phishing_urls` table has data.
@@ -42,7 +42,7 @@ sudo -u postgres psql -d phishing_db -c "SELECT MAX(submission_time) FROM phishi
 ## Recovery Order
 1. API process health (`uvicorn` / service).
 2. DB connectivity and row counts.
-3. Provider keys and outbound connectivity (`ANTHROPIC_API_KEY` dahil).
+3. Provider keys and outbound connectivity (`GEMINI_API_KEY`, `ABUSE_API_KEY`, `SPAMHAUS_USERNAME/PASSWORD` dahil).
 4. Frontend API base (`VITE_API_BASE_URL`) and CORS.
 
 ## Screenshot Analyzer Quick Checks
