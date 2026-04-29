@@ -584,7 +584,7 @@ def fetch_threatfox_data(session: Optional[requests.Session] = None) -> List[str
         urls: List[str] = []
         for ioc in iocs:
             url = ioc.get("url", "")
-            if url and url.startswith(("http://", "https://")):
+            if url:
                 urls.append(url)
         return urls
     except Exception as exc:

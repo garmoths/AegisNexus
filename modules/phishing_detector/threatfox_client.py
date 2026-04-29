@@ -159,18 +159,27 @@ def get_recent_iocs(limit: int = 100, timeout: int = 30) -> List[Dict]:
         if not isinstance(entries, list):
             return []
 
-        from .url_normalize import normalize_url_record
+        # url_normalize opsiyonel — yoksa basit normalize yap
+        try:
+            from .url_normalize import normalize_url_record
+            _has_normalize = True
+        except ImportError:
+            _has_normalize = False
 
         results: List[Dict] = []
         for entry in entries[:limit]:
             ioc_type = str(entry.get("ioc_type", "")).lower()
-            ioc_value = str(entry.get("ioc_value", "")).strip()
+            # ThreatFox API'de alan adı "ioc", eski versiyonlarda "ioc_value"
+            ioc_value = str(entry.get("ioc", entry.get("ioc_value", ""))).strip()
+            if not ioc_value:
+                continue
             threat_type = str(entry.get("threat_type", "phishing")).lower()
             malware = str(entry.get("malware", "")).strip()
+            malware_printable = str(entry.get("malware_printable", malware)).strip()
             confidence = int(entry.get("confidence_level", 0) or 0)
             first_seen = entry.get("first_seen_utc", entry.get("first_seen", ""))
 
-            # Sadece URL ve domain tipi IOC'ları PhishingURL'ye yaz
+            # URL ve domain tipi IOC'ları PhishingURL'ye yaz, IP'leri de ekle
             url = None
             if ioc_type == "url" and ioc_value.startswith(("http://", "https://")):
                 url = ioc_value
@@ -181,24 +190,35 @@ def get_recent_iocs(limit: int = 100, timeout: int = 30) -> List[Dict]:
             else:
                 continue
 
-            normalized = normalize_url_record(url)
-            if not normalized.get("url_hash"):
-                continue
+            if _has_normalize:
+                normalized = normalize_url_record(url)
+                if not normalized.get("url_hash"):
+                    continue
+                url_hash = normalized["url_hash"]
+                canonical_url = normalized.get("canonical_url") or url
+                domain_norm = normalized.get("domain_norm")
+            else:
+                # Basit normalize fallback
+                from urllib.parse import urlparse
+                parsed = urlparse(url)
+                domain_norm = (parsed.netloc or parsed.hostname or "").lower().split(":")[0]
+                url_hash = str(hash(url))
+                canonical_url = url
 
             results.append({
                 "phish_id": f"threatfox_{abs(hash(ioc_value)) % 1000000000}",
-                "url": normalized.get("canonical_url") or url,
-                "url_hash": normalized["url_hash"],
-                "domain_norm": normalized.get("domain_norm"),
+                "url": canonical_url,
+                "url_hash": url_hash,
+                "domain_norm": domain_norm,
                 "status": "valid",
                 "online": True,
-                "target": malware or "Unknown",
+                "target": malware_printable or malware or "Unknown",
                 "submission_time": first_seen or datetime.now(timezone.utc).isoformat(),
                 "source": "threatfox",
                 "ioc_type": ioc_type,
                 "threat_type": threat_type,
                 "confidence": confidence,
-                "malware_family": malware,
+                "malware_family": malware_printable or malware,
             })
 
         logger.info(f"ThreatFox ingest: {len(results)} IOC normalize edildi")
