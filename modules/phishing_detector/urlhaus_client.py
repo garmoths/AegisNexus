@@ -22,8 +22,6 @@ logger = logging.getLogger(__name__)
 ABUSE_CH_API_KEY = os.getenv("ABUSE_API_KEY", os.getenv("ABUSE_API_KEYS", "")).strip()
 if "," in ABUSE_CH_API_KEY:
     ABUSE_CH_API_KEY = ABUSE_CH_API_KEY.split(",")[0].strip()
-if len(ABUSE_CH_API_KEY) < 10:
-    ABUSE_CH_API_KEY = ""  # Geçersiz/boş key — header gönderme
 
 URLHAUS_ENDPOINT = "https://urlhaus-api.abuse.ch/v1/url/"
 
@@ -62,9 +60,14 @@ def query_url(url: str, timeout: int = 15) -> Dict:
     }
 
     try:
+        headers = {}
+        if ABUSE_CH_API_KEY:
+            headers["Auth-Key"] = ABUSE_CH_API_KEY
+
         resp = requests.post(
             URLHAUS_ENDPOINT,
             data={"url": url},
+            headers=headers,
             timeout=timeout,
         )
 

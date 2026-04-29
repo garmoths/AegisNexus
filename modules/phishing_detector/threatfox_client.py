@@ -23,8 +23,6 @@ logger = logging.getLogger(__name__)
 ABUSE_CH_API_KEY = os.getenv("ABUSE_API_KEY", os.getenv("ABUSE_API_KEYS", "")).strip()
 if "," in ABUSE_CH_API_KEY:
     ABUSE_CH_API_KEY = ABUSE_CH_API_KEY.split(",")[0].strip()
-if len(ABUSE_CH_API_KEY) < 10:
-    ABUSE_CH_API_KEY = ""  # Geçersiz/boş key — header gönderme
 
 THREATFOX_ENDPOINT = "https://threatfox-api.abuse.ch/api/v1/"
 
@@ -62,6 +60,10 @@ def query_ioc(value: str, ioc_type: str = "domain", timeout: int = 15) -> Dict:
     }
 
     try:
+        headers = {"Content-Type": "application/json"}
+        if ABUSE_CH_API_KEY:
+            headers["Auth-Key"] = ABUSE_CH_API_KEY
+
         payload = {
             "query": "search_ioc",
             "search_term": value,
@@ -70,6 +72,7 @@ def query_ioc(value: str, ioc_type: str = "domain", timeout: int = 15) -> Dict:
         resp = requests.post(
             THREATFOX_ENDPOINT,
             json=payload,
+            headers=headers,
             timeout=timeout,
         )
 
@@ -127,6 +130,10 @@ def get_recent_iocs(limit: int = 100, timeout: int = 30) -> List[Dict]:
         return []
 
     try:
+        headers = {"Content-Type": "application/json"}
+        if ABUSE_CH_API_KEY:
+            headers["Auth-Key"] = ABUSE_CH_API_KEY
+
         payload = {
             "query": "get_iocs",
             "days": 7,
@@ -136,6 +143,7 @@ def get_recent_iocs(limit: int = 100, timeout: int = 30) -> List[Dict]:
         resp = requests.post(
             THREATFOX_ENDPOINT,
             json=payload,
+            headers=headers,
             timeout=timeout,
         )
 
