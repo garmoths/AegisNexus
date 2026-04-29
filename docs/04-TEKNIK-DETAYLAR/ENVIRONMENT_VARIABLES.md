@@ -11,13 +11,20 @@
 ## Threat Intel Providers
 - `VIRUSTOTAL_API_KEY` or `VIRUSTOTAL_API_KEYS`
 - `GOOGLE_SAFE_BROWSING_KEY` or `GOOGLE_SAFE_BROWSING_KEYS`
-- `URLSCAN_API_KEY` or `URLSCAN_API_KEYS`
 - `ABUSEIPDB_API_KEY` or `ABUSEIPDB_API_KEYS`
+- `ANTHROPIC_API_KEY` (required for screenshot vision analysis)
 - `ALIENVAULT_OTX_API_KEY` (required for OTX phishing pulls)
 - `KAGGLE_API_TOKEN` (recommended for Kaggle dataset download)
 - `KAGGLE_USERNAME` + `KAGGLE_KEY` (legacy alternative)
+- `SPAMHAUS_USERNAME` + `SPAMHAUS_PASSWORD` (required for Spamhaus Intel API — login-based auth)
+- `ABUSE_API_KEY` (used by URLhaus and ThreatFox clients)
 
 If both singular and plural are present, plural key list is preferred.
+
+## Screenshot Analyzer Runtime
+- Playwright Chromium runtime is required for screenshot capture.
+- Install after dependency setup:
+  - `playwright install chromium --with-deps`
 
 ## AI and Breach
 - `OPENAI_API_KEY` (optional)
@@ -46,6 +53,7 @@ If both singular and plural are present, plural key list is preferred.
 - `CERTSTREAM_DURATION_SECONDS` (optional): CertStream consume duration in seconds (default `20`).
 - `CERTSTREAM_KEYWORDS` (optional): Comma-separated phishing keyword list for CertStream domain heuristic.
 - `CERTSTREAM_ALLOW_GENERIC_DOMAINS` (optional): Şüpheli eşleşme yoksa genel domain fallback aktif (`1` default).
+- `PHISHING_THREATFOX_LIMIT` (optional): ThreatFox IOC ingest limit per run (default `500`).
 
 ## Victim Atlas Module
 - `VICTIM_ATLAS_DB_PATH` (optional): Separate SQLite DB path. Default `data/victim_atlas.db`.

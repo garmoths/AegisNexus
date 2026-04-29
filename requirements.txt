@@ -27,6 +27,11 @@ groq==1.0.0
 beautifulsoup4==4.14.3
 lxml==6.0.2
 
+# Browser Automation / Vision Input
+playwright==1.52.0
+# Async API is included in playwright package (playwright.async_api)
+# Kurulum notu: playwright install chromium --with-deps
+
 # Telegram Integration (optional - currently unused)
 # telethon>=1.34
 # telethon>=1.34

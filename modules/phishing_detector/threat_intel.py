@@ -14,13 +14,14 @@ import hashlib
 import socket
 import ipaddress
 import requests
-from urllib.parse import urlparse, quote_plus
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from urllib.parse import urlparse
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
-from functools import wraps
 from pathlib import Path
 
 from .cache_db import write_phishing_url, write_ioc
+from .screenshot_analyzer import analyze as analyze_screenshot
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 load_dotenv(BASE_DIR / ".env")
@@ -46,10 +47,6 @@ ABUSEIPDB_API_KEYS = _parse_api_keys(os.getenv("ABUSEIPDB_API_KEYS", ""))
 if not ABUSEIPDB_API_KEYS:
     ABUSEIPDB_API_KEYS = _parse_api_keys(os.getenv("ABUSEIPDB_API_KEY", ""))
 
-URLSCAN_API_KEYS = _parse_api_keys(os.getenv("URLSCAN_API_KEYS", ""))
-if not URLSCAN_API_KEYS:
-    URLSCAN_API_KEYS = _parse_api_keys(os.getenv("URLSCAN_API_KEY", ""))
-
 ABUSE_CH_API_KEYS = _parse_api_keys(os.getenv("ABUSE_API_KEYS", ""))
 if not ABUSE_CH_API_KEYS:
     ABUSE_CH_API_KEYS = _parse_api_keys(os.getenv("ABUSE_API_KEY", ""))
@@ -69,7 +66,6 @@ API_RATE_LIMITS = {
     "virustotal": {"requests": [], "limit": 4, "window": 60, "key_index": 0},  # 4 req/min
     "abuseipdb": {"requests": [], "limit": 1500, "window": 86400, "key_index": 0},  # 1500 req/day
     "google_safe": {"requests": [], "limit": 10000, "window": 86400, "key_index": 0},  # 10000 req/day
-    "urlscan": {"requests": [], "limit": 30, "window": 60, "key_index": 0},  # 30 req/min
 }
 
 
@@ -107,17 +103,7 @@ def _rotate_api_key(api_name):
             logger.info(f"Rotated AbuseIPDB key: {current_idx} → {next_idx}")
             return ABUSEIPDB_API_KEYS[next_idx]
         return ABUSEIPDB_API_KEYS[0] if ABUSEIPDB_API_KEYS else None
-    
-    elif api_name == "urlscan":
-        if len(URLSCAN_API_KEYS) > 1:
-            current_idx = API_RATE_LIMITS[api_name]["key_index"]
-            next_idx = (current_idx + 1) % len(URLSCAN_API_KEYS)
-            API_RATE_LIMITS[api_name]["key_index"] = next_idx
-            API_RATE_LIMITS[api_name]["requests"] = []
-            logger.info(f"Rotated urlscan.io key: {current_idx} → {next_idx}")
-            return URLSCAN_API_KEYS[next_idx]
-        return URLSCAN_API_KEYS[0] if URLSCAN_API_KEYS else None
-    
+
     return None
 
 
@@ -132,9 +118,6 @@ def _get_current_api_key(api_name):
     elif api_name == "abuseipdb":
         idx = API_RATE_LIMITS[api_name]["key_index"]
         return ABUSEIPDB_API_KEYS[idx] if idx < len(ABUSEIPDB_API_KEYS) else None
-    elif api_name == "urlscan":
-        idx = API_RATE_LIMITS[api_name]["key_index"]
-        return URLSCAN_API_KEYS[idx] if idx < len(URLSCAN_API_KEYS) else None
     return None
 
 
@@ -442,126 +425,6 @@ def check_google_safe_browsing(url, timeout=8):
 
 
 # =========================================================
-# 3. URLSCAN.IO
-# =========================================================
-
-def _format_urlscan_result(data):
-    verdicts = data.get("verdicts", {})
-    overall = verdicts.get("overall", {}) if isinstance(verdicts, dict) else {}
-    malicious = bool(overall.get("malicious", False))
-    score = overall.get("score", 0) or 0
-    categories = overall.get("categories", []) if isinstance(overall.get("categories", []), list) else []
-    report_url = data.get("task", {}).get("reportURL")
-    
-    if malicious:
-        status = "🚨 urlscan.io: Zararlı olarak işaretlendi"
-    elif score and score > 0:
-        status = f"⚠️ urlscan.io: Şüpheli skor ({score})"
-    else:
-        status = "✅ urlscan.io: Temiz"
-    
-    return {
-        "available": True,
-        "status": status,
-        "malicious": malicious,
-        "score": score,
-        "categories": categories,
-        "report_url": report_url,
-    }
-
-
-def check_urlscan(url, timeout=12):
-    """
-    urlscan.io API ile URL taraması (key rotation + cached + polling).
-    """
-    cache_key = f"urlscan_{hashlib.sha256(url.encode()).hexdigest()}"
-    
-    cached = _get_cached(cache_key)
-    if cached:
-        return cached
-    
-    if not URLSCAN_API_KEYS:
-        return {
-            "available": False,
-            "status": "API key tanımlı değil",
-            "malicious": False,
-            "score": 0,
-            "categories": []
-        }
-    
-    attempts = len(URLSCAN_API_KEYS)
-    last_status_code = None
-    for attempt in range(attempts):
-        try:
-            current_key = _get_current_api_key("urlscan")
-            headers = {"API-Key": current_key, "Content-Type": "application/json"}
-            
-            # URL validation (HTTPs protokolü zorunlu)
-            if not url.startswith("http://") and not url.startswith("https://"):
-                url = "https://" + url
-            
-            scan_resp = requests.post(
-                "https://urlscan.io/api/v1/scan/",
-                headers=headers,
-                json={"url": url, "visibility": "public"},
-                timeout=timeout
-            )
-            last_status_code = scan_resp.status_code
-            
-            if scan_resp.status_code == 200:
-                scan_data = scan_resp.json()
-                scan_uuid = scan_data.get("uuid")
-                api_url = f"https://urlscan.io/api/v1/result/{scan_uuid}/"
-                
-                # Polling - 60 saniye içinde sonuçları bekle
-                for poll_attempt in range(10):
-                    import time
-                    time.sleep(6)
-                    
-                    result_resp = requests.get(api_url, headers={"API-Key": current_key}, timeout=timeout)
-                    if result_resp.status_code == 200:
-                        formatted = _format_urlscan_result(result_resp.json())
-                        _set_cached(cache_key, formatted)
-                        logger.debug(f"✅ URLScan results received after {poll_attempt} attempts")
-                        return formatted
-                
-                # Polling timeout - sonuç henüz hazır değil
-                return {
-                    "available": True,
-                    "status": "urlscan.io: Tarama başlatıldı (sonuçlar birkaç dakika içinde hazır)",
-                    "scan_initiated": True,
-                    "malicious": False,
-                    "score": 0,
-                    "categories": [],
-                    "scan_uuid": scan_uuid
-                }
-            
-            logger.warning(f"urlscan.io key #{API_RATE_LIMITS['urlscan']['key_index']}: HTTP {scan_resp.status_code}, rotating (attempt {attempt + 1}/{attempts})...")
-            _rotate_api_key("urlscan")
-        
-        except requests.Timeout:
-            logger.warning(f"urlscan.io key #{API_RATE_LIMITS['urlscan']['key_index']}: timeout (attempt {attempt + 1}/{attempts}), rotating...")
-            _rotate_api_key("urlscan")
-            continue
-        except Exception as e:
-            logger.warning(f"urlscan.io key #{API_RATE_LIMITS['urlscan']['key_index']}: {e} (attempt {attempt + 1}/{attempts}), rotating...")
-            _rotate_api_key("urlscan")
-            continue
-    
-    status_detail = f"urlscan.io: Tüm {len(URLSCAN_API_KEYS)} API key başarısız"
-    if last_status_code is not None:
-        status_detail += f" (son HTTP {last_status_code})"
-    
-    return {
-        "available": False if last_status_code in (401, 403) else True,
-        "status": status_detail,
-        "malicious": False,
-        "score": 0,
-        "categories": []
-    }
-
-
-# =========================================================
 # 4. ABUSEIPDB API
 # =========================================================
 
@@ -816,14 +679,44 @@ def check_ip_shodan(ip: str, timeout: int = 10):
         return {"found": False, "status": "Shodan sorgusu başarısız"}
 
 
+def _persist_screenshot_indicators(url: str, indicators: list, confidence: int = 70):
+    """Screenshot analizinden gelen indicator'ları IOC cache'e aktar."""
+    for item in indicators or []:
+        ioc_type = "url"
+        ioc_value = url
+        threat_type = "phishing"
+
+        if isinstance(item, dict):
+            ioc_type = str(item.get("type") or item.get("ioc_type") or "url").strip().lower()
+            ioc_value = str(item.get("value") or item.get("ioc_value") or url).strip()
+            threat_type = str(item.get("threat_type") or "phishing").strip().lower()
+        elif isinstance(item, str) and item.strip():
+            ioc_value = item.strip()
+
+        if not ioc_value:
+            continue
+
+        if ioc_type not in {"url", "domain", "ip", "hash"}:
+            ioc_type = "url"
+
+        write_ioc(
+            ioc_type=ioc_type,
+            ioc_value=ioc_value,
+            threat_type=threat_type,
+            confidence=max(0, min(100, int(confidence))),
+            source="screenshot_analyzer",
+            raw_data={"url": url, "indicator": item},
+        )
+
+
 # =========================================================
 # 4. TOPLU TEHDİT İSTİHBARATI
 # =========================================================
 
-def run_threat_intelligence(url):
+def run_threat_intelligence(url, http_meta=None, page_text: str = ""):
     """
     Tüm harici API'leri paralel olmayan şekilde çalıştırır.
-    PRIMARY: URLScan.io (reliyable)
+    PRIMARY: Screenshot Analyzer (Playwright + Claude vision)
     LOCAL REPLACEMENTS: VirusTotal → local DB, AbuseIPDB → IP blacklist
     SECONDARY: Google Safe Browsing
     
@@ -831,7 +724,7 @@ def run_threat_intelligence(url):
     validated=False ise: En az bir API fail oldu (cache'e alınmaz)
     """
     results = {
-        "urlscan": None,           # PRIMARY
+        "screenshot_analysis": None,  # PRIMARY
         "virustotal": None,         # LOCAL REPLACEMENT
         "google_safe_browsing": None,
         "abuseipdb": None,          # LOCAL REPLACEMENT
@@ -843,25 +736,30 @@ def run_threat_intelligence(url):
 
     all_available = True
 
-    # --- URLScan.io (PRIMARY) ---
+    # --- Screenshot Analyzer (PRIMARY) ---
     try:
-        urlscan = check_urlscan(url)
-        results["urlscan"] = urlscan
-        if urlscan.get("available"):
+        shot = analyze_screenshot(url=url, http_meta=http_meta, page_text=page_text)
+        results["screenshot_analysis"] = shot
+        if shot.get("available", True):
+            risk_score = max(0, min(100, int(shot.get("risk_score", 50))))
+            weighted_penalty = int(round(risk_score * 0.40))
             results["sources"].append({
-                "name": "urlscan.io",
-                "status": urlscan["status"]
+                "name": "Screenshot Analyzer",
+                "status": f"{shot.get('risk_level', 'UNKNOWN')} ({risk_score}/100)"
             })
-            if urlscan.get("malicious"):
-                results["total_penalty"] += 35
-                results["findings"].append("🛡️ urlscan.io: Zararlı olarak işaretlendi")
-            elif urlscan.get("score", 0) and urlscan.get("score", 0) > 0:
-                results["total_penalty"] += 15
-                results["findings"].append(f"⚠️ urlscan.io: Şüpheli skor ({urlscan.get('score')})")
+            results["total_penalty"] += weighted_penalty
+            if weighted_penalty > 0:
+                results["findings"].append(
+                    f"📸 Screenshot Analyzer: {shot.get('verdict', 'Analiz tamamlandı')} "
+                    f"(risk={risk_score}, ağırlıklı ceza={weighted_penalty})"
+                )
+            indicators = shot.get("threat_indicators", []) if isinstance(shot, dict) else []
+            if indicators:
+                _persist_screenshot_indicators(url, indicators, confidence=risk_score)
         else:
             all_available = False
     except Exception as e:
-        logger.error(f"URLScan err: {e}")
+        logger.error(f"Screenshot Analyzer err: {e}")
         all_available = False
     
     # --- VirusTotal LOCAL REPLACEMENT ---
@@ -939,6 +837,168 @@ def run_threat_intelligence(url):
             results["findings"].append(f"⚠️ AbuseIPDB (Local): Orta suistimal skoru ({aipdb['abuse_score']}%)")
     except Exception as e:
         logger.error(f"AIPDB local err: {e}")
+        all_available = False
+
+    # --- Spamhaus / URLhaus / ThreatFox (paralel) ---
+    try:
+        from .spamhaus_client import query_ip as spamhaus_query_ip, query_domain as spamhaus_query_domain
+        from .urlhaus_client import query_url as urlhaus_query_url
+        from .threatfox_client import query_ioc as threatfox_query_ioc
+
+        # URL'den domain ve IP parse et
+        parsed_url = urlparse(url if url.startswith("http") else "https://" + url)
+        domain = (parsed_url.netloc or parsed_url.path or "").lower().replace("www.", "").split(":")[0]
+        resolved_ip = None
+        try:
+            resolved_ip = socket.gethostbyname(domain)
+        except Exception:
+            pass
+
+        # Paralel sorgular
+        futures_map = {}
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            futures_map[executor.submit(urlhaus_query_url, url)] = "urlhaus"
+            futures_map[executor.submit(spamhaus_query_domain, domain)] = "spamhaus_domain"
+            if resolved_ip:
+                futures_map[executor.submit(spamhaus_query_ip, resolved_ip)] = "spamhaus_ip"
+            futures_map[executor.submit(threatfox_query_ioc, domain, "domain")] = "threatfox"
+
+        urlhaus_result = None
+        spamhaus_ip_result = None
+        spamhaus_domain_result = None
+        threatfox_result = None
+
+        for future in as_completed(futures_map, timeout=30):
+            source_name = futures_map[future]
+            try:
+                res = future.result()
+            except Exception as exc:
+                logger.warning(f"{source_name} paralel sorgu hatası: {exc}")
+                continue
+
+            if source_name == "urlhaus":
+                urlhaus_result = res
+            elif source_name == "spamhaus_ip":
+                spamhaus_ip_result = res
+            elif source_name == "spamhaus_domain":
+                spamhaus_domain_result = res
+            elif source_name == "threatfox":
+                threatfox_result = res
+
+        # URLhaus skorlama
+        if urlhaus_result and urlhaus_result.get("listed"):
+            results["urlhaus"] = urlhaus_result
+            results["total_penalty"] += 40
+            results["sources"].append({
+                "name": "URLhaus",
+                "status": f"Listed ({urlhaus_result.get('threat_type', 'unknown')})"
+            })
+            results["findings"].append(
+                f"🛡️ URLhaus: URL kara listede ({urlhaus_result.get('threat_type', 'unknown')})"
+            )
+            # IOC olarak kaydet
+            write_ioc(
+                ioc_type="url", ioc_value=url,
+                threat_type=urlhaus_result.get("threat_type", "phishing"),
+                confidence=80, source="urlhaus",
+                raw_data=urlhaus_result,
+            )
+        elif urlhaus_result:
+            results["urlhaus"] = urlhaus_result
+
+        # Spamhaus domain skorlama
+        if spamhaus_domain_result and spamhaus_domain_result.get("listed"):
+            results["spamhaus_domain"] = spamhaus_domain_result
+            lists = spamhaus_domain_result.get("lists", [])
+            if "DBL" in lists:
+                results["total_penalty"] += 35
+                results["sources"].append({
+                    "name": "Spamhaus DBL",
+                    "status": f"Domain listed ({', '.join(lists)})"
+                })
+                results["findings"].append(
+                    f"🛡️ Spamhaus DBL: Domain kara listede ({', '.join(lists)})"
+                )
+            if spamhaus_domain_result.get("zrd"):
+                results["total_penalty"] += 15
+                results["sources"].append({
+                    "name": "Spamhaus ZRD",
+                    "status": "Sıfır itibar domain"
+                })
+                results["findings"].append("⚠️ Spamhaus ZRD: Sıfır itibar domain (yeni/şüpheli)")
+            if "DBL" not in lists and not spamhaus_domain_result.get("zrd"):
+                results["total_penalty"] += 35
+                results["sources"].append({
+                    "name": "Spamhaus Domain",
+                    "status": f"Domain listed ({', '.join(lists)})"
+                })
+                results["findings"].append(
+                    f"🛡️ Spamhaus: Domain listed ({', '.join(lists)})"
+                )
+            # IOC kaydet
+            write_ioc(
+                ioc_type="domain", ioc_value=domain,
+                threat_type="spamhaus_dbl", confidence=75,
+                source="spamhaus", raw_data=spamhaus_domain_result,
+            )
+        elif spamhaus_domain_result:
+            results["spamhaus_domain"] = spamhaus_domain_result
+
+        # Spamhaus IP skorlama
+        if spamhaus_ip_result and spamhaus_ip_result.get("listed"):
+            results["spamhaus_ip"] = spamhaus_ip_result
+            ip_lists = spamhaus_ip_result.get("lists", [])
+            if any(l in ip_lists for l in ("XBL", "eXBL")):
+                results["total_penalty"] += 30
+                results["sources"].append({
+                    "name": "Spamhaus XBL/eXBL",
+                    "status": f"IP listed ({', '.join(ip_lists)})"
+                })
+                results["findings"].append(
+                    f"🛡️ Spamhaus XBL/eXBL: IP kara listede ({', '.join(ip_lists)})"
+                )
+            elif ip_lists:
+                results["total_penalty"] += 20
+                results["sources"].append({
+                    "name": "Spamhaus IP",
+                    "status": f"IP listed ({', '.join(ip_lists)})"
+                })
+                results["findings"].append(
+                    f"⚠️ Spamhaus: IP listed ({', '.join(ip_lists)})"
+                )
+            # IOC kaydet
+            write_ioc(
+                ioc_type="ip", ioc_value=resolved_ip,
+                threat_type="spamhaus_xbl", confidence=70,
+                source="spamhaus", raw_data=spamhaus_ip_result,
+            )
+        elif spamhaus_ip_result:
+            results["spamhaus_ip"] = spamhaus_ip_result
+
+        # ThreatFox skorlama
+        if threatfox_result and threatfox_result.get("found"):
+            results["threatfox"] = threatfox_result
+            results["total_penalty"] += 25
+            results["sources"].append({
+                "name": "ThreatFox",
+                "status": f"IOC bulundu ({threatfox_result.get('malware_family', 'unknown')})"
+            })
+            results["findings"].append(
+                f"🛡️ ThreatFox: IOC bulundu — {threatfox_result.get('malware_family', 'bilinmeyen')} "
+                f"(confidence: {threatfox_result.get('confidence', 0)})"
+            )
+            # IOC kaydet
+            write_ioc(
+                ioc_type="domain", ioc_value=domain,
+                threat_type=threatfox_result.get("threat_name", "unknown"),
+                confidence=threatfox_result.get("confidence", 50),
+                source="threatfox", raw_data=threatfox_result,
+            )
+        elif threatfox_result:
+            results["threatfox"] = threatfox_result
+
+    except Exception as e:
+        logger.error(f"Spamhaus/URLhaus/ThreatFox err: {e}")
         all_available = False
 
     # Risk skorunu ve seviyesini hesapla
@@ -1077,12 +1137,35 @@ def extract_threat_details(results):
         if abuse.get("total_reports", 0) > 0:
             details.append(f"📝 AbuseIPDB: {abuse['total_reports']} rapor")
     
-    # URLScan detayları
-    urlscan = results.get("urlscan", {})
-    if urlscan.get("available"):
-        if urlscan.get("malicious"):
-            details.append("⚡ URLScan: Zararlı olarak işaretlendi")
-        elif urlscan.get("score", 0) > 0:
-            details.append(f"📈 URLScan: Şüpheli skor {urlscan['score']}")
-    
+    # Screenshot Analyzer detayları
+    shot = results.get("screenshot_analysis", {}) or {}
+    if shot:
+        details.append(
+            f"📸 Screenshot Analyzer: {shot.get('risk_level', 'UNKNOWN')} "
+            f"({shot.get('risk_score', 50)}/100)"
+        )
+        indicators = shot.get("threat_indicators", [])
+        if isinstance(indicators, list) and indicators:
+            details.append(f"🧩 Görsel tehdit indikatörleri: {len(indicators)}")
+
+    # URLhaus detayları
+    urlhaus = results.get("urlhaus", {})
+    if urlhaus and urlhaus.get("listed"):
+        details.append(f"🔗 URLhaus: Kara listede ({urlhaus.get('threat_type', 'unknown')})")
+
+    # Spamhaus detayları
+    spamhaus_domain = results.get("spamhaus_domain", {})
+    if spamhaus_domain and spamhaus_domain.get("listed"):
+        lists = spamhaus_domain.get("lists", [])
+        details.append(f"🛡️ Spamhaus Domain: Listed ({', '.join(lists)})")
+    spamhaus_ip = results.get("spamhaus_ip", {})
+    if spamhaus_ip and spamhaus_ip.get("listed"):
+        ip_lists = spamhaus_ip.get("lists", [])
+        details.append(f"🛡️ Spamhaus IP: Listed ({', '.join(ip_lists)})")
+
+    # ThreatFox detayları
+    threatfox = results.get("threatfox", {})
+    if threatfox and threatfox.get("found"):
+        details.append(f"🦊 ThreatFox: {threatfox.get('malware_family', 'unknown')} (confidence: {threatfox.get('confidence', 0)})")
+
     return details

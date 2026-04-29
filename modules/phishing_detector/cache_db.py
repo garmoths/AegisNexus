@@ -109,6 +109,19 @@ def init_database():
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_iocs_threat_type ON indicators_of_compromise(threat_type)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_iocs_last_seen ON indicators_of_compromise(last_seen)")
 
+        # Threat Intel API Cache (Spamhaus/URLhaus/ThreatFox sonuçları)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS threat_intel_cache (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                cache_key TEXT NOT NULL UNIQUE,
+                data TEXT NOT NULL,
+                ttl_seconds INTEGER NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_threat_intel_cache_key ON threat_intel_cache(cache_key)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_threat_intel_cache_created ON threat_intel_cache(created_at)")
+
         # Backward-compatible schema migration
         if not _column_exists(cursor, "phishing_urls", "raw_data"):
             cursor.execute("ALTER TABLE phishing_urls ADD COLUMN raw_data TEXT")
@@ -619,6 +632,74 @@ def detect_skipped_urls(days: int = 30) -> List[Dict]:
 if __name__ == "__main__":
     init_database()
     print("Cache database initialized successfully")
+
+
+def write_threat_cache(key: str, data: Dict, ttl_seconds: int = 21600) -> bool:
+    """Threat intel API sonucunu cache'e yaz (TTL ile).
+    
+    Args:
+        key: Cache key (ör: "spamhaus:ip:1.2.3.4", "urlhaus:url:abc123")
+        data: Cache'lenecek dict
+        ttl_seconds: Saniye cinsinden TTL (varsayılan: 6 saat)
+    """
+    try:
+        _ensure_initialized()
+        data_json = json.dumps(data, default=str)
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO threat_intel_cache (cache_key, data, ttl_seconds, created_at)
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(cache_key) DO UPDATE SET
+                    data = excluded.data,
+                    ttl_seconds = excluded.ttl_seconds,
+                    created_at = CURRENT_TIMESTAMP
+            """, (key, data_json, ttl_seconds))
+            conn.commit()
+            logger.debug(f"Threat cache written: {key} (TTL={ttl_seconds}s)")
+            return True
+    except Exception as e:
+        logger.error(f"Failed to write threat cache: {e}")
+        return False
+
+
+def read_threat_cache(key: str) -> Optional[Dict]:
+    """Threat intel API sonucunu cache'ten oku. TTL geçmişse None döndür."""
+    try:
+        _ensure_initialized()
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT data, ttl_seconds, created_at
+                FROM threat_intel_cache
+                WHERE cache_key = ?
+            """, (key,))
+            row = cursor.fetchone()
+            if not row:
+                return None
+
+            # TTL kontrolü
+            created_at_str = row["created_at"]
+            ttl_seconds = int(row["ttl_seconds"])
+            try:
+                created_at = datetime.fromisoformat(created_at_str)
+            except (ValueError, TypeError):
+                created_at = datetime.now()
+
+            if datetime.now() > created_at + timedelta(seconds=ttl_seconds):
+                # TTL geçmiş, sil ve None döndür
+                cursor.execute("DELETE FROM threat_intel_cache WHERE cache_key = ?", (key,))
+                conn.commit()
+                logger.debug(f"Threat cache expired: {key}")
+                return None
+
+            data = json.loads(row["data"])
+            data["_cache_hit"] = True
+            data["_cached_at"] = created_at_str
+            return data
+    except Exception as e:
+        logger.error(f"Failed to read threat cache: {e}")
+        return None
 
 
 def save_check_url_result(url: str, result: dict):

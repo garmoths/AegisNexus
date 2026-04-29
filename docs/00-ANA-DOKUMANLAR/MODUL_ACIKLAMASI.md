@@ -50,6 +50,11 @@
   - VirusTotal yerine local DB fuzzy matching
   - AbuseIPDB yerine IP blacklist (Firehol, Spamhaus, Emerging Threats)
   - Sıfır external API call, sıfır rate limit
+- **External Threat Intelligence (Yeni):**
+  - Spamhaus Intel API (SBL/XBL/eXBL/CBL IP + DBL/ZRD domain sorgulama)
+  - abuse.ch URLhaus (URL kara liste sorgulama, risk_boost: +40)
+  - abuse.ch ThreatFox (IOC sorgulama + toplu ingest, risk_boost: +25)
+  - Paralel sorgulama (ThreadPoolExecutor)
 
 **Sunduğu Hizmetler:**
 ```
@@ -210,7 +215,7 @@ phishing_db/
 
 ```
 1. Dış Kaynaklar
-   ↓ (AbuseIPDB, URLhaus, PhishTank saatlık senkronizasyon)
+   ↓ (AbuseIPDB, URLhaus, PhishTank, Spamhaus, ThreatFox saatlık senkronizasyon)
    ↓
 2. IOC Fetcher
    ↓ (Verileri toplayıp temizle)
@@ -391,6 +396,6 @@ Tehditleri **proaktif tespiti** → **derin analizi** → **otomatik yanıtı** 
 ---
 
 **Proje Lideri:** Enes  
-**Son Güncelleme:** 17 Nisan 2026  
+**Son Güncelleme:** 29 Nisan 2026  
 **Sürüm:** 2.0 (Production Active)  
 **Repository:** GitHub (Private)

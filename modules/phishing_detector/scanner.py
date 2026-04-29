@@ -644,7 +644,34 @@ def calculate_safety_score(input_url, db: Session = None):
 # ---------------------------------------------------------
     threat_result = None
     try:
-        threat_result = run_threat_intelligence(check_url)
+        ssl_meta = check_ssl_certificate(domain.split(":")[0]) if domain else {"valid": False, "expired": True}
+        redirect_chain = []
+        if response is not None and getattr(response, "history", None):
+            for hop in response.history:
+                redirect_chain.append(
+                    {
+                        "status_code": int(getattr(hop, "status_code", 0) or 0),
+                        "url": str(getattr(hop, "url", "")),
+                    }
+                )
+
+        http_meta = {
+            "status_code": http_status,
+            "restricted_access": restricted_access,
+            "final_url": str(getattr(response, "url", check_url) if response is not None else check_url),
+            "redirect_chain": redirect_chain,
+            "ssl": {
+                "valid": bool(ssl_meta.get("valid", False)),
+                "expired": bool(ssl_meta.get("expired", True)),
+                "issuer": ssl_meta.get("issuer"),
+                "days_left": ssl_meta.get("days_left"),
+            },
+        }
+        threat_result = run_threat_intelligence(
+            check_url,
+            http_meta=http_meta,
+            page_text=(page_content or "")[:3000],
+        )
         if threat_result["total_penalty"] > 0:
             score -= threat_result["total_penalty"]
             risks.extend(threat_result["findings"])
@@ -920,7 +947,7 @@ def calculate_safety_score(input_url, db: Session = None):
     if threat_result:
         result["threat_intel"] = {
             "virustotal": threat_result.get("virustotal"),
-            "urlscan": threat_result.get("urlscan"),
+            "screenshot_analysis": threat_result.get("screenshot_analysis"),
             "google_safe_browsing": threat_result.get("google_safe_browsing"),
             "abuseipdb": threat_result.get("abuseipdb"),
         }

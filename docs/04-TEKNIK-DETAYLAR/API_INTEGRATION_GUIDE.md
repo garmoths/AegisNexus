@@ -29,6 +29,50 @@ Success or degraded response shape:
 }
 ```
 
+`check-url` cevabında `threat_intel` altında görsel analiz sonucu da dönebilir:
+```json
+{
+  "threat_intel": {
+    "virustotal": {},
+    "google_safe_browsing": {},
+    "abuseipdb": {},
+    "screenshot_analysis": {
+      "risk_score": 72,
+      "risk_level": "HIGH",
+      "verdict": "Brand impersonation şüphesi",
+      "screenshot_analysis": "...",
+      "threat_indicators": [],
+      "recommendation": "..."
+    },
+    "urlhaus": {
+      "listed": false,
+      "status": "clean"
+    },
+    "spamhaus_domain": {
+      "listed": false,
+      "status": "clean"
+    },
+    "spamhaus_ip": {
+      "listed": false,
+      "status": "clean"
+    },
+    "threatfox": {
+      "found": false,
+      "status": "not found"
+    }
+  }
+}
+```
+
+### Threat Intel Scoring (Penalties)
+| Source | Condition | Penalty |
+|--------|-----------|---------|
+| URLhaus | URL listed | -40 |
+| Spamhaus DBL | Domain listed | -35 |
+| Spamhaus XBL/eXBL | IP listed | -30 |
+| ThreatFox | IOC found | -25 |
+| Spamhaus ZRD | Zero-reputation domain | -15 |
+
 ## Frontend Integration (Fetch)
 ```javascript
 const API = import.meta.env.VITE_API_BASE_URL || "/api/v2";
