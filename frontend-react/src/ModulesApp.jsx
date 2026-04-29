@@ -1068,7 +1068,7 @@ function PhishingResult({ result, url }) {
     { key:'virustotal', icon:'🛡️', name:'VirusTotal', data:vt, isBad:(vt.malicious||0)>=1, isClean:vt.available&&(vt.malicious||0)===0, badLabel:`${vt.malicious||0} MAL`, cleanLabel:'CLEAN', detail:vt.available?`${vt.malicious||0}/${vt.total||0} motor tehlikeli`:'Sonuç yok', penalty:40 },
     { key:'gsb', icon:'🔍', name:'Google Safe Browsing', data:gsb, isBad:gsb.threat===true, isClean:gsb.available&&!gsb.threat, badLabel:'THREAT', cleanLabel:'SAFE', detail:gsb.threat?gsb.threat_type||'Tehdit':'Güvenli', penalty:50 },
     { key:'abuseipdb', icon:'📊', name:'AbuseIPDB (Local)', data:aipdb, isBad:(aipdb.abuse_score||0)>=30, isClean:aipdb.available&&(aipdb.abuse_score||0)<30, badLabel:`${aipdb.abuse_score||0}%`, cleanLabel:'CLEAN', detail:aipdb.available?`Suistimal: %${aipdb.abuse_score||0}`:'Sonuç yok', penalty:25 },
-    { key:'screenshot', icon:'📸', name:'Screenshot Analyzer', data:sa, isBad:(sa.risk_score||0)>50, isClean:sa.available&&(sa.risk_score||0)<=30, badLabel:sa.risk_level||'HIGH', cleanLabel:'SAFE', detail:sa.verdict||'Analiz yok', penalty:Math.round((sa.risk_score||50)*0.4) },
+    { key:'screenshot', icon:'📸', name:'Screenshot Analyzer', data:sa, isBad:(sa.risk_score||0)>50, isClean:sa.available&&(sa.risk_score||0)<=30, badLabel:sa.risk_level||'HIGH', cleanLabel:'SAFE', detail:sa.verdict||'Analiz yok', penalty:Math.round((sa.risk_score||50)*0.4), hasDataOverride: !!screenshotB64 || !!sa.verdict },
   ]
 
   const openScreenshot = () => {
@@ -1117,7 +1117,7 @@ function PhishingResult({ result, url }) {
       <p style={{fontSize:13,fontWeight:700,color:theme.textMuted,textTransform:'uppercase',letterSpacing:'2px',marginBottom:16}}>📡 Tehdit İstihbaratı Kaynakları</p>
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill, minmax(220px, 1fr))',gap:12}}>
         {srcCards.map((src,i)=>{
-          const hasData=src.data&&(src.data.available!==false||src.isBad||src.isClean)
+          const hasData=src.hasDataOverride||(src.data&&(src.data.available!==false||src.isBad||src.isClean))
           const statusColor=src.isBad?theme.accent:src.isClean?theme.success:theme.textMuted
           const bgColor=src.isBad?'rgba(255,0,64,0.06)':src.isClean?'rgba(34,197,94,0.06)':'rgba(255,255,255,0.02)'
           const borderColor=src.isBad?theme.accent+'40':src.isClean?theme.success+'40':theme.border

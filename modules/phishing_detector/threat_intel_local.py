@@ -192,7 +192,7 @@ def load_ip_blacklists(filepath_dir: str = "/opt/phishing/ip_lists"):
 def check_abuseipdb_local(url: str) -> dict:
     """
     Döndürdüğü dict orijinal AbuseIPDB dict'i ile aynı yapıda:
-    {"abuse_score": int}  # 0-100
+    {"abuse_score": int, "available": bool}  # 0-100
     Mevcut penalty kodu (>= 70) hiç değişmez.
     """
     domain = urlparse(url).netloc.lower().replace("www.", "")
@@ -202,21 +202,21 @@ def check_abuseipdb_local(url: str) -> dict:
         ip = socket.gethostbyname(domain)
     except socket.gaierror:
         # DNS çözümlenemedi → şüpheli say
-        return {"abuse_score": 50}
+        return {"abuse_score": 50, "available": True}
 
     ip_obj = ipaddress.ip_address(ip)
 
     # Private IP → temiz
     if ip_obj.is_private or ip_obj.is_loopback:
-        return {"abuse_score": 0}
+        return {"abuse_score": 0, "available": True}
 
     # Exact IP blacklist kontrolü
     if ip in _IP_BLACKLIST:
-        return {"abuse_score": 85}  # 25 penalty tetiklenir
+        return {"abuse_score": 85, "available": True}  # 25 penalty tetiklenir
 
     # CIDR network kontrolü
     for network in _IP_NETWORKS:
         if ip_obj in network:
-            return {"abuse_score": 75}  # 25 penalty tetiklenir
+            return {"abuse_score": 75, "available": True}  # 25 penalty tetiklenir
 
-    return {"abuse_score": 0}
+    return {"abuse_score": 0, "available": True}
