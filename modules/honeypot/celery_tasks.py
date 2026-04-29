@@ -169,7 +169,7 @@ def fetch_otx(self, limit: int = 100):
 def update_ioc_feeds(self):
     db = SessionLocal()
     try:
-        raw_sources = os.getenv("CELERY_IOC_SOURCES", "abuse_urlhaus,abuse_phishtank,abuseipdb")
+        raw_sources = os.getenv("CELERY_IOC_SOURCES", "abuse_urlhaus,abuse_phishtank")
         sources = [s.strip() for s in raw_sources.split(",") if s.strip()]
         per_source_limit = int(os.getenv("CELERY_IOC_LIMIT_PER_SOURCE", "1000"))
 
