@@ -950,6 +950,10 @@ def calculate_safety_score(input_url, db: Session = None):
             "screenshot_analysis": threat_result.get("screenshot_analysis"),
             "google_safe_browsing": threat_result.get("google_safe_browsing"),
             "abuseipdb": threat_result.get("abuseipdb"),
+            "urlhaus": threat_result.get("urlhaus"),
+            "spamhaus_domain": threat_result.get("spamhaus_domain"),
+            "spamhaus_ip": threat_result.get("spamhaus_ip"),
+            "threatfox": threat_result.get("threatfox"),
         }
 
     return result

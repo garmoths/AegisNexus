@@ -183,6 +183,7 @@ def analyze(url: str, http_meta: Dict[str, Any] | None = None, page_text: str | 
     if not normalized_url.startswith(("http://", "https://")):
         normalized_url = f"https://{normalized_url}"
 
+    screenshot_b64 = None
     try:
         screenshot_b64, captured_text = _capture_screenshot_base64(
             normalized_url,
@@ -202,7 +203,13 @@ def analyze(url: str, http_meta: Dict[str, Any] | None = None, page_text: str | 
             http_meta=http_meta or {},
             page_text=captured_text,
         )
-        return _normalize_result(gemini_result)
+        result = _normalize_result(gemini_result)
+        if screenshot_b64:
+            result["screenshot_b64"] = screenshot_b64
+        return result
     except Exception as exc:
         logger.warning(f"Gemini screenshot analysis failed for {normalized_url}: {exc}")
-        return _fallback_result()
+        result = _fallback_result()
+        if screenshot_b64:
+            result["screenshot_b64"] = screenshot_b64
+        return result

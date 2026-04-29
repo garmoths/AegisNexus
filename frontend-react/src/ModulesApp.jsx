@@ -1045,6 +1045,148 @@ function RiskGauge({ score, label, showPercentage = false, size = 'md' }) {
 }
 
 /* ===============================================
+   PHISHING RESULT (Enhanced Threat Intel Display)
+   =============================================== */
+function PhishingResult({ result, url }) {
+  const ti = result.threat_intel || {}
+  const sa = ti.screenshot_analysis || {}
+  const screenshotB64 = sa.screenshot_b64 || null
+  const indicators = Array.isArray(sa.threat_indicators) ? sa.threat_indicators : []
+  const vt = ti.virustotal || {}
+  const gsb = ti.google_safe_browsing || {}
+  const aipdb = ti.abuseipdb || {}
+  const urlhaus = ti.urlhaus || {}
+  const shDomain = ti.spamhaus_domain || {}
+  const shIp = ti.spamhaus_ip || {}
+  const tf = ti.threatfox || {}
+
+  const srcCards = [
+    { key:'urlhaus', icon:'🔗', name:'URLhaus', data:urlhaus, isBad:urlhaus.listed===true, isClean:urlhaus.listed===false, badLabel:'LISTED', cleanLabel:'CLEAN', detail:urlhaus.listed?`Tehdit: ${urlhaus.threat_type||'unknown'}`:'Kara listede değil', penalty:40 },
+    { key:'spamhaus_domain', icon:'🛡️', name:'Spamhaus Domain', data:shDomain, isBad:shDomain.listed===true, isClean:shDomain.listed===false&&shDomain.available, badLabel:'LISTED', cleanLabel:'CLEAN', detail:shDomain.listed?`Listeler: ${(shDomain.lists||[]).join(', ')||'-'}`:shDomain.zrd?'Sıfır itibar (ZRD)':'Temiz', penalty:35 },
+    { key:'spamhaus_ip', icon:'🌐', name:'Spamhaus IP', data:shIp, isBad:shIp.listed===true, isClean:shIp.listed===false&&shIp.available, badLabel:'LISTED', cleanLabel:'CLEAN', detail:shIp.listed?`Listeler: ${(shIp.lists||[]).join(', ')||'-'}`:'Temiz', penalty:30 },
+    { key:'threatfox', icon:'🦊', name:'ThreatFox', data:tf, isBad:tf.found===true, isClean:tf.found===false&&tf.available, badLabel:'FOUND', cleanLabel:'NOT FOUND', detail:tf.found?`${tf.malware_family||'unknown'} (conf: ${tf.confidence||0}%)`:'IOC bulunamadı', penalty:25 },
+    { key:'virustotal', icon:'🛡️', name:'VirusTotal', data:vt, isBad:(vt.malicious||0)>=1, isClean:vt.available&&(vt.malicious||0)===0, badLabel:`${vt.malicious||0} MAL`, cleanLabel:'CLEAN', detail:vt.available?`${vt.malicious||0}/${vt.total||0} motor tehlikeli`:'Sonuç yok', penalty:40 },
+    { key:'gsb', icon:'🔍', name:'Google Safe Browsing', data:gsb, isBad:gsb.threat===true, isClean:gsb.available&&!gsb.threat, badLabel:'THREAT', cleanLabel:'SAFE', detail:gsb.threat?gsb.threat_type||'Tehdit':'Güvenli', penalty:50 },
+    { key:'abuseipdb', icon:'📊', name:'AbuseIPDB (Local)', data:aipdb, isBad:(aipdb.abuse_score||0)>=30, isClean:aipdb.available&&(aipdb.abuse_score||0)<30, badLabel:`${aipdb.abuse_score||0}%`, cleanLabel:'CLEAN', detail:aipdb.available?`Suistimal: %${aipdb.abuse_score||0}`:'Sonuç yok', penalty:25 },
+    { key:'screenshot', icon:'📸', name:'Screenshot Analyzer', data:sa, isBad:(sa.risk_score||0)>50, isClean:sa.available&&(sa.risk_score||0)<=30, badLabel:sa.risk_level||'HIGH', cleanLabel:'SAFE', detail:sa.verdict||'Analiz yok', penalty:Math.round((sa.risk_score||50)*0.4) },
+  ]
+
+  const openScreenshot = () => {
+    if (!screenshotB64) return
+    const w = window.open('','_blank')
+    if(w){w.document.write(`<html><head><title>Screenshot</title><style>body{margin:0;background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh}img{max-width:100%;height:auto}</style></head><body><img src="data:image/png;base64,${screenshotB64}"/></body></html>`);w.document.close()}
+  }
+
+  return (
+  <motion.div initial={{opacity:0,y:30}} animate={{opacity:1,y:0}} transition={{duration:0.6,ease:theme.ease.out}} style={{marginBottom:48}}>
+    {/* Hero Result Card */}
+    <Card style={{background:'rgba(255,255,255,0.03)',backdropFilter:'blur(10px)',WebkitBackdropFilter:'blur(10px)',border:`1px solid ${result.score>50?theme.accent+'40':theme.primary+'40'}`,marginBottom:24}}>
+      <div style={{display:'flex',gap:32,alignItems:'flex-start',flexWrap:'wrap'}}>
+        {/* Left: Gauge + Screenshot */}
+        <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:16,minWidth:200}}>
+          <RiskGauge score={result.score||0} label="Risk Skoru" size="lg"/>
+          <span style={{padding:'8px 20px',borderRadius:'24px',fontSize:14,fontWeight:700,background:result.score>50?theme.accentDim:theme.primaryDim,color:result.score>50?theme.accent:theme.primary}}>{result.risk_level||'Bilinmiyor'}</span>
+          {screenshotB64&&(
+            <motion.div initial={{opacity:0,scale:0.9}} animate={{opacity:1,scale:1}} transition={{delay:0.3,duration:0.4}} style={{position:'relative',cursor:'pointer'}} onClick={openScreenshot}>
+              <img src={`data:image/png;base64,${screenshotB64}`} alt="Site screenshot" style={{width:200,height:'auto',maxHeight:150,objectFit:'cover',borderRadius:theme.radius.md,border:`1px solid ${theme.border}`,boxShadow:'0 4px 20px rgba(0,0,0,0.4)',opacity:0.9,transition:'opacity 0.3s ease'}} onMouseEnter={e=>e.target.style.opacity=1} onMouseLeave={e=>e.target.style.opacity=0.9}/>
+              <span style={{position:'absolute',bottom:6,right:6,padding:'3px 8px',borderRadius:6,fontSize:9,fontWeight:700,background:'rgba(0,0,0,0.7)',color:theme.primary,letterSpacing:0.5}}>🔍 BÜYÜT</span>
+            </motion.div>
+          )}
+        </div>
+        {/* Right: Details */}
+        <div style={{flex:1,minWidth:300}}>
+          <p style={{fontSize:14,color:theme.textMuted,wordBreak:'break-all',marginBottom:16,fontFamily:theme.mono,lineHeight:1.6}}>{url}</p>
+          {result.details&&Array.isArray(result.details)&&result.details.length>0&&(
+            <div style={{marginBottom:16}}>
+              <p style={{fontSize:12,fontWeight:700,color:theme.textMuted,textTransform:'uppercase',letterSpacing:'1.5px',marginBottom:10}}>🔍 Tespitler</p>
+              <div style={{display:'flex',flexDirection:'column',gap:6,maxHeight:200,overflowY:'auto'}}>
+                {result.details.slice(0,10).map((d,i)=>{
+                  const isDanger=d.includes('🚨')||d.includes('❌')
+                  const isWarn=d.includes('⚠️')
+                  return <motion.div key={i} initial={{opacity:0,x:-10}} animate={{opacity:1,x:0}} transition={{delay:0.1+i*0.03,duration:0.3}} style={{padding:'8px 14px',background:isDanger?'rgba(255,0,64,0.08)':isWarn?'rgba(255,193,7,0.08)':theme.primaryDim,borderRadius:10,fontSize:13,color:theme.text,lineHeight:1.5,borderLeft:isDanger?`3px solid ${theme.accent}`:isWarn?`3px solid ${theme.warning}`:`3px solid ${theme.primary}`}}>{d}</motion.div>
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </Card>
+
+    {/* Threat Intel Source Cards */}
+    <motion.div initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} transition={{delay:0.2,duration:0.5}} style={{marginBottom:24}}>
+      <p style={{fontSize:13,fontWeight:700,color:theme.textMuted,textTransform:'uppercase',letterSpacing:'2px',marginBottom:16}}>📡 Tehdit İstihbaratı Kaynakları</p>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill, minmax(220px, 1fr))',gap:12}}>
+        {srcCards.map((src,i)=>{
+          const hasData=src.data&&(src.data.available!==false||src.isBad||src.isClean)
+          const statusColor=src.isBad?theme.accent:src.isClean?theme.success:theme.textMuted
+          const bgColor=src.isBad?'rgba(255,0,64,0.06)':src.isClean?'rgba(34,197,94,0.06)':'rgba(255,255,255,0.02)'
+          const borderColor=src.isBad?theme.accent+'40':src.isClean?theme.success+'40':theme.border
+          return (
+            <motion.div key={src.key} initial={{opacity:0,y:15}} animate={{opacity:1,y:0}} transition={{delay:0.3+i*0.05,duration:0.35}} style={{padding:'16px 18px',background:bgColor,border:`1px solid ${borderColor}`,borderRadius:theme.radius.md,position:'relative',overflow:'hidden'}}>
+              <div style={{position:'absolute',top:0,left:0,right:0,height:2,background:statusColor}}/>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+                <span style={{fontSize:14,fontWeight:700,color:'#fff',display:'flex',alignItems:'center',gap:6}}><span>{src.icon}</span> {src.name}</span>
+                {src.isBad&&<span style={{padding:'3px 8px',borderRadius:6,fontSize:9,fontWeight:800,background:theme.accentDim,color:theme.accent,textTransform:'uppercase',letterSpacing:0.5}}>-{src.penalty}</span>}
+              </div>
+              <div style={{marginBottom:8}}>
+                <span style={{display:'inline-block',padding:'4px 10px',borderRadius:8,fontSize:11,fontWeight:700,background:src.isBad?theme.accentDim:src.isClean?'rgba(34,197,94,0.15)':'rgba(255,255,255,0.05)',color:statusColor,letterSpacing:0.3}}>
+                  {hasData?(src.isBad?src.badLabel:src.isClean?src.cleanLabel:'N/A'):'—'}
+                </span>
+              </div>
+              <p style={{fontSize:12,color:theme.textMuted,lineHeight:1.4,margin:0}}>{hasData?src.detail:'Veri yok'}</p>
+            </motion.div>
+          )
+        })}
+      </div>
+    </motion.div>
+
+    {/* Screenshot Threat Indicators */}
+    {indicators.length>0&&(
+      <motion.div initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} transition={{delay:0.5,duration:0.4}} style={{marginBottom:24}}>
+        <p style={{fontSize:13,fontWeight:700,color:theme.textMuted,textTransform:'uppercase',letterSpacing:'2px',marginBottom:16}}>🧩 Görsel Tehdit İndikatörleri</p>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill, minmax(280px, 1fr))',gap:10}}>
+          {indicators.map((ind,j)=>{
+            const t=ind.type||'visual'
+            const ic=t==='url'?'🔗':t==='domain'?'🌐':t==='ip'?'🖥️':'👁️'
+            return (
+              <motion.div key={j} initial={{opacity:0,x:-10}} animate={{opacity:1,x:0}} transition={{delay:0.6+j*0.05,duration:0.3}} style={{padding:'12px 16px',background:'rgba(255,107,53,0.06)',border:`1px solid ${theme.accent}30`,borderRadius:theme.radius.md,borderLeft:`3px solid ${theme.accent}`}}>
+                <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6}}>
+                  <span style={{fontSize:14}}>{ic}</span>
+                  <span style={{fontSize:12,fontWeight:700,color:theme.accent,textTransform:'uppercase',letterSpacing:0.5}}>{t}</span>
+                </div>
+                <p style={{fontSize:13,color:theme.text,fontFamily:theme.mono,margin:'0 0 4px 0',wordBreak:'break-all'}}>{ind.value||'—'}</p>
+                {ind.reason&&<p style={{fontSize:11,color:theme.textMuted,margin:0,lineHeight:1.4}}>{ind.reason}</p>}
+              </motion.div>
+            )
+          })}
+        </div>
+      </motion.div>
+    )}
+
+    {/* Sources Summary */}
+    {result.sources&&Array.isArray(result.sources)&&result.sources.length>0&&(
+      <motion.div initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} transition={{delay:0.6,duration:0.4}}>
+        <p style={{fontSize:13,fontWeight:700,color:theme.textMuted,textTransform:'uppercase',letterSpacing:'2px',marginBottom:16}}>📋 Taranan Kaynaklar</p>
+        <div style={{display:'flex',flexDirection:'column',gap:6}}>
+          {result.sources.map((s,i)=>{
+            const isFail=typeof s.status==='string'&&(s.status.includes('Başarısız')||s.status.includes('timeout')||s.status.includes('error'))
+            const isOk=typeof s.status==='string'&&(s.status.includes('CLEAN')||s.status.includes('SAFE')||s.status.includes('Tamamlandı')||s.status.includes('Ulaşılabilir')||s.status.includes('temiz'))
+            return (
+              <motion.div key={i} initial={{opacity:0,x:-10}} animate={{opacity:1,x:0}} transition={{delay:0.7+i*0.03,duration:0.3}} style={{padding:'10px 16px',background:isFail?'rgba(255,0,64,0.06)':isOk?'rgba(34,197,94,0.04)':'rgba(255,255,255,0.03)',borderRadius:10,fontSize:13,display:'flex',gap:10,alignItems:'center',borderLeft:isFail?`3px solid ${theme.accent}`:isOk?`3px solid ${theme.success}`:`3px solid ${theme.border}`}}>
+                <span style={{color:theme.textMuted}}>Kaynak:</span>
+                <span style={{color:'#fff',fontWeight:600}}>{s.name}</span>
+                <span style={{marginLeft:'auto',color:isFail?theme.danger:isOk?theme.success:theme.textMuted,fontSize:12}}>{s.status}</span>
+              </motion.div>
+            )
+          })}
+        </div>
+      </motion.div>
+    )}
+  </motion.div>
+  )
+}
+
+/* ===============================================
    PHISHING DETECTOR
    =============================================== */
 function PhishingDetector() {
@@ -1374,33 +1516,7 @@ function PhishingDetector() {
     </motion.div>
 
     {/* Result Display */}
-    {result && (
-      <motion.div
-        initial={{ opacity:0, y:30 }}
-        animate={{ opacity:1, y:0 }}
-        transition={{ duration:0.6, ease:theme.ease.out }}
-        style={{ marginBottom:48 }}
-      >
-        <Card style={{ 
-          background:'rgba(255,255,255,0.03)',
-          backdropFilter:'blur(10px)',
-          WebkitBackdropFilter:'blur(10px)',
-          border:`1px solid ${theme.border}`
-        }}>
-          <div style={{ display:'flex', gap:32, alignItems:'flex-start', flexWrap:'wrap' }}>
-            <RiskGauge score={result.score||0} label="Risk Skoru"/>
-            <div style={{ flex:1, minWidth:300 }}>
-              <div style={{ display:'flex', gap:12, flexWrap:'wrap', marginBottom:16 }}>
-                <span style={{ padding:'8px 20px', borderRadius:'24px', fontSize:14, fontWeight:700, background:result.score>50?theme.accentDim:theme.primaryDim, color:result.score>50?theme.accent:theme.primary }}>{result.risk_level||'Bilinmiyor'}</span>
-              </div>
-              <p style={{ fontSize:14, color:theme.textMuted, wordBreak:'break-all', marginBottom:16, fontFamily:theme.mono, lineHeight:1.6 }}>{url}</p>
-              {result.details&&Array.isArray(result.details)&&result.details.map((d,i)=><div key={i} style={{ padding:'10px 16px', marginBottom:8, background:theme.primaryDim, borderRadius:12, fontSize:14, color:theme.text, lineHeight:1.5 }}>• {d}</div>)}
-              {result.sources&&Array.isArray(result.sources)&&result.sources.map((s,i)=><div key={i} style={{ padding:'10px 16px', marginBottom:8, background:theme.surface, borderRadius:12, fontSize:14, display:'flex', gap:10, alignItems:'center' }}><span style={{ color:theme.textMuted }}>Kaynak:</span><span style={{ color:'#fff', fontWeight:600 }}>{s.name}</span><span style={{ marginLeft:'auto', color:s.status?.includes('Başarısız')?theme.danger:theme.success }}>{s.status}</span></div>)}
-            </div>
-          </div>
-        </Card>
-      </motion.div>
-    )}
+    {result && <PhishingResult result={result} url={url} />}
 
     {/* Stats Grid */}
     <motion.div 
