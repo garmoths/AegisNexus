@@ -288,36 +288,40 @@ def fetch_threatfox_iocs(self):
                 continue
 
             value_hash = str(hash(ioc_value))
-            existing = db.query(IndicatorOfCompromise).filter(
-                IndicatorOfCompromise.ioc_value_hash == value_hash,
-                IndicatorOfCompromise.source == "threatfox",
-            ).first()
+            try:
+                existing = db.query(IndicatorOfCompromise).filter(
+                    IndicatorOfCompromise.ioc_value_hash == value_hash,
+                    IndicatorOfCompromise.source == "threatfox",
+                ).first()
 
-            if existing:
-                existing.last_seen = datetime.now(timezone.utc)
-                existing.detection_count += 1
-                existing.risk_score = max(existing.risk_score, confidence)
-                existing.updated_at = datetime.now(timezone.utc)
-                updated += 1
-            else:
-                db.add(IndicatorOfCompromise(
-                    ioc_type=ioc_type,
-                    ioc_value=ioc_value,
-                    ioc_value_hash=value_hash,
-                    source="threatfox",
-                    threat_type=threat_type,
-                    threat_tags=[malware] if malware else [],
-                    risk_score=confidence,
-                    confidence=confidence,
-                    first_seen=datetime.now(timezone.utc),
-                    last_seen=datetime.now(timezone.utc),
-                    detection_count=1,
-                    context={"malware_family": malware},
-                    status="active",
-                ))
-                inserted += 1
+                if existing:
+                    existing.last_seen = datetime.now(timezone.utc)
+                    existing.detection_count += 1
+                    existing.risk_score = max(existing.risk_score, confidence)
+                    existing.updated_at = datetime.now(timezone.utc)
+                    updated += 1
+                else:
+                    db.add(IndicatorOfCompromise(
+                        ioc_type=ioc_type,
+                        ioc_value=ioc_value,
+                        ioc_value_hash=value_hash,
+                        source="threatfox",
+                        threat_type=threat_type,
+                        threat_tags=[malware] if malware else [],
+                        risk_score=confidence,
+                        confidence=confidence,
+                        first_seen=datetime.now(timezone.utc),
+                        last_seen=datetime.now(timezone.utc),
+                        detection_count=1,
+                        context={"malware_family": malware},
+                        status="active",
+                    ))
+                    inserted += 1
+                db.commit()
+            except Exception:
+                db.rollback()
+                continue
 
-        db.commit()
         return {"status": "success", "threatfox_collected": len(iocs), "threatfox_inserted": inserted, "threatfox_updated": updated}
     except Exception as exc:
         db.rollback()
