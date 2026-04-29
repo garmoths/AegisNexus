@@ -19,9 +19,11 @@ BASE_DIR = Path(__file__).resolve().parents[2]
 load_dotenv(BASE_DIR / ".env")
 logger = logging.getLogger(__name__)
 
-ABUSE_CH_API_KEY = os.getenv("ABUSE_API_KEY", os.getenv("ABUSE_API_KEYS", ""))
+ABUSE_CH_API_KEY = os.getenv("ABUSE_API_KEY", os.getenv("ABUSE_API_KEYS", "")).strip()
 if "," in ABUSE_CH_API_KEY:
     ABUSE_CH_API_KEY = ABUSE_CH_API_KEY.split(",")[0].strip()
+if len(ABUSE_CH_API_KEY) < 10:
+    ABUSE_CH_API_KEY = ""  # Geçersiz/boş key — header gönderme
 
 URLHAUS_ENDPOINT = "https://urlhaus-api.abuse.ch/v1/url/"
 
