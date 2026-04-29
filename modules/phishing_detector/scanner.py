@@ -495,18 +495,20 @@ def analyze_domain_structure(domain, raw_input):
 # =========================================================
 def calculate_safety_score(input_url, db: Session = None):
     # 0. URL DÜZENLEME
-    input_url = input_url.strip().lower()
+    input_url = (input_url or "").strip().lower()
+    if not input_url:
+        raise ValueError("URL boş olamaz")
 
     if not input_url.startswith(("http://", "https://")):
-        check_url = "https://" + input_url
-    else:
-        check_url = input_url
+        input_url = "https://" + input_url
+
+    normalized_input = normalize_url_record(input_url)
+    check_url = normalized_input.get("canonical_url", input_url)
+    domain_norm = normalized_input.get("domain_norm")
 
     parsed = urlparse(check_url)
-    domain = parsed.netloc or parsed.path
-    domain = domain.replace("www.", "")
-
-    raw_domain = input_url.replace("https://", "").replace("http://", "").replace("www.", "").split('/')[0]
+    domain = (parsed.netloc or parsed.path or "").replace("www.", "")
+    raw_domain = domain_norm or domain
 
     # ---------------------------------------------------------
     # 1. KATMAN: GLOBAL WHITELIST (DATABASE VE BUILTIN)
@@ -555,7 +557,10 @@ def calculate_safety_score(input_url, db: Session = None):
     domain_match = None
     if db:
         exact_match = None
-        canon, url_hash, domain_norm = normalize_url_record(check_url)
+        normalized_lookup = normalize_url_record(check_url)
+        canon = normalized_lookup.get("canonical_url")
+        url_hash = normalized_lookup.get("url_hash")
+        domain_norm = normalized_lookup.get("domain_norm")
         if url_hash:
             exact_match = db.query(PhishingURL).filter(PhishingURL.url_hash == url_hash).first()
         if exact_match is None and canon:
@@ -671,6 +676,7 @@ def calculate_safety_score(input_url, db: Session = None):
             check_url,
             http_meta=http_meta,
             page_text=(page_content or "")[:3000],
+            is_whitelisted=is_whitelisted,
         )
         if threat_result["total_penalty"] > 0:
             score -= threat_result["total_penalty"]
@@ -679,7 +685,7 @@ def calculate_safety_score(input_url, db: Session = None):
             # VirusTotal temiz (penalty 0) + SSL geçerli = BONUS +25
             vt_status = threat_result.get("virustotal") or {}
             if vt_status.get("available") and vt_status.get("malicious", 0) == 0 and vt_status.get("suspicious", 0) == 0:
-                ssl_status = check_ssl_certificate(domain)
+                ssl_status = check_ssl_certificate(domain.split(":")[0])
                 if ssl_status["valid"] and not ssl_status["expired"]:
                     score += 25  # VirusTotal + SSL bonus
                     risks.append("✅ VirusTotal temiz + SSL geçerli = Yüksek güvenlik")
@@ -764,7 +770,7 @@ def calculate_safety_score(input_url, db: Session = None):
         if tf_result.get("found"):
             threatfox_hits.append((candidate, tf_result))
 
-    if local_ioc_hits or threatfox_hits:
+    if (local_ioc_hits or threatfox_hits) and not is_whitelisted:
         score -= 30
         risks.append("🚨 IOC listesinde bulundu (local DB veya ThreatFox eşleşmesi).")
         if local_ioc_hits:
@@ -907,6 +913,9 @@ def calculate_safety_score(input_url, db: Session = None):
     # 9. SONUÇ
     # ---------------------------------------------------------
     final_score = max(0, min(100, score))
+    if is_whitelisted:
+        final_score = max(final_score, 95)
+        risks.append("✅ Whitelist eşleşmesi nedeniyle skor güvenli seviyeye yükseltildi.")
 
     if final_score >= 80:
         risk_level = "✅ Güvenli"

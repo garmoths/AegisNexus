@@ -9,10 +9,41 @@ import re
 import socket
 import ipaddress
 import logging
+import sqlite3
+from pathlib import Path
 from urllib.parse import urlparse
 from rapidfuzz import fuzz
 
 logger = logging.getLogger(__name__)
+WHITELIST_DB_PATH = Path(__file__).resolve().parents[2] / "data" / "whitelist.db"
+
+
+def _is_whitelisted_domain(domain: str) -> bool:
+    domain_norm = (domain or "").lower().strip()
+    if domain_norm.startswith("www."):
+        domain_norm = domain_norm[4:]
+    if not domain_norm:
+        return False
+    if not WHITELIST_DB_PATH.exists():
+        return False
+    try:
+        conn = sqlite3.connect(WHITELIST_DB_PATH)
+        cur = conn.cursor()
+        cur.execute("SELECT 1 FROM whitelist_domains WHERE domain_norm = ? LIMIT 1", (domain_norm,))
+        if cur.fetchone():
+            conn.close()
+            return True
+        parts = domain_norm.split(".")
+        for part_count in range(1, len(parts)):
+            partial_domain = ".".join(parts[-part_count - 1 :])
+            cur.execute("SELECT 1 FROM whitelist_domains WHERE domain_norm = ? LIMIT 1", (partial_domain,))
+            if cur.fetchone():
+                conn.close()
+                return True
+        conn.close()
+    except Exception as exc:
+        logger.debug(f"Whitelist check failed in threat_intel_local: {exc}")
+    return False
 
 # ============================================================
 # VİRUSTOTAL REPLACEMENT → check_virustotal_local()
@@ -36,6 +67,10 @@ def check_virustotal_local(url: str, db) -> dict:
     malicious_hits = 0
     suspicious_hits = 0
     source = None
+
+    # Whitelist domainlerde fuzzy false-positive üretme.
+    if _is_whitelisted_domain(domain):
+        return {"malicious": 0, "suspicious": 0, "source": "whitelist"}
 
     # --- KONTROL 1: Exact URL match (feed DB'nde var mı?) ---
     exact_match = db.query(PhishingURL).filter(

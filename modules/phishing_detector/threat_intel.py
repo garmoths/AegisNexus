@@ -713,7 +713,7 @@ def _persist_screenshot_indicators(url: str, indicators: list, confidence: int =
 # 4. TOPLU TEHDİT İSTİHBARATI
 # =========================================================
 
-def run_threat_intelligence(url, http_meta=None, page_text: str = ""):
+def run_threat_intelligence(url, http_meta=None, page_text: str = "", is_whitelisted: bool = False):
     """
     Tüm harici API'leri paralel olmayan şekilde çalıştırır.
     PRIMARY: Screenshot Analyzer (Playwright + Gemini Vision)
@@ -888,21 +888,27 @@ def run_threat_intelligence(url, http_meta=None, page_text: str = ""):
         # URLhaus skorlama
         if urlhaus_result and urlhaus_result.get("listed"):
             results["urlhaus"] = urlhaus_result
-            results["total_penalty"] += 40
-            results["sources"].append({
-                "name": "URLhaus",
-                "status": f"Listed ({urlhaus_result.get('threat_type', 'unknown')})"
-            })
-            results["findings"].append(
-                f"🛡️ URLhaus: URL kara listede ({urlhaus_result.get('threat_type', 'unknown')})"
-            )
-            # IOC olarak kaydet
-            write_ioc(
-                ioc_type="url", ioc_value=url,
-                threat_type=urlhaus_result.get("threat_type", "phishing"),
-                confidence=80, source="urlhaus",
-                raw_data=urlhaus_result,
-            )
+            if is_whitelisted:
+                results["sources"].append({
+                    "name": "URLhaus",
+                    "status": "Listed ancak whitelist nedeniyle ceza uygulanmadı"
+                })
+            else:
+                results["total_penalty"] += 40
+                results["sources"].append({
+                    "name": "URLhaus",
+                    "status": f"Listed ({urlhaus_result.get('threat_type', 'unknown')})"
+                })
+                results["findings"].append(
+                    f"🛡️ URLhaus: URL kara listede ({urlhaus_result.get('threat_type', 'unknown')})"
+                )
+                # IOC olarak kaydet
+                write_ioc(
+                    ioc_type="url", ioc_value=url,
+                    threat_type=urlhaus_result.get("threat_type", "phishing"),
+                    confidence=80, source="urlhaus",
+                    raw_data=urlhaus_result,
+                )
         elif urlhaus_result:
             results["urlhaus"] = urlhaus_result
 
@@ -910,37 +916,43 @@ def run_threat_intelligence(url, http_meta=None, page_text: str = ""):
         if spamhaus_domain_result and spamhaus_domain_result.get("listed"):
             results["spamhaus_domain"] = spamhaus_domain_result
             lists = spamhaus_domain_result.get("lists", [])
-            if "DBL" in lists:
-                results["total_penalty"] += 35
-                results["sources"].append({
-                    "name": "Spamhaus DBL",
-                    "status": f"Domain listed ({', '.join(lists)})"
-                })
-                results["findings"].append(
-                    f"🛡️ Spamhaus DBL: Domain kara listede ({', '.join(lists)})"
-                )
-            if spamhaus_domain_result.get("zrd"):
-                results["total_penalty"] += 15
-                results["sources"].append({
-                    "name": "Spamhaus ZRD",
-                    "status": "Sıfır itibar domain"
-                })
-                results["findings"].append("⚠️ Spamhaus ZRD: Sıfır itibar domain (yeni/şüpheli)")
-            if "DBL" not in lists and not spamhaus_domain_result.get("zrd"):
-                results["total_penalty"] += 35
+            if is_whitelisted:
                 results["sources"].append({
                     "name": "Spamhaus Domain",
-                    "status": f"Domain listed ({', '.join(lists)})"
+                    "status": f"Listed ({', '.join(lists)}) ancak whitelist nedeniyle ceza uygulanmadı"
                 })
-                results["findings"].append(
-                    f"🛡️ Spamhaus: Domain listed ({', '.join(lists)})"
+            else:
+                if "DBL" in lists:
+                    results["total_penalty"] += 35
+                    results["sources"].append({
+                        "name": "Spamhaus DBL",
+                        "status": f"Domain listed ({', '.join(lists)})"
+                    })
+                    results["findings"].append(
+                        f"🛡️ Spamhaus DBL: Domain kara listede ({', '.join(lists)})"
+                    )
+                if spamhaus_domain_result.get("zrd"):
+                    results["total_penalty"] += 15
+                    results["sources"].append({
+                        "name": "Spamhaus ZRD",
+                        "status": "Sıfır itibar domain"
+                    })
+                    results["findings"].append("⚠️ Spamhaus ZRD: Sıfır itibar domain (yeni/şüpheli)")
+                if "DBL" not in lists and not spamhaus_domain_result.get("zrd"):
+                    results["total_penalty"] += 35
+                    results["sources"].append({
+                        "name": "Spamhaus Domain",
+                        "status": f"Domain listed ({', '.join(lists)})"
+                    })
+                    results["findings"].append(
+                        f"🛡️ Spamhaus: Domain listed ({', '.join(lists)})"
+                    )
+                # IOC kaydet
+                write_ioc(
+                    ioc_type="domain", ioc_value=domain,
+                    threat_type="spamhaus_dbl", confidence=75,
+                    source="spamhaus", raw_data=spamhaus_domain_result,
                 )
-            # IOC kaydet
-            write_ioc(
-                ioc_type="domain", ioc_value=domain,
-                threat_type="spamhaus_dbl", confidence=75,
-                source="spamhaus", raw_data=spamhaus_domain_result,
-            )
         elif spamhaus_domain_result:
             results["spamhaus_domain"] = spamhaus_domain_result
 
@@ -948,52 +960,64 @@ def run_threat_intelligence(url, http_meta=None, page_text: str = ""):
         if spamhaus_ip_result and spamhaus_ip_result.get("listed"):
             results["spamhaus_ip"] = spamhaus_ip_result
             ip_lists = spamhaus_ip_result.get("lists", [])
-            if any(l in ip_lists for l in ("XBL", "eXBL")):
-                results["total_penalty"] += 30
-                results["sources"].append({
-                    "name": "Spamhaus XBL/eXBL",
-                    "status": f"IP listed ({', '.join(ip_lists)})"
-                })
-                results["findings"].append(
-                    f"🛡️ Spamhaus XBL/eXBL: IP kara listede ({', '.join(ip_lists)})"
-                )
-            elif ip_lists:
-                results["total_penalty"] += 20
+            if is_whitelisted:
                 results["sources"].append({
                     "name": "Spamhaus IP",
-                    "status": f"IP listed ({', '.join(ip_lists)})"
+                    "status": f"IP listed ({', '.join(ip_lists)}) ancak whitelist nedeniyle ceza uygulanmadı"
                 })
-                results["findings"].append(
-                    f"⚠️ Spamhaus: IP listed ({', '.join(ip_lists)})"
+            else:
+                if any(l in ip_lists for l in ("XBL", "eXBL")):
+                    results["total_penalty"] += 30
+                    results["sources"].append({
+                        "name": "Spamhaus XBL/eXBL",
+                        "status": f"IP listed ({', '.join(ip_lists)})"
+                    })
+                    results["findings"].append(
+                        f"🛡️ Spamhaus XBL/eXBL: IP kara listede ({', '.join(ip_lists)})"
+                    )
+                elif ip_lists:
+                    results["total_penalty"] += 20
+                    results["sources"].append({
+                        "name": "Spamhaus IP",
+                        "status": f"IP listed ({', '.join(ip_lists)})"
+                    })
+                    results["findings"].append(
+                        f"⚠️ Spamhaus: IP listed ({', '.join(ip_lists)})"
+                    )
+                # IOC kaydet
+                write_ioc(
+                    ioc_type="ip", ioc_value=resolved_ip,
+                    threat_type="spamhaus_xbl", confidence=70,
+                    source="spamhaus", raw_data=spamhaus_ip_result,
                 )
-            # IOC kaydet
-            write_ioc(
-                ioc_type="ip", ioc_value=resolved_ip,
-                threat_type="spamhaus_xbl", confidence=70,
-                source="spamhaus", raw_data=spamhaus_ip_result,
-            )
         elif spamhaus_ip_result:
             results["spamhaus_ip"] = spamhaus_ip_result
 
         # ThreatFox skorlama
         if threatfox_result and threatfox_result.get("found"):
             results["threatfox"] = threatfox_result
-            results["total_penalty"] += 25
-            results["sources"].append({
-                "name": "ThreatFox",
-                "status": f"IOC bulundu ({threatfox_result.get('malware_family', 'unknown')})"
-            })
-            results["findings"].append(
-                f"🛡️ ThreatFox: IOC bulundu — {threatfox_result.get('malware_family', 'bilinmeyen')} "
-                f"(confidence: {threatfox_result.get('confidence', 0)})"
-            )
-            # IOC kaydet
-            write_ioc(
-                ioc_type="domain", ioc_value=domain,
-                threat_type=threatfox_result.get("threat_name", "unknown"),
-                confidence=threatfox_result.get("confidence", 50),
-                source="threatfox", raw_data=threatfox_result,
-            )
+            if is_whitelisted:
+                results["sources"].append({
+                    "name": "ThreatFox",
+                    "status": "IOC bulundu ancak whitelist nedeniyle ceza uygulanmadı"
+                })
+            else:
+                results["total_penalty"] += 25
+                results["sources"].append({
+                    "name": "ThreatFox",
+                    "status": f"IOC bulundu ({threatfox_result.get('malware_family', 'unknown')})"
+                })
+                results["findings"].append(
+                    f"🛡️ ThreatFox: IOC bulundu — {threatfox_result.get('malware_family', 'bilinmeyen')} "
+                    f"(confidence: {threatfox_result.get('confidence', 0)})"
+                )
+                # IOC kaydet
+                write_ioc(
+                    ioc_type="domain", ioc_value=domain,
+                    threat_type=threatfox_result.get("threat_name", "unknown"),
+                    confidence=threatfox_result.get("confidence", 50),
+                    source="threatfox", raw_data=threatfox_result,
+                )
         elif threatfox_result:
             results["threatfox"] = threatfox_result
 
