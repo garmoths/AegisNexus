@@ -72,6 +72,20 @@ app.conf.update(
                 hour=2,  # 02:00 UTC daily
             ),
         },
+        "spamhaus-ioc-refresh": {
+            "task": "modules.honeypot.celery_tasks.fetch_spamhaus_iocs",
+            "schedule": crontab(
+                minute=30,
+                hour="*/6",  # Her 6 saatte bir
+            ),
+        },
+        "threatfox-ioc-refresh": {
+            "task": "modules.honeypot.celery_tasks.fetch_threatfox_iocs",
+            "schedule": crontab(
+                minute=0,
+                hour="*/4",  # Her 4 saatte bir
+            ),
+        },
     },
 )
 
@@ -190,12 +204,136 @@ def update_phishing_feeds(self):
         db.close()
 
 
+@app.task(bind=True, max_retries=3, name="modules.honeypot.celery_tasks.fetch_spamhaus_iocs")
+def fetch_spamhaus_iocs(self):
+    """Spamhaus Intel API'den XBL/CBL/DBL listelerini çekip IOC tablosuna yaz."""
+    db = SessionLocal()
+    try:
+        from modules.phishing_detector.spamhaus_client import query_ip, query_domain
+        from modules.phishing_detector.cache_db import read_threat_cache, write_threat_cache
+
+        # Son 6 saatte taranan yüksek riskli domain'leri Spamhaus'ta sorgula
+        from app.models import PhishingURL
+        from modules.phishing_detector.cache_db import get_latest_phishing
+        recent_phishing = get_latest_phishing(limit=200)
+
+        inserted = 0
+        updated = 0
+        seen_domains = set()
+        for url_record in recent_phishing:
+            domain = url_record.get("domain", "")
+            if not domain or domain in seen_domains:
+                continue
+            seen_domains.add(domain)
+
+            # Domain sorgula
+            cache_key = f"spamhaus:domain:{domain}"
+            cached = read_threat_cache(cache_key)
+            if not cached:
+                result = query_domain(domain)
+                if result.get("listed"):
+                    existing = db.query(IndicatorOfCompromise).filter(
+                        IndicatorOfCompromise.ioc_value == domain,
+                        IndicatorOfCompromise.source == "spamhaus_dbl",
+                    ).first()
+                    if existing:
+                        existing.last_seen = datetime.now(timezone.utc)
+                        existing.detection_count += 1
+                        existing.updated_at = datetime.now(timezone.utc)
+                        updated += 1
+                    else:
+                        db.add(IndicatorOfCompromise(
+                            ioc_type="domain",
+                            ioc_value=domain,
+                            ioc_value_hash=hash(domain),
+                            source="spamhaus_dbl",
+                            threat_type="spam",
+                            risk_score=85,
+                            confidence=95,
+                            first_seen=datetime.now(timezone.utc),
+                            last_seen=datetime.now(timezone.utc),
+                            detection_count=1,
+                            status="active",
+                        ))
+                        inserted += 1
+
+        db.commit()
+        return {"status": "success", "spamhaus_inserted": inserted, "spamhaus_updated": updated}
+    except Exception as exc:
+        db.rollback()
+        raise self.retry(exc=exc, countdown=120)
+    finally:
+        db.close()
+
+
+@app.task(bind=True, max_retries=3, name="modules.honeypot.celery_tasks.fetch_threatfox_iocs")
+def fetch_threatfox_iocs(self):
+    """ThreatFox API'den son IOC'ları çekip IOC tablosuna yaz."""
+    db = SessionLocal()
+    try:
+        from modules.phishing_detector.threatfox_client import get_recent_iocs
+        limit = int(os.getenv("PHISHING_THREATFOX_LIMIT", "500"))
+        iocs = get_recent_iocs(limit=limit)
+
+        inserted = 0
+        updated = 0
+        for ioc in iocs:
+            ioc_value = ioc.get("url", "")
+            ioc_type = ioc.get("ioc_type", "domain")
+            threat_type = ioc.get("threat_type", "phishing")
+            malware = ioc.get("malware_family", "Unknown")
+            confidence = ioc.get("confidence", 50)
+
+            if not ioc_value:
+                continue
+
+            value_hash = hash(ioc_value)
+            existing = db.query(IndicatorOfCompromise).filter(
+                IndicatorOfCompromise.ioc_value_hash == value_hash,
+                IndicatorOfCompromise.source == "threatfox",
+            ).first()
+
+            if existing:
+                existing.last_seen = datetime.now(timezone.utc)
+                existing.detection_count += 1
+                existing.risk_score = max(existing.risk_score, confidence)
+                existing.updated_at = datetime.now(timezone.utc)
+                updated += 1
+            else:
+                db.add(IndicatorOfCompromise(
+                    ioc_type=ioc_type,
+                    ioc_value=ioc_value,
+                    ioc_value_hash=value_hash,
+                    source="threatfox",
+                    threat_type=threat_type,
+                    threat_tags=[malware] if malware else [],
+                    risk_score=confidence,
+                    confidence=confidence,
+                    first_seen=datetime.now(timezone.utc),
+                    last_seen=datetime.now(timezone.utc),
+                    detection_count=1,
+                    context={"malware_family": malware},
+                    status="active",
+                ))
+                inserted += 1
+
+        db.commit()
+        return {"status": "success", "threatfox_collected": len(iocs), "threatfox_inserted": inserted, "threatfox_updated": updated}
+    except Exception as exc:
+        db.rollback()
+        raise self.retry(exc=exc, countdown=120)
+    finally:
+        db.close()
+
+
 @app.task(name="modules.honeypot.celery_tasks.run_ioc_fetch")
 def run_ioc_fetch():
     """Backward compatible orchestrator for legacy worker invocations."""
     urlhaus_job = fetch_urlhaus.delay()
     otx_job = fetch_otx.delay()
-    return {"status": "queued", "urlhaus_task_id": urlhaus_job.id, "otx_task_id": otx_job.id}
+    threatfox_job = fetch_threatfox_iocs.delay()
+    spamhaus_job = fetch_spamhaus_iocs.delay()
+    return {"status": "queued", "urlhaus_task_id": urlhaus_job.id, "otx_task_id": otx_job.id, "threatfox_task_id": threatfox_job.id, "spamhaus_task_id": spamhaus_job.id}
 
 
 @app.task(bind=True, max_retries=3, name="modules.honeypot.celery_tasks.victim_atlas_ingest_daily")
