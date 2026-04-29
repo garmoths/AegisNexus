@@ -245,7 +245,7 @@ def fetch_spamhaus_iocs(self):
                         db.add(IndicatorOfCompromise(
                             ioc_type="domain",
                             ioc_value=domain,
-                            ioc_value_hash=hash(domain),
+                            ioc_value_hash=str(hash(domain)),
                             source="spamhaus_dbl",
                             threat_type="spam",
                             risk_score=85,
@@ -287,7 +287,7 @@ def fetch_threatfox_iocs(self):
             if not ioc_value:
                 continue
 
-            value_hash = hash(ioc_value)
+            value_hash = str(hash(ioc_value))
             existing = db.query(IndicatorOfCompromise).filter(
                 IndicatorOfCompromise.ioc_value_hash == value_hash,
                 IndicatorOfCompromise.source == "threatfox",
