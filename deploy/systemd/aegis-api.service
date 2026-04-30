@@ -1,0 +1,22 @@
+# AegisNexus — FastAPI systemd service
+# /etc/systemd/system/aegis-api.service
+
+[Unit]
+Description=AegisNexus FastAPI Backend
+After=network.target postgresql.service rabbitmq-server.service
+Requires=postgresql.service rabbitmq-server.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/aegisnexus
+EnvironmentFile=/var/www/aegisnexus/.env
+ExecStart=/var/www/aegisnexus/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

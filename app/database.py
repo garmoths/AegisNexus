@@ -1,6 +1,5 @@
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import declarative_base, sessionmaker
 import os
 from dotenv import load_dotenv
 
@@ -23,6 +22,16 @@ engine = create_engine(
 
 # Oturum oluşturucu (İşte hata veren SessionLocal bu!)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+def get_db():
+    """FastAPI dependency — DB session yield eder."""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
 
 # Modeller için temel sınıf
 Base = declarative_base()

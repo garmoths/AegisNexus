@@ -1,0 +1,22 @@
+# AegisNexus — Celery Beat systemd service
+# /etc/systemd/system/aegis-celery-beat.service
+
+[Unit]
+Description=AegisNexus Celery Beat (Scheduled Tasks)
+After=network.target postgresql.service rabbitmq-server.service
+Requires=postgresql.service rabbitmq-server.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/aegisnexus
+EnvironmentFile=/var/www/aegisnexus/.env
+ExecStart=/var/www/aegisnexus/venv/bin/celery -A modules.victim_atlas.celery_tasks beat --loglevel=info
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

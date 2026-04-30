@@ -1,6 +1,8 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, Float, JSON, Index, BigInteger
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, Float, JSON, Index, BigInteger, ForeignKey, Enum as SAEnum
+from sqlalchemy.orm import relationship
 from app.database import Base
 from datetime import datetime, timezone
+import enum
 
 
 class PhishingURL(Base):
@@ -183,3 +185,248 @@ class URLAnalizHistory(Base):
     
     # Timestamps
     created_at = Column(DateTime, index=True, nullable=False, default=lambda: datetime.now(timezone.utc))
+
+
+# =========================================================
+# SİBER MAĞDURİYET ATLASI — YENİ MODELLER
+# =========================================================
+
+
+class UserRole(str, enum.Enum):
+    free = "free"
+    premium = "premium"
+    corporate = "corporate"
+    admin = "admin"
+
+
+class AttackMethod(str, enum.Enum):
+    phishing = "phishing"
+    smishing = "smishing"
+    vishing = "vishing"
+    fake_app = "fake_app"
+    social_engineering = "social_engineering"
+    sahte_mobil_uygulama = "sahte_mobil_uygulama"
+    banka_taklit = "banka_taklit"
+    malware_assisted = "malware_assisted"
+    other = "other"
+
+
+class LossType(str, enum.Enum):
+    bank_account = "bank_account"
+    identity = "identity"
+    credit_card = "credit_card"
+    crypto_wallet = "crypto_wallet"
+    social_media = "social_media"
+    device_compromise = "device_compromise"
+    corporate_account = "corporate_account"
+    ecommerce = "ecommerce"
+    other = "other"
+
+
+class User(Base):
+    """Platform kullanıcısı — API key tabanlı auth, şifresiz."""
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String(255), unique=True, index=True, nullable=False)
+    full_name = Column(String(256), nullable=True)
+    role = Column(SAEnum(UserRole), default=UserRole.free, index=True, nullable=False)
+    is_active = Column(Boolean, default=True, index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+
+    # Relationships
+    api_keys = relationship("APIKey", back_populates="user", lazy="dynamic")
+    reports = relationship("UserReport", back_populates="user", lazy="dynamic")
+    subscriptions = relationship("Subscription", back_populates="user", lazy="dynamic")
+    alert_subscriptions = relationship("AlertSubscription", back_populates="user", lazy="dynamic")
+
+
+class APIKey(Base):
+    """Kullanıcı API anahtarları — X-API-Key header ile auth."""
+    __tablename__ = "api_keys"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True, nullable=False)
+    key_hash = Column(String(64), unique=True, index=True, nullable=False)  # SHA256 of raw key
+    key_prefix = Column(String(8), index=True, nullable=False)  # İlk 8 karakter (tanımlama için)
+    label = Column(String(100), nullable=True)  # "Kişisel", "Kurumsal API" vb.
+    role = Column(SAEnum(UserRole), default=UserRole.free, index=True, nullable=False)
+    rate_limit_tier = Column(String(20), default="free", index=True)  # free/premium/corporate/admin
+    last_used_at = Column(DateTime, nullable=True)
+    is_active = Column(Boolean, default=True, index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    # Relationships
+    user = relationship("User", back_populates="api_keys")
+
+
+class CaseTag(Base):
+    """Vaka etiketleri — çoktan çoğa ilişki."""
+    __tablename__ = "case_tags"
+
+    id = Column(Integer, primary_key=True, index=True)
+    case_id = Column(Integer, ForeignKey("victim_cases.id"), index=True, nullable=False)
+    tag = Column(String(100), index=True, nullable=False)
+
+    __table_args__ = (
+        Index('ix_case_tag_unique', 'case_id', 'tag', unique=True),
+    )
+
+
+class UserReport(Base):
+    """Kullanıcının kendi anlattığı olayın Gemini analiz sonucu."""
+    __tablename__ = "user_reports"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True, nullable=False)
+    case_id = Column(Integer, ForeignKey("victim_cases.id"), index=True, nullable=True)
+    user_description = Column(Text, nullable=False)
+    ai_analysis = Column(JSON, nullable=True)  # Gemini analiz sonucu
+    protection_plan = Column(Text, nullable=True)  # 5 maddelik korunma planı
+    pdf_path = Column(String(500), nullable=True)
+    report_quota_month = Column(String(7), nullable=True)  # "2026-04" gibi, quota takibi için
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+
+    # Relationships
+    user = relationship("User", back_populates="reports")
+
+
+class Subscription(Base):
+    """Kullanıcı abonelik durumu."""
+    __tablename__ = "subscriptions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True, nullable=False)
+    plan = Column(SAEnum(UserRole), default=UserRole.free, nullable=False)
+    started_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    expires_at = Column(DateTime, nullable=True)
+    is_active = Column(Boolean, default=True, index=True)
+    payment_ref = Column(String(255), nullable=True)  # İyzico reference (stub)
+
+    # Relationships
+    user = relationship("User", back_populates="subscriptions")
+
+
+class AlertSubscription(Base):
+    """Kullanıcının uyarı abonelik tercihleri."""
+    __tablename__ = "alert_subscriptions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True, nullable=False)
+    region = Column(String(100), index=True, nullable=True)  # Türkiye ili
+    attack_method = Column(String(50), index=True, nullable=True)
+    is_active = Column(Boolean, default=True, index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    # Relationships
+    user = relationship("User", back_populates="alert_subscriptions")
+
+
+# =========================================================
+# VICTIM ATLAS — POSTGRESQL ORM (SQLite'dan taşındı)
+# =========================================================
+
+
+class SourceRegistry(Base):
+    """Victim Atlas veri kaynakları kayıt defteri."""
+    __tablename__ = "sources_registry"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(200), unique=True, index=True, nullable=False)
+    base_url = Column(String(500), nullable=False)
+    trust_tier = Column(String(20), nullable=False)  # tier1, tier2
+    enabled = Column(Boolean, default=True, index=True)
+    last_success_at = Column(DateTime, nullable=True)
+    last_error = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
+class RawDocument(Base):
+    """Victim Atlas ham belge deposu — RSS/scrape kaynaklarından çekilen metinler."""
+    __tablename__ = "raw_documents"
+
+    id = Column(Integer, primary_key=True, index=True)
+    source_id = Column(Integer, ForeignKey("sources_registry.id"), index=True, nullable=False)
+    external_id = Column(String(200), nullable=False)
+    url = Column(String(2000), nullable=False)
+    title = Column(String(500), nullable=False)
+    published_at = Column(DateTime, nullable=True)
+    fetched_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    raw_text = Column(Text, nullable=False)
+    lang = Column(String(10), default="unknown")
+    hash = Column(String(64), unique=True, index=True, nullable=False)
+
+    __table_args__ = (
+        Index('ix_raw_source_external', 'source_id', 'external_id', unique=True),
+        Index('ix_raw_source_published', 'source_id', 'published_at'),
+    )
+
+
+class VictimCase(Base):
+    """Victim Atlas vaka kayıtları — Gemini ile sınıflandırılmış dolandırıcılık vakaları."""
+    __tablename__ = "victim_cases"
+
+    id = Column(Integer, primary_key=True, index=True)
+    case_slug = Column(String(200), unique=True, index=True, nullable=False)
+    case_title = Column(String(500), nullable=False)
+    incident_period_start = Column(DateTime, nullable=True)
+    incident_period_end = Column(DateTime, nullable=True)
+    attack_method = Column(String(50), index=True, nullable=False)
+    loss_type = Column(String(50), index=True, nullable=False)
+    target_platform = Column(String(50), nullable=False)
+    critical_warning = Column(Text, nullable=False)
+    narrative_summary = Column(Text, nullable=False)
+    defense_steps_json = Column(JSON, nullable=False)
+    confidence_score = Column(Integer, nullable=False)
+    severity_score = Column(Integer, nullable=False)
+    region = Column(String(100), index=True, nullable=True)  # Türkiye ili
+    is_hot = Column(Boolean, default=True, index=True)
+    is_published = Column(Boolean, default=True, index=True)
+    first_seen = Column(DateTime, nullable=False)
+    last_seen = Column(DateTime, index=True, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    # Relationships
+    tags = relationship("CaseTag", backref="case", lazy="dynamic")
+    evidence = relationship("VictimCaseEvidence", backref="case", lazy="dynamic")
+    reports = relationship("UserReport", backref="case", lazy="dynamic")
+
+    __table_args__ = (
+        Index('ix_cases_attack_method', 'attack_method'),
+        Index('ix_cases_loss_type', 'loss_type'),
+        Index('ix_cases_last_seen', 'last_seen'),
+        Index('ix_cases_hot', 'is_hot'),
+    )
+
+
+class VictimCaseEvidence(Base):
+    """Vaka-delil ilişkisi — hangi ham belge hangi vakayı destekliyor."""
+    __tablename__ = "victim_case_evidence"
+
+    id = Column(Integer, primary_key=True, index=True)
+    case_id = Column(Integer, ForeignKey("victim_cases.id"), index=True, nullable=False)
+    raw_document_id = Column(Integer, ForeignKey("raw_documents.id"), index=True, nullable=False)
+    evidence_snippet = Column(Text, nullable=False)
+    evidence_weight = Column(Float, default=1.0)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index('ix_evidence_unique', 'case_id', 'raw_document_id', unique=True),
+    )
+
+
+class IngestRun(Base):
+    """Victim Atlas ingest çalışma geçmişi."""
+    __tablename__ = "ingest_runs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    started_at = Column(DateTime, nullable=False)
+    finished_at = Column(DateTime, nullable=True)
+    status = Column(String(20), nullable=False)  # running, success, error
+    documents_fetched = Column(Integer, default=0)
+    cases_created = Column(Integer, default=0)
+    cases_updated = Column(Integer, default=0)
+    errors_json = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

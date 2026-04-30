@@ -12,6 +12,13 @@ from fastapi.templating import Jinja2Templates
 
 from app.database import Base, engine
 from app.routers.contact import router as contact_router
+from app.routers.auth import router as auth_router
+from app.routers.reports import router as reports_router
+# Stats routes victim atlas router altında mount ediliyor
+from app.routers.subscription import router as subscription_router
+from app.routers.corporate import router as corporate_router
+from app.routers.admin import router as admin_router
+from app.middleware.rate_limit import RateLimitMiddleware
 
 # Load environment variables
 load_dotenv()
@@ -36,7 +43,7 @@ async def lifespan(_app: FastAPI):
         Base.metadata.create_all(bind=engine)
         logger.info("Aegis Nexus - 5 Katmanlı Güvenlik Kalkanı hazır")
     except Exception as e:
-        logger.warning("Veritabanı tabloları: %s", e)
+        logger.warning("Veritabanı tabloları oluşturulamadı (devam ediliyor): %s", e)
     yield
 
 
@@ -65,6 +72,7 @@ allowed_origins = [
     ).split(",")
     if origin.strip()
 ]
+app.add_middleware(RateLimitMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
@@ -104,6 +112,11 @@ app.include_router(breach_intel_router, prefix="/api/v2/breach")
 app.include_router(password_shield_router, prefix="/api/v2/shield")
 app.include_router(ai_analyzer_router, prefix="/api/v2/ai-analyzer")
 app.include_router(victim_atlas_router, prefix="/api/v2/victim-atlas")
+app.include_router(auth_router, prefix="/api/v2/auth")
+app.include_router(reports_router, prefix="/api/v2/reports")
+app.include_router(subscription_router, prefix="/api/v2/subscription")
+app.include_router(corporate_router, prefix="/api/v2/corporate")
+app.include_router(admin_router, prefix="/api/v2/admin")
 app.include_router(contact_router)
 
 

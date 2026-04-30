@@ -1,0 +1,22 @@
+# AegisNexus — Celery Worker systemd service
+# /etc/systemd/system/aegis-celery-worker.service
+
+[Unit]
+Description=AegisNexus Celery Worker (Victim Atlas)
+After=network.target postgresql.service rabbitmq-server.service
+Requires=postgresql.service rabbitmq-server.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/aegisnexus
+EnvironmentFile=/var/www/aegisnexus/.env
+ExecStart=/var/www/aegisnexus/venv/bin/celery -A modules.victim_atlas.celery_tasks worker --loglevel=info --concurrency=2
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
