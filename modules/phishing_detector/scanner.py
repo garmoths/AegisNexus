@@ -495,18 +495,20 @@ def analyze_domain_structure(domain, raw_input):
 # =========================================================
 def calculate_safety_score(input_url, db: Session = None):
     # 0. URL DÜZENLEME
-    input_url = input_url.strip().lower()
+    input_url = (input_url or "").strip().lower()
+    if not input_url:
+        raise ValueError("URL boş olamaz")
 
     if not input_url.startswith(("http://", "https://")):
-        check_url = "https://" + input_url
-    else:
-        check_url = input_url
+        input_url = "https://" + input_url
+
+    normalized_input = normalize_url_record(input_url)
+    check_url = normalized_input.get("canonical_url", input_url)
+    domain_norm = normalized_input.get("domain_norm")
 
     parsed = urlparse(check_url)
-    domain = parsed.netloc or parsed.path
-    domain = domain.replace("www.", "")
-
-    raw_domain = input_url.replace("https://", "").replace("http://", "").replace("www.", "").split('/')[0]
+    domain = (parsed.netloc or parsed.path or "").replace("www.", "")
+    raw_domain = domain_norm or domain
 
     # ---------------------------------------------------------
     # 1. KATMAN: GLOBAL WHITELIST (DATABASE VE BUILTIN)
@@ -547,10 +549,18 @@ def calculate_safety_score(input_url, db: Session = None):
     # ---------------------------------------------------------
     # 2. KATMAN: INTERNAL DB (VERİTABANI) — hash / tam URL / domain (indeksli)
     # ---------------------------------------------------------
+    # Initialize score, risks, sources early for threat_intelligence
+    score = 100
+    risks = []
+    sources = []
+    
     domain_match = None
     if db:
         exact_match = None
-        canon, url_hash, domain_norm = normalize_url_record(check_url)
+        normalized_lookup = normalize_url_record(check_url)
+        canon = normalized_lookup.get("canonical_url")
+        url_hash = normalized_lookup.get("url_hash")
+        domain_norm = normalized_lookup.get("domain_norm")
         if url_hash:
             exact_match = db.query(PhishingURL).filter(PhishingURL.url_hash == url_hash).first()
         if exact_match is None and canon:
@@ -634,25 +644,71 @@ def calculate_safety_score(input_url, db: Session = None):
             except Exception:
                 page_content = None
 
+    # ---------------------------------------------------------
+# 8. KATMAN: HARİCİ TEHDİT İSTİHBARATI (Local - site reachability'den önce)
+# ---------------------------------------------------------
+    threat_result = None
+    try:
+        ssl_meta = check_ssl_certificate(domain.split(":")[0]) if domain else {"valid": False, "expired": True}
+        redirect_chain = []
+        if response is not None and getattr(response, "history", None):
+            for hop in response.history:
+                redirect_chain.append(
+                    {
+                        "status_code": int(getattr(hop, "status_code", 0) or 0),
+                        "url": str(getattr(hop, "url", "")),
+                    }
+                )
+
+        http_meta = {
+            "status_code": http_status,
+            "restricted_access": restricted_access,
+            "final_url": str(getattr(response, "url", check_url) if response is not None else check_url),
+            "redirect_chain": redirect_chain,
+            "ssl": {
+                "valid": bool(ssl_meta.get("valid", False)),
+                "expired": bool(ssl_meta.get("expired", True)),
+                "issuer": ssl_meta.get("issuer"),
+                "days_left": ssl_meta.get("days_left"),
+            },
+        }
+        threat_result = run_threat_intelligence(
+            check_url,
+            http_meta=http_meta,
+            page_text=(page_content or "")[:3000],
+            is_whitelisted=is_whitelisted,
+        )
+        if threat_result["total_penalty"] > 0:
+            score -= threat_result["total_penalty"]
+            risks.extend(threat_result["findings"])
+        else:
+            # VirusTotal temiz (penalty 0) + SSL geçerli = BONUS +25
+            vt_status = threat_result.get("virustotal") or {}
+            if vt_status.get("available") and vt_status.get("malicious", 0) == 0 and vt_status.get("suspicious", 0) == 0:
+                ssl_status = check_ssl_certificate(domain.split(":")[0])
+                if ssl_status["valid"] and not ssl_status["expired"]:
+                    score += 25  # VirusTotal + SSL bonus
+                    risks.append("✅ VirusTotal temiz + SSL geçerli = Yüksek güvenlik")
+        sources.extend(threat_result.get("sources", []))
+    except Exception as e:
+        logger.error(f"Threat Intelligence hatası: {e}")
+
     if not site_is_up:
         return {
-            "url": input_url, "score": 0,
+            "url": input_url, "score": score,
             "risk_level": "❌ Siteye Ulaşılamıyor",
             "details": [
                 "Böyle bir site bulunamadı veya sunucusu kapalı.",
                 f"HTTP Durum Kodu: {http_status or 'Bağlantı hatası'}",
                 f"Ağ hatası: {transport_error or 'bilinmiyor'}"
-            ],
-            "sources": [{"name": "HTTP Erişim", "status": "Başarısız ❌"}]
+            ] + risks,
+            "sources": sources + [{"name": "HTTP Erişim", "status": "Başarısız ❌"}],
+            "threat_intel": threat_result,
         }
 
     # ---------------------------------------------------------
     # 5. KATMAN: ÇOKLU ANALİZ
     # ---------------------------------------------------------
-    score = 100
-    risks = []
-    sources = []
-
     if restricted_access:
         score -= 5
         risks.append(f"⚠️ Site erişimi kısıtlı görünüyor (HTTP {http_status}). Anti-bot/WAF olabilir.")
@@ -671,7 +727,7 @@ def calculate_safety_score(input_url, db: Session = None):
         sources.append({"name": "Whitelist", "status": f"✅ {whitelist_info.get('company_name', 'Verified')}"})
 
     # Domain seviyesinde tehdit kaydı, exact URL kadar kesin olmadığı için soft-penalty uygula.
-    if domain_match:
+    if domain_match and not is_whitelisted:
         score -= 20
         risks.append(
             f"⚠️ Bu domain altında daha önce phishing kaydı görülmüş: {domain_match.target or 'Unknown'}"
@@ -714,7 +770,7 @@ def calculate_safety_score(input_url, db: Session = None):
         if tf_result.get("found"):
             threatfox_hits.append((candidate, tf_result))
 
-    if local_ioc_hits or threatfox_hits:
+    if (local_ioc_hits or threatfox_hits) and not is_whitelisted:
         score -= 30
         risks.append("🚨 IOC listesinde bulundu (local DB veya ThreatFox eşleşmesi).")
         if local_ioc_hits:
@@ -790,7 +846,7 @@ def calculate_safety_score(input_url, db: Session = None):
         ".exe", ".zip", ".rar", ".scr", ".bat",
     ]
     found = [w for w in suspicious_words if w in input_url.lower()]
-    if found:
+    if found and not is_whitelisted:
         penalty = min(30, len(found) * 8)
         score -= penalty
         risks.append(f"⚠️ Şüpheli kelimeler: {', '.join(found[:5])}")
@@ -836,43 +892,30 @@ def calculate_safety_score(input_url, db: Session = None):
     try:
         if page_content:
             ai_result = analyze_page_content(page_content, check_url)
-            if ai_result["ai_score_penalty"] > 0:
+            if ai_result["ai_score_penalty"] > 0 and not is_whitelisted:
                 score -= ai_result["ai_score_penalty"]
                 risks.extend(ai_result["ai_findings"])
             sources.append({"name": "AI İçerik Analizi", "status": "Tamamlandı"})
 
-            if ai_result.get("brand_impersonation"):
+            if ai_result.get("brand_impersonation") and not is_whitelisted:
                 sources.append({"name": "Marka Taklidi", "status": f"⚠️ {ai_result['brand_impersonation'].upper()}"})
-            if ai_result.get("credential_harvesting"):
+            if ai_result.get("credential_harvesting") and not is_whitelisted:
                 sources.append({"name": "Credential Harvesting", "status": "🚨 Tespit Edildi"})
     except Exception as e:
         logger.error(f"AI Analyzer hatası: {e}")
 
     # ---------------------------------------------------------
-    # 8. KATMAN: HARİCİ TEHDİT İSTİHBARATI (VirusTotal, Google, AbuseIPDB)
+    # 8. KATMAN: HARİCİ TEHDİT İSTİHBARATI (Local - already called before site reachability)
     # ---------------------------------------------------------
-    threat_result = None
-    try:
-        threat_result = run_threat_intelligence(check_url)
-        if threat_result["total_penalty"] > 0:
-            score -= threat_result["total_penalty"]
-            risks.extend(threat_result["findings"])
-        else:
-            # VirusTotal temiz (penalty 0) + SSL geçerli = BONUS +25
-            vt_status = threat_result.get("virustotal") or {}
-            if vt_status.get("available") and vt_status.get("malicious", 0) == 0 and vt_status.get("suspicious", 0) == 0:
-                ssl_status = check_ssl_certificate(domain)
-                if ssl_status["valid"] and not ssl_status["expired"]:
-                    score += 25  # VirusTotal + SSL bonus
-                    risks.append("✅ VirusTotal temiz + SSL geçerli = Yüksek güvenlik")
-        sources.extend(threat_result["sources"])
-    except Exception as e:
-        logger.error(f"Threat Intelligence hatası: {e}")
+    # threat_intelligence already called before site reachability check
 
     # ---------------------------------------------------------
     # 9. SONUÇ
     # ---------------------------------------------------------
     final_score = max(0, min(100, score))
+    if is_whitelisted:
+        final_score = max(final_score, 95)
+        risks.append("✅ Whitelist eşleşmesi nedeniyle skor güvenli seviyeye yükseltildi.")
 
     if final_score >= 80:
         risk_level = "✅ Güvenli"
@@ -892,6 +935,7 @@ def calculate_safety_score(input_url, db: Session = None):
         "risk_level": risk_level,
         "details": risks,
         "sources": sources,
+        "threat_intel": threat_result,
     }
 
     # AI ek bilgileri (frontend için)
@@ -912,9 +956,13 @@ def calculate_safety_score(input_url, db: Session = None):
     if threat_result:
         result["threat_intel"] = {
             "virustotal": threat_result.get("virustotal"),
-            "urlscan": threat_result.get("urlscan"),
+            "screenshot_analysis": threat_result.get("screenshot_analysis"),
             "google_safe_browsing": threat_result.get("google_safe_browsing"),
             "abuseipdb": threat_result.get("abuseipdb"),
+            "urlhaus": threat_result.get("urlhaus"),
+            "spamhaus_domain": threat_result.get("spamhaus_domain"),
+            "spamhaus_ip": threat_result.get("spamhaus_ip"),
+            "threatfox": threat_result.get("threatfox"),
         }
 
     return result

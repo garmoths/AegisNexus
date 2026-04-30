@@ -89,6 +89,9 @@ else:
 
 if REACT_BUILD_DIR.exists():
     app.mount("/react", StaticFiles(directory=str(REACT_BUILD_DIR), html=True), name="react")
+    react_assets_dir = REACT_BUILD_DIR / "assets"
+    if react_assets_dir.exists():
+        app.mount("/assets", StaticFiles(directory=str(react_assets_dir)), name="react-assets")
     logger.info("React build mount edildi: %s", REACT_BUILD_DIR)
 else:
     logger.warning("React build klasörü yok: %s", REACT_BUILD_DIR)
@@ -113,13 +116,32 @@ async def read_react_app():
     return {"Hata": "React build index.html bulunamadı."}
 
 
+@app.get("/favicon.svg")
+async def read_react_favicon():
+    favicon_path = REACT_BUILD_DIR / "favicon.svg"
+    if favicon_path.exists():
+        return FileResponse(favicon_path)
+    return {"Hata": "favicon.svg bulunamadı.", "Aranan_Yol": str(favicon_path)}
+
+
+@app.get("/icons.svg")
+async def read_react_icons():
+    icons_path = REACT_BUILD_DIR / "icons.svg"
+    if icons_path.exists():
+        return FileResponse(icons_path)
+    return {"Hata": "icons.svg bulunamadı.", "Aranan_Yol": str(icons_path)}
+
+
 @app.get("/")
 async def read_root():
+    react_index = REACT_BUILD_DIR / "index.html"
+    if react_index.exists():
+        return FileResponse(react_index)
     if HTML_FILE.exists():
         return FileResponse(HTML_FILE)
     return {
-        "Hata": "index.html bulunamadı.",
-        "Aranan_Yol": str(HTML_FILE),
+        "Hata": "Ana sayfa index dosyası bulunamadı.",
+        "Aranan_Yol": [str(react_index), str(HTML_FILE)],
     }
 
 

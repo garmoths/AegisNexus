@@ -19,7 +19,8 @@
 │          ↓ Risk Skoru ≥80 → SMS/Email Bildirim        │
 ├─────────────────────────────────────────────────────────┤
 │ LAYER 4: Honeypot + IOC Collector (Merkezi Veritabanı) │
-│          ↓ Saatlik veri toplama (AbuseIPDB, URLhaus)   │
+│          ↓ Saatlik veri toplama (URLhaus, ThreatFox,   │
+│            Spamhaus, OTX, PhishTank)                    │
 ├─────────────────────────────────────────────────────────┤
 │ LAYER 3: Breach Intelligence (İhlal & Dark Web Analizi)│
 │          ↓ HIBP + Psikolojik Profil + OSINT            │
@@ -41,11 +42,33 @@
 **Amacı:** İnternet üzerindeki kimlik avı siteleri ve kötü amaçlı URL'leri tespit etmek
 
 **Nasıl Çalışır:**
-- 1.2 milyonun üzerinde bilinen zararlı URL veritabanı kullanır
+- 1.5 milyonun üzerinde bilinen zararlı URL veritabanı kullanır
 - Yeni bir URL sorgulandığında, birkaç ms içinde taranır
 - DNS kayıtları kontrol edilir (domain gerçekliği doğrulanır)
 - SSL sertifikası analiz edilir (geçerli mi, kim tarafından verildi?)
 - Makine öğrenmesi kullanarak sayfanın içeriği analiz edilir (phishing clone tespiti)
+- **Local Threat Intelligence (Sıfır External API):**
+  - VirusTotal yerine local DB fuzzy matching
+  - AbuseIPDB yerine IP blacklist (Firehol, Spamhaus DROP, Emerging Threats)
+  - Sıfır external API call, sıfır rate limit
+- **External Threat Intelligence (Yeni):**
+  - Spamhaus Intel API (login-based JWT auth, std tier: 150 req/s, 200K req/saat)
+    - SBL/XBL/eXBL/CBL IP sorgulama (risk_boost: -30)
+    - DBL/ZRD domain sorgulama (risk_boost: -35 / -15)
+  - abuse.ch URLhaus (`Auth-Key` header, URL kara liste sorgulama, risk_boost: -40)
+  - abuse.ch ThreatFox (`Auth-Key` header, IOC sorgulama + toplu ingest, risk_boost: -25)
+  - Paralel sorgulama (ThreadPoolExecutor, 4 worker)
+  - SQLite cache (12 saat TTL) → tekrarlı API çağrılarını önler
+- **Screenshot Analyzer (Gemini Vision):**
+  - Playwright screenshot → base64 PNG → `gemini-2.0-flash` → JSON verdict
+  - Brand impersonation, phishing clone, sosyal mühendislik tespiti
+  - `screenshot_b64` alanı ile frontend'de site görseli gösterilir
+- **Frontend Görselleştirme (PhishingResult Component):**
+  - Screenshot thumbnail (tıklayınca tam ekran açılır)
+  - 8 Threat Intel kaynak kartı (URLhaus, Spamhaus Domain/IP, ThreatFox, VirusTotal, GSB, AbuseIPDB, Screenshot Analyzer)
+  - Her kaynak kartı: listed/clean/found badge + penalty göstergesi + detay metni
+  - Görsel tehdit indikatörleri (Gemini Vision threat_indicators)
+  - Taranan kaynaklar listesi (başarı/hata durumuna göre renkli)
 
 **Sunduğu Hizmetler:**
 ```
@@ -92,7 +115,7 @@ AbuseIPDB Örneği:
 
 **Sunduğu Hizmetler:**
 ```
-✅ IOC'leri saatlik olarak topla (AbuseIPDB, URLhaus, PhishTank'tan)
+✅ IOC'leri saatlik olarak topla (URLhaus, PhishTank, ThreatFox, Spamhaus, OTX)
 ✅ Risk skoru otomatik hesapla
 ✅ Operatörlere yüksek riskli IOC'ler hakkında uyarı gönder
 ✅ İstatistik: Bu ayda kaç yeni tehdit tespit edildi?
@@ -206,7 +229,7 @@ phishing_db/
 
 ```
 1. Dış Kaynaklar
-   ↓ (AbuseIPDB, URLhaus, PhishTank saatlık senkronizasyon)
+   ↓ (URLhaus, PhishTank, Spamhaus, ThreatFox, OTX saatlik/4-6 saatlik senkronizasyon)
    ↓
 2. IOC Fetcher
    ↓ (Verileri toplayıp temizle)
@@ -239,10 +262,14 @@ phishing_db/
 
 ### Otomasyonlar:
 ```
-⏰ Cron Jobs:
-   ├─ Her saat başı → IOC Fetcher çalış
-   ├─ Günde bir kez → Veritabanı backup
-   └─ Günde bir kez → Günlük rapor gönder
+⏰ Celery Beat Schedule:
+   ├─ Her saat      → IOC Fetcher (URLhaus + PhishTank)
+   ├─ Her 2 saat    → Phishing URL çekme (OpenPhish, URLhaus CSV, Kaggle, CertStream, OTX, ThreatFox)
+   ├─ Her 4 saat    → ThreatFox IOC ingest (son 7 gün IOC'ları)
+   ├─ Her 6 saat    → Spamhaus IOC sorgulama (yüksek riskli domain'ler)
+   ├─ Günde 1 kez   → IP blacklist güncelleme (Firehol, Spamhaus DROP, Emerging Threats)
+   ├─ Günde 1 kez   → Veritabanı backup
+   └─ Günde 1 kez   → Günlük rapor gönder
 
 🚀 GitHub Actions:
    ├─ Her commit'te → Testler çalış
@@ -369,6 +396,7 @@ phishing_db/
   • ML modeli iyileştirmesi
   • SMS gateway kapasitesi artırma
   • Kubernetes migration planning
+  • Frontend dashboard geliştirmesi (real-time threat intel)
 
 📅 BAŞLAYACAK:
   • Multi-region deployment
@@ -387,6 +415,6 @@ Tehditleri **proaktif tespiti** → **derin analizi** → **otomatik yanıtı** 
 ---
 
 **Proje Lideri:** Enes  
-**Son Güncelleme:** 17 Nisan 2026  
-**Sürüm:** 2.0 (Production Active)  
+**Son Güncelleme:** 29 Nisan 2026
+**Sürüm:** 2.2 (Threat Intel Integration + Gemini Vision + Frontend Visualization)  
 **Repository:** GitHub (Private)

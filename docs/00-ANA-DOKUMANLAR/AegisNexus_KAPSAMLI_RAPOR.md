@@ -833,9 +833,22 @@ DEBUG_MODE=false
 
 ### modules/phishing_detector/threat_intel.py
 
-**3 Ana API Integration:**
+**Local Threat Intelligence (Sıfır External API):**
 
-#### 1. VirusTotal API v3
+#### 1. VirusTotal Local Replacement (threat_intel_local.py)
+- **Exact URL Match:** Phishing veritabanında tam URL eşleşme → malicious: 5 (40 penalty)
+- **Domain Exact Match:** Domain bazlı eşleşme → malicious: 1-3 (20-40 penalty)
+- **Fuzzy Domain Matching:** Typosquatting tespiti (rapidfuzz) → suspicious: 1-2 (10-20 penalty)
+- **URL Feature Scoring:** Şüpheli URL özellikleri (uzunluk, karakterler vb.)
+- **Sıfır external API call, sıfır rate limit**
+
+#### 2. AbuseIPDB Local Replacement (threat_intel_local.py)
+- **IP Blacklist Lookup:** Firehol Level 1, Spamhaus DROP/EDROP, Emerging Threats
+- **CIDR Network Kontrolü:** IP range kontrolü
+- **Günde 1 Kez Otomatik Refresh:** Celery beat task ile güncelleme
+- **Penalty Sistemi:** abuse_score >= 70 → 25 penalty, 30-70 → 10 penalty
+
+#### 3. Google Safe Browsing (External API - Opsiyonel)
 
 ```python
 def check_virustotal(url, timeout=8):

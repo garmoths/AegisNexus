@@ -2,6 +2,7 @@
 AI Analyzer API Router
 07 - AI Security Assistant Endpoints
 """
+import re
 from fastapi import APIRouter, Depends, HTTPException, Body
 from pydantic import BaseModel, Field
 from typing import Optional, List
@@ -11,6 +12,7 @@ from shared.utils.db import get_db
 from app.models import URLAnalizHistory
 from .engine import AIAnalyzerEngine
 from .llm_client import llm_client
+from .advanced_phishing_detector import detect_phishing
 
 router = APIRouter(
     tags=["07-ai-analyzer"],
@@ -48,15 +50,15 @@ def analyze_message(
     analyzer: AIAnalyzerEngine = Depends(get_analyzer)
 ):
     """
-    🔍 **Tam AI Analizi**
+    🔍 **Tam AI Analizi** (Advanced Hybrid Algorithm)
 
-    Metni/mesajı analiz eder ve detaylı güvenlik raporu sunar.
+    3 modüllü hibrit skorlama sistemi ile phishing tespiti:
+    - URL Modülü (40%): DB benzerlik + SSL kontrol
+    - Metin+Duygu Modülü (35%): Gemini LLM + aciliyet + VAD duygu analizi
+    - Güvenilirlik Skoru (25%): Veri kalitesi değerlendirmesi
 
-    **Özellikler:**
-    - LLM tabanlı phishing/scam tespiti
-    - URL güvenlik kontrolü (veritabanı + API)
-    - Psikolojik manipülasyon analizi
-    - Kişiselleştirilmiş öneriler
+    **Matematiksel Formül:**
+    S* = Amplify(C × (0.4×s_url + 0.35×s_text) + (1-C)×0.5)
 
     **Kullanım:**
     ```json
@@ -72,18 +74,87 @@ def analyze_message(
     logger = logging.getLogger(__name__)
 
     try:
-        logger.info(f"Analyzing message: {request.message[:50]}...")
-        result = analyzer.analyze_message(
+        logger.info(f"Analyzing message with advanced algorithm: {request.message[:50]}...")
+        
+        # Extract URL from message if any
+        url = None
+        urls = re.findall(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', request.message)
+        if urls:
+            url = urls[0]
+        
+        # Use new advanced detector (PRIMARY)
+        advanced_result = detect_phishing(request.message, url)
+        
+        # Get legacy analyzer data for additional context (but NOT for score)
+        legacy_result = analyzer.analyze_message(
             message=request.message,
             context=request.context,
             sender=request.sender,
             subject=request.subject
         )
-        logger.info(f"Analysis completed successfully")
-        return result
+        
+        # Use NEW algorithm's score directly (no override)
+        final_score = advanced_result["score"] * 100  # Scale 0-100
+        final_verdict = advanced_result["verdict"]
+        final_confidence = advanced_result["confidence"]  # Already 0-1 range
+        
+        # Update legacy result with new algorithm's scores
+        legacy_result["security_assessment"]["risk_level"] = final_verdict.lower()
+        legacy_result["security_assessment"]["score"] = round(final_score, 2)
+        
+        # Fix: is_phishing should be based on new algorithm's verdict
+        is_phishing = final_verdict == "PHİSHİNG"
+        legacy_result["security_assessment"]["is_phishing"] = is_phishing
+        legacy_result["security_assessment"]["is_scam"] = is_phishing
+        
+        # Fix: Use new algorithm's confidence (0-1 range)
+        legacy_result["security_assessment"]["confidence"] = round(final_confidence, 2)
+        
+        # Fix: Override safety_status based on new verdict
+        if final_verdict == "PHİSHİNG":
+            legacy_result["security_assessment"]["safety_status"] = "TEHLİKELİ"
+            legacy_result["security_assessment"]["action_required"] = "ACİL"
+            legacy_result["security_assessment"]["threat_level"] = "critical"
+        elif final_verdict == "ŞÜPHELİ":
+            legacy_result["security_assessment"]["safety_status"] = "ŞÜPHELİ"
+            legacy_result["security_assessment"]["action_required"] = "DİKKAT"
+            legacy_result["security_assessment"]["threat_level"] = "high"
+        elif final_verdict == "DÜŞÜK RİSK":
+            legacy_result["security_assessment"]["safety_status"] = "ŞÜPHELİ"
+            legacy_result["security_assessment"]["action_required"] = "DİKKAT"
+            legacy_result["security_assessment"]["threat_level"] = "medium"
+        else:  # TEMİZ
+            legacy_result["security_assessment"]["safety_status"] = "GÜVENLİ"
+            legacy_result["security_assessment"]["action_required"] = "YOK"
+            legacy_result["security_assessment"]["threat_level"] = "low"
+        
+        legacy_result["detailed_analysis"]["advanced_breakdown"] = advanced_result["breakdown"]
+        legacy_result["detailed_analysis"]["hard_override"] = advanced_result["hard_override"]
+        
+        # Clear old ML analysis data that conflicts with new algorithm
+        legacy_result["detailed_analysis"]["ai_analysis"]["is_phishing"] = is_phishing
+        legacy_result["detailed_analysis"]["ai_analysis"]["is_scam"] = is_phishing
+        legacy_result["detailed_analysis"]["ai_analysis"]["threat_level"] = legacy_result["security_assessment"]["threat_level"]
+        legacy_result["detailed_analysis"]["ai_analysis"]["confidence_score"] = int(round(final_confidence * 100))
+        
+        legacy_result["summary"] = f"[{final_verdict}] {advanced_result['reason']} (Skor: {advanced_result['score']:.2f}, Güven: {advanced_result['confidence']:.2f})"
+        
+        logger.info(f"Advanced analysis completed: {final_verdict} (score: {final_score:.1f})")
+        return legacy_result
     except Exception as e:
         logger.error(f"Analysis error: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Analiz hatası: {str(e)}")
+        # Fallback to legacy analyzer only if new one fails completely
+        try:
+            result = analyzer.analyze_message(
+                message=request.message,
+                context=request.context,
+                sender=request.sender,
+                subject=request.subject
+            )
+            # Remove hardcoded 75 override in fallback too
+            return result
+        except:
+            raise HTTPException(status_code=500, detail=f"Analiz hatası: {str(e)}")
 
 @router.post("/quick-scan")
 def quick_scan(

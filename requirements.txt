@@ -22,10 +22,17 @@ celery==5.5.3
 # LLM & AI - DeepSeek (OpenAI-compatible SDK ile)
 openai==1.55.0
 groq==1.0.0
+google-generativeai==0.8.5
 
 # Web Scraping (if needed)
 beautifulsoup4==4.14.3
 lxml==6.0.2
+rapidfuzz==3.14.3
+
+# Browser Automation / Vision Input
+playwright==1.52.0
+# Async API is included in playwright package (playwright.async_api)
+# Kurulum notu: playwright install chromium --with-deps
 
 # Telegram Integration (optional - currently unused)
 # telethon>=1.34

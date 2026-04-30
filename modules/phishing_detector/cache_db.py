@@ -79,7 +79,8 @@ def init_database():
                 risk_level TEXT DEFAULT 'unknown',
                 is_safe BOOLEAN DEFAULT FALSE,
                 sources TEXT,
-                checked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                checked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(url)
             )
         """)
         
@@ -107,6 +108,19 @@ def init_database():
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_iocs_type ON indicators_of_compromise(ioc_type)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_iocs_threat_type ON indicators_of_compromise(threat_type)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_iocs_last_seen ON indicators_of_compromise(last_seen)")
+
+        # Threat Intel API Cache (Spamhaus/URLhaus/ThreatFox sonuçları)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS threat_intel_cache (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                cache_key TEXT NOT NULL UNIQUE,
+                data TEXT NOT NULL,
+                ttl_seconds INTEGER NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_threat_intel_cache_key ON threat_intel_cache(cache_key)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_threat_intel_cache_created ON threat_intel_cache(created_at)")
 
         # Backward-compatible schema migration
         if not _column_exists(cursor, "phishing_urls", "raw_data"):
@@ -165,6 +179,11 @@ def write_phishing_url(
 ) -> bool:
     """URL tarama sonucunu veritabanına yaz"""
     try:
+        # risk_score=0 ise hiç kaydetme
+        if risk_score == 0:
+            logger.info(f"Skipping URL with risk_score=0: {url}")
+            return True
+            
         _ensure_initialized()
         parsed = urlparse(url)
         domain = (parsed.netloc or parsed.path or "").lower()
@@ -202,6 +221,12 @@ def write_phishing_url(
                 cursor.execute("""
                     INSERT INTO url_scan_events (url, domain, risk_score, risk_level, is_safe, sources, checked_at)
                     VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    ON CONFLICT(url) DO UPDATE SET
+                        risk_score = excluded.risk_score,
+                        risk_level = excluded.risk_level,
+                        is_safe = excluded.is_safe,
+                        sources = excluded.sources,
+                        checked_at = CURRENT_TIMESTAMP
                 """, (url, domain, risk_score, risk_level, int(is_safe), sources_json))
 
             _prune_cache(cursor)
@@ -409,10 +434,272 @@ def cleanup_old_records(days: int = 90) -> int:
         logger.error(f"Failed to cleanup old records: {e}")
         return 0
 
+def cleanup_empty_records(days: int = 30) -> int:
+    """Risk_score=0 olan (hiç taratılmamış) kayıtları temizle"""
+    try:
+        _ensure_initialized()
+        cutoff_date = datetime.now() - timedelta(days=days)
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Önce silinecek kayıtları görüntüle
+            cursor.execute("""
+                SELECT COUNT(*) as count FROM phishing_urls
+                WHERE risk_score = 0
+                AND checked_at >= ?
+            """, (cutoff_date.isoformat(),))
+            count = cursor.fetchone()['count']
+            logger.info(f"Found {count} unscanned records (risk_score=0) to clean up")
+            
+            # Kayıtları sil
+            cursor.execute("""
+                DELETE FROM phishing_urls
+                WHERE risk_score = 0
+                AND checked_at >= ?
+            """, (cutoff_date.isoformat(),))
+            
+            deleted = cursor.rowcount
+            conn.commit()
+            
+            logger.info(f"Cleaned up {deleted} unscanned phishing records")
+            return deleted
+            
+    except Exception as e:
+        logger.error(f"Failed to cleanup unscanned records: {e}")
+        return 0
+
+def analyze_records(days: int = 30) -> Dict[str, Any]:
+    """Kayıtları analiz et ve temizleme kriterlerine göre grupla"""
+    try:
+        _ensure_initialized()
+        cutoff_date = datetime.now() - timedelta(days=days)
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Toplam kayıt sayısı
+            cursor.execute("SELECT COUNT(*) as total FROM phishing_urls WHERE checked_at >= ?", (cutoff_date.isoformat(),))
+            total = cursor.fetchone()['total']
+            
+            # Kriter bazlı analiz
+            cursor.execute("""
+                SELECT 
+                    CASE 
+                        WHEN risk_score = 0 THEN 'unscanned'
+                        WHEN (sources = '[]' OR sources IS NULL) THEN 'no_sources'
+                        WHEN raw_data IS NULL THEN 'no_raw_data'
+                        ELSE 'valid'
+                    END as category,
+                    COUNT(*) as count
+                FROM phishing_urls
+                WHERE checked_at >= ?
+                GROUP BY category
+            """, (cutoff_date.isoformat(),))
+            
+            categories = {row['category']: row['count'] for row in cursor.fetchall()}
+            
+            return {
+                'total_records': total,
+                'categories': categories,
+                'days': days,
+                'cutoff_date': cutoff_date.isoformat()
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to analyze records: {e}")
+        return {
+            'total_records': 0,
+            'categories': {},
+            'days': days,
+            'error': str(e)
+        }
+
+def cleanup_records(criteria: Dict[str, Any], dry_run: bool = False) -> Dict[str, Any]:
+    """Profesyonel cleanup fonksiyonu - kriter bazlı temizleme
+    
+    Args:
+        criteria: {
+            'days': int (default: 30),
+            'unscanned': bool (risk_score=0),
+            'no_sources': bool (sources boş),
+            'no_raw_data': bool (raw_data boş)
+        }
+        dry_run: True ise sadece silinecekleri görüntüle, silme
+    """
+    try:
+        _ensure_initialized()
+        days = criteria.get('days', 30)
+        cutoff_date = datetime.now() - timedelta(days=days)
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # WHERE clause oluştur
+            conditions = ["checked_at >= ?"]
+            params = [cutoff_date.isoformat()]
+            
+            if criteria.get('unscanned'):
+                conditions.append("risk_score = 0")
+            
+            if criteria.get('no_sources'):
+                conditions.append("(sources = '[]' OR sources IS NULL)")
+            
+            if criteria.get('no_raw_data'):
+                conditions.append("raw_data IS NULL")
+            
+            where_clause = " AND ".join(conditions)
+            
+            # Önce silinecek kayıtları görüntüle
+            cursor.execute(f"""
+                SELECT COUNT(*) as count FROM phishing_urls
+                WHERE {where_clause}
+            """, params)
+            count = cursor.fetchone()['count']
+            
+            if dry_run:
+                logger.info(f"Dry run: Would delete {count} records")
+                return {
+                    'deleted': 0,
+                    'would_delete': count,
+                    'dry_run': True,
+                    'criteria': criteria
+                }
+            
+            # Kayıtları sil
+            cursor.execute(f"""
+                DELETE FROM phishing_urls
+                WHERE {where_clause}
+            """, params)
+            
+            deleted = cursor.rowcount
+            conn.commit()
+            
+            logger.info(f"Cleaned up {deleted} records with criteria: {criteria}")
+            return {
+                'deleted': deleted,
+                'would_delete': 0,
+                'dry_run': False,
+                'criteria': criteria
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to cleanup records: {e}")
+        return {
+            'deleted': 0,
+            'error': str(e),
+            'criteria': criteria
+        }
+
+def detect_skipped_urls(days: int = 30) -> List[Dict]:
+    """Sources dolu ama risk_score=0 olan URL'leri tespit et"""
+    try:
+        _ensure_initialized()
+        cutoff_date = datetime.now() - timedelta(days=days)
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT url, domain, risk_score, risk_level, sources, checked_at
+                FROM phishing_urls
+                WHERE risk_score = 0
+                AND sources IS NOT NULL
+                AND sources != '[]'
+                AND checked_at >= ?
+                ORDER BY checked_at DESC
+            """, (cutoff_date.isoformat(),))
+            
+            results = []
+            for row in cursor.fetchall():
+                results.append({
+                    'url': row['url'],
+                    'domain': row['domain'],
+                    'risk_score': row['risk_score'],
+                    'risk_level': row['risk_level'],
+                    'sources': json.loads(row['sources']) if row['sources'] else [],
+                    'checked_at': row['checked_at']
+                })
+            
+            logger.warning(f"Found {len(results)} URLs with sources but risk_score=0 (possibly skipped or failed)")
+            return results
+            
+    except Exception as e:
+        logger.error(f"Failed to detect skipped URLs: {e}")
+        return []
+
 # Veritabanını başlat
 if __name__ == "__main__":
     init_database()
     print("Cache database initialized successfully")
+
+
+def write_threat_cache(key: str, data: Dict, ttl_seconds: int = 21600) -> bool:
+    """Threat intel API sonucunu cache'e yaz (TTL ile).
+    
+    Args:
+        key: Cache key (ör: "spamhaus:ip:1.2.3.4", "urlhaus:url:abc123")
+        data: Cache'lenecek dict
+        ttl_seconds: Saniye cinsinden TTL (varsayılan: 6 saat)
+    """
+    try:
+        _ensure_initialized()
+        data_json = json.dumps(data, default=str)
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO threat_intel_cache (cache_key, data, ttl_seconds, created_at)
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(cache_key) DO UPDATE SET
+                    data = excluded.data,
+                    ttl_seconds = excluded.ttl_seconds,
+                    created_at = CURRENT_TIMESTAMP
+            """, (key, data_json, ttl_seconds))
+            conn.commit()
+            logger.debug(f"Threat cache written: {key} (TTL={ttl_seconds}s)")
+            return True
+    except Exception as e:
+        logger.error(f"Failed to write threat cache: {e}")
+        return False
+
+
+def read_threat_cache(key: str) -> Optional[Dict]:
+    """Threat intel API sonucunu cache'ten oku. TTL geçmişse None döndür."""
+    try:
+        _ensure_initialized()
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT data, ttl_seconds, created_at
+                FROM threat_intel_cache
+                WHERE cache_key = ?
+            """, (key,))
+            row = cursor.fetchone()
+            if not row:
+                return None
+
+            # TTL kontrolü
+            created_at_str = row["created_at"]
+            ttl_seconds = int(row["ttl_seconds"])
+            try:
+                created_at = datetime.fromisoformat(created_at_str)
+            except (ValueError, TypeError):
+                created_at = datetime.now()
+
+            if datetime.now() > created_at + timedelta(seconds=ttl_seconds):
+                # TTL geçmiş, sil ve None döndür
+                cursor.execute("DELETE FROM threat_intel_cache WHERE cache_key = ?", (key,))
+                conn.commit()
+                logger.debug(f"Threat cache expired: {key}")
+                return None
+
+            data = json.loads(row["data"])
+            data["_cache_hit"] = True
+            data["_cached_at"] = created_at_str
+            return data
+    except Exception as e:
+        logger.error(f"Failed to read threat cache: {e}")
+        return None
 
 
 def save_check_url_result(url: str, result: dict):

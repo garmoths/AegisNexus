@@ -575,6 +575,23 @@ def _collect_and_import_source(
         return result
 
 
+def fetch_threatfox_data(session: Optional[requests.Session] = None) -> List[str]:
+    """ThreatFox API üzerinden son IOC'ları çeker ve URL listesine çevirir."""
+    try:
+        from .threatfox_client import get_recent_iocs
+        limit = int(os.getenv("PHISHING_THREATFOX_LIMIT", "500"))
+        iocs = get_recent_iocs(limit=limit)
+        urls: List[str] = []
+        for ioc in iocs:
+            url = ioc.get("url", "")
+            if url:
+                urls.append(url)
+        return urls
+    except Exception as exc:
+        print(f"ThreatFox hatasi: {exc}")
+        return []
+
+
 def fetch_all_sources(db: Session) -> Dict[str, Any]:
     """Tum kaynaklardan phishing verilerini ceker."""
     from .alerts import get_alert_manager
@@ -616,6 +633,7 @@ def fetch_all_sources(db: Session) -> Dict[str, Any]:
         ("kaggle_phishing_site_urls", fetch_kaggle_data),
         ("certstream", fetch_certstream_data),
         ("alienvault_otx", fetch_otx_phishing_data),
+        ("threatfox", fetch_threatfox_data),
     ]
 
     print("\n🌐 Diger kaynaklar")

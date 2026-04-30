@@ -44,6 +44,7 @@ class SiteAddRequest(BaseModel):
 
 class URLCheckRequest(BaseModel):
     url: str
+    force_fresh: bool = False
 
 
 class URLCheckResponse(BaseModel):
@@ -135,29 +136,32 @@ def check_url(request: URLCheckRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="URL boş olamaz")
     try:
         requested_url = request.url.strip()
-        cached_result = get_cached_scan_result(requested_url, days=30)
-        if cached_result:
-            sources = []
-            for src in cached_result.get("sources", []):
-                if isinstance(src, dict):
-                    name = src.get("name")
-                    if name:
-                        sources.append(str(name))
-                elif isinstance(src, str):
-                    sources.append(src)
-            write_phishing_url(
-                url=requested_url,
-                risk_score=int(cached_result.get("score", 0)),
-                risk_level=str(cached_result.get("risk_level", "unknown")),
-                is_safe=bool(cached_result.get("score", 0) >= 80),
-                sources=sources,
-                raw_data=cached_result,
-                track_event=True,
-            )
-            cached_result["module"] = "01_phishing_detector"
-            cached_result["cache"] = "30d-hit"
-            logger.info(f"URL cache hit: {requested_url}")
-            return cached_result
+        
+        # Cache kontrolü - force_fresh ise bypass et
+        if not request.force_fresh:
+            cached_result = get_cached_scan_result(requested_url, days=30)
+            if cached_result:
+                sources = []
+                for src in cached_result.get("sources", []):
+                    if isinstance(src, dict):
+                        name = src.get("name")
+                        if name:
+                            sources.append(str(name))
+                    elif isinstance(src, str):
+                        sources.append(src)
+                write_phishing_url(
+                    url=requested_url,
+                    risk_score=int(cached_result.get("score", 0)),
+                    risk_level=str(cached_result.get("risk_level", "unknown")),
+                    is_safe=bool(cached_result.get("score", 0) >= 80),
+                    sources=sources,
+                    raw_data=cached_result,
+                    track_event=True,
+                )
+                cached_result["module"] = "01_phishing_detector"
+                cached_result["cache"] = "30d-hit"
+                logger.info(f"Cache hit: {requested_url} - Skor: {cached_result.get('score')}")
+                return cached_result
 
         result = calculate_safety_score(requested_url, db)
         sources = []
@@ -274,18 +278,16 @@ def get_latest(limit: int = 20, page: int = 1, db: Session = Depends(get_db)):
 
 @router.get("/search")
 def search_urls(url: str, limit: int = 20, page: int = 1, db: Session = Depends(get_db)):
-    """URL içinde arama yap (case-insensitive)"""
+    """URL içinde arama yap (case-insensitive) - fast search without count()"""
     try:
         if not url:
             raise HTTPException(status_code=400, detail="Arama sorgusu boş olamaz")
         
         offset = (page - 1) * limit
-        # Case-insensitive arama
-        query = db.query(PhishingURL).filter(
+        # Fast search - no count() for performance
+        results = db.query(PhishingURL).filter(
             PhishingURL.url.ilike(f"%{url}%")
-        )
-        total = query.count()
-        results = query.order_by(PhishingURL.id.desc()).offset(offset).limit(limit).all()
+        ).order_by(PhishingURL.id.desc()).offset(offset).limit(limit).all()
         
         if not results and page == 1:
             logger.info(f"Arama sonuç yok: {url}")
@@ -298,8 +300,12 @@ def search_urls(url: str, limit: int = 20, page: int = 1, db: Session = Depends(
                 "module": "01_phishing_detector"
             }
         
-        total_pages = (total + limit - 1) // limit if limit else 1
-        logger.info(f"Arama yapıldı: {url} - Sonuç: {total}")
+        # Approximate pagination - if we got full limit, there are more results
+        has_more = len(results) == limit
+        total = len(results) + (1 if has_more else 0)  # Approximate
+        total_pages = page + (1 if has_more else 0)
+        
+        logger.info(f"Arama yapıldı: {url} - Sonuç: {len(results)}")
         return {
             "status": "DANGER" if results else "SAFE",
             "data": results,
@@ -465,5 +471,76 @@ def get_threat_types_distribution():
         logger.error(f"Threat types fetch error: {e}")
         return {
             "types": {},
+            "module": "01_phishing_detector"
+        }
+
+
+@router.get("/skipped-urls")
+def get_skipped_urls(days: int = 30):
+    """Sources dolu ama risk_score=0 olan URL'leri tespit et"""
+    try:
+        from .cache_db import detect_skipped_urls
+        skipped = detect_skipped_urls(days=days)
+        return {
+            "skipped": skipped,
+            "count": len(skipped),
+            "days": days,
+            "module": "01_phishing_detector"
+        }
+    except Exception as e:
+        logger.error(f"Skipped URLs fetch error: {e}")
+        return {
+            "skipped": [],
+            "count": 0,
+            "days": days,
+            "module": "01_phishing_detector"
+        }
+
+
+@router.get("/cleanup/analyze")
+def analyze_cleanup(days: int = 30):
+    """Kayıtları analiz et ve temizleme kriterlerine göre grupla"""
+    try:
+        from .cache_db import analyze_records
+        analysis = analyze_records(days=days)
+        return {
+            "analysis": analysis,
+            "module": "01_phishing_detector"
+        }
+    except Exception as e:
+        logger.error(f"Cleanup analysis error: {e}")
+        return {
+            "analysis": {
+                "total_records": 0,
+                "categories": {},
+                "error": str(e)
+            },
+            "module": "01_phishing_detector"
+        }
+
+
+@router.post("/cleanup")
+def perform_cleanup(days: int = 30, unscanned: bool = True, no_sources: bool = False, no_raw_data: bool = False, dry_run: bool = False):
+    """Profesyonel cleanup - kriter bazlı temizleme"""
+    try:
+        from .cache_db import cleanup_records
+        criteria = {
+            'days': days,
+            'unscanned': unscanned,
+            'no_sources': no_sources,
+            'no_raw_data': no_raw_data
+        }
+        result = cleanup_records(criteria, dry_run=dry_run)
+        return {
+            "result": result,
+            "module": "01_phishing_detector"
+        }
+    except Exception as e:
+        logger.error(f"Cleanup error: {e}")
+        return {
+            "result": {
+                "deleted": 0,
+                "error": str(e)
+            },
             "module": "01_phishing_detector"
         }
