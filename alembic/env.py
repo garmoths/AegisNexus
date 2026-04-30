@@ -12,7 +12,7 @@ load_dotenv()
 config = context.config
 
 # Override sqlalchemy.url from DATABASE_URL env var
-db_url = os.getenv("DATABASE_URL")
+db_url = os.getenv("VICTIM_ATLAS_DATABASE_URL") or os.getenv("DATABASE_URL")
 if db_url:
     config.set_main_option("sqlalchemy.url", db_url)
 

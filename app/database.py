@@ -8,7 +8,10 @@ load_dotenv()
 
 # Veritabanı bağlantı adresi (Senin ayarlarına göre)
 # Eğer .env dosyasında bulamazsa varsayılan olarak bunu kullanacak:
-SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://enes@localhost/phishing_db")
+SQLALCHEMY_DATABASE_URL = os.getenv(
+    "VICTIM_ATLAS_DATABASE_URL",
+    os.getenv("DATABASE_URL", "postgresql://enes@localhost/phishing_db")
+)
 
 _pool_size = int(os.getenv("DB_POOL_SIZE", "5"))
 _max_overflow = int(os.getenv("DB_MAX_OVERFLOW", "2"))
