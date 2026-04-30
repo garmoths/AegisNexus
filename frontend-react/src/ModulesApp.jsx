@@ -1,14 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, useReducedMotion, AnimatePresence } from 'framer-motion'
-import { MemoryRouter, Routes, Route, Navigate } from 'react-router-dom'
-import HomePage from './pages/HomePage'
-import AtlasPage from './pages/AtlasPage'
-import CaseDetailPage from './pages/CaseDetailPage'
-import AnalyzePage from './pages/AnalyzePage'
-import HaritaPage from './pages/HaritaPage'
-import DashboardPage from './pages/DashboardPage'
-import AdminPage from './pages/AdminPage'
-import LoginPage from './pages/LoginPage'
 
 const API = import.meta.env.VITE_API_BASE_URL || '/api/v2'
 
@@ -144,31 +135,6 @@ function SectionHeader({ badge, title, subtitle }) {
   </motion.div>
 }
 
-function VictimAtlasModule() {
-  const initialPath =
-    typeof window !== 'undefined' && window.location.pathname.startsWith('/atlas')
-      ? window.location.pathname
-      : '/atlas'
-
-  return (
-    <MemoryRouter initialEntries={[initialPath]}>
-      <Routes>
-        <Route path="/" element={<Navigate to="/atlas" replace />} />
-        <Route path="/atlas" element={<HomePage />} />
-        <Route path="/atlas/cases" element={<AtlasPage />} />
-        <Route path="/atlas/:id" element={<CaseDetailPage />} />
-        <Route path="/atlas/cases/:id" element={<CaseDetailPage />} />
-        <Route path="/analyze" element={<AnalyzePage />} />
-        <Route path="/harita" element={<HaritaPage />} />
-        <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/admin" element={<AdminPage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="*" element={<Navigate to="/atlas" replace />} />
-      </Routes>
-    </MemoryRouter>
-  )
-}
-
 export default function ModulesApp() {
   const [page, setPage] = useState('ai-analyzer')
   const [scrolled, setScrolled] = useState(false)
@@ -225,9 +191,9 @@ export default function ModulesApp() {
     </nav>
 
     <motion.main initial={{ opacity:0, y:20 }} animate={{ opacity:1, y:0 }} transition={{ duration:0.5, ease:theme.ease.out }} style={{ paddingTop:86, maxWidth:1400, margin:'0 auto', padding:'86px 24px 0' }}>
-      {page==='ai-analyzer' && <AIAnalyzer />}
+      {page==='ai-analyzer' && <AIAnalyzer onGoVictimAtlas={()=>setPage('victim-atlas')} />}
       {page==='phishing-detector' && <PhishingDetector />}
-      {page==='victim-atlas' && <VictimAtlasModule />}
+      {page==='victim-atlas' && <VictimAtlas onOpenAIAnalyzer={()=>setPage('ai-analyzer')} />}
       {page==='honeypot' && <HoneypotIOC />}
       {page==='breach-intel' && <BreachIntel />}
     </motion.main>
@@ -247,7 +213,7 @@ export default function ModulesApp() {
 /* ===============================================
    AI ANALYZER
    =============================================== */
-function AIAnalyzer() {
+function AIAnalyzer({ onGoVictimAtlas }) {
   const [message, setMessage] = useState('')
   const [context, setContext] = useState('email')
   const [analyzing, setAnalyzing] = useState(false)
@@ -327,6 +293,9 @@ function AIAnalyzer() {
           <span style={{ display:'inline-block', padding:'10px 24px', background:theme.primaryDim, border:`1px solid ${theme.primary}33`, borderRadius:'30px', fontSize:13, fontWeight:700, color:theme.primary, textTransform:'uppercase', letterSpacing:'3px', marginBottom:24 }}>AI Analiz Modulu</span>
           <h1 style={{ fontSize:56, fontWeight:800, color:'#fff', marginBottom:20, letterSpacing:'-2px', lineHeight:1.1 }}>Yapay Zeka ile Guvenlik Analizi</h1>
           <p style={{ color:theme.textMuted, fontSize:18, maxWidth:700, margin:'0 auto', lineHeight:1.6 }}>Mesaj, e-posta veya metinlerinizi AI ile analiz edin. Phishing, sosyal muhendislik ve kotu amacli icerikleri tespit edin.</p>
+          <div style={{ marginTop:20 }}>
+            <GlowButton variant="secondary" onClick={onGoVictimAtlas}>🧭 Magduriyet Atlasina gec</GlowButton>
+          </div>
         </motion.div>
       </div>
     </motion.div>
@@ -1678,7 +1647,7 @@ function PhishingDetector() {
 /* ===============================================
    VICTIM ATLAS
    =============================================== */
-function VictimAtlas() {
+function VictimAtlas({ onOpenAIAnalyzer }) {
   const [cases, setCases] = useState([])
   const [stats, setStats] = useState(null)
   const [page, setPage] = useState(1)
@@ -1792,6 +1761,9 @@ function VictimAtlas() {
       title="Siber Magduriyet Arsivi"
       subtitle="Turkiye odakli dolandiricilik vakalarini modern kartvizitlerle incele. Karti cevirerek adim adim korunma planina gec."
     />
+    <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:16 }}>
+      <GlowButton variant="secondary" onClick={onOpenAIAnalyzer}>🤖 AI Analiz modulune git</GlowButton>
+    </div>
 
     <div style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:16, marginBottom:24 }}>
       <Card style={{ textAlign:'center', padding:'18px' }}><p style={{ fontSize:11, color:theme.textMuted, textTransform:'uppercase', marginBottom:8 }}>Toplam Vaka</p><p style={{ fontSize:30, fontWeight:800, color:theme.primary }}><CountUp end={stats?.total_cases||0}/></p></Card>
