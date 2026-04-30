@@ -26,17 +26,17 @@ createRoot(document.getElementById('root')).render(
     ) : (
       <BrowserRouter>
         <Routes>
+          {/* Original landing page — default */}
+          <Route path="/" element={<App />} />
           {/* Victim Atlas SPA */}
-          <Route path="/" element={<HomePage />} />
-          <Route path="/atlas" element={<AtlasPage />} />
-          <Route path="/atlas/:id" element={<CaseDetailPage />} />
-          <Route path="/analyze" element={<AnalyzePage />} />
-          <Route path="/harita" element={<HaritaPage />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/admin" element={<AdminPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          {/* Legacy landing */}
-          <Route path="/landing" element={<App />} />
+          <Route path="/atlas" element={<HomePage />} />
+          <Route path="/atlas/cases" element={<AtlasPage />} />
+          <Route path="/atlas/cases/:id" element={<CaseDetailPage />} />
+          <Route path="/atlas/analyze" element={<AnalyzePage />} />
+          <Route path="/atlas/harita" element={<HaritaPage />} />
+          <Route path="/atlas/dashboard" element={<DashboardPage />} />
+          <Route path="/atlas/admin" element={<AdminPage />} />
+          <Route path="/atlas/login" element={<LoginPage />} />
         </Routes>
       </BrowserRouter>
     )}

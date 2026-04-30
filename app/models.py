@@ -348,7 +348,7 @@ class RawDocument(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     source_id = Column(Integer, ForeignKey("sources_registry.id"), index=True, nullable=False)
-    external_id = Column(String(200), nullable=False)
+    external_id = Column(String(2000), nullable=False)
     url = Column(String(2000), nullable=False)
     title = Column(String(500), nullable=False)
     published_at = Column(DateTime, nullable=True)
