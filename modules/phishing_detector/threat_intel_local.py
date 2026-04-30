@@ -70,7 +70,7 @@ def check_virustotal_local(url: str, db) -> dict:
 
     # Whitelist domainlerde fuzzy false-positive üretme.
     if _is_whitelisted_domain(domain):
-        return {"malicious": 0, "suspicious": 0, "source": "whitelist"}
+        return {"malicious": 0, "suspicious": 0, "source": "whitelist", "available": True}
 
     # --- KONTROL 1: Exact URL match (feed DB'nde var mı?) ---
     exact_match = db.query(PhishingURL).filter(
@@ -79,7 +79,7 @@ def check_virustotal_local(url: str, db) -> dict:
     ).first()
     if exact_match:
         # Direkt DB hit → 5 motor işaretledi gibi davran (40 penalty tetiklenir)
-        return {"malicious": 5, "suspicious": 0, "source": exact_match.phish_id}
+        return {"malicious": 5, "suspicious": 0, "source": exact_match.phish_id, "available": True}
 
     # --- KONTROL 2: Domain exact match ---
     domain_matches = db.query(PhishingURL).filter(
@@ -90,9 +90,9 @@ def check_virustotal_local(url: str, db) -> dict:
         total_hits = len(domain_matches)
         source = domain_matches[0].phish_id
         if total_hits >= 3:
-            return {"malicious": 3, "suspicious": 0, "source": source}
+            return {"malicious": 3, "suspicious": 0, "source": source, "available": True}
         else:
-            return {"malicious": 1, "suspicious": 0, "source": source}
+            return {"malicious": 1, "suspicious": 0, "source": source, "available": True}
 
     # --- KONTROL 3: Fuzzy domain match (typosquatting tespiti) ---
     # DB'deki domainleri tek tek değil, sample ile karşılaştır (performans)
@@ -112,10 +112,10 @@ def check_virustotal_local(url: str, db) -> dict:
 
     if best_score >= 90:
         # Çok benzer domain → 3 motor işaretledi gibi (40 penalty)
-        return {"malicious": 3, "suspicious": 0, "source": f"fuzzy:{best_domain}"}
+        return {"malicious": 3, "suspicious": 0, "source": f"fuzzy:{best_domain}", "available": True}
     elif best_score >= 75:
         # Biraz benzer → 1 motor işaretledi gibi (20 penalty)
-        return {"malicious": 1, "suspicious": 0, "source": f"fuzzy:{best_domain}"}
+        return {"malicious": 1, "suspicious": 0, "source": f"fuzzy:{best_domain}", "available": True}
 
     # --- KONTROL 4: URL feature skoru (hiçbir yerde bulunamadı) ---
     suspicious_score = _calculate_url_suspicion(url, domain)
@@ -124,7 +124,7 @@ def check_virustotal_local(url: str, db) -> dict:
     elif suspicious_score >= 2:
         suspicious_hits = 1  # 10 penalty tetiklenir
 
-    return {"malicious": malicious_hits, "suspicious": suspicious_hits, "source": None}
+    return {"malicious": malicious_hits, "suspicious": suspicious_hits, "source": None, "available": True}
 
 
 def _calculate_url_suspicion(url: str, domain: str) -> int:

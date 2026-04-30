@@ -727,7 +727,7 @@ def calculate_safety_score(input_url, db: Session = None):
         sources.append({"name": "Whitelist", "status": f"✅ {whitelist_info.get('company_name', 'Verified')}"})
 
     # Domain seviyesinde tehdit kaydı, exact URL kadar kesin olmadığı için soft-penalty uygula.
-    if domain_match:
+    if domain_match and not is_whitelisted:
         score -= 20
         risks.append(
             f"⚠️ Bu domain altında daha önce phishing kaydı görülmüş: {domain_match.target or 'Unknown'}"
@@ -846,7 +846,7 @@ def calculate_safety_score(input_url, db: Session = None):
         ".exe", ".zip", ".rar", ".scr", ".bat",
     ]
     found = [w for w in suspicious_words if w in input_url.lower()]
-    if found:
+    if found and not is_whitelisted:
         penalty = min(30, len(found) * 8)
         score -= penalty
         risks.append(f"⚠️ Şüpheli kelimeler: {', '.join(found[:5])}")
@@ -892,14 +892,14 @@ def calculate_safety_score(input_url, db: Session = None):
     try:
         if page_content:
             ai_result = analyze_page_content(page_content, check_url)
-            if ai_result["ai_score_penalty"] > 0:
+            if ai_result["ai_score_penalty"] > 0 and not is_whitelisted:
                 score -= ai_result["ai_score_penalty"]
                 risks.extend(ai_result["ai_findings"])
             sources.append({"name": "AI İçerik Analizi", "status": "Tamamlandı"})
 
-            if ai_result.get("brand_impersonation"):
+            if ai_result.get("brand_impersonation") and not is_whitelisted:
                 sources.append({"name": "Marka Taklidi", "status": f"⚠️ {ai_result['brand_impersonation'].upper()}"})
-            if ai_result.get("credential_harvesting"):
+            if ai_result.get("credential_harvesting") and not is_whitelisted:
                 sources.append({"name": "Credential Harvesting", "status": "🚨 Tespit Edildi"})
     except Exception as e:
         logger.error(f"AI Analyzer hatası: {e}")

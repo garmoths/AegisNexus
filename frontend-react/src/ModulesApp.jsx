@@ -1065,10 +1065,10 @@ function PhishingResult({ result, url }) {
     { key:'spamhaus_domain', icon:'🛡️', name:'Spamhaus Domain', data:shDomain, isBad:shDomain.listed===true, isClean:shDomain.listed===false&&shDomain.available, badLabel:'LISTED', cleanLabel:'CLEAN', detail:shDomain.listed?`Listeler: ${(shDomain.lists||[]).join(', ')||'-'}`:shDomain.zrd?'Sıfır itibar (ZRD)':'Temiz', penalty:35 },
     { key:'spamhaus_ip', icon:'🌐', name:'Spamhaus IP', data:shIp, isBad:shIp.listed===true, isClean:shIp.listed===false&&shIp.available, badLabel:'LISTED', cleanLabel:'CLEAN', detail:shIp.listed?`Listeler: ${(shIp.lists||[]).join(', ')||'-'}`:'Temiz', penalty:30 },
     { key:'threatfox', icon:'🦊', name:'ThreatFox', data:tf, isBad:tf.found===true, isClean:tf.found===false&&tf.available, badLabel:'FOUND', cleanLabel:'NOT FOUND', detail:tf.found?`${tf.malware_family||'unknown'} (conf: ${tf.confidence||0}%)`:'IOC bulunamadı', penalty:25 },
-    { key:'virustotal', icon:'🛡️', name:'VirusTotal', data:vt, isBad:(vt.malicious||0)>=1, isClean:vt.available&&(vt.malicious||0)===0, badLabel:`${vt.malicious||0} MAL`, cleanLabel:'CLEAN', detail:vt.available?`${vt.malicious||0}/${vt.total||0} motor tehlikeli`:'Sonuç yok', penalty:40 },
+    { key:'virustotal', icon:'🛡️', name:'VirusTotal', data:vt, isBad:(vt.malicious||0)>=1, isClean:vt.available&&(vt.malicious||0)===0, badLabel:`${vt.malicious||0} MAL`, cleanLabel:'CLEAN', detail:vt.available?(vt.source==='whitelist'?'Whitelist domain (güvenilir)':`${vt.malicious||0} motor tehlikeli`):'Sonuç yok', penalty:40 },
     { key:'gsb', icon:'🔍', name:'Google Safe Browsing', data:gsb, isBad:gsb.threat===true, isClean:gsb.available&&!gsb.threat, badLabel:'THREAT', cleanLabel:'SAFE', detail:gsb.threat?gsb.threat_type||'Tehdit':'Güvenli', penalty:50 },
     { key:'abuseipdb', icon:'📊', name:'AbuseIPDB (Local)', data:aipdb, isBad:(aipdb.abuse_score||0)>=30, isClean:aipdb.available&&(aipdb.abuse_score||0)<30, badLabel:`${aipdb.abuse_score||0}%`, cleanLabel:'CLEAN', detail:aipdb.available?`Suistimal: %${aipdb.abuse_score||0}`:'Sonuç yok', penalty:25 },
-    { key:'screenshot', icon:'📸', name:'Screenshot Analyzer', data:sa, isBad:(sa.risk_score||0)>50, isClean:sa.available&&(sa.risk_score||0)<=30, badLabel:sa.risk_level||'HIGH', cleanLabel:'SAFE', detail:(!sa.available&&screenshotB64)?'Screenshot alındı (AI analizi devre dışı)':(sa.verdict||'Analiz yok'), penalty:Math.round((sa.risk_score||50)*0.4), hasDataOverride: !!screenshotB64 || !!sa.verdict },
+    { key:'screenshot', icon:'📸', name:'Screenshot Analyzer', data:sa, isBad:(sa.risk_score||0)>50, isClean:sa.available&&(sa.risk_score||0)<=30, badLabel:sa.risk_level||'HIGH', cleanLabel:'SAFE', detail:(!sa.available&&screenshotB64)?'Screenshot alındı (AI analizi devre dışı)':(sa.verdict||'Analiz yok'), penalty:sa.available?Math.round((sa.risk_score||50)*0.4):0, hasDataOverride: !!screenshotB64 || !!sa.verdict, badgeOverride: (!sa.available&&screenshotB64)?'CAPTURED':null },
   ]
 
   const openScreenshot = () => {
@@ -1130,7 +1130,7 @@ function PhishingResult({ result, url }) {
               </div>
               <div style={{marginBottom:8}}>
                 <span style={{display:'inline-block',padding:'4px 10px',borderRadius:8,fontSize:11,fontWeight:700,background:src.isBad?theme.accentDim:src.isClean?'rgba(34,197,94,0.15)':'rgba(255,255,255,0.05)',color:statusColor,letterSpacing:0.3}}>
-                  {hasData?(src.isBad?src.badLabel:src.isClean?src.cleanLabel:'N/A'):'—'}
+                  {hasData?(src.badgeOverride||(src.isBad?src.badLabel:src.isClean?src.cleanLabel:'N/A')):'—'}
                 </span>
               </div>
               <p style={{fontSize:12,color:theme.textMuted,lineHeight:1.4,margin:0}}>{hasData?src.detail:'Veri yok'}</p>
