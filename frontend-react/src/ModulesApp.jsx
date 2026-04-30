@@ -1,5 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, useReducedMotion, AnimatePresence } from 'framer-motion'
+import { MemoryRouter, Routes, Route, Navigate } from 'react-router-dom'
+import HomePage from './pages/HomePage'
+import AtlasPage from './pages/AtlasPage'
+import CaseDetailPage from './pages/CaseDetailPage'
+import AnalyzePage from './pages/AnalyzePage'
+import HaritaPage from './pages/HaritaPage'
+import DashboardPage from './pages/DashboardPage'
+import AdminPage from './pages/AdminPage'
+import LoginPage from './pages/LoginPage'
 
 const API = import.meta.env.VITE_API_BASE_URL || '/api/v2'
 
@@ -135,6 +144,31 @@ function SectionHeader({ badge, title, subtitle }) {
   </motion.div>
 }
 
+function VictimAtlasModule() {
+  const initialPath =
+    typeof window !== 'undefined' && window.location.pathname.startsWith('/atlas')
+      ? window.location.pathname
+      : '/atlas'
+
+  return (
+    <MemoryRouter initialEntries={[initialPath]}>
+      <Routes>
+        <Route path="/" element={<Navigate to="/atlas" replace />} />
+        <Route path="/atlas" element={<HomePage />} />
+        <Route path="/atlas/cases" element={<AtlasPage />} />
+        <Route path="/atlas/:id" element={<CaseDetailPage />} />
+        <Route path="/atlas/cases/:id" element={<CaseDetailPage />} />
+        <Route path="/analyze" element={<AnalyzePage />} />
+        <Route path="/harita" element={<HaritaPage />} />
+        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/admin" element={<AdminPage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="*" element={<Navigate to="/atlas" replace />} />
+      </Routes>
+    </MemoryRouter>
+  )
+}
+
 export default function ModulesApp() {
   const [page, setPage] = useState('ai-analyzer')
   const [scrolled, setScrolled] = useState(false)
@@ -193,7 +227,7 @@ export default function ModulesApp() {
     <motion.main initial={{ opacity:0, y:20 }} animate={{ opacity:1, y:0 }} transition={{ duration:0.5, ease:theme.ease.out }} style={{ paddingTop:86, maxWidth:1400, margin:'0 auto', padding:'86px 24px 0' }}>
       {page==='ai-analyzer' && <AIAnalyzer />}
       {page==='phishing-detector' && <PhishingDetector />}
-      {page==='victim-atlas' && <VictimAtlas />}
+      {page==='victim-atlas' && <VictimAtlasModule />}
       {page==='honeypot' && <HoneypotIOC />}
       {page==='breach-intel' && <BreachIntel />}
     </motion.main>
