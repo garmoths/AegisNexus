@@ -402,17 +402,115 @@ def _build_case_title(document_title: str, attack_method: str, loss_type: str, t
     return f"{base} - {loss_tr}"
 
 
+_NARRATIVE_TEMPLATES: Dict[str, str] = {
+    "phishing": (
+        "Bu vaka, {platform_tr} platformunu hedef alan bir oltalama (phishing) saldırısını kapsamaktadır. "
+        "Saldırgan, kurbanı gerçek gibi görünen sahte bir web sayfasına veya bağlantıya yönlendirerek "
+        "giriş bilgilerini, kimlik verilerini ya da finansal bilgilerini ele geçirmeye çalışmaktadır. "
+        "Mağdur, genellikle resmi kurumdan geliyormuş gibi görünen bir e-posta, SMS veya anlık mesaj alır "
+        "ve kandırılarak sahte sayfada oturum açar. Bu süreçte {loss_tr_lower} meydana gelmektedir. "
+        "Oltalama saldırıları, Türkiye'de en yaygın siber dolandırıcılık yöntemlerinden biri olup "
+        "özellikle bankacılık, sosyal medya ve e-ticaret platformlarını hedef almaktadır."
+    ),
+    "smishing": (
+        "Bu vaka, SMS tabanlı oltalama (smishing) yöntemiyle gerçekleştirilen bir siber dolandırıcılık "
+        "senaryosunu içermektedir. Saldırgan, kurbanın telefon numarasına kargo bildirimi, banka uyarısı "
+        "veya kampanya mesajı kılığında sahte bir SMS göndermektedir. Mesajın içindeki kısa bağlantıya "
+        "tıklayan kullanıcı, sahte {platform_tr} sayfasına yönlendirilmekte ve kişisel ya da finansal "
+        "bilgilerini girmesi sağlanmaktadır. Bu süreçte {loss_tr_lower} yaşanmaktadır. "
+        "Sahte kargo SMS'leri ve banka bildirim mesajları, Türkiye'de bu saldırı türünün en sık görülen biçimleridir."
+    ),
+    "vishing": (
+        "Bu vaka, telefon araması yoluyla gerçekleştirilen sesli oltalama (vishing) saldırısını kapsamaktadır. "
+        "Dolandırıcı, kurbanı {platform_tr} çalışanı, banka yetkilisi veya resmi kurum temsilcisi olarak "
+        "tanıtarak arar. Acil durum, hesap güvenliği ihlali veya para transferi gibi bahanelerle kurbanı "
+        "panikletir ve şifre, OTP kodu ya da kart bilgilerini paylaşmaya ikna eder. "
+        "Bu süreçte {loss_tr_lower} gerçekleşmektedir. "
+        "Telefon dolandırıcıları genellikle sahte banka numaraları veya resmi kurumları taklit eden numaralar kullanır."
+    ),
+    "social_engineering": (
+        "Bu vaka, sosyal mühendislik tekniklerine dayanan bir siber dolandırıcılık senaryosunu kapsamaktadır. "
+        "Saldırgan, kurbanın güvenini kazanmak amacıyla uzun süreli iletişim kurabilir; bir yetkili, "
+        "tanıdık veya hizmet sağlayıcı gibi davranabilir. Aciliyet, korku veya merak duyguları "
+        "üzerinden baskı oluşturularak kurban, {platform_tr} üzerinden hassas bilgilerini paylaşmaya "
+        "ya da belirli işlemleri onaylamaya yönlendirilir. Bu süreçte {loss_tr_lower} yaşanmaktadır. "
+        "Sosyal mühendislik saldırıları teknik engelleri aşarak doğrudan insan psikolojisini hedef alır."
+    ),
+    "malware_assisted": (
+        "Bu vaka, zararlı yazılım destekli bir siber saldırı senaryosunu kapsamaktadır. "
+        "Kurban, genellikle sahte bir uygulama, e-posta eki veya güncelleme kılığına girmiş zararlı "
+        "bir dosyayı indirmektedir. Zararlı yazılım cihaza yüklendikten sonra tuş kaydı, ekran görüntüsü "
+        "alma veya oturum çerezlerini çalma gibi yöntemlerle {platform_tr} platformuna ait kimlik "
+        "bilgilerini ele geçirmektedir. Bu süreçte {loss_tr_lower} meydana gelmektedir. "
+        "Cihaza yüklenen bu tür yazılımlar, kurbanın farkında olmadan uzun süre veri sızdırabilir."
+    ),
+    "sahte_mobil_uygulama": (
+        "Bu vaka, sahte mobil uygulama tuzağına dayanan bir siber dolandırıcılık senaryosunu içermektedir. "
+        "Saldırgan, {platform_tr} platformunun resmi uygulamasının birebir kopyasını oluşturarak "
+        "üçüncü taraf uygulama mağazaları, reklam linkleri veya sahte mesajlar aracılığıyla yaymaktadır. "
+        "Kullanıcı, sahte uygulamaya giriş yaptığında kimlik bilgileri doğrudan saldırgana iletilmektedir. "
+        "Uygulama aynı zamanda SMS erişimi, erişilebilirlik izni veya bildirim izni isteyerek "
+        "OTP kodlarını çalabilmektedir. Bu süreçte {loss_tr_lower} gerçekleşmektedir. "
+        "Türkiye'de özellikle banka ve kargo uygulamalarının sahteleri sıkça kullanılmaktadır."
+    ),
+    "banka_taklit": (
+        "Bu vaka, banka taklit senaryosuna dayanan gelişmiş bir siber dolandırıcılık vakasını kapsamaktadır. "
+        "Saldırgan, {platform_tr} bankasını ya da finans kuruluşunu taklit ederek kurbanla iletişime geçmektedir. "
+        "Hesap kapatma, şüpheli işlem tespiti veya acil güncelleme gibi bahaneler öne sürülmektedir. "
+        "Kurban, sahte banka web sitesine yönlendirilmekte ya da telefonda kimliğini doğrulaması "
+        "istenmekte; bu süreçte kart numarası, şifre veya OTP bilgileri ele geçirilmektedir. "
+        "Bu süreçte {loss_tr_lower} yaşanmaktadır. "
+        "Türkiye'deki büyük bankaların isimleri bu dolandırıcılık türünde sıklıkla kötüye kullanılmaktadır."
+    ),
+}
+
+_LOSS_CONTEXT: Dict[str, str] = {
+    "bank_account": (
+        "Mağdurun banka hesabından yetkisiz para transferi gerçekleştirilmekte ya da kart bilgileri "
+        "dolandırıcılık amacıyla kullanılmaktadır."
+    ),
+    "social_media": (
+        "Mağdurun sosyal medya hesabı ele geçirilmekte; hesap üzerinden dolandırıcılık mesajları "
+        "yayılabilmekte veya hesap fidye amaçlı kilitlenebilmektedir."
+    ),
+    "ecommerce": (
+        "Mağdur, sahte e-ticaret sitesi veya satıcı aracılığıyla ödeme yapmakta ancak ürünü "
+        "alamamakta ya da kart bilgileri çalınmaktadır."
+    ),
+    "corporate_account": (
+        "Kurumsal hesap veya iş e-postası ele geçirilmekte; bu durum iç sistemlere yetkisiz erişim "
+        "ya da BEC (iş e-postası ihlali) saldırısına zemin hazırlayabilmektedir."
+    ),
+    "crypto_wallet": (
+        "Mağdurun kripto cüzdanı seed phrase çalınması, sahte platform ya da dolandırıcılık "
+        "yatırım planları aracılığıyla boşaltılmaktadır."
+    ),
+    "device_compromise": (
+        "Mağdurun cihazı zararlı yazılım tarafından ele geçirilmekte; bu durum tüm hesaplara ve "
+        "kişisel verilere yetkisiz erişim riskini doğurmaktadır."
+    ),
+}
+
+
 def _build_summary(document_title: str, raw_text: str, attack_method: str, loss_type: str, target_platform: str) -> str:
     attack_tr = _tr_method(attack_method)
     loss_tr = _tr_loss(loss_type)
     platform_tr = _tr_platform(target_platform)
-    evidence = (raw_text or document_title or "").strip()
-    evidence_short = evidence[:220]
-    return (
-        f"Bu vaka, {platform_tr} alaninda {attack_tr} yontemiyle gelisen bir {loss_tr.lower()} senaryosudur. "
-        f"Kullanici genellikle sahte baglanti, sahte uygulama veya taklit iletisime yonlendirilir. "
-        f"Olay ozeti: {evidence_short}"
+    loss_tr_lower = loss_tr.lower()
+
+    template = _NARRATIVE_TEMPLATES.get(attack_method, _NARRATIVE_TEMPLATES["phishing"])
+    main_narrative = template.format(
+        platform_tr=platform_tr,
+        attack_tr=attack_tr,
+        loss_tr=loss_tr,
+        loss_tr_lower=loss_tr_lower,
     )
+
+    loss_context = _LOSS_CONTEXT.get(loss_type, "")
+    if loss_context:
+        main_narrative = main_narrative + " " + loss_context
+
+    return main_narrative
 
 
 def _build_defense_steps(attack_method: str, loss_type: str) -> List[str]:
