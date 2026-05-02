@@ -204,6 +204,26 @@ function renderResult(result) {
   renderLayer3(result);
 }
 
+function renderFormList(targetId, values) {
+  const node = byId(targetId);
+  const safeValues = Array.isArray(values) ? [...new Set(values.filter(Boolean))] : [];
+  if (safeValues.length === 0) {
+    node.innerHTML = "<li>Henüz veri yok</li>";
+    return;
+  }
+  node.innerHTML = safeValues.map((item) => `<li>${item}</li>`).join("");
+}
+
+function renderFormDetection(formScan) {
+  const data = formScan || {};
+  byId("form-count").textContent = String(Number(data.form_count || 0));
+  byId("form-highest-score").textContent = String(Number(data.highest_risk_score || 0));
+  byId("form-risk-level").textContent = String(data.combined_risk_level || data.risk_level || "SAFE").toUpperCase();
+
+  renderFormList("form-flags", data.flags || []);
+  renderFormList("form-field-types", data.field_types || data.suspicious_forms?.flatMap((form) => form.field_types || []));
+}
+
 async function sendRuntimeMessage(message) {
   const response = await chrome.runtime.sendMessage(message);
   if (!response?.ok) throw new Error(response?.error || "Runtime message failed");
@@ -332,6 +352,20 @@ async function loadResult() {
   if (!state.domain || !state.url) return;
   const result = await sendRuntimeMessage({ type: "get_result", domain: state.domain, url: state.url });
   renderResult(result);
+
+  const stored = await chrome.storage.local.get(["lastFormScan"]);
+  let formScan = stored.lastFormScan || null;
+
+  if (state.tab?.id) {
+    try {
+      const pageSignals = await chrome.tabs.sendMessage(state.tab.id, { type: "GET_PAGE_SIGNALS" });
+      if (pageSignals?.ok && pageSignals.pageSignals?.form_scan) {
+        formScan = pageSignals.pageSignals.form_scan;
+      }
+    } catch {}
+  }
+
+  renderFormDetection(formScan);
 }
 
 function bindActions() {

@@ -1,27 +1,32 @@
 const BANNER_HOST_ID = "aegisnexus-shield-warning-host";
+const FORM_WARNING_CLASS = "aegisnexus-form-warning";
+const FORM_HIGHLIGHT_CLASS = "aegisnexus-form-highlight";
+
+const formDetectorPromise = import(chrome.runtime.getURL("utils/form_detector.js"));
+const fieldClassifierPromise = import(chrome.runtime.getURL("utils/field_classifier.js"));
+
+let lastFormScanResult = null;
 
 function getBannerColor(riskLevel) {
   if (riskLevel === "CRITICAL") return "#dc2626";
   if (riskLevel === "HIGH") return "#ea580c";
-  if (riskLevel === "MEDIUM") return "#ca8a04";
   return "#ca8a04";
 }
 
 function buildFlagsText(flags) {
   if (!Array.isArray(flags) || flags.length === 0) return "Flags: none";
-  const compact = flags.slice(0, 5).join(", ");
-  return `Flags: ${compact}`;
+  return `Flags: ${flags.slice(0, 5).join(", ")}`;
 }
 
 async function isDismissed(domain) {
   const key = `dismissed:${domain}`;
-  const data = await chrome.storage.session.get([key]);
+  const data = await chrome.storage.local.get([key]);
   return data[key] === true;
 }
 
 async function markDismissed(domain) {
   const key = `dismissed:${domain}`;
-  await chrome.storage.session.set({ [key]: true });
+  await chrome.storage.local.set({ [key]: true });
 }
 
 function removeBanner() {
@@ -30,13 +35,11 @@ function removeBanner() {
 }
 
 function ensureMountPoint() {
-  if (document.body) return document.body;
-  return document.documentElement;
+  return document.body || document.documentElement;
 }
 
 function renderBanner({ risk_level, score, flags }, domain) {
   removeBanner();
-
   const mount = ensureMountPoint();
   if (!mount) return;
 
@@ -114,36 +117,175 @@ function renderBanner({ risk_level, score, flags }, domain) {
 
   shadow.appendChild(wrapper);
 
-  const continueButton = wrapper.querySelector("#aegis-continue");
-  const backButton = wrapper.querySelector("#aegis-back");
-
-  continueButton?.addEventListener("click", () => {
+  wrapper.querySelector("#aegis-continue")?.addEventListener("click", () => {
     markDismissed(domain)
       .catch(() => {})
       .finally(() => removeBanner());
   });
 
-  backButton?.addEventListener("click", () => {
+  wrapper.querySelector("#aegis-back")?.addEventListener("click", () => {
     history.back();
   });
 }
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message?.type !== "show_warning") return false;
+function clearFormWarnings() {
+  document.querySelectorAll(`.${FORM_WARNING_CLASS}`).forEach((n) => n.remove());
+  document.querySelectorAll(`.${FORM_HIGHLIGHT_CLASS}`).forEach((n) => n.classList.remove(FORM_HIGHLIGHT_CLASS));
+}
 
-  const domain = window.location.hostname || "";
-  isDismissed(domain)
-    .then((dismissed) => {
-      if (dismissed) {
-        sendResponse({ ok: true, shown: false, reason: "dismissed" });
-        return;
+function injectFormWarning(form, suspicious) {
+  if (!form) return;
+  if (form.previousElementSibling?.classList?.contains(FORM_WARNING_CLASS)) return;
+
+  const banner = document.createElement("div");
+  banner.className = FORM_WARNING_CLASS;
+  banner.style.cssText = [
+    "background:#7f1d1d",
+    "color:#fff",
+    "padding:6px 10px",
+    "font-size:12px",
+    "font-family:Arial,sans-serif",
+    "font-weight:700",
+    "border-radius:6px",
+    "margin-bottom:6px",
+  ].join(";");
+  banner.textContent = `⚠️ Şüpheli form tespit edildi! Risk: ${suspicious.risk_level} | ${suspicious.flags.slice(0, 3).join(", ")}`;
+  form.parentNode?.insertBefore(banner, form);
+}
+
+function highlightForm(form) {
+  if (!form) return;
+  form.classList.add(FORM_HIGHLIGHT_CLASS);
+  form.style.outline = "2px solid #dc2626";
+  form.style.outlineOffset = "2px";
+}
+
+function showFormWarnings(targetFormIndices = null) {
+  if (!lastFormScanResult) return;
+
+  const forms = document.querySelectorAll("form");
+  const indexFilter = Array.isArray(targetFormIndices) ? new Set(targetFormIndices) : null;
+
+  for (const suspicious of lastFormScanResult.suspicious_forms || []) {
+    if (suspicious.risk_level !== "HIGH" && suspicious.risk_level !== "CRITICAL") continue;
+    if (indexFilter && !indexFilter.has(suspicious.form_index)) continue;
+    const form = forms[suspicious.form_index];
+    if (!form) continue;
+    injectFormWarning(form, suspicious);
+    highlightForm(form);
+  }
+}
+
+async function scanForms() {
+  try {
+    const [{ scanPage }, { classifyForm }] = await Promise.all([formDetectorPromise, fieldClassifierPromise]);
+    const result = scanPage();
+    const forms = document.querySelectorAll("form");
+    const pageFieldTypes = new Set();
+    for (const form of forms) {
+      const classified = classifyForm(form);
+      for (const fieldType of classified.field_types) pageFieldTypes.add(fieldType);
+    }
+
+    lastFormScanResult = {
+      ...result,
+      url: location.href,
+      domain: location.hostname,
+      field_types: [...pageFieldTypes],
+      scanned_at: Date.now(),
+    };
+
+    if (lastFormScanResult.form_count > 0) {
+      chrome.runtime
+        .sendMessage({
+          type: "form_detected",
+          form_data: lastFormScanResult,
+        })
+        .catch(() => {});
+    }
+
+    clearFormWarnings();
+    if (lastFormScanResult.risk_level === "HIGH" || lastFormScanResult.risk_level === "CRITICAL") {
+      showFormWarnings();
+    }
+  } catch (error) {
+    console.warn("AegisNexus Shield: form detector could not be loaded", error);
+  }
+}
+
+function observeForms() {
+  const observer = new MutationObserver((mutations) => {
+    let hasNewForm = false;
+    for (const mutation of mutations) {
+      for (const node of mutation.addedNodes) {
+        if (node.nodeName === "FORM" || node.querySelector?.("form")) {
+          hasNewForm = true;
+          break;
+        }
       }
-      renderBanner(message, domain);
-      sendResponse({ ok: true, shown: true });
-    })
-    .catch((error) => {
-      sendResponse({ ok: false, error: String(error) });
-    });
+      if (hasNewForm) break;
+    }
+    if (hasNewForm) scanForms();
+  });
 
-  return true;
+  observer.observe(document.documentElement || document.body, {
+    childList: true,
+    subtree: true,
+  });
+}
+
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type === "show_warning") {
+    const domain = window.location.hostname || "";
+    isDismissed(domain)
+      .then((dismissed) => {
+        if (dismissed) {
+          sendResponse({ ok: true, shown: false, reason: "dismissed" });
+          return;
+        }
+        renderBanner(message, domain);
+        sendResponse({ ok: true, shown: true });
+      })
+      .catch((error) => {
+        sendResponse({ ok: false, error: String(error) });
+      });
+    return true;
+  }
+
+  if (message?.type === "show_form_warning") {
+    const formIndices = Array.isArray(message.form_indices) ? message.form_indices : null;
+    showFormWarnings(formIndices);
+    sendResponse({ ok: true });
+    return false;
+  }
+
+  if (message?.type === "GET_PAGE_SIGNALS") {
+    sendResponse({
+      ok: true,
+      pageSignals: {
+        url: location.href,
+        protocol: location.protocol,
+        form_scan: lastFormScanResult,
+      },
+    });
+    return false;
+  }
+
+  if (message?.type === "go_back") {
+    window.history.back();
+    sendResponse({ ok: true });
+    return false;
+  }
+
+  return false;
 });
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", () => {
+    scanForms();
+    observeForms();
+  });
+} else {
+  scanForms();
+  observeForms();
+}

@@ -1,8 +1,11 @@
+self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', (e) => e.waitUntil(clients.claim()));
+
 import { analyzeURL } from "../utils/heuristic.js";
 import { BloomFilter } from "../utils/bloom_filter.js";
 import { checkDomainViaDNS } from "../utils/dns_check.js";
 import { checkURL } from "../utils/gsb_check.js";
-import { addToPersonalWhitelist, initializeWhitelistRefresh, isWhitelisted } from "../utils/whitelist.js";
+import { addToPersonalWhitelist, removeFromPersonalWhitelist, initializeWhitelistRefresh, isWhitelisted } from "../utils/whitelist.js";
 
 const DOMAIN_CACHE_KEY = "domain_cache";
 const DOMAIN_CACHE_TTL_MS = 86400000; // 24h
@@ -29,8 +32,13 @@ function uniqueFlags(flags) {
   return [...new Set(flags)];
 }
 
+function combineRiskScores(domainScore, formScore) {
+  return Math.min(100, Number(domainScore || 0) + Number(formScore || 0));
+}
+
 function isHttpUrl(url) {
-  return /^https?:/i.test(String(url || ""));
+  if (typeof url !== "string") return false;
+  return url.startsWith("http://") || url.startsWith("https://");
 }
 
 function isBloomMatch(domain) {
@@ -287,7 +295,56 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   });
 });
 
-chrome.webNavigation.onCommitted.addListener((details) => {
+async function showDomainRiskNotification(domain, riskLevel, score, tabId) {
+  try {
+    const dismissedData = await chrome.storage.local.get([`dismissed:${domain}`]);
+    if (dismissedData[`dismissed:${domain}`]) return;
+
+    const notifId = `aegis-${Date.now()}`;
+    await chrome.storage.local.set({
+      [`notif_tab:${notifId}`]: tabId,
+      [`notif_domain:${notifId}`]: domain,
+    });
+
+    await chrome.notifications.create(notifId, {
+      type: "basic",
+      iconUrl: "icons/icon128.png",
+      title: `⚠️ AegisNexus Shield — ${riskLevel}`,
+      message: `${domain} | Skor: ${score}`,
+      priority: 2,
+      buttons: [
+        { title: "🔙 Geri Dön" },
+        { title: "⚠️ Yine de Devam Et" }
+      ]
+    });
+  } catch (err) {
+    console.error("AegisNexus notification error:", err);
+  }
+}
+
+chrome.notifications.onButtonClicked.addListener((notificationId, buttonIndex) => {
+  const handleButtonClick = async () => {
+    if (buttonIndex === 0) {
+      const tabId = await chrome.storage.local.get([`notif_tab:${notificationId}`]);
+      const tid = tabId[`notif_tab:${notificationId}`];
+      if (tid) {
+        chrome.tabs
+          .sendMessage(tid, { type: "go_back" })
+          .catch(() => {});
+      }
+    } else if (buttonIndex === 1) {
+      const domainData = await chrome.storage.local.get([`notif_domain:${notificationId}`]);
+      const domain = domainData[`notif_domain:${notificationId}`];
+      if (domain) {
+        await chrome.storage.local.set({ [`dismissed:${domain}`]: true });
+      }
+    }
+    chrome.notifications.clear(notificationId).catch(() => {});
+  };
+  handleButtonClick().catch(() => {});
+});
+
+chrome.webNavigation.onCommitted.addListener(async (details) => {
   if (details.frameId !== 0) return;
   if (!details.url || !isHttpUrl(details.url)) return;
 
@@ -299,28 +356,77 @@ chrome.webNavigation.onCommitted.addListener((details) => {
   }
 
   const domain = normalizeDomain(parsed.hostname);
-  checkDomain(domain, details.url)
-    .then((result) => {
-      chrome.storage.local.set({
-        lastScan: {
-          ...result,
-          scannedAt: Date.now(),
-        },
-      });
-      if (result.risk_level !== "HIGH" && result.risk_level !== "CRITICAL") return;
-      chrome.tabs
-        .sendMessage(details.tabId, {
-          type: "show_warning",
-          risk_level: result.risk_level,
-          score: result.score,
-          flags: result.flags,
-        })
-        .catch(() => {});
-    })
-    .catch((error) => {
-      console.warn("AegisNexus Shield: domain check failed", error);
+
+  try {
+    const result = await checkDomain(domain, details.url);
+
+    await chrome.storage.local.set({
+      lastScan: { ...result, scannedAt: Date.now() }
     });
+
+    if (result.risk_level === "SAFE" || result.risk_level === "LOW") return;
+
+    const dismissedData = await chrome.storage.local.get([`dismissed:${domain}`]);
+    if (dismissedData[`dismissed:${domain}`]) return;
+
+    const notifId = `aegis-${Date.now()}`;
+    await chrome.notifications.create(notifId, {
+      type: "basic",
+      iconUrl: chrome.runtime.getURL("icons/icon128.png"),
+      title: `⚠️ ${result.risk_level} — AegisNexus Shield`,
+      message: `${domain} | Skor: ${result.score}`,
+      priority: 2,
+      buttons: [
+        { title: "🔙 Geri Dön" },
+        { title: "⚠️ Yine de Devam Et" }
+      ]
+    });
+
+    if (result.risk_level === "HIGH" || result.risk_level === "CRITICAL") {
+      chrome.tabs.sendMessage(details.tabId, {
+        type: "show_warning",
+        risk_level: result.risk_level,
+        score: result.score,
+        flags: result.flags,
+      }).catch(() => {});
+    }
+
+  } catch (error) {
+    console.error("AegisNexus error:", error);
+  }
 });
+
+chrome.webRequest.onBeforeRequest.addListener(
+  async (details) => {
+    if (details.type !== "main_frame") return;
+    if (!details.url || !isHttpUrl(details.url)) return;
+    console.log("WEB REQUEST:", details.url);
+  },
+  { urls: ["<all_urls>"] }
+);
+
+async function reportFormToServer(domain, formData) {
+  const apiBaseUrl = await getApiBaseUrl();
+  const endpoint = `${apiBaseUrl}/api/v2/phishing/report-form`;
+  try {
+    await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        url: formData.url || "",
+        domain,
+        form_data: {
+          action_url: formData.suspicious_forms?.[0]?.action_url || "",
+          field_types: formData.suspicious_forms?.[0]?.field_types || formData.field_types || [],
+          risk_score: formData.combined_risk_score || formData.highest_risk_score || 0,
+          flags: formData.flags || [],
+        },
+      }),
+    });
+  } catch (error) {
+    console.warn("AegisNexus Shield: form report failed", error);
+  }
+}
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "get_result") {
@@ -339,6 +445,66 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   if (message?.type === "whitelist_add") {
     addToPersonalWhitelist(message.domain)
+      .then(() => sendResponse({ ok: true }))
+      .catch((error) => sendResponse({ ok: false, error: String(error) }));
+    return true;
+  }
+
+  if (message?.type === "whitelist_remove") {
+    removeFromPersonalWhitelist(message.domain)
+      .then(() => sendResponse({ ok: true }))
+      .catch((error) => sendResponse({ ok: false, error: String(error) }));
+    return true;
+  }
+
+  if (message?.type === "form_detected") {
+    const formData = message.form_data || {};
+    const tabId = _sender?.tab?.id;
+    const sourceUrl = formData.url || _sender?.tab?.url || "";
+    let parsedUrl = null;
+    try {
+      parsedUrl = new URL(sourceUrl);
+    } catch {}
+    const domain = formData.domain || parsedUrl?.hostname || "";
+
+    const processFormDetection = async () => {
+      const domainResult = domain && sourceUrl ? await checkDomain(domain, sourceUrl) : { score: 0, flags: [] };
+      const combinedRiskScore = combineRiskScores(domainResult.score, formData.highest_risk_score);
+      const combinedRiskLevel = getRiskLevel(combinedRiskScore);
+      const mergedFlags = uniqueFlags([...(domainResult.flags || []), ...(formData.flags || [])]);
+
+      const combinedData = {
+        ...formData,
+        url: sourceUrl,
+        domain,
+        domain_score: Number(domainResult.score || 0),
+        combined_risk_score: combinedRiskScore,
+        combined_risk_level: combinedRiskLevel,
+        flags: mergedFlags,
+      };
+
+      await chrome.storage.local.set({ lastFormScan: combinedData });
+
+      if (tabId && (combinedRiskLevel === "HIGH" || combinedRiskLevel === "CRITICAL")) {
+        const formIndices = (combinedData.suspicious_forms || [])
+          .filter((item) => item.risk_level === "HIGH" || item.risk_level === "CRITICAL")
+          .map((item) => item.form_index)
+          .filter((value) => Number.isInteger(value));
+        chrome.tabs
+          .sendMessage(tabId, {
+            type: "show_form_warning",
+            form_indices: formIndices,
+            form_data: combinedData,
+          })
+          .catch(() => {});
+      }
+
+      if (domain && (combinedRiskLevel === "HIGH" || combinedRiskLevel === "CRITICAL")) {
+        await reportFormToServer(domain, combinedData);
+      }
+    };
+
+    processFormDetection()
       .then(() => sendResponse({ ok: true }))
       .catch((error) => sendResponse({ ok: false, error: String(error) }));
     return true;

@@ -47,6 +47,8 @@ security_plugin/
     ├── bloom_filter.js      ← Bloom filtresi implementasyonu
     ├── dns_check.js         ← DNS-over-HTTPS sorgulama
     ├── gsb_check.js         ← Google Safe Browsing API istemcisi
+    ├── field_classifier.js  ← Form alan tipi sınıflandırıcı
+    ├── form_detector.js     ← Form risk analiz motoru
     └── whitelist.js         ← Whitelist yönetimi (personal + global)
 
 ============================================================
@@ -70,11 +72,16 @@ bulunmalıdır:
    - Rate limit: 10 req/dk (IP bazlı)
    - Kullanıcı phishing raporu gönderir
 
-4. GET /api/v2/whitelist/global
+4. POST /api/v2/phishing/report-form
+   - Body: { "url": str, "domain": str, "form_data": { "action_url": str, "field_types": [str], "risk_score": int, "flags": [str] } }
+   - Rate limit: 20 req/dk (IP bazlı)
+   - Form tespit raporları `app.models.PhishingForm` tablosuna yazılır
+
+5. GET /api/v2/whitelist/global
    - Yanıt: { "domains": [str] }
    - Global güvenilir domain listesi (aylık yenilenir)
 
-5. POST /api/v2/whitelist/verify-user
+6. POST /api/v2/whitelist/verify-user
    - Body: { "domains": [str] }
    - Yanıt: { "results": [{ "domain": str, "is_safe": bool, "reason": str }] }
    - Personal whitelist doğrulama

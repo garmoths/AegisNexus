@@ -1,4 +1,4 @@
-const SUSPICIOUS_TLDS = new Set(["xyz", "top", "tk", "ml", "ga", "cf", "gq", "pw", "cc"]);
+const SUSPICIOUS_TLDS = new Set(["xyz", "top", "tk", "ml", "ga", "cf", "gq", "pw", "cc", "vip", "icu", "cyou", "bond", "cfd", "monster", "quest"]);
 const BRAND_KEYWORDS = [
   "paypal",
   "google",
@@ -18,8 +18,27 @@ const BRAND_KEYWORDS = [
   "binance",
   "coinbase",
 ];
-const HTTP_SENSITIVE_TERMS = ["login", "password", "account", "verify", "secure"];
-const SUSPICIOUS_WORDS = ["secure", "login", "verify", "update", "confirm", "account", "banking", "signin"];
+const HTTP_SENSITIVE_TERMS = ["login", "password", "account", "verify", "secure", "giris", "sifre", "odeme", "hesap", "dogrula"];
+const SUSPICIOUS_WORDS = [
+  "secure",
+  "login",
+  "verify",
+  "update",
+  "confirm",
+  "account",
+  "banking",
+  "signin",
+  "giris",
+  "uyelik",
+  "hesap",
+  "dogrula",
+  "guncelle",
+  "odeme",
+  "banka",
+  "guvenli",
+  "sifre",
+  "kullanici",
+];
 
 function getRiskLevel(score) {
   if (score <= 20) return "SAFE";
@@ -89,7 +108,7 @@ function analyzeURL(rawUrl, options = {}) {
     flags.push("ip-address-host");
   }
   if (SUSPICIOUS_TLDS.has(tld)) {
-    score += 20;
+    score += 25;
     flags.push("suspicious-tld");
   }
   if (raw.length > 75) {
@@ -121,8 +140,29 @@ function analyzeURL(rawUrl, options = {}) {
     flags.push("homograph-characters");
   }
   if (protocol === "http:" && HTTP_SENSITIVE_TERMS.some((term) => fullLower.includes(term))) {
-    score += 20;
+    score += 30;
     flags.push("http-sensitive-keyword");
+  }
+  if (hostname.includes("resmi")) {
+    score += 20;
+    flags.push("fake-official-claim");
+  }
+  if (/-/.test(hostname) && /\d/.test(hostname)) {
+    score += 20;
+    flags.push("domain-number-hyphen-combo");
+  }
+  if (/\d{3,}/.test(hostname)) {
+    score += 15;
+    flags.push("domain-consecutive-digits");
+  }
+  const hyphenCount = (hostname.match(/-/g) || []).length;
+  if (hyphenCount > 2) {
+    score += 10;
+    flags.push("domain-too-many-hyphens");
+  }
+  if (hostname.length > 30) {
+    score += 15;
+    flags.push("long-domain");
   }
 
   const suspiciousWordHits = countMatchedSuspiciousWords(fullLower);
