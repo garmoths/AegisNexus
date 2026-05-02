@@ -4,7 +4,6 @@ self.addEventListener('activate', (e) => e.waitUntil(clients.claim()));
 import { analyzeURL } from "../utils/heuristic.js";
 import { BloomFilter } from "../utils/bloom_filter.js";
 import { checkDomainViaDNS } from "../utils/dns_check.js";
-import { checkURL } from "../utils/gsb_check.js";
 import { addToPersonalWhitelist, removeFromPersonalWhitelist, initializeWhitelistRefresh, isWhitelisted } from "../utils/whitelist.js";
 
 const DOMAIN_CACHE_KEY = "domain_cache";
@@ -60,6 +59,16 @@ async function getApiBaseUrl() {
   return baseUrl.replace(/\/+$/g, "");
 }
 
+async function getServerRequestHeaders() {
+  const stored = await chrome.storage.local.get(["aegis_key"]);
+  const headers = { "Content-Type": "application/json" };
+  const aegisKey = String(stored.aegis_key || "").trim();
+  if (aegisKey) {
+    headers["X-AegisNexus-Key"] = aegisKey;
+  }
+  return headers;
+}
+
 async function readDomainCache() {
   const stored = await chrome.storage.local.get([DOMAIN_CACHE_KEY]);
   const cache = stored[DOMAIN_CACHE_KEY];
@@ -108,6 +117,7 @@ async function refreshBloomDomains() {
   const apiBaseUrl = await getApiBaseUrl();
   const response = await fetch(`${apiBaseUrl}/api/v2/phishing/export-domains`, {
     method: "GET",
+    headers: await getServerRequestHeaders(),
   });
   if (!response.ok) return false;
 
@@ -147,10 +157,8 @@ async function runLayer3(url, domain) {
   try {
     const response = await fetch(endpoint, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ url, domain }),
+      headers: await getServerRequestHeaders(),
+      body: JSON.stringify({ url, domain, force_fresh: false, db_only: true }),
     });
 
     let data = null;
@@ -225,12 +233,9 @@ async function checkDomain(domain, url, options = {}) {
     flags.push("bloom-suspect-domain");
   }
 
-  const [dnsSettled, gsbSettled] = await Promise.allSettled([
-    checkDomainViaDNS(normalizedDomain),
-    checkURL(url),
-  ]);
+  const [dnsSettled] = await Promise.allSettled([checkDomainViaDNS(normalizedDomain)]);
   const dnsResult = dnsSettled.status === "fulfilled" ? dnsSettled.value : getSafeDnsResult();
-  const gsbResult = gsbSettled.status === "fulfilled" ? gsbSettled.value : getSafeGsbResult();
+  const gsbResult = getSafeGsbResult();
 
   if (dnsResult.consensus_blocked) {
     score += 40;
@@ -246,13 +251,25 @@ async function checkDomain(domain, url, options = {}) {
   }
 
   score = Math.min(score, 100);
-  const riskLevel = gsbResult.threat_found === true ? "CRITICAL" : getRiskLevel(score);
-  const shouldRunLayer3 = score >= 70 || dnsResult.consensus_blocked === true || gsbResult.threat_found === true;
+  let riskLevel = gsbResult.threat_found === true ? "CRITICAL" : getRiskLevel(score);
+  const shouldRunLayer3 = true;
   const isSuspicious = !shouldRunLayer3 && score >= 40 && score <= 69;
 
   let layer3 = { requested: false };
   if (shouldRunLayer3) {
     layer3 = await runLayer3(url, normalizedDomain);
+    if (layer3.ok && layer3.data && typeof layer3.data === "object") {
+      const layer3Score = Number(layer3.data.score);
+      if (Number.isFinite(layer3Score)) {
+        score = Math.min(100, Math.max(score, layer3Score));
+      }
+
+      const layer3Risk = String(layer3.data.risk_level || "").toUpperCase();
+      const severity = { SAFE: 0, LOW: 1, MEDIUM: 2, HIGH: 3, CRITICAL: 4 };
+      if (layer3Risk in severity && severity[layer3Risk] > severity[riskLevel]) {
+        riskLevel = layer3Risk;
+      }
+    }
   }
 
   const result = {
@@ -411,7 +428,7 @@ async function reportFormToServer(domain, formData) {
   try {
     await fetch(endpoint, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: await getServerRequestHeaders(),
       body: JSON.stringify({
         url: formData.url || "",
         domain,

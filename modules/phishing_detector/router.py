@@ -622,6 +622,7 @@ class SiteAddRequest(BaseModel):
 class URLCheckRequest(BaseModel):
     url: str
     force_fresh: bool = False
+    db_only: bool = False
 
 
 class URLCheckResponse(BaseModel):
@@ -661,6 +662,72 @@ def rate_limit(max_requests: int, time_window: int):
             return func(*args, **kwargs)
         return wrapper
     return decorator
+
+
+def _build_db_only_result(requested_url: str, db: Session) -> dict[str, Any]:
+    normalized = normalize_url_record(requested_url)
+    canonical_url = normalized.get("canonical_url", requested_url)
+    domain_norm = normalized.get("domain_norm", "")
+    url_hash = normalized.get("url_hash")
+
+    cached_result = get_cached_scan_result(canonical_url, days=30) or get_cached_scan_result(requested_url, days=30)
+    if cached_result:
+        logger.info(f"[db_only] Cache hit: {requested_url} → score={cached_result.get('score')}")
+        return {
+            **cached_result,
+            "db_only": True,
+            "source": "cache_db",
+            "cache": "30d-hit",
+        }
+
+    # Try exact hash match first (most reliable)
+    matched = None
+    if url_hash:
+        matched = db.query(PhishingURL).filter(PhishingURL.url_hash == url_hash).first()
+        logger.info(f"[db_only] Hash query: url_hash={url_hash} → {'HIT' if matched else 'MISS'}")
+    
+    # Fallback to domain_norm query
+    if not matched and domain_norm:
+        matched = db.query(PhishingURL).filter(PhishingURL.domain_norm == domain_norm).order_by(PhishingURL.id.desc()).first()
+        logger.info(f"[db_only] Domain query: domain_norm={domain_norm} → {'HIT' if matched else 'MISS'}")
+    
+    logger.info(f"[db_only] Query params: canonical={canonical_url}, domain_norm={domain_norm}, url_hash={url_hash}")
+    if not matched:
+        logger.info(f"[db_only] DB miss: {requested_url}")
+        return {
+            "status": "ok",
+            "url": requested_url,
+            "domain": domain_norm,
+            "score": 0,
+            "risk_level": "SAFE",
+            "decision": "safe",
+            "details": ["db_miss"],
+            "sources": [{"name": "phishing_urls_db", "status": "miss"}],
+            "db_only": True,
+            "source": "phishing_urls_db",
+        }
+
+    status_text = str(matched.status or "").strip().lower()
+    # If online=True OR status suggests active threat → high score (CRITICAL)
+    # Otherwise just being in the DB list → medium/low score
+    is_online_threat = bool(matched.online) or status_text in {"online", "active", "phishing"}
+    score = 85 if is_online_threat else 40
+    risk_level = "CRITICAL" if is_online_threat else "MEDIUM"
+
+    logger.info(f"[db_only] DB hit: {requested_url} → online={matched.online}, status={status_text}, score={score}")
+
+    return {
+        "status": "ok",
+        "url": requested_url,
+        "domain": matched.domain_norm or domain_norm,
+        "score": score,
+        "risk_level": risk_level,
+        "decision": "block" if score >= 80 else "suspicious" if score >= 40 else "safe",
+        "details": [f"db_match_status:{status_text or 'unknown'}"],
+        "sources": [{"name": "phishing_urls_db", "status": "hit"}],
+        "db_only": True,
+        "source": "phishing_urls_db",
+    }
 
 
 @router.post("/add-site")
@@ -713,6 +780,29 @@ def check_url(request: URLCheckRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="URL boş olamaz")
     try:
         requested_url = request.url.strip()
+
+        if request.db_only:
+            db_result = _build_db_only_result(requested_url, db)
+            sources = []
+            for src in db_result.get("sources", []):
+                if isinstance(src, dict):
+                    name = src.get("name")
+                    if name:
+                        sources.append(str(name))
+                elif isinstance(src, str):
+                    sources.append(src)
+
+            write_phishing_url(
+                url=requested_url,
+                risk_score=int(db_result.get("score", 0)),
+                risk_level=str(db_result.get("risk_level", "unknown")).lower(),
+                is_safe=bool(db_result.get("score", 0) >= 80),
+                sources=sources,
+                raw_data=db_result,
+                track_event=True,
+            )
+            db_result["module"] = "01_phishing_detector"
+            return db_result
         
         # Cache kontrolü - force_fresh ise bypass et
         if not request.force_fresh:
