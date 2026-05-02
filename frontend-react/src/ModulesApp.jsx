@@ -1645,9 +1645,345 @@ function PhishingDetector() {
 }
 
 /* ===============================================
-   VICTIM ATLAS
+   VICTIM ATLAS — Forum Tarzı Yeniden Tasarım
    =============================================== */
-function VictimAtlas({ onOpenAIAnalyzer }) {
+
+const ATTACK_ICONS = {
+  phishing: '🎣',
+  smishing: '📱',
+  vishing: '📞',
+  social_engineering: '🎭',
+  malware_assisted: '🦠',
+  sahte_mobil_uygulama: '📲',
+  banka_taklit: '🏦',
+}
+
+const ATTACK_COLORS = {
+  phishing: '#ef4444',
+  smishing: '#f59e0b',
+  vishing: '#8b5cf6',
+  social_engineering: '#ec4899',
+  malware_assisted: '#ff6b35',
+  sahte_mobil_uygulama: '#06b6d4',
+  banka_taklit: '#3b82f6',
+}
+
+const LOSS_ICONS = {
+  bank_account: '🏧',
+  social_media: '📸',
+  ecommerce: '📦',
+  corporate_account: '🏢',
+  crypto_wallet: '₿',
+  device_compromise: '💻',
+}
+
+function timeAgo(iso) {
+  if (!iso) return ''
+  const diff = Math.floor((Date.now() - new Date(iso)) / 1000)
+  if (diff < 60) return `${diff}s önce`
+  if (diff < 3600) return `${Math.floor(diff/60)}dk önce`
+  if (diff < 86400) return `${Math.floor(diff/3600)}sa önce`
+  return `${Math.floor(diff/86400)}g önce`
+}
+
+function randomNickname() {
+  const adj = ['Gizli','Anonim','Kahraman','Bilinçli','Dikkatli','Uyarılı']
+  const noun = ['Kullanıcı','Vatandaş','Mağdur','Araştırmacı','Okuyucu','Tanık']
+  return adj[Math.floor(Math.random()*adj.length)] + noun[Math.floor(Math.random()*noun.length)] + Math.floor(Math.random()*900+100)
+}
+
+/* -- Modal bileşeni -- */
+function CaseModal({ c, onClose }) {
+  const [tab, setTab] = useState('ozet')
+  const [comments, setComments] = useState([])
+  const [commentsLoading, setCommentsLoading] = useState(false)
+  const [newComment, setNewComment] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [upvoted, setUpvoted] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('upvoted') || '{}') } catch { return {} }
+  })
+  const [nickname] = useState(() => {
+    let n = localStorage.getItem('va_nickname')
+    if (!n) { n = randomNickname(); localStorage.setItem('va_nickname', n) }
+    return n
+  })
+  const [detail, setDetail] = useState(null)
+
+  useEffect(() => {
+    document.body.style.overflow = 'hidden'
+    fetch(`${API}/victim-atlas/cases/${c.id}`).then(r=>r.json()).then(d=>setDetail(d.data||null)).catch(()=>{})
+    return () => { document.body.style.overflow = '' }
+  }, [c.id])
+
+  useEffect(() => {
+    if (tab !== 'yorumlar') return
+    setCommentsLoading(true)
+    fetch(`${API}/victim-atlas/cases/${c.id}/comments`)
+      .then(r=>r.json()).then(d=>setComments(d.data||[])).catch(()=>setComments([]))
+      .finally(()=>setCommentsLoading(false))
+  }, [tab, c.id])
+
+  async function submitComment() {
+    if (newComment.trim().length < 5) return
+    setSubmitting(true)
+    try {
+      await fetch(`${API}/victim-atlas/cases/${c.id}/comments`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ nickname, text: newComment.trim() })
+      })
+      setNewComment('')
+      const r = await fetch(`${API}/victim-atlas/cases/${c.id}/comments`)
+      const d = await r.json(); setComments(d.data||[])
+    } catch {}
+    setSubmitting(false)
+  }
+
+  async function handleUpvote(commentId) {
+    const key = `${c.id}_${commentId}`
+    if (upvoted[key]) return
+    try {
+      const r = await fetch(`${API}/victim-atlas/cases/${c.id}/comments/${commentId}/upvote`, { method:'POST' })
+      const d = await r.json()
+      setComments(prev => prev.map(cm => cm.id===commentId ? {...cm, upvotes: d.upvotes} : cm))
+      const next = {...upvoted, [key]: true}
+      setUpvoted(next); localStorage.setItem('upvoted', JSON.stringify(next))
+    } catch {}
+  }
+
+  const acColor = ATTACK_COLORS[c.attack_method] || theme.primary
+  const steps = detail?.defense_steps || []
+  const tabs = [
+    { id:'ozet', label:'📋 Özet' },
+    { id:'korunma', label:'🛡️ Korunma' },
+    { id:'yorumlar', label:'💬 Yorumlar' },
+    { id:'benzer', label:'🔗 Benzer' },
+  ]
+
+  return (
+    <div onClick={onClose} style={{ position:'fixed', inset:0, zIndex:2000, background:'rgba(0,0,0,0.75)', backdropFilter:'blur(6px)', display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
+      <motion.div
+        initial={{ opacity:0, scale:0.95, y:20 }}
+        animate={{ opacity:1, scale:1, y:0 }}
+        exit={{ opacity:0, scale:0.95, y:20 }}
+        transition={{ duration:0.25, ease:theme.ease.out }}
+        onClick={e=>e.stopPropagation()}
+        style={{ width:'100%', maxWidth:760, maxHeight:'90vh', background:theme.surface, border:`1px solid ${acColor}44`, borderRadius:theme.radiusLg, overflow:'hidden', display:'flex', flexDirection:'column', boxShadow:`0 30px 80px rgba(0,0,0,0.6), 0 0 0 1px ${acColor}22` }}
+      >
+        {/* Header */}
+        <div style={{ padding:'20px 24px 0', borderBottom:`1px solid ${theme.border}` }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:12 }}>
+            <div style={{ flex:1, paddingRight:12 }}>
+              <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:8, flexWrap:'wrap' }}>
+                <span style={{ fontSize:12, fontWeight:700, padding:'3px 10px', borderRadius:20, background:`${acColor}22`, color:acColor }}>
+                  {ATTACK_ICONS[c.attack_method]} {methodLabel(c.attack_method)}
+                </span>
+                <span style={{ fontSize:12, color:theme.textMuted }}>{LOSS_ICONS[c.loss_type]} {lossTypeLabel(c.loss_type)}</span>
+                <span style={{ fontSize:12, padding:'3px 10px', borderRadius:20, background: c.severity_score>=75?'rgba(239,68,68,0.15)':c.severity_score>=55?'rgba(245,158,11,0.15)':'rgba(34,197,94,0.15)', color: c.severity_score>=75?theme.danger:c.severity_score>=55?theme.warning:theme.success, fontWeight:700 }}>Risk {c.severity_score}/100</span>
+              </div>
+              <h2 style={{ fontSize:18, fontWeight:800, color:'#fff', lineHeight:1.3, margin:0 }}>{c.case_title}</h2>
+            </div>
+            <button onClick={onClose} style={{ minWidth:32, height:32, borderRadius:'50%', background:theme.surface2, border:`1px solid ${theme.border}`, color:theme.textMuted, cursor:'pointer', fontSize:18, display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
+          </div>
+          {/* Tabs */}
+          <div style={{ display:'flex', gap:0 }}>
+            {tabs.map(t => (
+              <button key={t.id} onClick={()=>setTab(t.id)} style={{ padding:'10px 18px', background:'none', border:'none', cursor:'pointer', fontSize:13, fontWeight:600, color: tab===t.id?theme.primary:theme.textMuted, borderBottom: tab===t.id?`2px solid ${theme.primary}`:'2px solid transparent', transition:'all 0.2s' }}>{t.label}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* Body */}
+        <div style={{ flex:1, overflowY:'auto', padding:24 }}>
+
+          {/* ÖZET TAB */}
+          {tab==='ozet' && (
+            <div>
+              {/* Kritik uyarı */}
+              <div style={{ padding:16, borderRadius:theme.radiusSm, background:'rgba(245,158,11,0.1)', border:'1px solid rgba(245,158,11,0.3)', marginBottom:20, display:'flex', gap:12 }}>
+                <span style={{ fontSize:20 }}>⚠️</span>
+                <p style={{ color:theme.warning, fontWeight:600, fontSize:14, margin:0, lineHeight:1.6 }}>{c.critical_warning}</p>
+              </div>
+              {/* Güven & Platform */}
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12, marginBottom:20 }}>
+                {[
+                  { label:'Güven Skoru', value:`${c.confidence_score}%`, color:theme.primary },
+                  { label:'Platform', value:platformLabel(c.target_platform), color:theme.text },
+                  { label:'Kayıp Tipi', value:lossTypeLabel(c.loss_type), color:theme.text },
+                ].map(item => (
+                  <div key={item.label} style={{ padding:'12px 14px', background:theme.surface2, borderRadius:theme.radiusSm, border:`1px solid ${theme.border}` }}>
+                    <p style={{ fontSize:11, color:theme.textMuted, marginBottom:4, textTransform:'uppercase', letterSpacing:'0.5px' }}>{item.label}</p>
+                    <p style={{ fontSize:14, fontWeight:700, color:item.color, margin:0 }}>{item.value}</p>
+                  </div>
+                ))}
+              </div>
+              {/* Saldırı zinciri */}
+              <p style={{ fontSize:12, color:theme.textMuted, fontWeight:700, textTransform:'uppercase', letterSpacing:'1px', marginBottom:12 }}>Saldırı Zinciri</p>
+              <div style={{ display:'flex', alignItems:'center', gap:4, flexWrap:'wrap', marginBottom:20 }}>
+                {[
+                  'İlk Temas',
+                  'Güven Kazanma',
+                  methodLabel(c.attack_method),
+                  lossTypeLabel(c.loss_type),
+                  'Mağduriyet',
+                ].map((step, i, arr) => (
+                  <div key={i} style={{ display:'flex', alignItems:'center', gap:4 }}>
+                    <div style={{ padding:'6px 12px', borderRadius:20, background: i===arr.length-1?'rgba(239,68,68,0.2)':theme.surface2, border:`1px solid ${i===arr.length-1?theme.danger:theme.border}`, fontSize:12, fontWeight:600, color: i===arr.length-1?theme.danger:theme.text, whiteSpace:'nowrap' }}>
+                      {i+1}. {step}
+                    </div>
+                    {i < arr.length-1 && <span style={{ color:theme.textMuted, fontSize:14 }}>→</span>}
+                  </div>
+                ))}
+              </div>
+              {/* Özet metin */}
+              {detail?.narrative_summary && (
+                <div style={{ padding:16, background:theme.surface2, borderRadius:theme.radiusSm, border:`1px solid ${theme.border}` }}>
+                  <p style={{ fontSize:14, color:theme.text, lineHeight:1.7, margin:0 }}>{detail.narrative_summary}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* KORUNMA TAB */}
+          {tab==='korunma' && (
+            <div>
+              <p style={{ fontSize:14, color:theme.textMuted, marginBottom:20, lineHeight:1.6 }}>Bu tür saldırılardan korunmak için aşağıdaki adımları uygulayın:</p>
+              {steps.length===0 && <p style={{ color:theme.textMuted, textAlign:'center', padding:40 }}>Yükleniyor...</p>}
+              {steps.map((step, i) => (
+                <motion.div key={i} initial={{ opacity:0, x:-10 }} animate={{ opacity:1, x:0 }} transition={{ delay:i*0.07 }}
+                  style={{ display:'flex', gap:14, padding:'14px 16px', borderRadius:theme.radiusSm, background:theme.surface2, border:`1px solid ${theme.border}`, marginBottom:10 }}
+                  onMouseEnter={e=>{e.currentTarget.style.borderColor=`${acColor}55`;e.currentTarget.style.transform='translateX(4px)'}}
+                  onMouseLeave={e=>{e.currentTarget.style.borderColor=theme.border;e.currentTarget.style.transform='none'}}
+                >
+                  <div style={{ minWidth:28, height:28, borderRadius:'50%', background:`${acColor}22`, border:`1px solid ${acColor}44`, display:'flex', alignItems:'center', justifyContent:'center', color:acColor, fontWeight:800, fontSize:13 }}>{i+1}</div>
+                  <p style={{ fontSize:14, color:theme.text, lineHeight:1.6, margin:0 }}>{step}</p>
+                </motion.div>
+              ))}
+            </div>
+          )}
+
+          {/* YORUMLAR TAB */}
+          {tab==='yorumlar' && (
+            <div>
+              {/* Yorum yaz */}
+              <div style={{ padding:16, background:theme.surface2, borderRadius:theme.radiusSm, border:`1px solid ${theme.border}`, marginBottom:20 }}>
+                <p style={{ fontSize:12, color:theme.textMuted, marginBottom:8 }}>Benzer bir deneyim yaşadınız mı? Paylaşın (anonim):</p>
+                <textarea
+                  value={newComment}
+                  onChange={e=>setNewComment(e.target.value)}
+                  placeholder="Deneyiminizi veya uyarınızı yazın..."
+                  rows={3}
+                  style={{ width:'100%', padding:12, borderRadius:theme.radiusSm, background:theme.bg, border:`1px solid ${theme.border}`, color:'#fff', fontSize:13, resize:'vertical', outline:'none', lineHeight:1.6, boxSizing:'border-box' }}
+                />
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:10 }}>
+                  <span style={{ fontSize:12, color:theme.textMuted }}>👤 {nickname}</span>
+                  <button onClick={submitComment} disabled={submitting||newComment.trim().length<5}
+                    style={{ padding:'8px 20px', borderRadius:theme.radiusSm, background:newComment.trim().length>=5?acColor:'#333', color:newComment.trim().length>=5?'#000':'#666', border:'none', cursor:newComment.trim().length>=5?'pointer':'not-allowed', fontWeight:700, fontSize:13 }}>
+                    {submitting ? '...' : 'Gönder'}
+                  </button>
+                </div>
+              </div>
+              {/* Yorum listesi */}
+              {commentsLoading && <p style={{ textAlign:'center', color:theme.textMuted, padding:20 }}>Yükleniyor...</p>}
+              {!commentsLoading && comments.length===0 && (
+                <div style={{ textAlign:'center', padding:40, color:theme.textMuted }}>
+                  <p style={{ fontSize:32, marginBottom:8 }}>💬</p>
+                  <p>Henüz yorum yok. İlk yorumu sen yaz!</p>
+                </div>
+              )}
+              {comments.map(cm => (
+                <motion.div key={cm.id} initial={{ opacity:0, y:8 }} animate={{ opacity:1, y:0 }}
+                  style={{ padding:'14px 16px', background:theme.surface2, borderRadius:theme.radiusSm, border:`1px solid ${theme.border}`, marginBottom:10 }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+                    <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                      <span style={{ fontSize:13, fontWeight:700, color:theme.primary }}>👤 {cm.nickname}</span>
+                      <span style={{ fontSize:11, color:theme.textMuted }}>{timeAgo(cm.created_at)}</span>
+                    </div>
+                    <button onClick={()=>handleUpvote(cm.id)}
+                      style={{ display:'flex', alignItems:'center', gap:4, padding:'4px 10px', borderRadius:20, background: upvoted[`${c.id}_${cm.id}`]?'rgba(0,212,255,0.15)':theme.surface, border:`1px solid ${upvoted[`${c.id}_${cm.id}`]?theme.primary:theme.border}`, color: upvoted[`${c.id}_${cm.id}`]?theme.primary:theme.textMuted, cursor: upvoted[`${c.id}_${cm.id}`]?'default':'pointer', fontSize:12, fontWeight:600 }}>
+                      👍 {cm.upvotes}
+                    </button>
+                  </div>
+                  <p style={{ fontSize:13, color:theme.text, lineHeight:1.6, margin:0 }}>{cm.text}</p>
+                </motion.div>
+              ))}
+            </div>
+          )}
+
+          {/* BENZER VAKALAR TAB */}
+          {tab==='benzer' && <SimilarCases attackMethod={c.attack_method} excludeId={c.id} />}
+        </div>
+      </motion.div>
+    </div>
+  )
+}
+
+function SimilarCases({ attackMethod, excludeId }) {
+  const [cases, setCases] = useState([])
+  const [loading, setLoading] = useState(true)
+  useEffect(() => {
+    fetch(`${API}/victim-atlas/cases?attack_method=${attackMethod}&limit=6&hot_set_only=true`)
+      .then(r=>r.json()).then(d=>{
+        setCases((d.data||[]).filter(c=>c.id!==excludeId).slice(0,4))
+      }).catch(()=>setCases([])).finally(()=>setLoading(false))
+  }, [attackMethod, excludeId])
+  if (loading) return <p style={{ textAlign:'center', color:theme.textMuted, padding:20 }}>Yükleniyor...</p>
+  if (!cases.length) return <p style={{ textAlign:'center', color:theme.textMuted, padding:20 }}>Benzer vaka bulunamadı.</p>
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+      {cases.map(c=>(
+        <div key={c.id} style={{ padding:'12px 16px', background:theme.surface2, borderRadius:theme.radiusSm, border:`1px solid ${theme.border}` }}>
+          <div style={{ display:'flex', gap:8, marginBottom:4 }}>
+            <span style={{ fontSize:11, padding:'2px 8px', borderRadius:12, background:`${ATTACK_COLORS[c.attack_method]||theme.primary}22`, color:ATTACK_COLORS[c.attack_method]||theme.primary, fontWeight:700 }}>{methodLabel(c.attack_method)}</span>
+            <span style={{ fontSize:11, color:theme.textMuted }}>Risk {c.severity_score}/100</span>
+          </div>
+          <p style={{ fontSize:13, color:'#fff', fontWeight:600, margin:0 }}>{c.case_title}</p>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function methodLabel(value='') {
+  const labels = {
+    phishing: 'Oltalama (Phishing)',
+    smishing: 'SMS Oltalamasi (Smishing)',
+    vishing: 'Telefon Dolandiriciligi (Vishing)',
+    social_engineering: 'Sosyal Muhendislik',
+    malware_assisted: 'Zararli Yazilim Destekli',
+    sahte_mobil_uygulama: 'Sahte Mobil Uygulama',
+    banka_taklit: 'Banka Taklit Senaryosu',
+  }
+  return labels[value] || value || 'Bilinmiyor'
+}
+
+function lossTypeLabel(value='') {
+  const labels = {
+    bank_account: 'Banka Hesabi',
+    social_media: 'Sosyal Medya Hesabi',
+    ecommerce: 'E-Ticaret',
+    corporate_account: 'Kurumsal Hesap',
+    crypto_wallet: 'Kripto Cuzdan',
+    device_compromise: 'Cihaz Ele Gecirme',
+  }
+  return labels[value] || value || 'Bilinmiyor'
+}
+
+function platformLabel(value='') {
+  const labels = {
+    banking: 'Bankacilik',
+    ecommerce: 'E-Ticaret',
+    instagram: 'Instagram',
+    whatsapp: 'WhatsApp',
+    telegram: 'Telegram',
+    microsoft365: 'Microsoft 365',
+    sikayet_platformu: 'Sikayet Platformu',
+    general: 'Genel',
+    crypto: 'Kripto',
+  }
+  return labels[value] || value || 'Genel'
+}
+
+function VictimAtlas() {
   const [cases, setCases] = useState([])
   const [stats, setStats] = useState(null)
   const [page, setPage] = useState(1)
@@ -1657,7 +1993,7 @@ function VictimAtlas({ onOpenAIAnalyzer }) {
   const [attackMethod, setAttackMethod] = useState('')
   const [lossType, setLossType] = useState('')
   const [loading, setLoading] = useState(false)
-  const [expanded, setExpanded] = useState({})
+  const [selectedCase, setSelectedCase] = useState(null)
   const [toast, setToast] = useState({ message:'', type:'success', visible:false })
 
   const showToast = useCallback((msg, type='success') => {
@@ -1709,254 +2045,134 @@ function VictimAtlas({ onOpenAIAnalyzer }) {
   function riskColor(score=0) {
     if (score >= 75) return theme.danger
     if (score >= 55) return theme.warning
-    return theme.primary
-  }
-
-  function methodLabel(value='') {
-    const labels = {
-      phishing: 'Oltalama (Phishing)',
-      smishing: 'SMS Oltalamasi (Smishing)',
-      vishing: 'Telefon Dolandiriciligi (Vishing)',
-      social_engineering: 'Sosyal Muhendislik',
-      malware_assisted: 'Zararli Yazilim Destekli',
-      sahte_mobil_uygulama: 'Sahte Mobil Uygulama',
-      banka_taklit: 'Banka Taklit Senaryosu',
-    }
-    return labels[value] || value || 'Bilinmiyor'
-  }
-
-  function lossTypeLabel(value='') {
-    const labels = {
-      bank_account: 'Banka Hesabi',
-      social_media: 'Sosyal Medya Hesabi',
-      ecommerce: 'E-Ticaret',
-      corporate_account: 'Kurumsal Hesap',
-      crypto_wallet: 'Kripto Cuzdan',
-      device_compromise: 'Cihaz Ele Gecirme',
-    }
-    return labels[value] || value || 'Bilinmiyor'
-  }
-
-  function platformLabel(value='') {
-    const labels = {
-      banking: 'Bankacilik',
-      ecommerce: 'E-Ticaret',
-      instagram: 'Instagram',
-      whatsapp: 'WhatsApp',
-      telegram: 'Telegram',
-      microsoft365: 'Microsoft 365',
-      sikayet_platformu: 'Sikayet Platformu',
-      general: 'Genel',
-    }
-    return labels[value] || value || 'Genel'
+    return theme.success
   }
 
   const methodDist = stats?.attack_method_distribution || {}
-  const topMethods = Object.entries(methodDist).sort((a,b)=>b[1]-a[1]).slice(0,5)
+  const topMethods = Object.entries(methodDist).sort((a,b)=>b[1]-a[1]).slice(0,6)
 
   return <div style={{ animation:'fadeInUp 0.5s ease' }}>
     <Toast {...toast}/>
-    <SectionHeader
-      badge="Magduriyet Atlasi"
-      title="Siber Magduriyet Arsivi"
-      subtitle="Turkiye odakli dolandiricilik vakalarini modern kartvizitlerle incele. Karti cevirerek adim adim korunma planina gec."
-    />
-    <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:16 }}>
-      <GlowButton variant="secondary" onClick={onOpenAIAnalyzer}>🤖 AI Analiz modulune git</GlowButton>
-    </div>
+    {selectedCase && <CaseModal c={selectedCase} onClose={()=>setSelectedCase(null)} />}
 
-    <div style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:16, marginBottom:24 }}>
-      <Card style={{ textAlign:'center', padding:'18px' }}><p style={{ fontSize:11, color:theme.textMuted, textTransform:'uppercase', marginBottom:8 }}>Toplam Vaka</p><p style={{ fontSize:30, fontWeight:800, color:theme.primary }}><CountUp end={stats?.total_cases||0}/></p></Card>
-      <Card style={{ textAlign:'center', padding:'18px' }}><p style={{ fontSize:11, color:theme.textMuted, textTransform:'uppercase', marginBottom:8 }}>Hot Set</p><p style={{ fontSize:30, fontWeight:800, color:theme.accent }}><CountUp end={stats?.hot_cases||0}/></p></Card>
-      <Card style={{ textAlign:'center', padding:'18px' }}><p style={{ fontSize:11, color:theme.textMuted, textTransform:'uppercase', marginBottom:8 }}>Yuksek Guven</p><p style={{ fontSize:30, fontWeight:800, color:theme.success }}><CountUp end={stats?.high_confidence_cases||0}/></p></Card>
-      <Card style={{ textAlign:'center', padding:'18px' }}><p style={{ fontSize:11, color:theme.textMuted, textTransform:'uppercase', marginBottom:8 }}>Listelenen</p><p style={{ fontSize:30, fontWeight:800, color:theme.warning }}><CountUp end={total||0}/></p></Card>
-    </div>
-
-    {topMethods.length>0 && <Card style={{ marginBottom:20, padding:'14px 16px' }}>
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:10 }}>
-        <p style={{ fontSize:12, color:theme.textMuted, fontWeight:700, margin:0 }}>En sik gorulen dolandiricilik yontemleri</p>
-        <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-          {topMethods.map(([name,count])=><span key={name} style={{ padding:'6px 10px', borderRadius:'16px', fontSize:11, background:theme.primaryDim, border:`1px solid ${theme.primary}33`, color:theme.primary }}>{methodLabel(name)} • {count}</span>)}
-        </div>
-      </div>
-    </Card>}
-
-    <Card style={{ marginBottom:24, padding:16 }}>
-      <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:12 }}>
+    {/* Hero */}
+    <div style={{ textAlign:'center', padding:'48px 24px 32px', position:'relative' }}>
+      <span style={{ display:'inline-block', padding:'6px 16px', background:theme.primaryDim, border:`1px solid ${theme.primary}33`, borderRadius:20, fontSize:11, fontWeight:700, color:theme.primary, textTransform:'uppercase', letterSpacing:'2px', marginBottom:16 }}>🇹🇷 Türkiye Odaklı</span>
+      <h1 style={{ fontSize:40, fontWeight:800, color:'#fff', marginBottom:12, letterSpacing:'-1.5px' }}>Siber Mağduriyet Forumu</h1>
+      <p style={{ color:theme.textMuted, fontSize:16, maxWidth:560, margin:'0 auto 32px', lineHeight:1.6 }}>Türkiye'deki dolandırıcılık vakalarını incele, deneyimlerini paylaş ve kendini koru.</p>
+      {/* Stats */}
+      <div style={{ display:'flex', justifyContent:'center', gap:32, flexWrap:'wrap' }}>
         {[
-          { label:'Banka taklidi', method:'banka_taklit', loss:'bank_account' },
-          { label:'Sahte mobil app', method:'sahte_mobil_uygulama', loss:'bank_account' },
-          { label:'Sosyal medya ele gecirme', method:'phishing', loss:'social_media' },
-          { label:'SMS oltalamasi', method:'smishing', loss:'' },
-        ].map((preset)=>(
-          <button
-            key={preset.label}
-            onClick={()=>{ setAttackMethod(preset.method); setLossType(preset.loss); setTimeout(()=>loadCases(1), 0) }}
-            style={{ padding:'6px 12px', borderRadius:'20px', border:`1px solid ${theme.border}`, background:theme.surface, color:theme.text, fontSize:11, cursor:'pointer' }}
-          >
-            {preset.label}
-          </button>
+          { label:'Toplam Vaka', value:stats?.total_cases||0, color:theme.primary },
+          { label:'Güncel Hot Set', value:stats?.hot_cases||0, color:theme.accent },
+          { label:'Yüksek Güven', value:stats?.high_confidence_cases||0, color:theme.success },
+          { label:'Listelenen', value:total||0, color:theme.warning },
+        ].map(s=>(
+          <div key={s.label} style={{ textAlign:'center' }}>
+            <p style={{ fontSize:28, fontWeight:800, color:s.color, margin:0 }}><CountUp end={s.value}/></p>
+            <p style={{ fontSize:11, color:theme.textMuted, textTransform:'uppercase', letterSpacing:'0.5px', margin:0 }}>{s.label}</p>
+          </div>
         ))}
       </div>
-      <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr 1fr auto', gap:10 }}>
-        <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Orn: sahte banka uygulamasi, kargo mesaji, hesap kapatildi..." style={{ padding:'12px 14px', borderRadius:theme.radiusSm, background:theme.bg, border:`1px solid ${theme.border}`, color:'#fff', outline:'none' }} onKeyDown={e=>e.key==='Enter'&&loadCases(1)} />
-        <select value={attackMethod} onChange={e=>setAttackMethod(e.target.value)} style={{ padding:'12px 10px', borderRadius:theme.radiusSm, background:theme.bg, border:`1px solid ${theme.border}`, color:'#fff' }}>
-          <option value="">Tum yontemler</option>
-          <option value="banka_taklit">Banka taklit senaryosu</option>
-          <option value="sahte_mobil_uygulama">Sahte mobil uygulama</option>
-          <option value="phishing">Phishing (oltalama)</option>
-          <option value="smishing">Smishing (SMS)</option>
-          <option value="vishing">Vishing (telefon)</option>
-          <option value="social_engineering">Sosyal muhendislik</option>
-          <option value="malware_assisted">Zararli yazilim destekli</option>
-        </select>
-        <select value={lossType} onChange={e=>setLossType(e.target.value)} style={{ padding:'12px 10px', borderRadius:theme.radiusSm, background:theme.bg, border:`1px solid ${theme.border}`, color:'#fff' }}>
-          <option value="">Tum kayip tipleri</option>
-          <option value="bank_account">Banka hesabi</option>
-          <option value="social_media">Sosyal medya hesabi</option>
-          <option value="ecommerce">E-ticaret</option>
-          <option value="corporate_account">Kurumsal hesap</option>
-          <option value="crypto_wallet">Kripto cuzdan</option>
-          <option value="device_compromise">Cihaz ele gecirme</option>
-        </select>
-        <GlowButton onClick={()=>loadCases(1)} loading={loading}>Vakaları getir</GlowButton>
-      </div>
-    </Card>
+    </div>
 
-    <div style={{ display:'grid', gridTemplateColumns:'repeat(3, minmax(0,1fr))', gap:20 }}>
-      {cases.length===0 && <Card style={{ gridColumn:'1 / -1', textAlign:'center', color:theme.textMuted }}>{loading?'Vaka verileri yukleniyor...':'Filtreye uygun vaka bulunamadi'}</Card>}
-      {cases.map((c, idx)=> {
-        const isFlipped = expanded[c.id] === true
-        return <div key={c.id} style={{ perspective:'2000px', minHeight:480 }}>
-          <div style={{
-            position:'relative',
-            width:'100%',
-            minHeight:480,
-            transformStyle:'preserve-3d',
-            transition:'transform 0.8s cubic-bezier(0.4, 0, 0.2, 1)',
-            transform:isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
-          }}>
-            <div style={{
-              position:'absolute',
-              inset:0,
-              backfaceVisibility:'hidden',
-              background:`linear-gradient(145deg, ${theme.surface}, ${theme.surface2})`,
-              border:`1px solid ${riskColor(c.severity_score)}66`,
-              borderRadius:theme.radius,
-              padding:24,
-              boxShadow:isFlipped ? theme.cardShadowHover : theme.cardShadow,
-              transition:'box-shadow 0.4s ease',
-            }}>
-              <div style={{ height:6, borderRadius:99, background:`linear-gradient(90deg, ${riskColor(c.severity_score)}, ${theme.primary})`, marginBottom:16, animation:'floatPulse 3s ease-in-out infinite' }} />
-              <div style={{ display:'flex', justifyContent:'space-between', gap:8, marginBottom:12 }}>
-                <span style={{ fontSize:12, color:theme.textMuted, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.5px' }}>{methodLabel(c.attack_method)}</span>
-                <span style={{ fontSize:12, color:riskColor(c.severity_score), fontWeight:800, padding:'4px 12px', background:riskColor(c.severity_score)+'22', borderRadius:'20px' }}>Risk {c.severity_score}/100</span>
-              </div>
-              <h4 style={{ fontSize:18, color:'#fff', marginBottom:10, lineHeight:1.4, fontWeight:700 }}>{c.case_title}</h4>
-              <p style={{ fontSize:13, color:theme.textMuted, marginBottom:16 }}>{lossTypeLabel(c.loss_type)} • {platformLabel(c.target_platform)}</p>
-              <div style={{ marginBottom:16 }}>
-                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:8 }}>
-                  <span style={{ fontSize:12, color:theme.textMuted, fontWeight:600 }}>Güven Skoru</span>
-                  <span style={{ fontSize:12, color:'#fff', fontWeight:800 }}>{c.confidence_score}%</span>
-                </div>
-                <div style={{ width:'100%', height:8, borderRadius:99, overflow:'hidden', background:theme.bg }}>
-                  <div style={{ width:`${Math.max(4, Math.min(100, c.confidence_score||0))}%`, height:'100%', background:riskColor(c.confidence_score), borderRadius:99, transition:'width 1s ease' }} />
-                </div>
-              </div>
-              <div style={{ padding:'14px 16px', borderRadius:theme.radiusSm, background:theme.surface, border:`1px solid ${theme.border}`, marginBottom:16 }}>
-                <p style={{ fontSize:13, color:theme.warning, margin:0, fontWeight:700, marginBottom:6 }}>⚠️ Kritik Uyarı</p>
-                <p style={{ fontSize:13, color:theme.text, margin:0, lineHeight:1.5 }}>{c.critical_warning}</p>
-              </div>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:16 }}>
-                <span style={{ fontSize:12, color:theme.textMuted }}>Kartı çevir ve korunma planını gör</span>
-                <button onClick={()=>setExpanded(v=>({...v,[c.id]:true}))} style={{ padding:'12px 20px', borderRadius:theme.radiusSm, cursor:'pointer', border:`1px solid ${theme.primary}44`, background:theme.primaryDim, color:theme.primary, fontWeight:700, fontSize:13, transition:'all 0.3s ease' }} onMouseEnter={e=>{e.currentTarget.style.background=theme.primary+'33';e.currentTarget.style.transform='translateY(-2px)'}} onMouseLeave={e=>{e.currentTarget.style.background=theme.primaryDim;e.currentTarget.style.transform='none'}}>
-                  Kartı Çevir →
-                </button>
-              </div>
-            </div>
-            <div style={{
-              position:'absolute',
-              inset:0,
-              backfaceVisibility:'hidden',
-              transform:'rotateY(180deg)',
-              background:`linear-gradient(145deg, ${theme.surface2}, ${theme.surface})`,
-              border:`1px solid ${theme.primary}66`,
-              borderRadius:theme.radius,
-              padding:24,
-              boxShadow:theme.cardShadowHover,
-              overflow:'auto',
-            }}>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
-                <p style={{ fontSize:14, color:theme.primary, fontWeight:700, margin:0 }}>🛡️ Korunma Planı</p>
-                <button onClick={()=>setExpanded(v=>({...v,[c.id]:false}))} style={{ padding:'10px 16px', borderRadius:theme.radiusSm, cursor:'pointer', border:`1px solid ${theme.border}`, background:theme.bg, color:theme.text, fontWeight:600, fontSize:12, transition:'all 0.3s ease' }} onMouseEnter={e=>{e.currentTarget.style.borderColor=theme.primary+'44';e.currentTarget.style.color=theme.primary}} onMouseLeave={e=>{e.currentTarget.style.borderColor=theme.border;e.currentTarget.style.color=theme.text}}>
-                  ← Ön Yüze Dön
-                </button>
-              </div>
-              <VictimAtlasDefense caseId={c.id} compact />
-            </div>
-          </div>
+    {/* Trend bar */}
+    {topMethods.length>0 && (
+      <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', padding:'10px 0', marginBottom:20, borderTop:`1px solid ${theme.border}`, borderBottom:`1px solid ${theme.border}` }}>
+        <span style={{ fontSize:11, color:theme.textMuted, fontWeight:700, textTransform:'uppercase', whiteSpace:'nowrap' }}>🔥 Trend:</span>
+        {topMethods.map(([name,count])=>(
+          <button key={name} onClick={()=>{setAttackMethod(name); setTimeout(()=>loadCases(1),0)}}
+            style={{ padding:'5px 12px', borderRadius:20, border:`1px solid ${ATTACK_COLORS[name]||theme.primary}44`, background:`${ATTACK_COLORS[name]||theme.primary}15`, color:ATTACK_COLORS[name]||theme.primary, fontSize:11, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
+            {ATTACK_ICONS[name]} {methodLabel(name)} <span style={{ opacity:0.7 }}>·{count}</span>
+          </button>
+        ))}
+        {attackMethod && <button onClick={()=>{setAttackMethod(''); setTimeout(()=>loadCases(1),0)}} style={{ padding:'5px 12px', borderRadius:20, border:`1px solid ${theme.border}`, background:'none', color:theme.textMuted, fontSize:11, cursor:'pointer' }}>✕ Temizle</button>}
+      </div>
+    )}
+
+    {/* Search & Filter */}
+    <div style={{ display:'flex', gap:10, marginBottom:20, flexWrap:'wrap' }}>
+      <input value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={e=>e.key==='Enter'&&loadCases(1)}
+        placeholder="🔍  Ara: sahte banka, kargo SMS, Instagram hesap..."
+        style={{ flex:1, minWidth:200, padding:'12px 16px', borderRadius:theme.radiusSm, background:theme.surface, border:`1px solid ${theme.border}`, color:'#fff', outline:'none', fontSize:14 }} />
+      <select value={attackMethod} onChange={e=>setAttackMethod(e.target.value)}
+        style={{ padding:'12px 10px', borderRadius:theme.radiusSm, background:theme.surface, border:`1px solid ${theme.border}`, color:'#fff', fontSize:13 }}>
+        <option value="">Tüm Yöntemler</option>
+        <option value="banka_taklit">🏦 Banka Taklidi</option>
+        <option value="sahte_mobil_uygulama">📲 Sahte Mobil App</option>
+        <option value="phishing">🎣 Phishing</option>
+        <option value="smishing">📱 Smishing (SMS)</option>
+        <option value="vishing">📞 Vishing (Telefon)</option>
+        <option value="social_engineering">🎭 Sosyal Mühendislik</option>
+        <option value="malware_assisted">🦠 Zararlı Yazılım</option>
+      </select>
+      <select value={lossType} onChange={e=>setLossType(e.target.value)}
+        style={{ padding:'12px 10px', borderRadius:theme.radiusSm, background:theme.surface, border:`1px solid ${theme.border}`, color:'#fff', fontSize:13 }}>
+        <option value="">Tüm Kayıplar</option>
+        <option value="bank_account">🏧 Banka Hesabı</option>
+        <option value="social_media">📸 Sosyal Medya</option>
+        <option value="ecommerce">📦 E-Ticaret</option>
+        <option value="corporate_account">🏢 Kurumsal</option>
+        <option value="crypto_wallet">₿ Kripto</option>
+        <option value="device_compromise">💻 Cihaz</option>
+      </select>
+      <GlowButton onClick={()=>loadCases(1)} loading={loading}>Getir</GlowButton>
+    </div>
+
+    {/* Forum list */}
+    <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+      {loading && <div style={{ textAlign:'center', padding:40, color:theme.textMuted }}><Spinner size={32}/><p style={{ marginTop:12 }}>Vakalar yükleniyor...</p></div>}
+      {!loading && cases.length===0 && (
+        <div style={{ textAlign:'center', padding:60, color:theme.textMuted, background:theme.surface, borderRadius:theme.radiusMd, border:`1px solid ${theme.border}` }}>
+          <p style={{ fontSize:36, marginBottom:8 }}>🔍</p>
+          <p style={{ fontSize:15 }}>Filtreye uygun vaka bulunamadı.</p>
         </div>
+      )}
+      {cases.map((c, idx) => {
+        const ac = ATTACK_COLORS[c.attack_method] || theme.primary
+        return (
+          <motion.div key={c.id}
+            initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }} transition={{ delay:idx*0.04 }}
+            onClick={()=>setSelectedCase(c)}
+            style={{ display:'flex', gap:0, background:theme.surface, border:`1px solid ${theme.border}`, borderRadius:theme.radiusMd, overflow:'hidden', cursor:'pointer', transition:'all 0.2s ease' }}
+            onMouseEnter={e=>{e.currentTarget.style.borderColor=`${ac}55`;e.currentTarget.style.transform='translateY(-2px)';e.currentTarget.style.boxShadow=`0 8px 30px ${ac}18`}}
+            onMouseLeave={e=>{e.currentTarget.style.borderColor=theme.border;e.currentTarget.style.transform='none';e.currentTarget.style.boxShadow='none'}}
+          >
+            {/* Sol renk şeridi */}
+            <div style={{ width:4, minWidth:4, background:ac, flexShrink:0 }} />
+            {/* İçerik */}
+            <div style={{ flex:1, padding:'14px 18px', display:'flex', gap:16, alignItems:'center', flexWrap:'wrap' }}>
+              <div style={{ fontSize:28, lineHeight:1 }}>{ATTACK_ICONS[c.attack_method] || '⚠️'}</div>
+              <div style={{ flex:1, minWidth:200 }}>
+                <div style={{ display:'flex', gap:6, alignItems:'center', marginBottom:5, flexWrap:'wrap' }}>
+                  <span style={{ fontSize:11, fontWeight:700, padding:'2px 8px', borderRadius:12, background:`${ac}20`, color:ac }}>{methodLabel(c.attack_method)}</span>
+                  <span style={{ fontSize:11, color:theme.textMuted }}>{LOSS_ICONS[c.loss_type]} {lossTypeLabel(c.loss_type)}</span>
+                  <span style={{ fontSize:11, color:theme.textMuted }}>• {platformLabel(c.target_platform)}</span>
+                </div>
+                <p style={{ fontSize:15, fontWeight:700, color:'#fff', margin:'0 0 4px', lineHeight:1.3 }}>{c.case_title}</p>
+                <p style={{ fontSize:12, color:theme.textMuted, margin:0, lineHeight:1.5 }}>{c.critical_warning?.slice(0,100)}{c.critical_warning?.length>100?'...':''}</p>
+              </div>
+              {/* Sağ meta */}
+              <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:6, flexShrink:0 }}>
+                <span style={{ fontSize:12, fontWeight:800, padding:'4px 10px', borderRadius:20, background: c.severity_score>=75?'rgba(239,68,68,0.15)':c.severity_score>=55?'rgba(245,158,11,0.15)':'rgba(34,197,94,0.15)', color:riskColor(c.severity_score) }}>Risk {c.severity_score}</span>
+                <span style={{ fontSize:11, color:theme.textMuted }}>Güven: {c.confidence_score}%</span>
+                <span style={{ fontSize:11, color:theme.primary, fontWeight:600 }}>Detay →</span>
+              </div>
+            </div>
+          </motion.div>
+        )
       })}
     </div>
 
     {totalPages>1 && <div style={{ display:'flex', justifyContent:'center', gap:8, marginTop:20 }}>
-      <button onClick={()=>loadCases(page-1)} disabled={page<=1||loading} style={{ padding:'8px 14px', borderRadius:theme.radiusSm, border:`1px solid ${theme.border}`, background:theme.surface, color:page<=1?theme.textMuted:'#fff', cursor:page<=1?'not-allowed':'pointer' }}>← Onceki</button>
-      <span style={{ padding:'8px 14px', color:theme.textMuted }}>Sayfa {page} / {totalPages}</span>
-      <button onClick={()=>loadCases(page+1)} disabled={page>=totalPages||loading} style={{ padding:'8px 14px', borderRadius:theme.radiusSm, border:`1px solid ${theme.border}`, background:theme.surface, color:page>=totalPages?theme.textMuted:'#fff', cursor:page>=totalPages?'not-allowed':'pointer' }}>Sonraki →</button>
+      <button onClick={()=>loadCases(page-1)} disabled={page<=1||loading} style={{ padding:'8px 16px', borderRadius:theme.radiusSm, border:`1px solid ${theme.border}`, background:theme.surface, color:page<=1?theme.textMuted:'#fff', cursor:page<=1?'not-allowed':'pointer' }}>← Önceki</button>
+      <span style={{ padding:'8px 14px', color:theme.textMuted, fontSize:13 }}>Sayfa {page} / {totalPages}</span>
+      <button onClick={()=>loadCases(page+1)} disabled={page>=totalPages||loading} style={{ padding:'8px 16px', borderRadius:theme.radiusSm, border:`1px solid ${theme.border}`, background:theme.surface, color:page>=totalPages?theme.textMuted:'#fff', cursor:page>=totalPages?'not-allowed':'pointer' }}>Sonraki →</button>
     </div>}
   </div>
 }
 
-function VictimAtlasDefense({ caseId, compact = false }) {
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(false)
-
-  useEffect(()=>{
-    let mounted = true
-    async function load() {
-      try {
-        setLoading(true)
-        const r = await fetch(`${API}/victim-atlas/cases/${caseId}`)
-        if(!r.ok) throw new Error('detail failed')
-        const d = await r.json()
-        if(mounted) setData(d.data || null)
-      } catch {
-        if(mounted) setData(null)
-      } finally {
-        if(mounted) setLoading(false)
-      }
-    }
-    load()
-    return ()=>{ mounted = false }
-  },[caseId])
-
-  if (loading) return <div style={{ display:'flex', alignItems:'center', gap:8, padding:16, background:theme.bg, borderRadius:theme.radiusSm }}><Spinner size={16}/><span style={{ fontSize:12, color:theme.textMuted }}>Detay yükleniyor...</span></div>
-  if (!data) return <p style={{ marginTop:10, fontSize:12, color:theme.textMuted }}>Detay bulunamadi.</p>
-
-  return <div style={{ marginTop:compact ? 0 : 0 }}>
-    <div style={{ padding:'16px 18px', background:theme.bg, borderRadius:theme.radiusSm, border:`1px solid ${theme.border}`, marginBottom:16 }}>
-      <p style={{ fontSize:13, color:theme.text, marginBottom:12, lineHeight:1.6, fontWeight:500 }}>{data.narrative_summary}</p>
-    </div>
-    
-    <p style={{ fontSize:13, color:theme.primary, fontWeight:700, marginBottom:12, display:'flex', alignItems:'center', gap:6 }}>📋 Adım Adım Korunma Rehberi</p>
-    <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:16 }}>
-      {(data.defense_steps||[]).map((step, idx)=><div key={idx} style={{ display:'flex', gap:12, alignItems:'flex-start', padding:'14px 16px', borderRadius:theme.radiusSm, background:theme.surface, border:`1px solid ${theme.border}`, transition:'all 0.3s ease' }} onMouseEnter={e=>{e.currentTarget.style.borderColor=theme.primary+'44';e.currentTarget.style.transform='translateX(4px)'}} onMouseLeave={e=>{e.currentTarget.style.borderColor=theme.border;e.currentTarget.style.transform='none'}}>
-        <div style={{ minWidth:28, height:28, borderRadius:'50%', background:theme.primaryDim, border:`1px solid ${theme.primary}44`, display:'flex', alignItems:'center', justifyContent:'center', color:theme.primary, fontWeight:800, fontSize:13 }}>{idx+1}</div>
-        <div style={{ flex:1 }}>
-          <p style={{ fontSize:13, color:'#fff', lineHeight:1.6, margin:0, fontWeight:500 }}>{step}</p>
-        </div>
-      </div>)}
-    </div>
-    
-    {Array.isArray(data.evidence) && data.evidence.length>0 && <div style={{ padding:'14px 16px', background:theme.surface, borderRadius:theme.radiusSm, border:`1px solid ${theme.border}` }}>
-      <p style={{ fontSize:12, color:theme.textMuted, marginBottom:10, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.5px' }}>🔗 Kaynak Bağlantıları</p>
-      {data.evidence.slice(0,3).map((ev, idx)=><a key={idx} href={ev.url} target="_blank" rel="noreferrer" style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 12px', background:theme.bg, borderRadius:6, fontSize:12, color:theme.primary, textDecoration:'none', marginBottom:6, transition:'all 0.2s ease' }} onMouseEnter={e=>{e.currentTarget.style.background=theme.primary+'22';e.currentTarget.style.transform='translateX(4px)'}} onMouseLeave={e=>{e.currentTarget.style.background=theme.bg;e.currentTarget.style.transform='none'}}>
-        <span>📄</span>
-        <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{ev.title || ev.url}</span>
-      </a>)}
-    </div>}
-  </div>
-}
+function VictimAtlasDefense() { return null }
 
 /* ===============================================
    HONEYPOT / IOC

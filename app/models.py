@@ -430,3 +430,20 @@ class IngestRun(Base):
     cases_updated = Column(Integer, default=0)
     errors_json = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class CaseComment(Base):
+    """Victim Atlas vaka yorumları — anonim kullanıcı deneyimleri."""
+    __tablename__ = "case_comments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    case_id = Column(Integer, ForeignKey("victim_cases.id"), index=True, nullable=False)
+    nickname = Column(String(60), nullable=False)
+    text = Column(Text, nullable=False)
+    upvotes = Column(Integer, default=0, nullable=False)
+    ip_hash = Column(String(64), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index('ix_comment_case_created', 'case_id', 'created_at'),
+    )

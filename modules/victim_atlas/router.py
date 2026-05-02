@@ -1,12 +1,13 @@
+import hashlib
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel, constr
 from sqlalchemy.orm import Session
 
 from app.auth import require_admin, resolve_api_key, resolve_optional_api_key
 from app.database import SessionLocal, get_db
-from app.models import APIKey, VictimCase
+from app.models import APIKey, CaseComment, VictimCase
 from app.security import require_admin_api_key
 
 from .database import ensure_initialized, get_case, get_cases, get_ingest_health, get_stats
@@ -188,3 +189,70 @@ def run_ingest(_: None = Depends(require_admin_api_key)):
 def run_prune(_: None = Depends(require_admin_api_key)):
     ensure_initialized()
     return {"result": run_hotset_maintenance(), "module": "07_victim_atlas"}
+
+
+# ── Yorum endpoint'leri ───────────────────────────────────
+
+class CommentRequest(BaseModel):
+    nickname: str
+    text: str
+
+
+@router.get("/cases/{case_id}/comments")
+def list_comments(case_id: int, db: Session = Depends(get_db)):
+    comments = (
+        db.query(CaseComment)
+        .filter(CaseComment.case_id == case_id)
+        .order_by(CaseComment.upvotes.desc(), CaseComment.created_at.desc())
+        .limit(50)
+        .all()
+    )
+    return {
+        "data": [
+            {
+                "id": c.id,
+                "nickname": c.nickname,
+                "text": c.text,
+                "upvotes": c.upvotes,
+                "created_at": c.created_at.isoformat() if c.created_at else None,
+            }
+            for c in comments
+        ]
+    }
+
+
+@router.post("/cases/{case_id}/comments", status_code=status.HTTP_201_CREATED)
+def add_comment(case_id: int, body: CommentRequest, request: Request, db: Session = Depends(get_db)):
+    if not db.query(VictimCase).filter(VictimCase.id == case_id).first():
+        raise HTTPException(status_code=404, detail="Vaka bulunamadı.")
+    nickname = (body.nickname or "Anonim").strip()[:60]
+    text = (body.text or "").strip()
+    if len(text) < 5:
+        raise HTTPException(status_code=422, detail="Yorum en az 5 karakter olmalı.")
+    if len(text) > 1000:
+        raise HTTPException(status_code=422, detail="Yorum en fazla 1000 karakter olabilir.")
+    ip = request.client.host if request.client else "unknown"
+    ip_hash = hashlib.sha256(ip.encode()).hexdigest()
+    comment = CaseComment(
+        case_id=case_id,
+        nickname=nickname,
+        text=text,
+        ip_hash=ip_hash,
+        created_at=datetime.now(timezone.utc),
+    )
+    db.add(comment)
+    db.commit()
+    db.refresh(comment)
+    return {"data": {"id": comment.id, "nickname": comment.nickname}}
+
+
+@router.post("/cases/{case_id}/comments/{comment_id}/upvote")
+def upvote_comment(case_id: int, comment_id: int, db: Session = Depends(get_db)):
+    comment = db.query(CaseComment).filter(
+        CaseComment.id == comment_id, CaseComment.case_id == case_id
+    ).first()
+    if not comment:
+        raise HTTPException(status_code=404, detail="Yorum bulunamadı.")
+    comment.upvotes = (comment.upvotes or 0) + 1
+    db.commit()
+    return {"upvotes": comment.upvotes}

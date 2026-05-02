@@ -53,6 +53,36 @@ TRUSTED_SOURCES: List[SourceConfig] = [
         "tier2",
     ),
     SourceConfig("reddit_scam", "https://www.reddit.com/r/Scams/.rss", "rss", "tier2"),
+    SourceConfig(
+        "google_news_tr_whatsapp",
+        "https://news.google.com/rss/search?q=whatsapp+dolandiricilik+hesap+calindi&hl=tr&gl=TR&ceid=TR:tr",
+        "rss",
+        "tier2",
+    ),
+    SourceConfig(
+        "google_news_tr_instagram",
+        "https://news.google.com/rss/search?q=instagram+hesap+calindi+dolandiricilik+magdur&hl=tr&gl=TR&ceid=TR:tr",
+        "rss",
+        "tier2",
+    ),
+    SourceConfig(
+        "google_news_tr_kargo",
+        "https://news.google.com/rss/search?q=sahte+kargo+sms+dolandiricilik+link&hl=tr&gl=TR&ceid=TR:tr",
+        "rss",
+        "tier2",
+    ),
+    SourceConfig(
+        "google_news_tr_kripto",
+        "https://news.google.com/rss/search?q=kripto+dolandiricilik+bitcoin+magduriyet+turkiye&hl=tr&gl=TR&ceid=TR:tr",
+        "rss",
+        "tier2",
+    ),
+    SourceConfig(
+        "google_news_tr_vishing",
+        "https://news.google.com/rss/search?q=telefon+dolandiricilik+vishing+banka+araması&hl=tr&gl=TR&ceid=TR:tr",
+        "rss",
+        "tier2",
+    ),
 ]
 
 ATTACK_METHOD_KEYWORDS: Dict[str, Iterable[str]] = {
