@@ -82,3 +82,11 @@ export const adminAPI = {
   changeRole: (userId, role) =>
     api.patch(`/admin/users/${userId}`, { role }),
 }
+
+export const smsGuardAPI = {
+  analyze: (text, sender) =>
+    api.post('/sms/analyze', { text, sender }),
+
+  info: () =>
+    api.get('/sms/info'),
+}

@@ -191,6 +191,71 @@ def run_prune(_: None = Depends(require_admin_api_key)):
     return {"result": run_hotset_maintenance(), "module": "07_victim_atlas"}
 
 
+@router.post("/admin/fill-regions", summary="Gemini ile boş il alanlarını doldur (admin)")
+def fill_missing_regions(
+    limit: int = 50,
+    _: None = Depends(require_admin_api_key),
+    db: Session = Depends(get_db),
+):
+    """NULL region değeri olan vakaları Gemini'ye göndererek Türkiye ili tahmini yap."""
+    try:
+        from .gemini_service import _call_gemini, _extract_json
+    except ImportError:
+        raise HTTPException(status_code=503, detail="Gemini servisi kullanılamıyor.")
+
+    TURKISH_CITIES = {
+        "adana", "adıyaman", "afyonkarahisar", "ağrı", "amasya", "ankara", "antalya",
+        "artvin", "aydın", "balıkesir", "bilecik", "bingöl", "bitlis", "bolu", "burdur",
+        "bursa", "çanakkale", "çankırı", "çorum", "denizli", "diyarbakır", "edirne",
+        "elazığ", "erzincan", "erzurum", "eskişehir", "gaziantep", "giresun", "gümüşhane",
+        "hakkari", "hatay", "isparta", "mersin", "istanbul", "izmir", "kars", "kastamonu",
+        "kayseri", "kırklareli", "kırşehir", "kocaeli", "konya", "kütahya", "malatya",
+        "manisa", "kahramanmaraş", "mardin", "muğla", "muş", "nevşehir", "niğde",
+        "ordu", "rize", "sakarya", "samsun", "siirt", "sinop", "sivas", "tekirdağ",
+        "tokat", "trabzon", "tunceli", "şanlıurfa", "uşak", "van", "yozgat", "zonguldak",
+        "aksaray", "bayburt", "karaman", "kırıkkale", "batman", "şırnak", "bartın",
+        "ardahan", "iğdır", "yalova", "karabük", "kilis", "osmaniye", "düzce",
+    }
+
+    cases = (
+        db.query(VictimCase)
+        .filter(
+            (VictimCase.region.is_(None)) | (VictimCase.region == ""),
+            VictimCase.is_published.is_(True),
+        )
+        .order_by(VictimCase.id.desc())
+        .limit(limit)
+        .all()
+    )
+    if not cases:
+        return {"updated": 0, "message": "Bölge atanmamış yayınlanmış vaka bulunamadı."}
+
+    system = (
+        "Sen Türkiye'deki siber dolandırıcılık vakalarını analiz eden bir uzmansın. "
+        "Verilen vaka metninden Türkiye ilini tahmin et. "
+        "Yalnızca JSON döndür: {\"region\": \"<il adı>\"} veya {\"region\": null} eğer il belirlenemiyorsa."
+    )
+    updated = 0
+    errors = 0
+    for case in cases:
+        text = f"Başlık: {case.case_title}\nYöntem: {case.attack_method}\nÖzet: {case.narrative_summary[:300]}"
+        try:
+            raw = _call_gemini(system, text)
+            result = _extract_json(raw)
+            region = result.get("region")
+            if region and isinstance(region, str):
+                norm = region.strip().lower()
+                # Türkiye ili doğrulama
+                if any(norm in city or city in norm for city in TURKISH_CITIES):
+                    case.region = region.strip().title()
+                    updated += 1
+        except Exception:
+            errors += 1
+            continue
+    db.commit()
+    return {"updated": updated, "errors": errors, "total_checked": len(cases), "module": "07_victim_atlas"}
+
+
 # ── Yorum endpoint'leri ───────────────────────────────────
 
 class CommentRequest(BaseModel):

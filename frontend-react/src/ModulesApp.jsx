@@ -2218,7 +2218,30 @@ function HoneypotIOC() {
   const [toast, setToast] = useState({ message:'', type:'success', visible:false })
   const [currentSlide, setCurrentSlide] = useState(0)
   const [showDropdown, setShowDropdown] = useState(false)
+  const [exportingSTIX, setExportingSTIX] = useState(false)
   const searchTimeoutRef = useRef(null)
+
+  async function exportSTIX(minRisk = 0) {
+    setExportingSTIX(true)
+    try {
+      const url = `${API}/api/v2/ioc/export/stix?min_risk_score=${minRisk}&limit=1000`
+      const res = await fetch(url)
+      if (!res.ok) throw new Error('Export başarısız')
+      const blob = await res.blob()
+      const downloadUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = downloadUrl
+      a.download = `aegisnexus-ioc-stix-${new Date().toISOString().split('T')[0]}.json`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(downloadUrl)
+      showToast('STIX 2.1 dosyası indirildi')
+    } catch (e) {
+      showToast('STIX export hatası: ' + e.message, 'error')
+    }
+    setExportingSTIX(false)
+  }
 
   async function loadIoCStats(){
     try{
@@ -2388,6 +2411,20 @@ function HoneypotIOC() {
             </motion.div>
           )}
         </AnimatePresence>
+      </div>
+
+      {/* STIX Export Button */}
+      <div style={{ display:'flex', justifyContent:'center', gap:12, marginTop:20 }}>
+        <button onClick={()=>exportSTIX(0)} disabled={exportingSTIX}
+          style={{ padding:'10px 20px', borderRadius:theme.radiusSm, background:exportingSTIX?'#333':theme.surface, border:`1px solid ${theme.border}`, color:theme.text, cursor:exportingSTIX?'not-allowed':'pointer', fontSize:13, fontWeight:600, display:'flex', alignItems:'center', gap:8 }}>
+          <Download size={14}/>
+          {exportingSTIX ? 'İndiriliyor...' : 'STIX 2.1 İndir'}
+        </button>
+        <button onClick={()=>exportSTIX(50)} disabled={exportingSTIX}
+          style={{ padding:'10px 20px', borderRadius:theme.radiusSm, background:exportingSTIX?'#333':'rgba(239,68,68,0.1)', border:`1px solid rgba(239,68,68,0.3)`, color:'#ef4444', cursor:exportingSTIX?'not-allowed':'pointer', fontSize:13, fontWeight:600, display:'flex', alignItems:'center', gap:8 }}>
+          <ShieldAlert size={14}/>
+          {exportingSTIX ? 'İndiriliyor...' : 'Yüksek Risk (50+)'}
+        </button>
       </div>
     </div>
 

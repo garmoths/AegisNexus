@@ -34,6 +34,9 @@ from .ai_analyzer import router as ai_analyzer_router
 # 06 - Victim Atlas (Siber Magduriyet Atlasi)
 from .victim_atlas import router as victim_atlas_router
 
+# 07 - SMS Guard (Smishing/Phishing SMS Analizi)
+from .sms_guard import router as sms_guard_router
+
 router = None  # Placeholder for direct router access
 
 __all__ = [
@@ -43,4 +46,5 @@ __all__ = [
     "password_shield_router",
     "ai_analyzer_router",
     "victim_atlas_router",
+    "sms_guard_router",
 ]
