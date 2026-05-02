@@ -16,26 +16,28 @@ Her modülün router'ı /api/v2/modular/ prefix'i altında erişilebilir.
 Örnek: /api/v2/phishing/check-url
 """
 
-# 01 - Phishing Detector
-from .phishing_detector import router as phishing_detector_router
+from importlib import import_module
 
-# 02 - Honeypot (IP Avcısı)
-from .honeypot import router as honeypot_router
+_ROUTER_MODULE_MAP = {
+    "phishing_detector_router": "phishing_detector",
+    "honeypot_router": "honeypot",
+    "breach_intel_router": "breach_intel",
+    "password_shield_router": "password_shield",
+    "ai_analyzer_router": "ai_analyzer",
+    "victim_atlas_router": "victim_atlas",
+    "sms_guard_router": "sms_guard",
+}
 
-# 03 - Breach Intelligence (Veri Radarı)
-from .breach_intel import router as breach_intel_router
 
-# 04 - Password Shield (Kriptografik Kalkan)
-from .password_shield import router as password_shield_router
+def __getattr__(name):
+    module_name = _ROUTER_MODULE_MAP.get(name)
+    if not module_name:
+        raise AttributeError(f"module 'modules' has no attribute '{name}'")
 
-# 05 - AI Analyzer (AI Güvenlik Asistanı)
-from .ai_analyzer import router as ai_analyzer_router
+    router = import_module(f".{module_name}", __name__).router
+    globals()[name] = router
+    return router
 
-# 06 - Victim Atlas (Siber Magduriyet Atlasi)
-from .victim_atlas import router as victim_atlas_router
-
-# 07 - SMS Guard (Smishing/Phishing SMS Analizi)
-from .sms_guard import router as sms_guard_router
 
 router = None  # Placeholder for direct router access
 
