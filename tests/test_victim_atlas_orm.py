@@ -47,6 +47,10 @@ class TestORMModels(unittest.TestCase):
         Base.metadata.create_all(cls.engine)
         cls.Session = sessionmaker(bind=cls.engine)
 
+    @classmethod
+    def tearDownClass(cls):
+        cls.engine.dispose()
+
     def test_user_create(self):
         with self.Session() as db:
             user = User(email="test@aegisnexus.dev", role=UserRole.free)

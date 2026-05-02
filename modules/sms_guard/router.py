@@ -9,7 +9,6 @@ POST /api/v2/sms/analyze
 from __future__ import annotations
 
 import re
-import logging
 from datetime import datetime, timezone
 from typing import List, Optional
 
@@ -18,10 +17,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from shared.utils.db import get_db
 from app.models import IndicatorOfCompromise
+from shared.utils.db import get_db
 
-logger = logging.getLogger(__name__)
 router = APIRouter(tags=["07-sms-guard"])
 
 # ── Patterns ──────────────────────────────────────────────
@@ -130,9 +128,6 @@ def _analyze_sms(text: str, sender: Optional[str], db: Session) -> SMSAnalyzeRes
             in_ioc_db=in_ioc_db,
             ioc_risk_score=ioc_risk,
         ))
-
-    if not raw_urls:
-        pass  # URL yoksa SMS içeriğine bak
 
     # 2. Türkçe phishing kelimesi analizi
     kw_hits = [kw for kw in _PHISHING_KEYWORDS_TR if kw in text_lower]
