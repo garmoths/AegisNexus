@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { theme } from '../theme'
 import { reportsAPI, smsGuardAPI } from '../lib/endpoints'
-import useAuthStore from '../stores/authStore'
 import GeminiLoader from '../components/GeminiLoader'
 import RiskBadge from '../components/RiskBadge'
 
@@ -10,8 +9,6 @@ export default function AnalyzePage() {
   const [description, setDescription] = useState('')
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
-  const [reports, setReports] = useState([])
-  const isAuthenticated = useAuthStore(s => s.isAuthenticated)
 
   // SMS Widget state
   const [smsText, setSmsText] = useState('')
@@ -26,8 +23,8 @@ export default function AnalyzePage() {
     try {
       const res = await reportsAPI.analyze(description)
       setResult(res.data)
-    } catch (e) {
-      if (e.response?.status === 401) {
+    } catch (error) {
+      if (error.response?.status === 401) {
         setResult({ error: 'Analiz için giriş yapmanız gerekiyor.' })
       } else {
         setResult({ error: 'Analiz sırasında hata oluştu.' })
@@ -43,7 +40,7 @@ export default function AnalyzePage() {
     try {
       const res = await smsGuardAPI.analyze(smsText, smsSender)
       setSmsResult(res.data)
-    } catch (e) {
+    } catch {
       setSmsResult({ error: 'SMS analizi sırasında hata oluştu.' })
     }
     setSmsLoading(false)

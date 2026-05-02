@@ -567,13 +567,6 @@ function ResultContent({ score, threatLevel, isPhishing, isScam, sa, da, recs, b
   const confidencePercentage = Math.round(confidence * 100)
   const confidenceColor = confidence > 0.75 ? theme.danger : confidence > 0.50 ? theme.warning : confidence > 0.25 ? theme.primary : theme.success
   
-  // Get advanced breakdown data
-  const breakdown = da?.advanced_breakdown || {}
-  const sUrl = breakdown.s_url || 0
-  const sText = breakdown.s_text || 0
-  const sLlm = breakdown.s_llm || 0
-  const sUrgency = breakdown.s_urgency || 0
-  const sEmotion = breakdown.s_emotion || 0
   const hardOverride = da?.hard_override || false
 
   return <motion.div 
@@ -1256,11 +1249,7 @@ function PhishingDetector() {
 
   // Real-time autocomplete with debouncing
   useEffect(() => {
-    if (url.length < 1) {
-      setSearchResults([])
-      setShowDropdown(false)
-      return
-    }
+    if (url.length < 1) return
     
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current)
@@ -1277,7 +1266,7 @@ function PhishingDetector() {
           setSearchResults([])
           setShowDropdown(false)
         }
-      } catch (e) {
+      } catch {
         setSearchResults([])
         setShowDropdown(false)
       }
@@ -1715,10 +1704,25 @@ function CaseModal({ c, onClose }) {
 
   useEffect(() => {
     if (tab !== 'yorumlar') return
-    setCommentsLoading(true)
-    fetch(`${API}/victim-atlas/cases/${c.id}/comments`)
-      .then(r=>r.json()).then(d=>setComments(d.data||[])).catch(()=>setComments([]))
-      .finally(()=>setCommentsLoading(false))
+
+    let cancelled = false
+
+    void (async () => {
+      setCommentsLoading(true)
+      try {
+        const response = await fetch(`${API}/victim-atlas/cases/${c.id}/comments`)
+        const data = await response.json()
+        if (!cancelled) setComments(data.data || [])
+      } catch {
+        if (!cancelled) setComments([])
+      } finally {
+        if (!cancelled) setCommentsLoading(false)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
   }, [tab, c.id])
 
   async function submitComment() {
@@ -1732,8 +1736,11 @@ function CaseModal({ c, onClose }) {
       setNewComment('')
       const r = await fetch(`${API}/victim-atlas/cases/${c.id}/comments`)
       const d = await r.json(); setComments(d.data||[])
-    } catch {}
-    setSubmitting(false)
+    } catch {
+      void 0
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   async function handleUpvote(commentId) {
@@ -1745,7 +1752,9 @@ function CaseModal({ c, onClose }) {
       setComments(prev => prev.map(cm => cm.id===commentId ? {...cm, upvotes: d.upvotes} : cm))
       const next = {...upvoted, [key]: true}
       setUpvoted(next); localStorage.setItem('upvoted', JSON.stringify(next))
-    } catch {}
+    } catch {
+      void 0
+    }
   }
 
   const acColor = ATTACK_COLORS[c.attack_method] || theme.primary
@@ -2214,9 +2223,7 @@ function HoneypotIOC() {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState([])
   const [searching, setSearching] = useState(false)
-  const [activeTab, setActiveTab] = useState('dashboard')
   const [toast, setToast] = useState({ message:'', type:'success', visible:false })
-  const [currentSlide, setCurrentSlide] = useState(0)
   const [showDropdown, setShowDropdown] = useState(false)
   const [exportingSTIX, setExportingSTIX] = useState(false)
   const searchTimeoutRef = useRef(null)
@@ -2224,7 +2231,7 @@ function HoneypotIOC() {
   async function exportSTIX(minRisk = 0) {
     setExportingSTIX(true)
     try {
-      const url = `${API}/api/v2/ioc/export/stix?min_risk_score=${minRisk}&limit=1000`
+      const url = `${API}/ioc/export/stix?min_risk_score=${minRisk}&limit=1000`
       const res = await fetch(url)
       if (!res.ok) throw new Error('Export başarısız')
       const blob = await res.blob()
@@ -2243,55 +2250,12 @@ function HoneypotIOC() {
     setExportingSTIX(false)
   }
 
-  async function loadIoCStats(){
-    try{
-      const r=await fetch(`${API}/honeypot/ioc/stats`);
-      const d=await r.json();
-      setIocStats(d)
-    }catch{
-      try{
-        const r=await fetch(`${API}/honeypot/ioc/stats`);
-        const d=await r.json();
-        setIocStats(d)
-      }catch{
-        setIocStats(null)
-      }
-    }
-  }
-  async function loadIoCList(){
-    try{
-      const levels=['critical','high','medium','low'];
-      let allIocs=[];
-      for(const level of levels){
-        try{
-          const r=await fetch(`${API}/honeypot/ioc/by-risk-score?level=${level}&limit=8`);
-          const d=await r.json();
-          if(d.iocs) allIocs=[...allIocs,...d.iocs];
-        }catch{
-          continue
-        }
-      }
-      setIocList(allIocs)
-    }catch{
-      try{
-        const r=await fetch(`${API}/honeypot/ioc/list?limit=25`);
-        const d=await r.json();
-        setIocList(d.data||d.iocs||[])
-      }catch{
-        setIocList([])
-      }
-    }
-  }
-  async function handleSearch(){if(!searchQuery)return;setSearching(true);try{const r=await fetch(`${API}/honeypot/ioc/search?q=${encodeURIComponent(searchQuery)}`);const d=await r.json();if(d.status==='success'||d.results){setSearchResults(d.results||d.data||d.iocs||[]);setActiveTab('search-results')}else{showToast('Arama sonucu bulunamadi veya hata: '+d.message,'error')}}catch(e){showToast('Arama hatasi: '+e.message,'error')};setSearching(false)}
+  async function handleSearch(){if(!searchQuery)return;setSearching(true);try{const r=await fetch(`${API}/honeypot/ioc/search?q=${encodeURIComponent(searchQuery)}`);const d=await r.json();if(d.status==='success'||d.results){setSearchResults(d.results||d.data||d.iocs||[]);setShowDropdown(true)}else{showToast('Arama sonucu bulunamadi veya hata: '+d.message,'error')}}catch(e){showToast('Arama hatasi: '+e.message,'error')};setSearching(false)}
   function showToast(msg,t='success'){setToast({message:msg,type:t,visible:true});setTimeout(()=>setToast(v=>({...v,visible:false})),3000)}
   
   // Real-time autocomplete with debouncing
   useEffect(() => {
-    if (searchQuery.length < 2) {
-      setSearchResults([])
-      setShowDropdown(false)
-      return
-    }
+    if (searchQuery.length < 2) return
     
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current)
@@ -2309,7 +2273,7 @@ function HoneypotIOC() {
           setSearchResults([])
           setShowDropdown(false)
         }
-      } catch (e) {
+      } catch {
         setSearchResults([])
         setShowDropdown(false)
       }
@@ -2323,29 +2287,56 @@ function HoneypotIOC() {
     }
   }, [searchQuery])
   
-  // Auto slide for latest IOCs
   useEffect(() => {
-    if (iocList.length > 0) {
-      const interval = setInterval(() => {
-        setCurrentSlide(prev => (prev + 1) % Math.min(iocList.length, 5))
-      }, 4000)
-      return () => clearInterval(interval)
+    let cancelled = false
+
+    void (async () => {
+      try {
+        const statsResponse = await fetch(`${API}/honeypot/ioc/stats`)
+        const statsData = await statsResponse.json()
+        if (!cancelled) setIocStats(statsData)
+      } catch {
+        if (!cancelled) setIocStats(null)
+      }
+
+      try {
+        const levels = ['critical', 'high', 'medium', 'low']
+        const allIocs = []
+        for (const level of levels) {
+          try {
+            const response = await fetch(`${API}/honeypot/ioc/by-risk-score?level=${level}&limit=8`)
+            const data = await response.json()
+            if (data.iocs) allIocs.push(...data.iocs)
+          } catch {
+            continue
+          }
+        }
+        if (!cancelled) setIocList(allIocs)
+      } catch {
+        if (cancelled) return
+        try {
+          const response = await fetch(`${API}/honeypot/ioc/list?limit=25`)
+          const data = await response.json()
+          setIocList(data.data || data.iocs || [])
+        } catch {
+          setIocList([])
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
     }
-  }, [iocList])
-  
-  useEffect(()=>{loadIoCStats();loadIoCList()},[])
+  }, [])
 
   const statsData=iocStats?.stats||iocStats||{}
   const riskDist=statsData?.risk_distribution||iocStats?.risk_distribution||[]
-  const weeklyGrowth=statsData?.weekly_growth||iocStats?.weekly_growth||[]
   const topThreats=statsData?.top_threats||iocStats?.top_threats||[]
   const sourceBreakdown=statsData?.source_breakdown||iocStats?.source_breakdown||[]
   const totalIocs=statsData?.total_iocs||iocStats?.total_iocs||iocStats?.total_records||0
   const highRisk=statsData?.high_risk_count||iocStats?.high_risk_count||0
   const mediumRisk=statsData?.medium_risk_count||iocStats?.medium_risk_count||0
-  const lowRisk=statsData?.low_risk_count||iocStats?.low_risk_count||0
 
-  const maxSource = Math.max(...(sourceBreakdown.map(s=>s.count||0)), 1)
   const maxThreat = Math.max(...(topThreats.map(t=>t.count||0)), 1)
   const highRiskPct = totalIocs>0 ? ((highRisk/totalIocs)*100).toFixed(1) : 0
 
@@ -2381,7 +2372,7 @@ function HoneypotIOC() {
       <div style={{ maxWidth:680, margin:'0 auto', position:'relative' }}>
         <div style={{ display:'flex', gap:10, background:theme.surface, padding:8, borderRadius:theme.radiusLg, border:`1px solid ${theme.border}` }}>
           <div style={{ display:'flex', alignItems:'center', paddingLeft:12, color:theme.textMuted }}><Search size={16}/></div>
-          <input value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} onKeyDown={e=>e.key==='Enter'&&handleSearch()}
+          <input value={searchQuery} onChange={e=>{const value=e.target.value;setSearchQuery(value);if(value.length<2)setShowDropdown(false)}} onKeyDown={e=>e.key==='Enter'&&handleSearch()}
             placeholder="IP adresi, domain, URL veya hash girin..."
             style={{ flex:1, padding:'14px 8px', background:'transparent', border:'none', color:'#fff', fontSize:15, outline:'none', fontFamily:theme.mono }}/>
           <button onClick={handleSearch} disabled={searching}
@@ -2480,7 +2471,7 @@ function HoneypotIOC() {
           const top5 = topThreats.slice(0,5)
           // CSS conic-gradient donut
           let deg = 0
-          const segments = top5.map((t,i)=>{
+          const segments = top5.map((t)=>{
             const typeName=(t.type||t.threat_type||t.name||'').toUpperCase()
             const meta=THREAT_META[typeName]||{color:theme.primary}
             const pct=((t.count||0)/total)*100
@@ -2500,8 +2491,8 @@ function HoneypotIOC() {
               </div>
               {/* Legend */}
               <div style={{ flex:1, display:'flex', flexDirection:'column', gap:8 }}>
-                {segments.map((s,i)=>(
-                  <div key={i} style={{ display:'flex', alignItems:'center', gap:8 }}>
+                {segments.map((s)=>(
+                  <div key={s.typeName} style={{ display:'flex', alignItems:'center', gap:8 }}>
                     <div style={{ width:10,height:10,borderRadius:3,background:s.meta.color,flexShrink:0 }}/>
                     <span style={{ fontSize:12, color:theme.text, flex:1 }}>{s.typeName}</span>
                     <span style={{ fontSize:11, fontWeight:700, color:s.meta.color }}>{s.pct.toFixed(1)}%</span>
@@ -2652,20 +2643,23 @@ function HoneypotIOC() {
     {/* ── Proje açıklama kartı (yarışma için) ── */}
     <div style={{ padding:24, background:theme.surface, border:`1px solid ${theme.border}`, borderRadius:theme.radiusMd, display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:20 }}>
       {[
-        { Icon:Shield, color:theme.primary, title:'IOC Nedir?', desc:'Indicator of Compromise — bir sistemin tehlikeye girdiğine işaret eden zararlı IP, domain, URL veya dosya hash değerleridir.' },
-        { Icon:Hash, color:theme.warning, title:'Nasıl Kullanılır?', desc:'Bir IP veya domain şüpheli geliyorsa arama kutusuna girerek veritabanımızda tehdit kaydı olup olmadığını anlık sorgulayabilirsiniz.' },
-        { Icon:Lock, color:theme.success, title:'Neden Önemli?', desc:'AegisNexus, açık tehdit istihbaratı kaynaklarını birleştirerek kişisel ve kurumsal kullanıcıları siber saldırılara karşı önceden uyarır.' },
-      ].map(({Icon,color,title,desc},i)=>(
-        <div key={i} style={{ display:'flex', gap:14 }}>
+        { icon:Shield, color:theme.primary, title:'IOC Nedir?', desc:'Indicator of Compromise — bir sistemin tehlikeye girdiğine işaret eden zararlı IP, domain, URL veya dosya hash değerleridir.' },
+        { icon:Hash, color:theme.warning, title:'Nasıl Kullanılır?', desc:'Bir IP veya domain şüpheli geliyorsa arama kutusuna girerek veritabanımızda tehdit kaydı olup olmadığını anlık sorgulayabilirsiniz.' },
+        { icon:Lock, color:theme.success, title:'Neden Önemli?', desc:'AegisNexus, açık tehdit istihbaratı kaynaklarını birleştirerek kişisel ve kurumsal kullanıcıları siber saldırılara karşı önceden uyarır.' },
+      ].map(({icon, color, title, desc})=>{
+        const SectionIcon = icon
+        return (
+        <div key={title} style={{ display:'flex', gap:14 }}>
           <div style={{ width:36,height:36,borderRadius:10,background:`${color}18`,border:`1px solid ${color}33`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}>
-            <Icon size={18} color={color}/>
+            <SectionIcon size={18} color={color}/>
           </div>
           <div>
             <p style={{ fontSize:13, fontWeight:700, color:'#fff', marginBottom:4 }}>{title}</p>
             <p style={{ fontSize:12, color:theme.textMuted, lineHeight:1.6, margin:0 }}>{desc}</p>
           </div>
         </div>
-      ))}
+        )
+      })}
     </div>
   </div>
 }

@@ -20,7 +20,7 @@ export default function CaseDetailPage() {
   useEffect(() => {
     casesAPI.get(id).then(r => {
       setCaseData(r.data?.data)
-    }).catch(() => {})
+    }).catch(() => { void 0 })
   }, [id])
 
   const loadProtectionCard = async () => {
@@ -28,8 +28,11 @@ export default function CaseDetailPage() {
     try {
       const res = await casesAPI.protectionCard(id)
       setCard(res.data?.data)
-    } catch {}
-    setCardLoading(false)
+    } catch {
+      void 0
+    } finally {
+      setCardLoading(false)
+    }
   }
 
   if (!caseData) return (

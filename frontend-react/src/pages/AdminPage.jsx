@@ -12,7 +12,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (isAdmin()) {
-      adminAPI.users().then(r => setUsers(r.data?.data || [])).catch(() => {})
+      adminAPI.users().then(r => setUsers(r.data?.data || [])).catch(() => { void 0 })
     }
   }, [isAdmin])
 
@@ -21,15 +21,20 @@ export default function AdminPage() {
     try {
       const res = await adminAPI.classify()
       setClassifyResult(res.data)
-    } catch {}
-    setClassifyLoading(false)
+    } catch {
+      void 0
+    } finally {
+      setClassifyLoading(false)
+    }
   }
 
   const handleRoleChange = async (userId, newRole) => {
     try {
       await adminAPI.changeRole(userId, newRole)
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u))
-    } catch {}
+    } catch {
+      void 0
+    }
   }
 
   return (
