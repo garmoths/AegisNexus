@@ -21,6 +21,7 @@
     "react-dom": "^19.2.5",
     "react-router-dom": "^7.14.2",
     "react-simple-maps": "^3.0.0",
+    "turkey-map-react": "^2.0.5",
     "zustand": "^5.0.12"
   },
   "devDependencies": {

@@ -1,9 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
-import { ComposableMap, Geographies, Geography } from 'react-simple-maps/dist/index.es.js'
+import { cloneElement, useEffect, useMemo, useState } from 'react'
+import TurkeyMap from 'turkey-map-react'
 import { theme } from '../theme'
 import { statsAPI } from '../lib/endpoints'
-
-const TURKEY_GEO_URL = 'https://raw.githubusercontent.com/johan/world.geo.json/master/countries/TUR.geo.json'
 
 const TURKEY_PROVINCES = [
   { id: '01', name: 'Adana' }, { id: '02', name: 'Adıyaman' }, { id: '03', name: 'Afyonkarahisar' },
@@ -34,6 +32,46 @@ const TURKEY_PROVINCES = [
   { id: '76', name: 'Iğdır' }, { id: '77', name: 'Yalova' }, { id: '78', name: 'Karabük' },
   { id: '79', name: 'Kilis' }, { id: '80', name: 'Osmaniye' }, { id: '81', name: 'Düzce' },
 ]
+
+const normalizeProvinceKey = (value = '') => value
+  .toLocaleLowerCase('tr-TR')
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .replace(/ı/g, 'i')
+
+const getProvinceColor = (count, maxCount) => {
+  if (count === 0) return '#262633'
+  const intensity = count / maxCount
+  if (intensity > 0.7) return '#ef4444'
+  if (intensity > 0.4) return '#f59e0b'
+  return '#22c55e'
+}
+
+function ProvinceShape({ cityComponent, city, count, hoveredProvince, onHoverProvince, onLeaveProvince, maxCount }) {
+  const pathElement = cityComponent?.props?.children
+  const provinceFill = hoveredProvince === city.name
+    ? (count === 0 ? '#394150' : '#f59e0b')
+    : getProvinceColor(count, maxCount)
+
+  const childPath = Array.isArray(pathElement) ? pathElement[0] : pathElement
+
+  return cloneElement(cityComponent, {
+    onMouseEnter: () => onHoverProvince(city.name),
+    onMouseLeave: () => onLeaveProvince(),
+    children: childPath
+      ? cloneElement(childPath, {
+          style: {
+            ...(childPath.props?.style || {}),
+            cursor: 'pointer',
+            fill: provinceFill,
+            stroke: hoveredProvince === city.name ? '#ffffff' : '#101018',
+            strokeWidth: hoveredProvince === city.name ? 2 : 1,
+            transition: 'fill 120ms ease, stroke 120ms ease',
+          },
+        })
+      : childPath,
+  })
+}
 
 export default function TurkeyHeatmapSection({ compact = false }) {
   const [features, setFeatures] = useState([])
@@ -68,13 +106,13 @@ export default function TurkeyHeatmapSection({ compact = false }) {
     const map = {}
     features.forEach((feature) => {
       const name = feature.properties?.name
-      if (name) map[name.toLowerCase()] = feature.properties?.case_count || 0
+      if (name) map[normalizeProvinceKey(name)] = feature.properties?.case_count || 0
     })
     return map
   }, [features])
 
   const regionEntries = useMemo(
-    () => TURKEY_PROVINCES.map((province) => ({ ...province, count: regionMap[province.name.toLowerCase()] || 0 })).sort((a, b) => b.count - a.count),
+    () => TURKEY_PROVINCES.map((province) => ({ ...province, count: regionMap[normalizeProvinceKey(province.name)] || 0 })).sort((a, b) => b.count - a.count),
     [regionMap],
   )
 
@@ -82,8 +120,19 @@ export default function TurkeyHeatmapSection({ compact = false }) {
   const totalCount = regionEntries.reduce((sum, item) => sum + item.count, 0)
   const activeRegionCount = regionEntries.filter((item) => item.count > 0).length
   const topRegion = regionEntries[0] || null
+  const hoveredCount = hoveredProvince ? (regionMap[normalizeProvinceKey(hoveredProvince)] || 0) : null
 
-  const mapFill = totalCount === 0 ? '#262633' : totalCount > 100 ? '#ef4444' : totalCount > 20 ? '#f59e0b' : '#22c55e'
+  const renderCityWrapper = (cityComponent, city) => (
+    <ProvinceShape
+      cityComponent={cityComponent}
+      city={city}
+      count={regionMap[normalizeProvinceKey(city.name)] || 0}
+      hoveredProvince={hoveredProvince}
+      onHoverProvince={setHoveredProvince}
+      onLeaveProvince={() => setHoveredProvince(null)}
+      maxCount={maxCount}
+    />
+  )
 
   return (
     <section style={{ maxWidth: compact ? '100%' : 1200, margin: '0 auto', padding: compact ? '0' : '30px 24px' }}>
@@ -123,47 +172,19 @@ export default function TurkeyHeatmapSection({ compact = false }) {
               )}
 
               <div style={{ position: 'relative', borderRadius: theme.radius.lg, overflow: 'hidden', background: 'radial-gradient(circle at 50% 45%, rgba(245,158,11,0.12), transparent 60%), linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.08))' }}>
-                <ComposableMap projection="geoMercator" projectionConfig={{ center: [35.5, 39], scale: 1900 }} style={{ width: '100%', height: 'auto' }}>
-                  <Geographies geography={TURKEY_GEO_URL}>
-                    {({ geographies }) =>
-                      geographies.map((geography) => {
-                        return (
-                          <Geography
-                            key={geography.rsmKey}
-                            geography={geography}
-                            onMouseEnter={() => setHoveredProvince('Türkiye')}
-                            onMouseLeave={() => setHoveredProvince(null)}
-                            style={{
-                              default: {
-                                fill: mapFill,
-                                stroke: '#101018',
-                                strokeWidth: 1.5,
-                                outline: 'none',
-                              },
-                              hover: {
-                                fill: totalCount === 0 ? '#394150' : '#f59e0b',
-                                stroke: '#ffffff',
-                                strokeWidth: 2,
-                                outline: 'none',
-                              },
-                              pressed: {
-                                fill: '#ef4444',
-                                stroke: '#ffffff',
-                                strokeWidth: 2,
-                                outline: 'none',
-                              },
-                            }}
-                          />
-                        )
-                      })
-                    }
-                  </Geographies>
-                </ComposableMap>
+                <TurkeyMap
+                  showTooltip={false}
+                  hoverable={false}
+                  customStyle={{ idleColor: '#262633', hoverColor: '#f59e0b' }}
+                  cityWrapper={renderCityWrapper}
+                />
 
                 <div style={{ position: 'absolute', left: 16, bottom: 16, background: 'rgba(8,8,14,0.78)', backdropFilter: 'blur(10px)', border: `1px solid ${theme.border}`, borderRadius: theme.radius.md, padding: '12px 14px', minWidth: 210 }}>
                   <div style={{ color: theme.textMuted, fontSize: 11, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 6 }}>Harita özeti</div>
                   <div style={{ color: theme.text, fontSize: 18, fontWeight: 800 }}>{hoveredProvince || 'Türkiye'}</div>
-                  <div style={{ color: theme.textMuted, fontSize: 12, marginTop: 4 }}>Toplam {totalCount} vaka, {activeRegionCount} ilde veri</div>
+                  <div style={{ color: theme.textMuted, fontSize: 12, marginTop: 4 }}>
+                    {hoveredProvince ? `Vaka: ${hoveredCount}` : `Toplam ${totalCount} vaka, ${activeRegionCount} ilde veri`}
+                  </div>
                 </div>
               </div>
 
