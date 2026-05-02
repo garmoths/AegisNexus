@@ -11,11 +11,13 @@ import os
 from typing import Any, Dict, Tuple
 
 import requests
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 
 logger = logging.getLogger(__name__)
+_gemini_client = None
 
 GEMINI_MODEL = "gemini-2.0-flash"
 MAX_PAGE_TEXT = 3000
@@ -127,21 +129,19 @@ def _normalize_result(data: Dict[str, Any]) -> Dict[str, Any]:
     return result
 
 
+def _get_gemini_client(api_key: str):
+    global _gemini_client
+    if _gemini_client is None:
+        _gemini_client = genai.Client(api_key=api_key)
+    return _gemini_client
+
+
 def _call_gemini(url: str, screenshot_b64: str, http_meta: Dict[str, Any], page_text: str) -> Dict[str, Any]:
     api_key = os.getenv("GEMINI_API_KEY", "").strip()
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY not configured")
 
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel(
-        model_name=GEMINI_MODEL,
-        system_instruction=SYSTEM_PROMPT,
-        generation_config=genai.GenerationConfig(
-            temperature=0,
-            max_output_tokens=1200,
-            response_mime_type="application/json",
-        ),
-    )
+    client = _get_gemini_client(api_key)
 
     user_payload = {
         "url": url,
@@ -149,20 +149,25 @@ def _call_gemini(url: str, screenshot_b64: str, http_meta: Dict[str, Any], page_
         "page_text": _clean_page_text(page_text),
     }
 
-    # Gemini vision: base64 PNG doğrudan Part olarak gönderilir
-    image_part = {
-        "mime_type": "image/png",
-        "data": screenshot_b64,
-    }
+    image_part = types.Part.from_bytes(
+        data=base64.b64decode(screenshot_b64),
+        mime_type="image/png",
+    )
 
     text_part = (
         "Phishing risk analizi yap. Asagidaki baglamsal veriyi kullan:\n"
         f"{json.dumps(user_payload, ensure_ascii=False)}"
     )
 
-    response = model.generate_content(
-        [text_part, image_part],
-        request_options={"timeout": 25},
+    response = client.models.generate_content(
+        model=GEMINI_MODEL,
+        contents=[text_part, image_part],
+        config=types.GenerateContentConfig(
+            system_instruction=SYSTEM_PROMPT,
+            temperature=0,
+            max_output_tokens=1200,
+            response_mime_type="application/json",
+        ),
     )
 
     text = response.text if response.text else ""

@@ -27,7 +27,8 @@ from dataclasses import dataclass
 
 # Third-party imports
 from rapidfuzz import fuzz, distance
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 # Suppress transformers ML framework warnings
 import warnings
@@ -66,7 +67,7 @@ class AdvancedPhishingDetector:
     
     def __init__(self):
         self.phishing_urls = []
-        self.gemini_model = None
+        self.gemini_client = None
         self.emotion_analyzer = None
         self._db_loaded = False
         self._gemini_loaded = False
@@ -102,17 +103,16 @@ class AdvancedPhishingDetector:
         
         if GEMINI_API_KEY:
             try:
-                genai.configure(api_key=GEMINI_API_KEY)
-                self.gemini_model = genai.GenerativeModel('gemini-2.0-flash')
+                self.gemini_client = genai.Client(api_key=GEMINI_API_KEY)
                 self._gemini_loaded = True
                 logger.info("Lazy loaded Gemini model")
             except Exception as e:
                 logger.warning(f"Could not load Gemini: {e}")
-                self.gemini_model = None
+                self.gemini_client = None
                 self._gemini_loaded = True
         else:
             logger.warning("GEMINI_API_KEY not found")
-            self.gemini_model = None
+            self.gemini_client = None
             self._gemini_loaded = True
     
     def _init_emotion_model(self):
@@ -399,7 +399,7 @@ class AdvancedPhishingDetector:
         Get phishing score from Gemini LLM
         Returns: (score, reason, quality)
         """
-        if not self.gemini_model:
+        if not self.gemini_client:
             return 0.5, "LLM not available", 0.0
         
         prompt = """Sen bir siber güvenlik analistinin phishing tespit asistanısın.
@@ -417,12 +417,14 @@ SADECE şu JSON formatında yanıt ver, başka hiçbir şey yazma:
 Metin: """ + message[:2000]
         
         try:
-            response = self.gemini_model.generate_content(
-                prompt,
-                generation_config=genai.types.GenerationConfig(
+            response = self.gemini_client.models.generate_content(
+                model='gemini-2.0-flash',
+                contents=prompt,
+                config=types.GenerateContentConfig(
                     temperature=0.1,
-                    max_output_tokens=100
-                )
+                    max_output_tokens=100,
+                    response_mime_type="application/json",
+                ),
             )
             
             text = response.text.strip()
