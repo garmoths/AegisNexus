@@ -2402,7 +2402,7 @@ function HoneypotIOC() {
       </div>
     )}
 
-    {/* ── İkili grid: Risk dağılımı + Haftalık artış ── */}
+    {/* ── İkili grid: Risk dağılımı + Tehdit tipi dağılımı ── */}
     <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20, marginBottom:20 }}>
       {/* Risk dağılımı */}
       <Card>
@@ -2435,89 +2435,127 @@ function HoneypotIOC() {
         ) : <p style={{ color:theme.textMuted, fontSize:13 }}>Yükleniyor...</p>}
       </Card>
 
-      {/* Haftalık büyüme */}
+      {/* Tehdit Tipi Dağılımı — CSS donut + liste */}
       <Card>
         <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:20 }}>
-          <TrendingUp size={16} color={theme.primary}/>
-          <h3 style={{ fontSize:14, fontWeight:700, color:'#fff', margin:0 }}>Haftalık IOC Artışı</h3>
+          <Zap size={16} color='#ef4444'/>
+          <h3 style={{ fontSize:14, fontWeight:700, color:'#fff', margin:0 }}>Tehdit Tipi Dağılımı</h3>
         </div>
-        {weeklyGrowth.length>0 ? (
-          <div style={{ display:'flex', gap:4, alignItems:'flex-end', height:160, padding:'0 4px' }}>
-            {weeklyGrowth.map((item,i)=>{
-              const maxVal=Math.max(...weeklyGrowth.map(w=>w.count),1)
-              const h=(item.count/maxVal)*100
-              return (
-                <div key={i} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:4 }} title={`${item.date}: ${item.count}`}>
-                  <span style={{ fontSize:9, color:theme.textMuted }}>{item.count>999?(item.count/1000).toFixed(1)+'k':item.count}</span>
-                  <motion.div initial={{height:0}} animate={{height:`${Math.max(h,2)}%`}} transition={{delay:0.2+i*0.04,duration:0.6,ease:theme.ease.out}}
-                    style={{ width:'100%', minHeight:3, background:`linear-gradient(to top, ${theme.primary}, ${theme.primary}55)`, borderRadius:'3px 3px 0 0' }}/>
-                  <span style={{ fontSize:8, color:theme.textMuted, transform:'rotate(-45deg)', whiteSpace:'nowrap', marginTop:2 }}>{item.date?.slice(5)||''}</span>
+        {topThreats.length>0 ? (() => {
+          const total = topThreats.reduce((s,t)=>s+(t.count||0),0)||1
+          const top5 = topThreats.slice(0,5)
+          // CSS conic-gradient donut
+          let deg = 0
+          const segments = top5.map((t,i)=>{
+            const typeName=(t.type||t.threat_type||t.name||'').toUpperCase()
+            const meta=THREAT_META[typeName]||{color:theme.primary}
+            const pct=((t.count||0)/total)*100
+            const from=deg; deg+=pct*3.6
+            return {typeName,meta,pct,from,to:deg,count:t.count||0}
+          })
+          const conicStr = segments.map(s=>`${s.meta.color} ${s.from}deg ${s.to}deg`).join(', ')
+          return (
+            <div style={{ display:'flex', gap:24, alignItems:'center' }}>
+              {/* Donut */}
+              <div style={{ position:'relative', flexShrink:0 }}>
+                <div style={{ width:140, height:140, borderRadius:'50%', background:`conic-gradient(${conicStr}, ${theme.border} ${deg}deg 360deg)`, position:'relative' }}/>
+                <div style={{ position:'absolute', inset:28, borderRadius:'50%', background:theme.surface, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center' }}>
+                  <span style={{ fontSize:18, fontWeight:800, color:'#fff' }}>{top5.length}</span>
+                  <span style={{ fontSize:9, color:theme.textMuted, textTransform:'uppercase', letterSpacing:'0.5px' }}>Tür</span>
                 </div>
+              </div>
+              {/* Legend */}
+              <div style={{ flex:1, display:'flex', flexDirection:'column', gap:8 }}>
+                {segments.map((s,i)=>(
+                  <div key={i} style={{ display:'flex', alignItems:'center', gap:8 }}>
+                    <div style={{ width:10,height:10,borderRadius:3,background:s.meta.color,flexShrink:0 }}/>
+                    <span style={{ fontSize:12, color:theme.text, flex:1 }}>{s.typeName}</span>
+                    <span style={{ fontSize:11, fontWeight:700, color:s.meta.color }}>{s.pct.toFixed(1)}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        })() : <p style={{ color:theme.textMuted, fontSize:13 }}>Yükleniyor...</p>}
+      </Card>
+    </div>
+
+    {/* ── En Yüksek Riskli Aktif IOC'lar ── */}
+    <Card style={{ marginBottom:20 }}>
+      <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:18 }}>
+        <AlertTriangle size={16} color='#ef4444'/>
+        <h3 style={{ fontSize:14, fontWeight:700, color:'#fff', margin:0 }}>En Yüksek Riskli Aktif Tehditler</h3>
+        <span style={{ fontSize:11, color:theme.textMuted, marginLeft:'auto' }}>Anlık güncelleniyor</span>
+      </div>
+      {(() => {
+        const hotIocs = [...iocList].sort((a,b)=>(b.risk_score||0)-(a.risk_score||0)).slice(0,6)
+        if (!hotIocs.length) return <p style={{ color:theme.textMuted, fontSize:13 }}>Yükleniyor...</p>
+        return (
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12 }}>
+            {hotIocs.map((item,i)=>{
+              const rs=item.risk_score||0
+              const typeName=(item.type||item.ioc_type||'').toUpperCase()
+              const meta=THREAT_META[typeName]||{color:'#ef4444',icon:AlertTriangle}
+              const Icon=meta.icon
+              const val=item.value||item.ioc_value||item.ioc||item.indicator||'-'
+              return (
+                <motion.div key={i} initial={{opacity:0,y:8}} animate={{opacity:1,y:0}} transition={{delay:i*0.06}}
+                  style={{ padding:'14px 16px', background:theme.bg, borderRadius:theme.radiusSm, border:`1px solid ${meta.color}33`, position:'relative', overflow:'hidden' }}>
+                  <div style={{ position:'absolute', top:0, left:0, width:3, bottom:0, background:meta.color }}/>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                      <div style={{ width:22,height:22,borderRadius:6,background:`${meta.color}18`,border:`1px solid ${meta.color}33`,display:'flex',alignItems:'center',justifyContent:'center' }}>
+                        <Icon size={12} color={meta.color}/>
+                      </div>
+                      <span style={{ fontSize:10, fontWeight:700, color:meta.color }}>{typeName||'IOC'}</span>
+                    </div>
+                    <span style={{ fontSize:13, fontWeight:800, color:'#ef4444' }}>{rs}</span>
+                  </div>
+                  <div style={{ display:'flex', alignItems:'center', gap:4 }}>
+                    <span style={{ fontSize:11, color:theme.primary, fontFamily:theme.mono, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex:1 }}>{val}</span>
+                    <CopyBtn value={val}/>
+                  </div>
+                  <p style={{ fontSize:10, color:theme.textMuted, margin:'6px 0 0' }}>{item.source||'-'}</p>
+                </motion.div>
               )
             })}
           </div>
-        ) : <p style={{ color:theme.textMuted, fontSize:13 }}>Yükleniyor...</p>}
-      </Card>
-    </div>
+        )
+      })()}
+    </Card>
 
-    {/* ── İkili grid: Kaynaklar + Tehditler ── */}
-    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20, marginBottom:20 }}>
-      {/* Kaynak dağılımı */}
-      <Card>
-        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:18 }}>
-          <Radio size={16} color={theme.primary}/>
-          <h3 style={{ fontSize:14, fontWeight:700, color:'#fff', margin:0 }}>Kaynak Dağılımı</h3>
-        </div>
-        {sourceBreakdown.length>0 ? sourceBreakdown.slice(0,8).map((s,i)=>(
-          <motion.div key={i} initial={{opacity:0,x:-10}} animate={{opacity:1,x:0}} transition={{delay:0.1*i}}
-            style={{ marginBottom:12 }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:5 }}>
-              <span style={{ fontSize:12, color:theme.text, display:'flex', alignItems:'center', gap:6 }}>
-                <Database size={11} color={theme.textMuted}/> {s.source}
-              </span>
-              <span style={{ fontSize:12, fontWeight:700, color:theme.primary }}>{(s.count||0).toLocaleString('tr-TR')}</span>
+    {/* ── En çok görülen tehditler (tam liste) ── */}
+    <Card style={{ marginBottom:20 }}>
+      <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:18 }}>
+        <Activity size={16} color={theme.primary}/>
+        <h3 style={{ fontSize:14, fontWeight:700, color:'#fff', margin:0 }}>Tehdit Kategorisi Analizi</h3>
+      </div>
+      {topThreats.length>0 ? topThreats.slice(0,10).map((t,i)=>{
+        const typeName=(t.type||t.threat_type||t.name||'').toUpperCase()
+        const meta=THREAT_META[typeName]||{color:theme.primary,icon:Shield}
+        const Icon=meta.icon
+        const barW=((t.count||0)/maxThreat)*100
+        return (
+          <motion.div key={i} initial={{opacity:0,x:10}} animate={{opacity:1,x:0}} transition={{delay:0.05*i}}
+            style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10 }}>
+            <span style={{ fontSize:11, color:theme.textMuted, width:16, textAlign:'right', flexShrink:0 }}>{i+1}</span>
+            <div style={{ width:22,height:22,borderRadius:6,background:`${meta.color}18`,border:`1px solid ${meta.color}33`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}>
+              <Icon size={12} color={meta.color}/>
             </div>
-            <div style={{ height:5, background:theme.bg, borderRadius:3, overflow:'hidden' }}>
-              <motion.div initial={{width:0}} animate={{width:`${((s.count||0)/maxSource)*100}%`}} transition={{delay:0.15+i*0.05,duration:0.7,ease:theme.ease.out}}
-                style={{ height:'100%', background:`linear-gradient(90deg, ${theme.primary}, ${theme.primary}66)`, borderRadius:3 }}/>
+            <div style={{ flex:1 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
+                <span style={{ fontSize:11, fontWeight:700, color:meta.color }}>{typeName}</span>
+                <span style={{ fontSize:11, fontWeight:700, color:'#fff' }}>{(t.count||0).toLocaleString('tr-TR')}</span>
+              </div>
+              <div style={{ height:4, background:theme.bg, borderRadius:2, overflow:'hidden' }}>
+                <motion.div initial={{width:0}} animate={{width:`${barW}%`}} transition={{delay:0.1+i*0.04,duration:0.6}}
+                  style={{ height:'100%', background:meta.color, borderRadius:2 }}/>
+              </div>
             </div>
           </motion.div>
-        )) : <p style={{ color:theme.textMuted, fontSize:13 }}>Yükleniyor...</p>}
-      </Card>
-
-      {/* En çok görülen tehditler */}
-      <Card>
-        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:18 }}>
-          <Zap size={16} color='#ef4444'/>
-          <h3 style={{ fontSize:14, fontWeight:700, color:'#fff', margin:0 }}>En Çok Görülen Tehditler</h3>
-        </div>
-        {topThreats.length>0 ? topThreats.slice(0,10).map((t,i)=>{
-          const typeName = (t.type||t.threat_type||t.name||'').toUpperCase()
-          const meta = THREAT_META[typeName] || { color:theme.primary, icon:Shield }
-          const Icon = meta.icon
-          const barW = ((t.count||0)/maxThreat)*100
-          return (
-            <motion.div key={i} initial={{opacity:0,x:10}} animate={{opacity:1,x:0}} transition={{delay:0.05*i}}
-              style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10 }}>
-              <span style={{ fontSize:11, color:theme.textMuted, width:16, textAlign:'right', flexShrink:0 }}>{i+1}</span>
-              <div style={{ width:22, height:22, borderRadius:6, background:`${meta.color}18`, border:`1px solid ${meta.color}33`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                <Icon size={12} color={meta.color}/>
-              </div>
-              <div style={{ flex:1 }}>
-                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
-                  <span style={{ fontSize:11, fontWeight:700, color:meta.color }}>{typeName}</span>
-                  <span style={{ fontSize:11, fontWeight:700, color:'#fff' }}>{(t.count||0).toLocaleString('tr-TR')}</span>
-                </div>
-                <div style={{ height:4, background:theme.bg, borderRadius:2, overflow:'hidden' }}>
-                  <motion.div initial={{width:0}} animate={{width:`${barW}%`}} transition={{delay:0.1+i*0.04,duration:0.6}}
-                    style={{ height:'100%', background:meta.color, borderRadius:2 }}/>
-                </div>
-              </div>
-            </motion.div>
-          )
-        }) : <p style={{ color:theme.textMuted, fontSize:13 }}>Yükleniyor...</p>}
-      </Card>
-    </div>
+        )
+      }) : <p style={{ color:theme.textMuted, fontSize:13 }}>Yükleniyor...</p>}
+    </Card>
 
     {/* ── IOC Tablosu ── */}
     <Card style={{ marginBottom:20 }}>
