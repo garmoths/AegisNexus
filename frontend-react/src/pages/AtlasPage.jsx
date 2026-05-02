@@ -5,6 +5,7 @@ import { theme } from '../theme'
 import { casesAPI } from '../lib/endpoints'
 import CaseCard from '../components/CaseCard'
 import AttackTypeBadge from '../components/AttackTypeBadge'
+import TurkeyHeatmapSection from '../components/TurkeyHeatmapSection.jsx'
 
 const ATTACK_METHODS = ['phishing', 'smishing', 'vishing', 'sahte_mobil_uygulama', 'banka_taklit', 'social_engineering', 'malware_assisted']
 
@@ -70,6 +71,10 @@ export default function AtlasPage() {
         <p style={{ color: theme.textMuted, fontSize: 15, margin: 0 }}>
           {total} vaka kayıtlı
         </p>
+      </section>
+
+      <section style={{ padding: '18px 24px 8px' }}>
+        <TurkeyHeatmapSection compact />
       </section>
 
       {/* Filters */}
