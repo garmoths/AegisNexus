@@ -1256,7 +1256,7 @@ function PhishingDetector() {
 
   // Real-time autocomplete with debouncing
   useEffect(() => {
-    if (url.length < 3) {
+    if (url.length < 1) {
       setSearchResults([])
       setShowDropdown(false)
       return
@@ -1281,7 +1281,7 @@ function PhishingDetector() {
         setSearchResults([])
         setShowDropdown(false)
       }
-    }, 300)
+    }, 150)
     
     return () => {
       if (searchTimeoutRef.current) {
@@ -1319,8 +1319,7 @@ function PhishingDetector() {
       style={{ 
         position:'relative',
         padding:'120px 24px 80px',
-        marginBottom:32,
-        overflow:'hidden'
+        marginBottom:32
       }}
     >
       <div aria-hidden style={{ position:'absolute', inset:0, pointerEvents:'none', overflow:'hidden' }}>
@@ -1347,7 +1346,7 @@ function PhishingDetector() {
           initial={{ opacity:0, y:30 }}
           animate={{ opacity:1, y:0 }}
           transition={{ delay:0.4, duration:0.6, ease:theme.ease.out }}
-          style={{ maxWidth:800, margin:'0 auto', position:'relative' }}
+          style={{ maxWidth:800, margin:'0 auto', position:'relative', zIndex:200 }}
         >
           <div style={{ 
             background:'rgba(255,255,255,0.05)', 
@@ -1356,7 +1355,8 @@ function PhishingDetector() {
             border:`1px solid ${theme.primary}33`,
             borderRadius:theme.radius.lg,
             padding:8,
-            boxShadow:'0 8px 32px rgba(0,0,0,0.3)'
+            boxShadow:'0 8px 32px rgba(0,0,0,0.3)',
+            position:'relative'
           }}>
             <div style={{ display:'flex', gap:12 }}>
               <input 
@@ -1403,65 +1403,62 @@ function PhishingDetector() {
                 {checking?'Taranıyor...':'🔍 Tara'}
               </motion.button>
             </div>
-            
-            {/* Autocomplete Dropdown */}
-            <AnimatePresence>
-              {showDropdown && searchResults.length > 0 && (
-                <motion.div
-                  initial={{ opacity:0, y:-10 }}
-                  animate={{ opacity:1, y:0 }}
-                  exit={{ opacity:0, y:-10 }}
-                  transition={{ duration:0.2, ease:theme.ease.out }}
-                  style={{
-                    position:'absolute',
-                    top:'100%',
-                    left:0,
-                    right:0,
-                    marginTop:12,
-                    background:'rgba(8,12,20,0.95)',
-                    backdropFilter:'blur(20px)',
-                    WebkitBackdropFilter:'blur(20px)',
-                    borderRadius:theme.radius.md,
-                    border:`1px solid ${theme.border}`,
-                    maxHeight:350,
-                    overflowY:'auto',
-                    zIndex:100,
-                    boxShadow:'0 8px 32px rgba(0,0,0,0.4)'
-                  }}
-                >
-                  {searchResults.slice(0, 10).map((item, i) => (
-                    <motion.div
-                      key={i}
-                      initial={{ opacity:0, x:-10 }}
-                      animate={{ opacity:1, x:0 }}
-                      transition={{ delay:i * 0.05, duration:0.2 }}
-                      onClick={() => {
-                        setUrl(item.url || '')
-                        setShowDropdown(false)
-                        setTimeout(() => handleCheck(), 100)
-                      }}
-                      style={{
-                        padding:'14px 20px',
-                        borderBottom:`1px solid ${theme.border}`,
-                        cursor:'pointer',
-                        transition:'background 0.2s ease'
-                      }}
-                      whileHover={{ background:'rgba(0,212,255,0.1)' }}
-                    >
-                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
-                        <span style={{ color:theme.primary, fontFamily:theme.mono, fontSize:13, wordBreak:'break-all' }}>{item.url||'-'}</span>
-                        <span style={{ padding:'6px 12px', borderRadius:'12px', fontSize:11, background:(item.risk_score||0)>50?theme.accentDim:theme.primaryDim, color:(item.risk_score||0)>50?theme.accent:theme.primary }}>{item.risk_level||'Bilinmiyor'}</span>
-                      </div>
-                      <div style={{ display:'flex', gap:20, fontSize:12, color:theme.textMuted }}>
-                        <span>Risk: <span style={{ color:(item.risk_score||0)>50?theme.accent:theme.primary, fontWeight:600 }}>{item.risk_score||'-'}</span></span>
-                        <span>Domain: {item.domain||'-'}</span>
-                      </div>
-                    </motion.div>
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
           </div>
+
+          {/* Autocomplete Dropdown — outside overflow:hidden parent */}
+          <AnimatePresence>
+            {showDropdown && searchResults.length > 0 && (
+              <motion.div
+                initial={{ opacity:0, y:-6 }}
+                animate={{ opacity:1, y:0 }}
+                exit={{ opacity:0, y:-6 }}
+                transition={{ duration:0.15, ease:theme.ease.out }}
+                style={{
+                  position:'absolute',
+                  top:'calc(100% + 8px)',
+                  left:0,
+                  right:0,
+                  background:'rgba(8,12,20,0.98)',
+                  backdropFilter:'blur(20px)',
+                  WebkitBackdropFilter:'blur(20px)',
+                  borderRadius:theme.radius.md,
+                  border:`1px solid ${theme.border}`,
+                  maxHeight:320,
+                  overflowY:'auto',
+                  zIndex:9999,
+                  boxShadow:'0 16px 48px rgba(0,0,0,0.6)'
+                }}
+              >
+                {searchResults.slice(0, 10).map((item, i) => (
+                  <div
+                    key={i}
+                    onClick={() => {
+                      setUrl(item.url || '')
+                      setShowDropdown(false)
+                      setTimeout(() => handleCheck(), 100)
+                    }}
+                    style={{
+                      padding:'12px 20px',
+                      borderBottom:`1px solid ${theme.border}`,
+                      cursor:'pointer',
+                      transition:'background 0.15s ease'
+                    }}
+                    onMouseEnter={e=>e.currentTarget.style.background='rgba(0,212,255,0.08)'}
+                    onMouseLeave={e=>e.currentTarget.style.background='transparent'}
+                  >
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
+                      <span style={{ color:theme.primary, fontFamily:theme.mono, fontSize:12, wordBreak:'break-all', flex:1, marginRight:12 }}>{item.url||'-'}</span>
+                      <span style={{ padding:'3px 10px', borderRadius:10, fontSize:10, flexShrink:0, background:(item.risk_score||0)>50?theme.accentDim:theme.primaryDim, color:(item.risk_score||0)>50?theme.accent:theme.primary }}>{item.risk_level||'Bilinmiyor'}</span>
+                    </div>
+                    <div style={{ display:'flex', gap:16, fontSize:11, color:theme.textMuted }}>
+                      <span>Risk: <b style={{ color:(item.risk_score||0)>50?theme.accent:(item.risk_score||0)>20?theme.warning:theme.success }}>{item.risk_score??'-'}</b></span>
+                      <span>Domain: {item.domain||'-'}</span>
+                    </div>
+                  </div>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
 
         {/* Scan History Preview */}
