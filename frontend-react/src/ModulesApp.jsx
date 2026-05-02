@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, useReducedMotion, AnimatePresence } from 'framer-motion'
+import { Shield, AlertTriangle, Activity, Globe, Search, Copy, Check, Wifi, Database, TrendingUp, Zap, Bug, Mail, Server, Hash, Radio, Eye, ChevronRight, BarChart3, Lock } from 'lucide-react'
 
 const API = import.meta.env.VITE_API_BASE_URL || '/api/v2'
 
@@ -2175,8 +2176,41 @@ function VictimAtlas() {
 function VictimAtlasDefense() { return null }
 
 /* ===============================================
-   HONEYPOT / IOC
+   HONEYPOT / IOC — Redesign
    =============================================== */
+
+const THREAT_META = {
+  BOTNET:              { color:'#ef4444', icon: Bug },
+  MALWARE:             { color:'#ff6b35', icon: AlertTriangle },
+  PAYLOAD_DELIVERY:    { color:'#f59e0b', icon: Zap },
+  PHISHING:            { color:'#eab308', icon: Mail },
+  'BOTNET.CC':         { color:'#ec4899', icon: Radio },
+  SPAM:                { color:'#8b5cf6', icon: Mail },
+  'SPAM SOURCE':       { color:'#a855f7', icon: Server },
+  'CREDENTIAL HARVESTING': { color:'#06b6d4', icon: Lock },
+}
+
+function ThreatIcon({ type, size=14 }) {
+  const meta = THREAT_META[type?.toUpperCase()] || { color: theme.primary, icon: Shield }
+  const Icon = meta.icon
+  return <Icon size={size} color={meta.color} strokeWidth={2} />
+}
+
+function CopyBtn({ value }) {
+  const [copied, setCopied] = useState(false)
+  function handleCopy() {
+    navigator.clipboard?.writeText(value).catch(()=>{})
+    setCopied(true); setTimeout(()=>setCopied(false), 1800)
+  }
+  return (
+    <button onClick={e=>{e.stopPropagation();handleCopy()}}
+      title="Kopyala"
+      style={{ background:'none', border:'none', cursor:'pointer', padding:4, color: copied ? theme.success : theme.textMuted, flexShrink:0, lineHeight:0 }}>
+      {copied ? <Check size={12} color={theme.success}/> : <Copy size={12}/>}
+    </button>
+  )
+}
+
 function HoneypotIOC() {
   const [iocStats, setIocStats] = useState(null)
   const [iocList, setIocList] = useState([])
@@ -2291,397 +2325,276 @@ function HoneypotIOC() {
   const mediumRisk=statsData?.medium_risk_count||iocStats?.medium_risk_count||0
   const lowRisk=statsData?.low_risk_count||iocStats?.low_risk_count||0
 
-  return <div>
+  const maxSource = Math.max(...(sourceBreakdown.map(s=>s.count||0)), 1)
+  const maxThreat = Math.max(...(topThreats.map(t=>t.count||0)), 1)
+  const highRiskPct = totalIocs>0 ? ((highRisk/totalIocs)*100).toFixed(1) : 0
+
+  return <div style={{ animation:'fadeInUp 0.5s ease' }}>
     <Toast {...toast}/>
-    
-    {/* Hero Section - Merged Search & Latest IOCs */}
-    <motion.div 
-      initial={{ opacity:0, y:30 }}
-      animate={{ opacity:1, y:0 }}
-      transition={{ duration:0.6, ease:theme.ease.out }}
-      style={{ 
-        background:theme.gradientHero,
-        borderRadius:theme.radiusLg,
-        padding:48,
-        marginBottom:32,
-        position:'relative',
-        overflow:'hidden',
-        border:`1px solid ${theme.border}`
-      }}
-    >
-      <div style={{ position:'absolute', top:0, left:0, right:0, bottom:0, opacity:0.1, backgroundImage:theme.gridPattern, backgroundSize:'40px 40px' }} />
-      <div style={{ position:'relative', zIndex:1 }}>
-        <motion.div 
-          initial={{ opacity:0, scale:0.9 }}
-          animate={{ opacity:1, scale:1 }}
-          transition={{ delay:0.2, duration:0.5, ease:theme.ease.spring }}
-          style={{ textAlign:'center', marginBottom:32 }}
-        >
-          <span style={{ display:'inline-block', padding:'8px 20px', background:theme.primaryDim, border:`1px solid ${theme.primary}33`, borderRadius:'24px', fontSize:12, fontWeight:700, color:theme.primary, textTransform:'uppercase', letterSpacing:'2px', marginBottom:16 }}>IOC / Tuzak Modulu</span>
-          <h1 style={{ fontSize:42, fontWeight:800, color:'#fff', marginBottom:12, letterSpacing:'-1px' }}>Tehdit Istihbarati & IOC Analizi</h1>
-          <p style={{ color:theme.textMuted, fontSize:16, maxWidth:600, margin:'0 auto' }}>{totalIocs.toLocaleString('tr-TR')}+ tehdit indikatoru. Gercek zamanli IOC taramasi, risk analizi ve kaynak dagilimi.</p>
-        </motion.div>
 
-        {/* Search Section */}
-        <motion.div 
-          initial={{ opacity:0, y:20 }}
-          animate={{ opacity:1, y:0 }}
-          transition={{ delay:0.3, duration:0.5, ease:theme.ease.out }}
-          style={{ maxWidth:700, margin:'0 auto 32px', position:'relative' }}
-        >
-          <div style={{ display:'flex', gap:12, background:theme.bg, padding:8, borderRadius:theme.radiusLg, border:`2px solid ${theme.border}`, boxShadow:theme.shadow.glow }}>
-            <input 
-              value={searchQuery} 
-              onChange={e=>setSearchQuery(e.target.value)} 
-              placeholder="IP, domain, URL veya hash arat..." 
-              style={{ 
-                flex:1, 
-                padding:'16px 24px', 
-                borderRadius:theme.radiusMd, 
-                background:'transparent', 
-                border:'none', 
-                color:'#fff', 
-                fontSize:16, 
-                outline:'none',
-                fontFamily:theme.mono
-              }} 
-              onKeyDown={e=>e.key==='Enter'&&handleSearch()}
-            />
-            <motion.button 
-              onClick={handleSearch}
-              disabled={searching}
-              whileHover={{ scale:1.02 }}
-              whileTap={{ scale:0.98 }}
-              style={{
-                padding:'16px 32px',
-                borderRadius:theme.radiusMd,
-                cursor:searching?'not-allowed':'pointer',
-                fontSize:15,
-                fontWeight:700,
-                background:searching?'#444':theme.gradientPrimary,
-                color:searching?'#888':'#000',
-                border:'none',
-                display:'inline-flex',
-                alignItems:'center',
-                gap:8,
-                opacity:searching?0.5:1
-              }}
-            >
-              {searching?'Aranıyor...':'🔎 Ara'}
-            </motion.button>
-          </div>
-          
-          {/* Autocomplete Dropdown */}
-          <AnimatePresence>
-            {showDropdown && searchResults.length > 0 && (
-              <motion.div
-                initial={{ opacity:0, y:-10 }}
-                animate={{ opacity:1, y:0 }}
-                exit={{ opacity:0, y:-10 }}
-                transition={{ duration:0.2, ease:theme.ease.out }}
-                style={{
-                  position:'absolute',
-                  top:'100%',
-                  left:0,
-                  right:0,
-                  marginTop:8,
-                  background:theme.bgDeep,
-                  borderRadius:theme.radiusMd,
-                  border:`1px solid ${theme.border}`,
-                  maxHeight:300,
-                  overflowY:'auto',
-                  zIndex:100,
-                  boxShadow:theme.shadow.glow
-                }}
-              >
-                {searchResults.slice(0, 10).map((item, i) => (
-                  <motion.div
-                    key={i}
-                    initial={{ opacity:0, x:-10 }}
-                    animate={{ opacity:1, x:0 }}
-                    transition={{ delay:i * 0.05, duration:0.2 }}
-                    onClick={() => {
-                      setSearchQuery(item.value || item.ioc_value || item.ioc || item.indicator || '')
-                      setShowDropdown(false)
-                      handleSearch()
-                    }}
-                    style={{
-                      padding:'12px 16px',
-                      borderBottom:`1px solid ${theme.border}`,
-                      cursor:'pointer',
-                      transition:'background 0.2s ease'
-                    }}
-                    whileHover={{ background:theme.surface }}
-                  >
-                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
-                      <span style={{ color:theme.primary, fontFamily:theme.mono, fontSize:13, wordBreak:'break-all' }}>{item.value||item.ioc_value||item.ioc||item.indicator||'-'}</span>
-                      <span style={{ padding:'4px 10px', borderRadius:'10px', fontSize:10, background:theme.primaryDim, color:theme.primary }}>{item.ioc_type||item.type||item.threat_type||'-'}</span>
-                    </div>
-                    <div style={{ display:'flex', gap:16, fontSize:11, color:theme.textMuted }}>
-                      <span>Risk: <span style={{ color:(item.risk_score||0)>75?theme.accent:(item.risk_score||0)>40?theme.warning:theme.primary, fontWeight:600 }}>{item.risk_score||'-'}</span></span>
-                      <span>Kaynak: {item.source||'-'}</span>
-                    </div>
-                  </motion.div>
-                ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </motion.div>
-
-        {/* Latest IOCs Preview - Slide */}
-        {iocList.length > 0 && (
-          <motion.div
-            initial={{ opacity:0, y:20 }}
-            animate={{ opacity:1, y:0 }}
-            transition={{ delay:0.4, duration:0.5, ease:theme.ease.out }}
-            style={{ 
-              maxWidth:900, 
-              margin:'0 auto',
-              background:theme.bgDeep,
-              borderRadius:theme.radiusLg,
-              padding:24,
-              border:`1px solid ${theme.border}`
-            }}
-          >
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
-              <h3 style={{ fontSize:14, fontWeight:700, color:'#fff' }}>📋 Son Eklenen IOC'lar</h3>
-              <div style={{ display:'flex', gap:8 }}>
-                {iocList.slice(0, 5).map((_, i) => (
-                  <div 
-                    key={i}
-                    onClick={() => setCurrentSlide(i)}
-                    style={{ 
-                      width:8, 
-                      height:8, 
-                      borderRadius:'50%', 
-                      background:currentSlide === i ? theme.primary : theme.border,
-                      cursor:'pointer',
-                      transition:'all 0.3s ease'
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
-            <AnimatePresence mode='wait'>
-              <motion.div
-                key={currentSlide}
-                initial={{ opacity:0, x:50 }}
-                animate={{ opacity:1, x:0 }}
-                exit={{ opacity:0, x:-50 }}
-                transition={{ duration:0.4, ease:theme.ease.out }}
-                style={{ 
-                  padding:20, 
-                  background:theme.surface, 
-                  borderRadius:theme.radiusMd,
-                  border:`1px solid ${theme.border}`
-                }}
-              >
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
-                  <span style={{ color:theme.primary, fontFamily:theme.mono, fontSize:13, wordBreak:'break-all' }}>{iocList[currentSlide]?.value||iocList[currentSlide]?.ioc_value||iocList[currentSlide]?.ioc||iocList[currentSlide]?.indicator||'-'}</span>
-                  <span style={{ padding:'4px 12px', borderRadius:'12px', fontSize:11, background:theme.primaryDim, color:theme.primary }}>{iocList[currentSlide]?.type||iocList[currentSlide]?.ioc_type||'-'}</span>
-                </div>
-                <div style={{ display:'flex', gap:24, fontSize:12, color:theme.textMuted }}>
-                  <span>Risk: <span style={{ color:(iocList[currentSlide]?.risk_score||0)>75?theme.accent:(iocList[currentSlide]?.risk_score||0)>40?theme.warning:theme.primary, fontWeight:600 }}>{iocList[currentSlide]?.risk_score||'-'}</span></span>
-                  <span>Kaynak: {iocList[currentSlide]?.source||'-'}</span>
-                  <span>Tarih: {iocList[currentSlide]?.created_at?new Date(iocList[currentSlide].created_at).toLocaleDateString('tr-TR'):iocList[currentSlide]?.date?new Date(iocList[currentSlide].date).toLocaleDateString('tr-TR'):'-'}</span>
-                </div>
-              </motion.div>
-            </AnimatePresence>
-          </motion.div>
-        )}
+    {/* ── Hero ── */}
+    <div style={{ textAlign:'center', padding:'48px 24px 32px' }}>
+      <div style={{ display:'inline-flex', alignItems:'center', gap:8, padding:'6px 16px', background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.3)', borderRadius:20, marginBottom:16 }}>
+        <span style={{ width:8, height:8, borderRadius:'50%', background:'#ef4444', display:'inline-block', animation:'glowPulse 1.5s ease-in-out infinite' }}/>
+        <span style={{ fontSize:11, fontWeight:700, color:'#ef4444', textTransform:'uppercase', letterSpacing:'2px' }}>Canlı Tehdit Akışı</span>
       </div>
-    </motion.div>
+      <h1 style={{ fontSize:40, fontWeight:800, color:'#fff', marginBottom:12, letterSpacing:'-1.5px' }}>Tehdit İstihbaratı & IOC Analizi</h1>
+      <p style={{ color:theme.textMuted, fontSize:15, maxWidth:580, margin:'0 auto 32px', lineHeight:1.6 }}>28.000+ tehdit göstergesi. Zararlı IP, domain ve URL'leri sorgula — siber saldırılara karşı anlık uyarı al.</p>
 
-    {/* Stats Grid */}
-    <motion.div 
-      initial={{ opacity:0, y:20 }}
-      animate={{ opacity:1, y:0 }}
-      transition={{ delay:0.5, duration:0.5, ease:theme.ease.out }}
-      style={{ display:'grid', gridTemplateColumns:'repeat(5, 1fr)', gap:16, marginBottom:32 }}
-    >
-      {[
-        { label:'Toplam IOC', value:totalIocs, color:theme.primary },
-        { label:'Yuksek Risk', value:highRisk, color:theme.danger },
-        { label:'Orta Risk', value:mediumRisk, color:theme.warning },
-        { label:'Dusuk Risk', value:lowRisk, color:theme.success },
-        { label:'Kaynak', value:sourceBreakdown.length, color:theme.warning }
-      ].map((stat, i) => (
-        <motion.div
-          key={i}
-          initial={{ opacity:0, y:20 }}
-          animate={{ opacity:1, y:0 }}
-          transition={{ delay:0.6 + i * 0.1, duration:0.4, ease:theme.ease.spring }}
-        >
-          <Card style={{ textAlign:'center', padding:'20px 12px' }}>
-            <p style={{ fontSize:10, color:theme.textMuted, textTransform:'uppercase', fontWeight:600, letterSpacing:'1px', marginBottom:8 }}>{stat.label}</p>
-            <p style={{ fontSize:28, fontWeight:800, color:stat.color }}><CountUp end={stat.value}/></p>
-          </Card>
-        </motion.div>
-      ))}
-    </motion.div>
-
-    {/* Charts Section */}
-    <motion.div 
-      initial={{ opacity:0, y:20 }}
-      animate={{ opacity:1, y:0 }}
-      transition={{ delay:0.8, duration:0.5, ease:theme.ease.out }}
-      style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:24, marginBottom:32 }}
-    >
-      {/* Risk Distribution - Donut Chart Style */}
-      <Card>
-        <h3 style={{ fontSize:15, fontWeight:700, color:'#fff', marginBottom:20 }}>📊 Risk Dagilimi</h3>
-        {riskDist.length>0?(
-          <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-            {riskDist.map((item,i)=>{
-              const colors=['#22c55e','#84cc16','#f59e0b','#ff6b35','#ef4444'];
-              return (
-                <motion.div 
-                  key={i}
-                  initial={{ opacity:0, x:-20 }}
-                  animate={{ opacity:1, x:0 }}
-                  transition={{ delay:0.9 + i * 0.1, duration:0.4, ease:theme.ease.out }}
-                >
-                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, marginBottom:6 }}>
-                    <span style={{ color:theme.textMuted }}>{item.range}</span>
-                    <span style={{ color:'#fff', fontWeight:600 }}>{item.count} ({item.percentage?.toFixed(1)}%)</span>
-                  </div>
-                  <div style={{ height:12, background:theme.surface, borderRadius:6, overflow:'hidden' }}>
-                    <motion.div 
-                      initial={{ width:0 }}
-                      animate={{ width:`${Math.min(item.percentage,100)}%` }}
-                      transition={{ delay:1 + i * 0.1, duration:0.8, ease:theme.ease.out }}
-                      style={{ height:'100%', background:colors[i]||theme.primary, borderRadius:6 }}
-                    />
-                  </div>
-                </motion.div>
-              )
-            })}
+      {/* Stat sayaçları */}
+      <div style={{ display:'flex', justifyContent:'center', gap:40, flexWrap:'wrap', marginBottom:40 }}>
+        {[
+          { label:'Toplam IOC', value:totalIocs, color:theme.primary, Icon:Database },
+          { label:'Yüksek Risk', value:highRisk, color:'#ef4444', Icon:AlertTriangle },
+          { label:'Orta Risk', value:mediumRisk, color:theme.warning, Icon:Activity },
+          { label:'Kaynak', value:sourceBreakdown.length, color:theme.success, Icon:Globe },
+        ].map(s=>(
+          <div key={s.label} style={{ textAlign:'center' }}>
+            <div style={{ display:'flex', justifyContent:'center', marginBottom:6 }}><s.Icon size={18} color={s.color}/></div>
+            <p style={{ fontSize:28, fontWeight:800, color:s.color, margin:'0 0 2px' }}><CountUp end={s.value}/></p>
+            <p style={{ fontSize:11, color:theme.textMuted, textTransform:'uppercase', letterSpacing:'0.5px', margin:0 }}>{s.label}</p>
           </div>
-        ):<p style={{ color:theme.textMuted, fontSize:13 }}>Veri yukleniyor...</p>}
-      </Card>
+        ))}
+      </div>
 
-      {/* Weekly Growth - Line Chart Style */}
-      <Card>
-        <h3 style={{ fontSize:15, fontWeight:700, color:'#fff', marginBottom:20 }}>📈 Haftalik IOC Artisi</h3>
-        {weeklyGrowth.length>0?(
-          <div style={{ display:'flex', gap:6, alignItems:'flex-end', height:180, padding:'0 8px' }}>
-            {weeklyGrowth.map((item,i)=>{
-              const maxVal=Math.max(...weeklyGrowth.map(w=>w.count),1);
-              const h=(item.count/maxVal)*100;
-              return (
-                <motion.div 
-                  key={i}
-                  initial={{ opacity:0, y:20 }}
-                  animate={{ opacity:1, y:0 }}
-                  transition={{ delay:1 + i * 0.05, duration:0.4, ease:theme.ease.spring }}
-                  style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:6 }}
-                >
-                  <span style={{ fontSize:10, color:theme.textMuted, fontWeight:600 }}>{item.count}</span>
-                  <motion.div 
-                    initial={{ height:0 }}
-                    animate={{ height:`${h}%` }}
-                    transition={{ delay:1.2 + i * 0.05, duration:0.6, ease:theme.ease.out }}
-                    style={{ 
-                      width:'100%', 
-                      minHeight:4, 
-                      background:`linear-gradient(to top, ${theme.primary}, ${theme.primary}88)`, 
-                      borderRadius:'4px 4px 0 0' 
-                    }}
-                  />
-                  <span style={{ fontSize:8, color:theme.textMuted, transform:'rotate(-45deg)', marginTop:4, whiteSpace:'nowrap' }}>{item.date?.slice(5)||''}</span>
-                </motion.div>
-              )
-            })}
-          </div>
-        ):<p style={{ color:theme.textMuted, fontSize:13 }}>Veri yukleniyor...</p>}
-      </Card>
-    </motion.div>
-
-    {/* Source Breakdown & Top Threats */}
-    <motion.div 
-      initial={{ opacity:0, y:20 }}
-      animate={{ opacity:1, y:0 }}
-      transition={{ delay:1.2, duration:0.5, ease:theme.ease.out }}
-      style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:24, marginBottom:32 }}
-    >
-      <Card>
-        <h3 style={{ fontSize:15, fontWeight:700, color:'#fff', marginBottom:16 }}>📡 Kaynak Dagilimi</h3>
-        {sourceBreakdown.length>0?sourceBreakdown.slice(0,8).map((s,i)=>(
-          <motion.div 
-            key={i}
-            initial={{ opacity:0, x:-20 }}
-            animate={{ opacity:1, x:0 }}
-            transition={{ delay:1.3 + i * 0.05, duration:0.4, ease:theme.ease.out }}
-            style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 0', borderBottom:`1px solid ${theme.border}` }}
-          >
-            <span style={{ fontSize:13, color:theme.text }}>{s.source}</span>
-            <span style={{ fontSize:13, fontWeight:700, color:theme.primary }}>{(s.count||0).toLocaleString('tr-TR')}</span>
-          </motion.div>
-        )):<p style={{ color:theme.textMuted, fontSize:13 }}>Veri yukleniyor...</p>}
-      </Card>
-
-      <Card>
-        <h3 style={{ fontSize:15, fontWeight:700, color:'#fff', marginBottom:16 }}>🔥 En Cok Gorulen Tehditler</h3>
-        {topThreats.length>0?topThreats.slice(0,10).map((t,i)=>(
-          <motion.div 
-            key={i}
-            initial={{ opacity:0, x:20 }}
-            animate={{ opacity:1, x:0 }}
-            transition={{ delay:1.3 + i * 0.05, duration:0.4, ease:theme.ease.out }}
-            style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 0', borderBottom:`1px solid ${theme.border}` }}
-          >
-            <span style={{ fontSize:12, color:'#fff' }}>{i+1}. {(t.type||t.threat_type||t.name||'').toUpperCase()}</span>
-            <span style={{ fontSize:13, fontWeight:700, color:theme.danger }}>{(t.count||0).toLocaleString('tr-TR')}</span>
-          </motion.div>
-        )):<p style={{ color:theme.textMuted, fontSize:13 }}>Veri yukleniyor...</p>}
-      </Card>
-    </motion.div>
-
-    {/* Full IOC Table */}
-    <motion.div
-      initial={{ opacity:0, y:20 }}
-      animate={{ opacity:1, y:0 }}
-      transition={{ delay:1.4, duration:0.5, ease:theme.ease.out }}
-    >
-      <Card>
-        <h3 style={{ fontSize:15, fontWeight:700, color:'#fff', marginBottom:16, display:'flex', gap:8, alignItems:'center' }}>
-          <span>📋</span> Tum IOC'lar
-          <span style={{ fontSize:11, color:theme.textMuted, fontWeight:400, marginLeft:'auto' }}>{iocList.length} kayit</span>
-        </h3>
-        <div style={{ overflowX:'auto', maxHeight:500, overflowY:'auto' }}>
-          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
-            <thead style={{ position:'sticky', top:0, background:theme.surface2, zIndex:1 }}>
-              <tr style={{ borderBottom:`2px solid ${theme.border}`, color:theme.textMuted, fontSize:10, textTransform:'uppercase', letterSpacing:'1px' }}>
-                <th style={{ textAlign:'left', padding:'12px 8px' }}>Gosterge</th>
-                <th style={{ textAlign:'center', padding:'12px 8px' }}>Tur</th>
-                <th style={{ textAlign:'center', padding:'12px 8px' }}>Risk</th>
-                <th style={{ textAlign:'center', padding:'12px 8px' }}>Kaynak</th>
-                <th style={{ textAlign:'right', padding:'12px 8px' }}>Tarih</th>
-              </tr>
-            </thead>
-            <tbody>
-              {iocList.length===0&&<tr><td colSpan={5} style={{ textAlign:'center', padding:32, color:theme.textMuted }}>Veri yukleniyor...</td></tr>}
-              {iocList.map((item,i)=>(
-                <motion.tr 
-                  key={item.id||i}
-                  initial={{ opacity:0, y:10 }}
-                  animate={{ opacity:1, y:0 }}
-                  transition={{ delay:1.5 + i * 0.02, duration:0.3, ease:theme.ease.out }}
-                  style={{ borderBottom:`1px solid ${theme.border}` }}
-                  whileHover={{ background:theme.surface }}
-                >
-                  <td style={{ padding:'10px 8px' }}><span style={{ color:theme.primary, fontFamily:theme.mono, fontSize:11, wordBreak:'break-all' }}>{item.value||item.ioc_value||item.ioc||item.indicator||'-'}</span></td>
-                  <td style={{ padding:'10px 8px', textAlign:'center' }}><span style={{ padding:'4px 10px', borderRadius:'10px', fontSize:10, background:theme.primaryDim, color:theme.primary }}>{item.type||item.ioc_type||'-'}</span></td>
-                  <td style={{ padding:'10px 8px', textAlign:'center' }}><span style={{ padding:'4px 10px', borderRadius:'10px', fontSize:10, fontWeight:600, background:(item.risk_score||0)>75?theme.accentDim:(item.risk_score||0)>40?theme.warning+'22':theme.primaryDim, color:(item.risk_score||0)>75?theme.accent:(item.risk_score||0)>40?theme.warning:theme.primary }}>{item.risk_score||'-'}</span></td>
-                  <td style={{ padding:'10px 8px', textAlign:'center', color:theme.textMuted, fontSize:11 }}>{item.source||'-'}</td>
-                  <td style={{ padding:'10px 8px', textAlign:'right', color:theme.textMuted, fontSize:10 }}>{item.created_at?new Date(item.created_at).toLocaleDateString('tr-TR'):item.date?new Date(item.date).toLocaleDateString('tr-TR'):'-'}</td>
-                </motion.tr>
-              ))}
-            </tbody>
-          </table>
+      {/* Arama */}
+      <div style={{ maxWidth:680, margin:'0 auto', position:'relative' }}>
+        <div style={{ display:'flex', gap:10, background:theme.surface, padding:8, borderRadius:theme.radiusLg, border:`1px solid ${theme.border}` }}>
+          <div style={{ display:'flex', alignItems:'center', paddingLeft:12, color:theme.textMuted }}><Search size={16}/></div>
+          <input value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} onKeyDown={e=>e.key==='Enter'&&handleSearch()}
+            placeholder="IP adresi, domain, URL veya hash girin..."
+            style={{ flex:1, padding:'14px 8px', background:'transparent', border:'none', color:'#fff', fontSize:15, outline:'none', fontFamily:theme.mono }}/>
+          <button onClick={handleSearch} disabled={searching}
+            style={{ padding:'14px 28px', borderRadius:theme.radiusMd, background:searching?'#333':theme.gradientPrimary, color:searching?'#666':'#000', border:'none', cursor:searching?'not-allowed':'pointer', fontWeight:700, fontSize:14, display:'flex', alignItems:'center', gap:8 }}>
+            {searching ? <><span style={{ width:14,height:14,border:'2px solid #666',borderTopColor:'transparent',borderRadius:'50%',display:'inline-block',animation:'spin 0.8s linear infinite'}}/> Aranıyor</> : <><Search size={14}/> Sorgula</>}
+          </button>
         </div>
+        <AnimatePresence>
+          {showDropdown && searchResults.length>0 && (
+            <motion.div initial={{opacity:0,y:-8}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-8}}
+              style={{ position:'absolute', top:'calc(100% + 8px)', left:0, right:0, background:theme.surface, border:`1px solid ${theme.border}`, borderRadius:theme.radiusMd, maxHeight:280, overflowY:'auto', zIndex:100, boxShadow:'0 20px 40px rgba(0,0,0,0.5)' }}>
+              {searchResults.slice(0,10).map((item,i)=>(
+                <div key={i} onClick={()=>{setSearchQuery(item.value||item.ioc_value||item.ioc||'');setShowDropdown(false);handleSearch()}}
+                  style={{ padding:'12px 16px', borderBottom:`1px solid ${theme.border}`, cursor:'pointer', transition:'background 0.15s' }}
+                  onMouseEnter={e=>e.currentTarget.style.background=theme.surface2}
+                  onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:8 }}>
+                    <span style={{ color:theme.primary, fontFamily:theme.mono, fontSize:12, wordBreak:'break-all', flex:1 }}>{item.value||item.ioc_value||item.ioc||'-'}</span>
+                    <span style={{ fontSize:10, padding:'2px 8px', borderRadius:10, background:`${THREAT_META[item.ioc_type?.toUpperCase()]?.color||theme.primary}20`, color:THREAT_META[item.ioc_type?.toUpperCase()]?.color||theme.primary, whiteSpace:'nowrap' }}>{item.ioc_type||item.type||'-'}</span>
+                  </div>
+                  <div style={{ display:'flex', gap:12, fontSize:11, color:theme.textMuted, marginTop:4 }}>
+                    <span style={{ display:'flex', alignItems:'center', gap:4 }}><Shield size={10}/> Risk: <b style={{ color:(item.risk_score||0)>75?'#ef4444':(item.risk_score||0)>40?theme.warning:theme.success }}>{item.risk_score}</b></span>
+                    <span style={{ display:'flex', alignItems:'center', gap:4 }}><Database size={10}/> {item.source}</span>
+                  </div>
+                </div>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
+
+    {/* ── Yüksek risk uyarısı ── */}
+    {parseFloat(highRiskPct) > 90 && (
+      <div style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 20px', background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.25)', borderRadius:theme.radiusMd, marginBottom:24 }}>
+        <AlertTriangle size={18} color='#ef4444'/>
+        <p style={{ fontSize:13, color:'#ef4444', fontWeight:600, margin:0 }}>Veritabanındaki IOC'ların <b>%{highRiskPct}'i yüksek risk</b> seviyesindedir. Bu tehditler aktif saldırı altyapılarıyla ilişkilidir.</p>
+      </div>
+    )}
+
+    {/* ── İkili grid: Risk dağılımı + Haftalık artış ── */}
+    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20, marginBottom:20 }}>
+      {/* Risk dağılımı */}
+      <Card>
+        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:20 }}>
+          <BarChart3 size={16} color={theme.primary}/>
+          <h3 style={{ fontSize:14, fontWeight:700, color:'#fff', margin:0 }}>Risk Dağılımı</h3>
+        </div>
+        {riskDist.length>0 ? (
+          <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+            {riskDist.map((item,i)=>{
+              const rColors=['#22c55e','#84cc16','#f59e0b','#ff6b35','#ef4444']
+              const c = rColors[i]||theme.primary
+              return (
+                <div key={i}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+                    <span style={{ fontSize:12, color:theme.text, display:'flex', alignItems:'center', gap:6 }}>
+                      <span style={{ width:8,height:8,borderRadius:'50%',background:c,display:'inline-block',flexShrink:0 }}/>
+                      {item.range}
+                    </span>
+                    <span style={{ fontSize:12, fontWeight:700, color:c }}>{(item.percentage||0).toFixed(1)}%</span>
+                  </div>
+                  <div style={{ height:8, background:theme.bg, borderRadius:4, overflow:'hidden' }}>
+                    <motion.div initial={{width:0}} animate={{width:`${Math.min(item.percentage||0,100)}%`}} transition={{delay:0.3+i*0.1,duration:0.8,ease:theme.ease.out}}
+                      style={{ height:'100%', background:c, borderRadius:4 }}/>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        ) : <p style={{ color:theme.textMuted, fontSize:13 }}>Yükleniyor...</p>}
       </Card>
-    </motion.div>
+
+      {/* Haftalık büyüme */}
+      <Card>
+        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:20 }}>
+          <TrendingUp size={16} color={theme.primary}/>
+          <h3 style={{ fontSize:14, fontWeight:700, color:'#fff', margin:0 }}>Haftalık IOC Artışı</h3>
+        </div>
+        {weeklyGrowth.length>0 ? (
+          <div style={{ display:'flex', gap:4, alignItems:'flex-end', height:160, padding:'0 4px' }}>
+            {weeklyGrowth.map((item,i)=>{
+              const maxVal=Math.max(...weeklyGrowth.map(w=>w.count),1)
+              const h=(item.count/maxVal)*100
+              return (
+                <div key={i} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:4 }} title={`${item.date}: ${item.count}`}>
+                  <span style={{ fontSize:9, color:theme.textMuted }}>{item.count>999?(item.count/1000).toFixed(1)+'k':item.count}</span>
+                  <motion.div initial={{height:0}} animate={{height:`${Math.max(h,2)}%`}} transition={{delay:0.2+i*0.04,duration:0.6,ease:theme.ease.out}}
+                    style={{ width:'100%', minHeight:3, background:`linear-gradient(to top, ${theme.primary}, ${theme.primary}55)`, borderRadius:'3px 3px 0 0' }}/>
+                  <span style={{ fontSize:8, color:theme.textMuted, transform:'rotate(-45deg)', whiteSpace:'nowrap', marginTop:2 }}>{item.date?.slice(5)||''}</span>
+                </div>
+              )
+            })}
+          </div>
+        ) : <p style={{ color:theme.textMuted, fontSize:13 }}>Yükleniyor...</p>}
+      </Card>
+    </div>
+
+    {/* ── İkili grid: Kaynaklar + Tehditler ── */}
+    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20, marginBottom:20 }}>
+      {/* Kaynak dağılımı */}
+      <Card>
+        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:18 }}>
+          <Radio size={16} color={theme.primary}/>
+          <h3 style={{ fontSize:14, fontWeight:700, color:'#fff', margin:0 }}>Kaynak Dağılımı</h3>
+        </div>
+        {sourceBreakdown.length>0 ? sourceBreakdown.slice(0,8).map((s,i)=>(
+          <motion.div key={i} initial={{opacity:0,x:-10}} animate={{opacity:1,x:0}} transition={{delay:0.1*i}}
+            style={{ marginBottom:12 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:5 }}>
+              <span style={{ fontSize:12, color:theme.text, display:'flex', alignItems:'center', gap:6 }}>
+                <Database size={11} color={theme.textMuted}/> {s.source}
+              </span>
+              <span style={{ fontSize:12, fontWeight:700, color:theme.primary }}>{(s.count||0).toLocaleString('tr-TR')}</span>
+            </div>
+            <div style={{ height:5, background:theme.bg, borderRadius:3, overflow:'hidden' }}>
+              <motion.div initial={{width:0}} animate={{width:`${((s.count||0)/maxSource)*100}%`}} transition={{delay:0.15+i*0.05,duration:0.7,ease:theme.ease.out}}
+                style={{ height:'100%', background:`linear-gradient(90deg, ${theme.primary}, ${theme.primary}66)`, borderRadius:3 }}/>
+            </div>
+          </motion.div>
+        )) : <p style={{ color:theme.textMuted, fontSize:13 }}>Yükleniyor...</p>}
+      </Card>
+
+      {/* En çok görülen tehditler */}
+      <Card>
+        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:18 }}>
+          <Zap size={16} color='#ef4444'/>
+          <h3 style={{ fontSize:14, fontWeight:700, color:'#fff', margin:0 }}>En Çok Görülen Tehditler</h3>
+        </div>
+        {topThreats.length>0 ? topThreats.slice(0,10).map((t,i)=>{
+          const typeName = (t.type||t.threat_type||t.name||'').toUpperCase()
+          const meta = THREAT_META[typeName] || { color:theme.primary, icon:Shield }
+          const Icon = meta.icon
+          const barW = ((t.count||0)/maxThreat)*100
+          return (
+            <motion.div key={i} initial={{opacity:0,x:10}} animate={{opacity:1,x:0}} transition={{delay:0.05*i}}
+              style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10 }}>
+              <span style={{ fontSize:11, color:theme.textMuted, width:16, textAlign:'right', flexShrink:0 }}>{i+1}</span>
+              <div style={{ width:22, height:22, borderRadius:6, background:`${meta.color}18`, border:`1px solid ${meta.color}33`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                <Icon size={12} color={meta.color}/>
+              </div>
+              <div style={{ flex:1 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
+                  <span style={{ fontSize:11, fontWeight:700, color:meta.color }}>{typeName}</span>
+                  <span style={{ fontSize:11, fontWeight:700, color:'#fff' }}>{(t.count||0).toLocaleString('tr-TR')}</span>
+                </div>
+                <div style={{ height:4, background:theme.bg, borderRadius:2, overflow:'hidden' }}>
+                  <motion.div initial={{width:0}} animate={{width:`${barW}%`}} transition={{delay:0.1+i*0.04,duration:0.6}}
+                    style={{ height:'100%', background:meta.color, borderRadius:2 }}/>
+                </div>
+              </div>
+            </motion.div>
+          )
+        }) : <p style={{ color:theme.textMuted, fontSize:13 }}>Yükleniyor...</p>}
+      </Card>
+    </div>
+
+    {/* ── IOC Tablosu ── */}
+    <Card style={{ marginBottom:20 }}>
+      <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:18 }}>
+        <Eye size={16} color={theme.primary}/>
+        <h3 style={{ fontSize:14, fontWeight:700, color:'#fff', margin:0 }}>Tüm IOC'lar</h3>
+        <span style={{ fontSize:11, color:theme.textMuted, marginLeft:'auto' }}>{iocList.length} kayıt</span>
+      </div>
+      <div style={{ overflowX:'auto', maxHeight:480, overflowY:'auto' }}>
+        <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+          <thead style={{ position:'sticky', top:0, background:theme.surface2, zIndex:1 }}>
+            <tr style={{ color:theme.textMuted, fontSize:10, textTransform:'uppercase', letterSpacing:'1px', borderBottom:`2px solid ${theme.border}` }}>
+              <th style={{ width:4, padding:0 }}/>
+              <th style={{ textAlign:'left', padding:'11px 12px' }}>Gösterge</th>
+              <th style={{ textAlign:'center', padding:'11px 8px' }}>Tür</th>
+              <th style={{ textAlign:'center', padding:'11px 8px' }}>Risk</th>
+              <th style={{ textAlign:'center', padding:'11px 8px' }}>Kaynak</th>
+              <th style={{ textAlign:'right', padding:'11px 12px' }}>Tarih</th>
+            </tr>
+          </thead>
+          <tbody>
+            {iocList.length===0 && <tr><td colSpan={6} style={{ textAlign:'center', padding:40, color:theme.textMuted }}>Yükleniyor...</td></tr>}
+            {iocList.map((item,i)=>{
+              const rs = item.risk_score||0
+              const sColor = rs>75?'#ef4444':rs>40?theme.warning:theme.success
+              const typeName = (item.type||item.ioc_type||'').toUpperCase()
+              const meta = THREAT_META[typeName]||{color:theme.primary}
+              const val = item.value||item.ioc_value||item.ioc||item.indicator||'-'
+              return (
+                <tr key={item.id||i} style={{ borderBottom:`1px solid ${theme.border}` }}
+                  onMouseEnter={e=>e.currentTarget.style.background=theme.surface2}
+                  onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                  <td style={{ width:3, padding:0, background:sColor }}/>
+                  <td style={{ padding:'9px 12px' }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                      <span style={{ color:theme.primary, fontFamily:theme.mono, fontSize:11, wordBreak:'break-all' }}>{val}</span>
+                      <CopyBtn value={val}/>
+                    </div>
+                  </td>
+                  <td style={{ padding:'9px 8px', textAlign:'center' }}>
+                    <span style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'3px 8px', borderRadius:8, background:`${meta.color||theme.primary}18`, color:meta.color||theme.primary, fontSize:10, fontWeight:700 }}>
+                      <ThreatIcon type={typeName} size={10}/> {item.type||item.ioc_type||'-'}
+                    </span>
+                  </td>
+                  <td style={{ padding:'9px 8px', textAlign:'center' }}>
+                    <span style={{ display:'inline-flex', alignItems:'center', gap:3, padding:'3px 8px', borderRadius:8, background:`${sColor}18`, color:sColor, fontSize:10, fontWeight:800 }}>
+                      <Shield size={9}/> {rs||'-'}
+                    </span>
+                  </td>
+                  <td style={{ padding:'9px 8px', textAlign:'center', color:theme.textMuted, fontSize:11 }}>{item.source||'-'}</td>
+                  <td style={{ padding:'9px 12px', textAlign:'right', color:theme.textMuted, fontSize:10 }}>{item.created_at?new Date(item.created_at).toLocaleDateString('tr-TR'):item.date?new Date(item.date).toLocaleDateString('tr-TR'):'-'}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+
+    {/* ── Proje açıklama kartı (yarışma için) ── */}
+    <div style={{ padding:24, background:theme.surface, border:`1px solid ${theme.border}`, borderRadius:theme.radiusMd, display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:20 }}>
+      {[
+        { Icon:Shield, color:theme.primary, title:'IOC Nedir?', desc:'Indicator of Compromise — bir sistemin tehlikeye girdiğine işaret eden zararlı IP, domain, URL veya dosya hash değerleridir.' },
+        { Icon:Hash, color:theme.warning, title:'Nasıl Kullanılır?', desc:'Bir IP veya domain şüpheli geliyorsa arama kutusuna girerek veritabanımızda tehdit kaydı olup olmadığını anlık sorgulayabilirsiniz.' },
+        { Icon:Lock, color:theme.success, title:'Neden Önemli?', desc:'AegisNexus, açık tehdit istihbaratı kaynaklarını birleştirerek kişisel ve kurumsal kullanıcıları siber saldırılara karşı önceden uyarır.' },
+      ].map(({Icon,color,title,desc},i)=>(
+        <div key={i} style={{ display:'flex', gap:14 }}>
+          <div style={{ width:36,height:36,borderRadius:10,background:`${color}18`,border:`1px solid ${color}33`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}>
+            <Icon size={18} color={color}/>
+          </div>
+          <div>
+            <p style={{ fontSize:13, fontWeight:700, color:'#fff', marginBottom:4 }}>{title}</p>
+            <p style={{ fontSize:12, color:theme.textMuted, lineHeight:1.6, margin:0 }}>{desc}</p>
+          </div>
+        </div>
+      ))}
+    </div>
   </div>
 }
 
