@@ -1,6 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
-import { ComposableMap, Geographies, Geography } from 'react-simple-maps'
 import { theme } from '../theme'
 import { statsAPI } from '../lib/endpoints'
 
@@ -95,22 +94,52 @@ const TURKEY_GEO = {
 export default function HaritaPage() {
   const [features, setFeatures] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [hoveredProv, setHoveredProv] = useState(null)
 
   useEffect(() => {
-    statsAPI.heatmap().then(r => {
-      setFeatures(r.data?.features || [])
-    }).catch(() => {}).finally(() => setLoading(false))
+    let cancelled = false
+
+    statsAPI.heatmap()
+      .then((r) => {
+        if (!cancelled) {
+          setFeatures(r.data?.features || [])
+          setError('')
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setFeatures([])
+          setError(err?.response?.data?.detail || err?.response?.data?.message || 'Harita verisi alınamadı.')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
-  // API'den gelen verileri map'e eşle
-  const regionMap = {}
-  features.forEach(f => {
-    const name = f.properties?.name
-    if (name) regionMap[name.toLowerCase()] = f.properties?.case_count || 0
-  })
+  const regionMap = useMemo(() => {
+    const map = {}
+    features.forEach((f) => {
+      const name = f.properties?.name
+      if (name) map[name.toLowerCase()] = f.properties?.case_count || 0
+    })
+    return map
+  }, [features])
+
+  const regionEntries = useMemo(
+    () => Object.entries(regionMap).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count),
+    [regionMap],
+  )
 
   const maxCount = Math.max(...Object.values(regionMap), 1)
+  const totalCount = regionEntries.reduce((sum, item) => sum + item.count, 0)
+  const activeRegionCount = regionEntries.filter((item) => item.count > 0).length
+  const topRegion = regionEntries[0] || null
 
   const getColor = (count) => {
     if (count === 0) return '#2a2a35'
@@ -140,6 +169,19 @@ export default function HaritaPage() {
           <p style={{ color: theme.textMuted, textAlign: 'center' }}>Yükleniyor...</p>
         ) : (
           <>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 18 }}>
+              {[
+                { label: 'Toplam Vaka', value: totalCount, color: theme.primary },
+                { label: 'Verisi Olan İl', value: activeRegionCount, color: theme.success },
+                { label: 'En Yoğun İl', value: topRegion ? topRegion.name.replace(/^./, (ch) => ch.toUpperCase()) : '-', color: theme.warning },
+              ].map((item) => (
+                <div key={item.label} style={{ background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: theme.radius.md, padding: '14px 16px' }}>
+                  <div style={{ fontSize: 11, color: theme.textMuted, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 6 }}>{item.label}</div>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: item.color, wordBreak: 'break-word' }}>{item.value}</div>
+                </div>
+              ))}
+            </div>
+
             <div style={{
               background: theme.surface,
               border: `1px solid ${theme.border}`,
@@ -162,6 +204,21 @@ export default function HaritaPage() {
                   <p style={{ color: theme.textMuted, fontSize: 12, margin: 0 }}>
                     Vaka: {regionMap[hoveredProv.toLowerCase()] || 0}
                   </p>
+                </div>
+              )}
+
+              {error && (
+                <div style={{
+                  marginBottom: 16,
+                  padding: '12px 14px',
+                  borderRadius: theme.radius.md,
+                  border: `1px solid ${theme.warning}44`,
+                  background: `${theme.warning}10`,
+                  color: theme.text,
+                  fontSize: 13,
+                  lineHeight: 1.6,
+                }}>
+                  <strong style={{ color: theme.warning }}>Not:</strong> {error} Harita yine de sıfır verili görünümde açıldı.
                 </div>
               )}
 
@@ -207,7 +264,7 @@ export default function HaritaPage() {
 
             {/* Legend */}
             <div style={{
-              display: 'flex', justifyContent: 'center', gap: 24,
+              display: 'flex', justifyContent: 'center', gap: 18, flexWrap: 'wrap',
               background: theme.surface, border: `1px solid ${theme.border}`,
               borderRadius: theme.radius.md, padding: 16,
             }}>
@@ -223,6 +280,36 @@ export default function HaritaPage() {
                 </div>
               ))}
             </div>
+
+            {regionEntries.length > 0 && (
+              <div style={{ marginTop: 22, background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: theme.radius.md, padding: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <h3 style={{ margin: 0, color: theme.text, fontSize: 14, fontWeight: 700 }}>İlk 10 İl</h3>
+                  <span style={{ color: theme.textMuted, fontSize: 12 }}>Toplam {regionEntries.length} il verisi</span>
+                </div>
+                <div style={{ display: 'grid', gap: 8 }}>
+                  {regionEntries.slice(0, 10).map((item, index) => {
+                    const intensity = item.count / maxCount
+                    const barColor = item.count === 0 ? '#2a2a35' : intensity > 0.7 ? '#ef4444' : intensity > 0.4 ? '#f59e0b' : '#22c55e'
+                    return (
+                      <div key={item.name} style={{ display: 'grid', gridTemplateColumns: '32px 1fr 56px', gap: 10, alignItems: 'center' }}>
+                        <span style={{ color: theme.textMuted, fontSize: 12, textAlign: 'right' }}>{index + 1}</span>
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                            <span style={{ color: theme.text, fontSize: 13, fontWeight: 600 }}>{item.name.replace(/^./, (ch) => ch.toUpperCase())}</span>
+                            <span style={{ color: barColor, fontSize: 12, fontWeight: 700 }}>{item.count}</span>
+                          </div>
+                          <div style={{ height: 6, borderRadius: 999, background: theme.bgDeep, overflow: 'hidden' }}>
+                            <div style={{ width: `${Math.max((item.count / maxCount) * 100, item.count > 0 ? 8 : 0)}%`, height: '100%', background: barColor, borderRadius: 999 }} />
+                          </div>
+                        </div>
+                        <span style={{ color: theme.textMuted, fontSize: 11, textAlign: 'right' }}>vaka</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </>
         )}
       </section>
