@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AegisNexus Shield — Ayarlar</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main class="options-root">
+      <header class="options-header">
+        <div class="brand">
+          <svg class="brand-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M12 2 4 5v6c0 5.2 3.3 9.9 8 11 4.7-1.1 8-5.8 8-11V5l-8-3Zm0 3.2 5 1.9V11c0 3.7-2.2 7.2-5 8.5-2.8-1.3-5-4.8-5-8.5V7.1l5-1.9Z"
+            />
+          </svg>
+          <div class="brand-text">
+            <h1>AegisNexus Shield</h1>
+          </div>
+        </div>
+        <span class="version-tag">v1.0.0</span>
+      </header>
+
+      <nav class="tab-bar">
+        <button class="tab-btn active" data-tab="personal-whitelist">📋 Personal Whitelist</button>
+        <button class="tab-btn" data-tab="global-whitelist">🌍 Global Whitelist</button>
+        <button class="tab-btn" data-tab="settings">⚙️ Ayarlar</button>
+      </nav>
+
+      <!-- Personal Whitelist Sekmesi -->
+      <section class="tab-panel active" id="panel-personal-whitelist">
+        <div class="card">
+          <h2>Kendi Güvenilir Siteleriniz</h2>
+          <p class="hint">Bu listedeki siteler taramadan muaf tutulur. Kişisel whitelist'iniz sadece sizin tarayıcınızda saklanır.</p>
+
+          <div class="add-form">
+            <input id="pw-domain-input" type="text" placeholder="example.com" />
+            <button id="pw-add-btn" class="action-btn action-accent">➕ Ekle</button>
+          </div>
+          <p id="pw-domain-error" class="error-msg hidden">❌ Geçersiz domain formatı</p>
+
+          <div class="table-wrapper">
+            <table id="pw-table" class="data-table">
+              <thead>
+                <tr>
+                  <th>Domain</th>
+                  <th>Eklenme Tarihi</th>
+                  <th>İşlem</th>
+                </tr>
+              </thead>
+              <tbody id="pw-tbody"></tbody>
+            </table>
+            <p id="pw-empty-msg" class="empty-msg hidden">Henüz güvenilir site eklenmedi</p>
+          </div>
+
+          <div class="verify-section">
+            <button id="pw-verify-btn" class="action-btn action-safe">🔄 Şimdi Doğrula</button>
+            <div id="pw-verify-result" class="verify-result hidden"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Global Whitelist Sekmesi -->
+      <section class="tab-panel" id="panel-global-whitelist">
+        <div class="card">
+          <div class="card-header-row">
+            <h2>Global Whitelist</h2>
+            <span id="gw-count-badge" class="count-badge">0 domain</span>
+          </div>
+          <p class="hint">AegisNexus sunucusundan alınan resmi güvenilir site listesi. Salt-okunur.</p>
+
+          <div class="filter-row">
+            <input id="gw-filter-input" type="text" placeholder="🔍 Domain ara..." />
+            <button id="gw-refresh-btn" class="action-btn action-accent">🔄 Güncelle</button>
+          </div>
+          <p id="gw-last-updated" class="hint">Son güncelleme: -</p>
+
+          <div class="table-wrapper">
+            <table id="gw-table" class="data-table">
+              <thead>
+                <tr>
+                  <th>Domain</th>
+                  <th>Durum</th>
+                </tr>
+              </thead>
+              <tbody id="gw-tbody"></tbody>
+            </table>
+            <p id="gw-empty-msg" class="empty-msg hidden">Yükleniyor...</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Ayarlar Sekmesi -->
+      <section class="tab-panel" id="panel-settings">
+        <div class="card">
+          <h2>⚙️ Ayarlar</h2>
+
+          <div class="settings-fields">
+            <label class="field">
+              <span>API Base URL</span>
+              <input id="opt-api-base-url" type="url" placeholder="https://api.example.com" />
+            </label>
+
+            <label class="field">
+              <span>GSB API Key</span>
+              <div class="password-row">
+                <input id="opt-gsb-api-key" type="password" placeholder="AIza..." />
+                <button id="toggle-gsb-key" class="mini-btn" type="button">Göster</button>
+              </div>
+            </label>
+
+            <label class="field">
+              <span>X-AegisNexus-Key</span>
+              <div class="password-row">
+                <input id="opt-aegis-key" type="password" placeholder="AegisNexus API anahtarınız" />
+                <button id="toggle-aegis-key" class="mini-btn" type="button">Göster</button>
+              </div>
+            </label>
+
+            <button id="btn-save-options" class="action-btn action-accent">💾 Kaydet</button>
+          </div>
+        </div>
+      </section>
+
+      <div id="options-spinner" class="spinner-overlay hidden">
+        <div class="spinner"></div>
+      </div>
+    </main>
+
+    <script src="options.js"></script>
+  </body>
+</html>

@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AegisNexus Shield</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="popup-root">
+      <header class="popup-header">
+        <div class="brand">
+          <svg class="brand-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M12 2 4 5v6c0 5.2 3.3 9.9 8 11 4.7-1.1 8-5.8 8-11V5l-8-3Zm0 3.2 5 1.9V11c0 3.7-2.2 7.2-5 8.5-2.8-1.3-5-4.8-5-8.5V7.1l5-1.9Z"
+            />
+          </svg>
+          <div class="brand-text">
+            <h1>AegisNexus Shield</h1>
+          </div>
+        </div>
+        <span class="version-tag">v1.0.0</span>
+      </header>
+
+      <section class="card status-card">
+        <div class="risk-ring" id="risk-ring" style="--risk-score: 0;">
+          <div class="risk-ring-inner">
+            <span class="score-label">Skor</span>
+            <span id="score-value" class="score-value">0</span>
+          </div>
+        </div>
+        <div id="risk-badge" class="risk-badge risk-safe">SAFE</div>
+        <p id="active-domain" class="active-domain">domain.yok</p>
+      </section>
+
+      <section class="accordion-list">
+        <details class="accordion" open>
+          <summary>🔍 Heuristic Analiz</summary>
+          <div class="accordion-content">
+            <p id="heuristic-score-breakdown">Skor katkıları yükleniyor...</p>
+            <ul id="heuristic-flags" class="flag-list">
+              <li>Henüz veri yok</li>
+            </ul>
+          </div>
+        </details>
+
+        <details class="accordion">
+          <summary>🌐 DNS Kontrolü</summary>
+          <div class="accordion-content">
+            <p>Cloudflare: <strong id="dns-cloudflare">-</strong></p>
+            <p>Quad9: <strong id="dns-quad9">-</strong></p>
+            <p>Consensus: <strong id="dns-consensus">-</strong></p>
+          </div>
+        </details>
+
+        <details class="accordion">
+          <summary>🛡️ Google Safe Browsing</summary>
+          <div class="accordion-content">
+            <p>Durum: <strong id="gsb-status">-</strong></p>
+            <p>Threat Type: <strong id="gsb-type">-</strong></p>
+          </div>
+        </details>
+
+        <details class="accordion">
+          <summary>⚡ AegisNexus Sunucu</summary>
+          <div class="accordion-content">
+            <p>Katman 3: <strong id="layer3-status">-</strong></p>
+            <p>Güven skoru: <strong id="layer3-confidence">-</strong></p>
+          </div>
+        </details>
+      </section>
+
+      <section class="button-grid">
+        <button id="btn-deep-scan" class="action-btn action-accent">🔎 Derin Tara</button>
+        <button id="btn-trust" class="action-btn action-safe">✅ Güvenilir İşaretle</button>
+        <button id="btn-report" class="action-btn action-danger">🚨 Rapor Et</button>
+      </section>
+
+      <details class="settings" id="settings-panel">
+        <summary>Ayarlar</summary>
+        <div class="settings-content">
+          <label class="field">
+            <span>API Base URL</span>
+            <input id="api-base-url" type="url" placeholder="https://api.example.com" />
+          </label>
+
+          <label class="field">
+            <span>GSB API Key</span>
+            <div class="password-row">
+              <input id="gsb-api-key" type="password" placeholder="AIza..." />
+              <button id="toggle-gsb-key" class="mini-btn" type="button">Göster</button>
+            </div>
+          </label>
+
+          <button id="btn-save-settings" class="action-btn action-accent">💾 Kaydet</button>
+        </div>
+      </details>
+    </main>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

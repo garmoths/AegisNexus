@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AegisNexus Shield</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="container">
+      <header>
+        <h1>AegisNexus Shield</h1>
+        <p class="subtitle">Anlık sayfa güvenlik özeti</p>
+      </header>
+
+      <section class="card">
+        <div class="row"><span>Site</span><strong id="site-host">-</strong></div>
+        <div class="row"><span>Risk Skoru</span><strong id="risk-score">-</strong></div>
+        <div class="row"><span>Bağlantı</span><strong id="protocol">-</strong></div>
+      </section>
+
+      <section class="card">
+        <h2>Sayfa Sinyalleri</h2>
+        <div class="row"><span>Şifreli Alanlar</span><strong id="password-inputs">0</strong></div>
+        <div class="row"><span>Güvensiz Form</span><strong id="insecure-forms">0</strong></div>
+        <div class="row"><span>Karma İçerik</span><strong id="mixed-content">0</strong></div>
+      </section>
+
+      <section class="card">
+        <h2>İstatistik</h2>
+        <div class="row"><span>Taranan</span><strong id="stats-scanned">0</strong></div>
+        <div class="row"><span>Riskli</span><strong id="stats-risky">0</strong></div>
+        <div class="row"><span>Bildirim</span><strong id="stats-notifications">0</strong></div>
+      </section>
+    </main>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
