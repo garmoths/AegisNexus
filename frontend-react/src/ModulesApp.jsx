@@ -1,12 +1,40 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { Component, useState, useEffect, useRef, useCallback } from 'react'
 import { motion, useReducedMotion, AnimatePresence } from 'framer-motion'
-import { Shield, AlertTriangle, Activity, Globe, Search, Copy, Check, Wifi, Database, TrendingUp, Zap, Bug, Mail, Server, Hash, Radio, Eye, ChevronRight, BarChart3, Lock } from 'lucide-react'
+import { Shield, ShieldAlert, AlertTriangle, Activity, Globe, Search, Copy, Check, Wifi, Database, TrendingUp, Zap, Bug, Mail, Server, Hash, Radio, Eye, ChevronRight, BarChart3, Lock } from 'lucide-react'
 
 const API = import.meta.env.VITE_API_BASE_URL || '/api/v2'
 
 function normalizeStatus(status) {
   const s = String(status || '').toLowerCase()
   return s === 'active' || s === 'online'
+}
+
+class ModuleErrorBoundary extends Component {
+  constructor(props) {
+    super(props)
+    this.state = { hasError: false }
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding:'96px 24px', maxWidth:900, margin:'0 auto' }}>
+          <div style={{ padding:32, borderRadius:theme.radiusMd, background:theme.surface, border:`1px solid ${theme.border}`, boxShadow:theme.cardShadow }}>
+            <p style={{ fontSize:12, fontWeight:800, color:theme.warning, textTransform:'uppercase', letterSpacing:'1.5px', marginBottom:12 }}>IOC Modülü Hatası</p>
+            <h2 style={{ fontSize:28, fontWeight:800, color:'#fff', marginBottom:12 }}>Bu sekme geçici olarak yüklenemedi.</h2>
+            <p style={{ color:theme.textMuted, fontSize:15, lineHeight:1.7, marginBottom:20 }}>IOC ekranında beklenmeyen bir render hatası oluştu. Sayfayı yenileyerek tekrar deneyebilirsin.</p>
+            <button onClick={() => window.location.reload()} style={{ padding:'12px 18px', borderRadius:theme.radiusSm, border:'none', background:theme.gradientPrimary, color:'#000', fontWeight:700, cursor:'pointer' }}>Yeniden Yükle</button>
+          </div>
+        </div>
+      )
+    }
+
+    return this.props.children
+  }
 }
 
 const theme = {
@@ -195,7 +223,7 @@ export default function ModulesApp() {
       {page==='ai-analyzer' && <AIAnalyzer onGoVictimAtlas={()=>setPage('victim-atlas')} />}
       {page==='phishing-detector' && <PhishingDetector />}
       {page==='victim-atlas' && <VictimAtlas onOpenAIAnalyzer={()=>setPage('ai-analyzer')} />}
-      {page==='honeypot' && <HoneypotIOC />}
+      {page==='honeypot' && <ModuleErrorBoundary><HoneypotIOC /></ModuleErrorBoundary>}
       {page==='breach-intel' && <BreachIntel />}
     </motion.main>
     <footer style={{ borderTop:`1px solid ${theme.border}`, padding:'24px', textAlign:'center', color:theme.textMuted, fontSize:13, marginTop:80 }}>
