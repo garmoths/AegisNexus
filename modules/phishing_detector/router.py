@@ -27,6 +27,12 @@ from .cache_db import (
     get_scan_history,
     write_phishing_url,
 )
+from .redis_cache import (
+    redis_get_scan,
+    redis_set_scan,
+    redis_invalidate_scan,
+    redis_health,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -138,7 +144,31 @@ def check_url(request: URLCheckRequest, db: Session = Depends(get_db)):
         requested_url = request.url.strip()
         
         # Cache kontrolü - force_fresh ise bypass et
+        norm = normalize_url_record(requested_url)
+        url_hash = norm.get("url_hash", "")
+
+        if request.force_fresh and url_hash:
+            redis_invalidate_scan(url_hash)
+
         if not request.force_fresh:
+            # 1. Redis cache (~0.3ms)
+            cached_result = redis_get_scan(url_hash) if url_hash else None
+            if cached_result:
+                cached_result["module"] = "01_phishing_detector"
+                cached_result["cache"] = "redis-hit"
+                logger.info(f"Redis cache hit: {requested_url}")
+                write_phishing_url(
+                    url=requested_url,
+                    risk_score=int(cached_result.get("safety_score", cached_result.get("score", 0))),
+                    risk_level=str(cached_result.get("risk_level", "unknown")),
+                    is_safe=bool(cached_result.get("safety_score", cached_result.get("score", 0)) >= 80),
+                    sources=[s.get("name") if isinstance(s, dict) else s for s in cached_result.get("sources", []) if s],
+                    raw_data=cached_result,
+                    track_event=True,
+                )
+                return cached_result
+
+            # 2. SQLite cache fallback
             cached_result = get_cached_scan_result(requested_url, days=30)
             if cached_result:
                 sources = []
@@ -151,16 +181,19 @@ def check_url(request: URLCheckRequest, db: Session = Depends(get_db)):
                         sources.append(src)
                 write_phishing_url(
                     url=requested_url,
-                    risk_score=int(cached_result.get("score", 0)),
+                    risk_score=int(cached_result.get("safety_score", cached_result.get("score", 0))),
                     risk_level=str(cached_result.get("risk_level", "unknown")),
-                    is_safe=bool(cached_result.get("score", 0) >= 80),
+                    is_safe=bool(cached_result.get("safety_score", cached_result.get("score", 0)) >= 80),
                     sources=sources,
                     raw_data=cached_result,
                     track_event=True,
                 )
                 cached_result["module"] = "01_phishing_detector"
-                cached_result["cache"] = "30d-hit"
-                logger.info(f"Cache hit: {requested_url} - Skor: {cached_result.get('score')}")
+                cached_result["cache"] = "sqlite-hit"
+                logger.info(f"SQLite cache hit: {requested_url}")
+                # SQLite hit'i Redis'e de yaz (sonraki istek Redis'ten gelsin)
+                if url_hash:
+                    redis_set_scan(url_hash, cached_result)
                 return cached_result
 
         result = calculate_safety_score(requested_url, db)
@@ -172,14 +205,17 @@ def check_url(request: URLCheckRequest, db: Session = Depends(get_db)):
                     sources.append(str(name))
         write_phishing_url(
             url=requested_url,
-            risk_score=int(result.get("score", 0)),
+            risk_score=int(result.get("safety_score", result.get("score", 0))),
             risk_level=str(result.get("risk_level", "unknown")),
-            is_safe=bool(result.get("score", 0) >= 80),
+            is_safe=bool(result.get("safety_score", result.get("score", 0)) >= 80),
             sources=sources,
             raw_data=result,
             track_event=True,
         )
         result["module"] = "01_phishing_detector"
+        # Yeni tarama sonucunu Redis'e yaz
+        if url_hash:
+            redis_set_scan(url_hash, result)
         logger.info(f"URL kontrol yapıldı: {requested_url} - Skor: {result.get('score')}")
         return result
     except Exception as e:
@@ -203,6 +239,22 @@ def check_url(request: URLCheckRequest, db: Session = Depends(get_db)):
             "sources": [],
             "module": "01_phishing_detector",
         }
+
+
+@router.get("/cache-health")
+def get_cache_health():
+    """Redis ve SQLite cache durumunu döner (monitoring)."""
+    from .cache_db import get_phishing_stats
+    sqlite_stats = get_phishing_stats()
+    return {
+        "redis": redis_health(),
+        "sqlite": {
+            "available": True,
+            "total_urls": sqlite_stats.get("total_urls", 0),
+            "today_scans": sqlite_stats.get("today_scans", 0),
+        },
+        "module": "01_phishing_detector",
+    }
 
 
 @router.get("/stats")
