@@ -16,12 +16,17 @@ from google.genai import types
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 
+from .redis_cache import redis_get_gemini_count, redis_incr_gemini_counter, GEMINI_DAILY_LIMIT
+
 logger = logging.getLogger(__name__)
 _gemini_client = None
 
 GEMINI_MODEL = "gemini-2.0-flash"
+GEMINI_SKIP_PENALTY_THRESHOLD = int(os.getenv("GEMINI_SKIP_THRESHOLD", "65"))
 MAX_PAGE_TEXT = 3000
-PLAYWRIGHT_TIMEOUT_MS = 15000
+PLAYWRIGHT_TIMEOUT_MS = 25000
+_SCREENSHOT_SETTLE_MS = 2500
+_SCREENSHOT_MAX_RETRIES = 2
 
 SYSTEM_PROMPT = """
 You are a senior phishing detection analyst specialized in visual deception detection.
@@ -58,32 +63,106 @@ def _fallback_result() -> Dict[str, Any]:
     }
 
 
+def _gemini_skipped_result(reason: str) -> Dict[str, Any]:
+    """Gemini atlandığında dönen sonuç — screenshot alınmış ama AI analizi yapılmamış."""
+    return {
+        "risk_score": 35,
+        "risk_level": "UNKNOWN",
+        "verdict": "AI analizi atlandı",
+        "screenshot_analysis": f"Gemini çağrısı atlandı: {reason}",
+        "threat_indicators": [],
+        "recommendation": "Önceki katmanlar yeterli bilgi sağladı veya günlük kota aşıldı.",
+        "available": True,
+        "gemini_skipped": True,
+        "gemini_skip_reason": reason,
+    }
+
+
+def _should_skip_gemini(pre_penalty: int) -> tuple[bool, str]:
+    """Gemini çağrısının atlanıp atlanmayacağını belirler.
+    
+    Returns:
+        (skip: bool, reason: str)
+    """
+    if pre_penalty >= GEMINI_SKIP_PENALTY_THRESHOLD:
+        return True, f"önceki katmanlar yeterli (pre_penalty={pre_penalty}>={GEMINI_SKIP_PENALTY_THRESHOLD})"
+    daily_count = redis_get_gemini_count()
+    if daily_count >= GEMINI_DAILY_LIMIT:
+        return True, f"günlük kota aşıldı ({daily_count}/{GEMINI_DAILY_LIMIT})"
+    return False, ""
+
+
 def _clean_page_text(page_text: str | None) -> str:
     return (page_text or "").strip()[:MAX_PAGE_TEXT]
 
 
 def _capture_screenshot_base64(url: str, page_text: str) -> Tuple[str, str]:
-    """Headless Chromium ile tam sayfa PNG al ve base64'e cevir."""
+    """Headless Chromium ile tam sayfa PNG al ve base64'e cevir.
+
+    Strateji:
+    1. networkidle ile beklemeyi dener; timeout olursa domcontentloaded'a düşer.
+    2. Sayfayı en alta kaydırarak lazy-load içeriklerin yüklenmesini tetikler.
+    3. _SCREENSHOT_SETTLE_MS kadar dinleyerek animasyonların bitmesini bekler.
+    4. _SCREENSHOT_MAX_RETRIES kez yeniden dener.
+    """
     captured_text = page_text
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        context = browser.new_context(ignore_https_errors=True, viewport={"width": 1440, "height": 900})
-        page = context.new_page()
-        page.set_default_navigation_timeout(PLAYWRIGHT_TIMEOUT_MS)
-        page.set_default_timeout(PLAYWRIGHT_TIMEOUT_MS)
+    last_exc: Exception | None = None
 
-        page.goto(url, wait_until="domcontentloaded", timeout=PLAYWRIGHT_TIMEOUT_MS)
-        page.wait_for_timeout(1000)
+    for attempt in range(1, _SCREENSHOT_MAX_RETRIES + 1):
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
+                context = browser.new_context(
+                    ignore_https_errors=True,
+                    viewport={"width": 1440, "height": 900},
+                    user_agent=(
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/124.0.0.0 Safari/537.36"
+                    ),
+                )
+                page = context.new_page()
+                page.set_default_navigation_timeout(PLAYWRIGHT_TIMEOUT_MS)
+                page.set_default_timeout(PLAYWRIGHT_TIMEOUT_MS)
 
-        if not captured_text:
-            try:
-                captured_text = (page.inner_text("body") or "")[:MAX_PAGE_TEXT]
-            except Exception:
-                captured_text = ""
+                # networkidle tercih edilir; bazı siteler bitmez — fallback: domcontentloaded
+                try:
+                    page.goto(url, wait_until="networkidle", timeout=PLAYWRIGHT_TIMEOUT_MS)
+                except PlaywrightTimeoutError:
+                    logger.debug(f"networkidle timeout, falling back to domcontentloaded for {url}")
+                    page.goto(url, wait_until="domcontentloaded", timeout=PLAYWRIGHT_TIMEOUT_MS)
 
-        screenshot_bytes = page.screenshot(type="png", full_page=True)
-        browser.close()
-    return base64.b64encode(screenshot_bytes).decode("utf-8"), captured_text
+                # Lazy-load içerikleri tetikle: en alta kaydır, bekle, en üste dön
+                try:
+                    page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                    page.wait_for_timeout(800)
+                    page.evaluate("window.scrollTo(0, 0)")
+                except Exception:
+                    pass
+
+                # Animasyonlar / son yüklemeler için bekle
+                page.wait_for_timeout(_SCREENSHOT_SETTLE_MS)
+
+                if not captured_text:
+                    try:
+                        captured_text = (page.inner_text("body") or "")[:MAX_PAGE_TEXT]
+                    except Exception:
+                        captured_text = ""
+
+                screenshot_bytes = page.screenshot(type="png", full_page=True)
+                browser.close()
+            return base64.b64encode(screenshot_bytes).decode("utf-8"), captured_text
+
+        except PlaywrightTimeoutError as exc:
+            last_exc = exc
+            logger.warning(f"Screenshot attempt {attempt}/{_SCREENSHOT_MAX_RETRIES} timeout for {url}: {exc}")
+        except Exception as exc:
+            last_exc = exc
+            logger.warning(f"Screenshot attempt {attempt}/{_SCREENSHOT_MAX_RETRIES} failed for {url}: {exc}")
+            if attempt >= _SCREENSHOT_MAX_RETRIES:
+                break
+
+    raise last_exc or RuntimeError("Screenshot capture failed after retries")
 
 
 def _extract_json(text: str) -> Dict[str, Any]:
@@ -176,10 +255,19 @@ def _call_gemini(url: str, screenshot_b64: str, http_meta: Dict[str, Any], page_
     return _extract_json(text)
 
 
-def analyze(url: str, http_meta: Dict[str, Any] | None = None, page_text: str | None = None) -> Dict[str, Any]:
+def analyze(
+    url: str,
+    http_meta: Dict[str, Any] | None = None,
+    page_text: str | None = None,
+    pre_penalty: int = 0,
+) -> Dict[str, Any]:
     """
     URL ekran goruntusunu alip Gemini vision ile phishing analizi yapar.
     Hata durumunda exception firlatmaz, fallback dondurur.
+
+    Args:
+        pre_penalty: B1/B2/B3 katmanlarından gelen toplam ceza.
+                     >= GEMINI_SKIP_PENALTY_THRESHOLD ise Gemini atlanır.
     """
     normalized_url = (url or "").strip()
     if not normalized_url:
@@ -201,6 +289,15 @@ def analyze(url: str, http_meta: Dict[str, Any] | None = None, page_text: str | 
         logger.warning(f"Screenshot capture failed for {normalized_url}: {exc}")
         return _fallback_result()
 
+    # Koşullu Gemini: önceki katmanlar yeterliyse veya kota dolmuşsa atla
+    skip, skip_reason = _should_skip_gemini(pre_penalty)
+    if skip:
+        logger.info(f"Gemini atlandı ({normalized_url}): {skip_reason}")
+        result = _gemini_skipped_result(skip_reason)
+        if screenshot_b64:
+            result["screenshot_b64"] = screenshot_b64
+        return result
+
     try:
         gemini_result = _call_gemini(
             url=normalized_url,
@@ -208,6 +305,9 @@ def analyze(url: str, http_meta: Dict[str, Any] | None = None, page_text: str | 
             http_meta=http_meta or {},
             page_text=captured_text,
         )
+        # Başarılı Gemini çağrısı → sayacı artır
+        new_count = redis_incr_gemini_counter()
+        logger.debug(f"Gemini çağrıldı ({normalized_url}), günlük toplam: {new_count}/{GEMINI_DAILY_LIMIT}")
         result = _normalize_result(gemini_result)
         if screenshot_b64:
             result["screenshot_b64"] = screenshot_b64

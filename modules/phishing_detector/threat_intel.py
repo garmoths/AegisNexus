@@ -737,15 +737,34 @@ def run_threat_intelligence(url, http_meta=None, page_text: str = "", is_whiteli
     all_available = True
 
     # --- Screenshot Analyzer (PRIMARY) ---
+    # pre_penalty=0 şimdilik; B1/B2/B3 uygulandığında burada toplam pre_penalty geçilecek
     try:
-        shot = analyze_screenshot(url=url, http_meta=http_meta, page_text=page_text)
+        shot = analyze_screenshot(url=url, http_meta=http_meta, page_text=page_text, pre_penalty=0)
         results["screenshot_analysis"] = shot
-        if shot.get("available", True):
-            risk_score = max(0, min(100, int(shot.get("risk_score", 50))))
-            weighted_penalty = int(round(risk_score * 0.40))
+        if shot.get("gemini_skipped"):
+            # Gemini atlandı: screenshot var ama AI analizi yok — küçük belirsizlik cezası
+            results["total_penalty"] += 10
+            skip_reason = shot.get("gemini_skip_reason", "bilinmiyor")
             results["sources"].append({
                 "name": "Screenshot Analyzer",
-                "status": f"{shot.get('risk_level', 'UNKNOWN')} ({risk_score}/100)"
+                "status": f"Gemini atlandı ({skip_reason})"
+            })
+            results["findings"].append(
+                f"📸 Screenshot Analyzer: Gemini atlandı — {skip_reason} (belirsizlik cezası +10)"
+            )
+        elif shot.get("available", True):
+            risk_score = max(0, min(100, int(shot.get("risk_score", 50))))
+            risk_level_str = str(shot.get("risk_level", "UNKNOWN")).upper()
+            weighted_penalty = int(round(risk_score * 0.60))
+            if risk_level_str == "CRITICAL":
+                weighted_penalty = max(weighted_penalty, 70)
+            elif risk_level_str == "HIGH":
+                weighted_penalty = max(weighted_penalty, 50)
+            elif risk_level_str == "MEDIUM":
+                weighted_penalty = max(weighted_penalty, 25)
+            results["sources"].append({
+                "name": "Screenshot Analyzer",
+                "status": f"{risk_level_str} ({risk_score}/100)"
             })
             results["total_penalty"] += weighted_penalty
             if weighted_penalty > 0:
@@ -758,6 +777,8 @@ def run_threat_intelligence(url, http_meta=None, page_text: str = "", is_whiteli
                 _persist_screenshot_indicators(url, indicators, confidence=risk_score)
         else:
             all_available = False
+            results["total_penalty"] += 15
+            results["findings"].append("📸 Screenshot Analyzer: Ekran görüntüsü alınamadı (belirsizlik cezası uygulandı)")
     except Exception as e:
         logger.error(f"Screenshot Analyzer err: {e}")
         all_available = False
