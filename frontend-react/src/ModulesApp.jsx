@@ -1,6 +1,7 @@
 import { Component, useState, useEffect, useRef, useCallback } from 'react'
 import { motion, useReducedMotion, AnimatePresence } from 'framer-motion'
 import { Shield, ShieldAlert, AlertTriangle, Activity, Globe, Search, Copy, Check, Wifi, Database, TrendingUp, Zap, Bug, Mail, Server, Hash, Radio, Eye, ChevronRight, BarChart3, Lock, Download } from 'lucide-react'
+import TurkeyHeatmapSection from './components/TurkeyHeatmapSection.jsx'
 
 const API = import.meta.env.VITE_API_BASE_URL || '/api/v2'
 
@@ -1008,7 +1009,7 @@ function ResultContent({ score, threatLevel, isPhishing, isScam, sa, da, recs, b
   </motion.div>
 }
 
-function RiskGauge({ score, label, showPercentage = false, size = 'md' }) {
+function RiskGauge({ score, label, showPercentage = false, size = 'md', safetyMode = false }) {
   const sizeMap = {
     sm: { width: 80, height: 80, radius: 32, stroke: 6, fontSize: 16 },
     md: { width: 120, height: 120, radius: 40, stroke: 8, fontSize: 22 },
@@ -1018,7 +1019,9 @@ function RiskGauge({ score, label, showPercentage = false, size = 'md' }) {
   
   const c = 2 * Math.PI * radius
   const o = c - (Math.min(score, 100) / 100) * c
-  const color = score > 75 ? theme.danger : score > 50 ? theme.warning : score > 25 ? theme.primary : theme.success
+  const color = safetyMode
+    ? (score > 75 ? theme.success : score > 50 ? theme.primary : score > 25 ? theme.warning : theme.danger)
+    : (score > 75 ? theme.danger : score > 50 ? theme.warning : score > 25 ? theme.primary : theme.success)
   const percentage = Math.round(score)
   const center = width / 2
   
@@ -1093,7 +1096,7 @@ function PhishingResult({ result, url }) {
     { key:'virustotal', icon:'🛡️', name:'VirusTotal', data:vt, isBad:(vt.malicious||0)>=1, isClean:vt.available&&(vt.malicious||0)===0, badLabel:`${vt.malicious||0} MAL`, cleanLabel:'CLEAN', detail:vt.available?(vt.source==='whitelist'?'Whitelist domain (güvenilir)':`${vt.malicious||0} motor tehlikeli`):'Sonuç yok', penalty:40 },
     { key:'gsb', icon:'🔍', name:'Google Safe Browsing', data:gsb, isBad:gsb.threat===true, isClean:gsb.available&&!gsb.threat, badLabel:'THREAT', cleanLabel:'SAFE', detail:gsb.threat?gsb.threat_type||'Tehdit':'Güvenli', penalty:50 },
     { key:'abuseipdb', icon:'📊', name:'AbuseIPDB (Local)', data:aipdb, isBad:(aipdb.abuse_score||0)>=30, isClean:aipdb.available&&(aipdb.abuse_score||0)<30, badLabel:`${aipdb.abuse_score||0}%`, cleanLabel:'CLEAN', detail:aipdb.available?`Suistimal: %${aipdb.abuse_score||0}`:'Sonuç yok', penalty:25 },
-    { key:'screenshot', icon:'📸', name:'Screenshot Analyzer', data:sa, isBad:(sa.risk_score||0)>50, isClean:sa.available&&(sa.risk_score||0)<=30, badLabel:sa.risk_level||'HIGH', cleanLabel:'SAFE', detail:(!sa.available&&screenshotB64)?'Screenshot alındı (AI analizi devre dışı)':(sa.verdict||'Analiz yok'), penalty:sa.available?Math.round((sa.risk_score||50)*0.4):0, hasDataOverride: !!screenshotB64 || !!sa.verdict, badgeOverride: (!sa.available&&screenshotB64)?'CAPTURED':null },
+    { key:'screenshot', icon:'📸', name:'Screenshot Analyzer', data:sa, isBad:(sa.risk_score||0)>50, isClean:sa.available&&(sa.risk_score||0)<=30, badLabel:sa.risk_level||'HIGH', cleanLabel:'SAFE', detail:(!sa.available&&screenshotB64)?'Screenshot alındı (AI analizi devre dışı)':(sa.verdict||'Analiz yok'), penalty:sa.available?Math.round((sa.risk_score||50)*0.6):0, hasDataOverride: !!screenshotB64 || !!sa.verdict, badgeOverride: (!sa.available&&screenshotB64)?'CAPTURED':null },
   ]
 
   const openScreenshot = () => {
@@ -1105,12 +1108,13 @@ function PhishingResult({ result, url }) {
   return (
   <motion.div initial={{opacity:0,y:30}} animate={{opacity:1,y:0}} transition={{duration:0.6,ease:theme.ease.out}} style={{marginBottom:48}}>
     {/* Hero Result Card */}
-    <Card style={{background:'rgba(255,255,255,0.03)',backdropFilter:'blur(10px)',WebkitBackdropFilter:'blur(10px)',border:`1px solid ${result.score>50?theme.accent+'40':theme.primary+'40'}`,marginBottom:24}}>
+    {(() => { const safetyScore = result.safety_score ?? result.score ?? 0; return (
+    <Card style={{background:'rgba(255,255,255,0.03)',backdropFilter:'blur(10px)',WebkitBackdropFilter:'blur(10px)',border:`1px solid ${safetyScore<50?theme.accent+'40':theme.primary+'40'}`,marginBottom:24}}>
       <div style={{display:'flex',gap:32,alignItems:'flex-start',flexWrap:'wrap'}}>
         {/* Left: Gauge + Screenshot */}
         <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:16,minWidth:200}}>
-          <RiskGauge score={result.score||0} label="Risk Skoru" size="lg"/>
-          <span style={{padding:'8px 20px',borderRadius:'24px',fontSize:14,fontWeight:700,background:result.score>50?theme.accentDim:theme.primaryDim,color:result.score>50?theme.accent:theme.primary}}>{result.risk_level||'Bilinmiyor'}</span>
+          <RiskGauge score={safetyScore} label="Güvenilirlik Skoru" size="lg" safetyMode={true}/>
+          <span style={{padding:'8px 20px',borderRadius:'24px',fontSize:14,fontWeight:700,background:safetyScore<50?theme.accentDim:theme.primaryDim,color:safetyScore<50?theme.accent:theme.primary}}>{result.risk_level||'Bilinmiyor'}</span>
           {screenshotB64&&(
             <motion.div initial={{opacity:0,scale:0.9}} animate={{opacity:1,scale:1}} transition={{delay:0.3,duration:0.4}} style={{position:'relative',cursor:'pointer'}} onClick={openScreenshot}>
               <img src={`data:image/png;base64,${screenshotB64}`} alt="Site screenshot" style={{width:200,height:'auto',maxHeight:150,objectFit:'cover',borderRadius:theme.radius.md,border:`1px solid ${theme.border}`,boxShadow:'0 4px 20px rgba(0,0,0,0.4)',opacity:0.9,transition:'opacity 0.3s ease'}} onMouseEnter={e=>e.target.style.opacity=1} onMouseLeave={e=>e.target.style.opacity=0.9}/>
@@ -1136,6 +1140,7 @@ function PhishingResult({ result, url }) {
         </div>
       </div>
     </Card>
+    )})()}
 
     {/* Threat Intel Source Cards */}
     <motion.div initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} transition={{delay:0.2,duration:0.5}} style={{marginBottom:24}}>
@@ -1229,6 +1234,10 @@ function PhishingDetector() {
   const [searchResults, setSearchResults] = useState([])
   const [showDropdown, setShowDropdown] = useState(false)
   const searchTimeoutRef = useRef(null)
+  const [jobId, setJobId] = useState(null)
+  const [analyzing, setAnalyzing] = useState(false)
+  const [pollCount, setPollCount] = useState(0)
+  const MAX_POLLS = 30
 
   function showToast(msg,t='success'){setToast({message:msg,type:t,visible:true});setTimeout(()=>setToast(t=>({...t,visible:false})),3000)}
 
@@ -1309,17 +1318,46 @@ function PhishingDetector() {
 
   async function handleCheck() {
     if(!url){showToast('Lutfen bir URL girin','error');return}
-    setChecking(true);setResult(null)
+    setChecking(true);setResult(null);setJobId(null);setAnalyzing(false);setPollCount(0)
     try{
       const normalizedInput = /^https?:\/\//i.test(url) ? url : `https://${url}`
       new URL(normalizedInput)
       const r=await fetch(`${API}/phishing/check-url`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url: normalizedInput})})
       if(!r.ok)throw new Error(`URL kontrol hatasi (${r.status})`)
-      const d=await r.json();setResult(d)
+      const d=await r.json()
+      if(d.status==='analyzing' && d.job_id){
+        setResult(d)
+        setJobId(d.job_id)
+        setAnalyzing(true)
+      } else {
+        setResult(d)
+      }
       loadScanHistory(1)
     }catch(e){showToast('URL kontrol hatasi: '+e.message,'error')}
     setChecking(false)
   }
+
+  useEffect(()=>{
+    if(!jobId||!analyzing) return
+    if(pollCount>=MAX_POLLS){setAnalyzing(false);showToast('Analiz zaman asimi — lutfen tekrar deneyin','error');return}
+    const timer=setTimeout(async()=>{
+      try{
+        const r=await fetch(`${API}/phishing/result/${jobId}`)
+        const d=await r.json()
+        if(d.status==='complete'){
+          setResult(d)
+          setAnalyzing(false)
+          setJobId(null)
+          loadScanHistory(1)
+        } else {
+          setPollCount(c=>c+1)
+        }
+      }catch{
+        setPollCount(c=>c+1)
+      }
+    },3000)
+    return ()=>clearTimeout(timer)
+  },[jobId,analyzing,pollCount])
 
   const totalUrls=stats?.stats?.total_urls||stats?.total_urls||0
   const phCount=stats?.stats?.phishing_count||stats?.phishing_count||0
@@ -1465,10 +1503,10 @@ function PhishingDetector() {
                   >
                     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
                       <span style={{ color:theme.primary, fontFamily:theme.mono, fontSize:12, wordBreak:'break-all', flex:1, marginRight:12 }}>{item.url||'-'}</span>
-                      <span style={{ padding:'3px 10px', borderRadius:10, fontSize:10, flexShrink:0, background:(item.risk_score||0)>50?theme.accentDim:theme.primaryDim, color:(item.risk_score||0)>50?theme.accent:theme.primary }}>{item.risk_level||'Bilinmiyor'}</span>
+                      <span style={{ padding:'3px 10px', borderRadius:10, fontSize:10, flexShrink:0, background:(item.risk_score||0)<50?theme.accentDim:theme.primaryDim, color:(item.risk_score||0)<50?theme.accent:theme.primary }}>{item.risk_level||'Bilinmiyor'}</span>
                     </div>
                     <div style={{ display:'flex', gap:16, fontSize:11, color:theme.textMuted }}>
-                      <span>Risk: <b style={{ color:(item.risk_score||0)>50?theme.accent:(item.risk_score||0)>20?theme.warning:theme.success }}>{item.risk_score??'-'}</b></span>
+                      <span>Güvenilirlik: <b style={{ color:(item.risk_score||0)<50?theme.accent:(item.risk_score||0)<80?theme.warning:theme.success }}>{item.risk_score??'-'}</b></span>
                       <span>Domain: {item.domain||'-'}</span>
                     </div>
                   </div>
@@ -1532,6 +1570,50 @@ function PhishingDetector() {
         )}
       </div>
     </motion.div>
+
+    {/* C1: Derin Analiz Progress Bar */}
+    <AnimatePresence>
+      {analyzing && (
+        <motion.div
+          initial={{ opacity:0, y:-10 }}
+          animate={{ opacity:1, y:0 }}
+          exit={{ opacity:0, y:-10 }}
+          transition={{ duration:0.3, ease:theme.ease.out }}
+          style={{
+            maxWidth:900,
+            margin:'0 auto 24px',
+            padding:'16px 24px',
+            background:'rgba(0,212,255,0.06)',
+            border:`1px solid ${theme.primary}40`,
+            borderRadius:theme.radius.md,
+            display:'flex',
+            alignItems:'center',
+            gap:16
+          }}
+        >
+          <motion.span
+            animate={{ rotate:360 }}
+            transition={{ repeat:Infinity, duration:1.5, ease:'linear' }}
+            style={{ fontSize:22, flexShrink:0 }}
+          >🔍</motion.span>
+          <div style={{ flex:1, minWidth:0 }}>
+            <p style={{ margin:'0 0 4px', fontSize:14, fontWeight:700, color:theme.primary }}>
+              Derin Analiz Devam Ediyor...
+            </p>
+            <p style={{ margin:'0 0 10px', fontSize:12, color:theme.textMuted }}>
+              Playwright screenshot + AI analizi ({Math.round(pollCount * 3)}s)
+            </p>
+            <div style={{ height:4, background:theme.border, borderRadius:2, overflow:'hidden' }}>
+              <motion.div
+                animate={{ width:`${Math.min((pollCount/MAX_POLLS)*100, 95)}%` }}
+                transition={{ duration:0.5 }}
+                style={{ height:'100%', background:theme.gradientPrimary, borderRadius:2 }}
+              />
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
 
     {/* Result Display */}
     {result && <PhishingResult result={result} url={url} />}
@@ -1810,9 +1892,9 @@ function CaseModal({ c, onClose }) {
             <div style={{ flex:1, paddingRight:12 }}>
               <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:8, flexWrap:'wrap' }}>
                 <span style={{ fontSize:12, fontWeight:700, padding:'3px 10px', borderRadius:20, background:`${acColor}22`, color:acColor }}>
-                  {ATTACK_ICONS[c.attack_method]} {methodLabel(c.attack_method)}
+                  {ATTACK_ICONS[c.attack_method]} {displayMethod(c)}
                 </span>
-                <span style={{ fontSize:12, color:theme.textMuted }}>{LOSS_ICONS[c.loss_type]} {lossTypeLabel(c.loss_type)}</span>
+                <span style={{ fontSize:12, color:theme.textMuted }}>{LOSS_ICONS[c.loss_type]} {displayLossType(c)}</span>
                 <span style={{ fontSize:12, padding:'3px 10px', borderRadius:20, background: c.severity_score>=75?'rgba(239,68,68,0.15)':c.severity_score>=55?'rgba(245,158,11,0.15)':'rgba(34,197,94,0.15)', color: c.severity_score>=75?theme.danger:c.severity_score>=55?theme.warning:theme.success, fontWeight:700 }}>Risk {c.severity_score}/100</span>
               </div>
               <h2 style={{ fontSize:18, fontWeight:800, color:'#fff', lineHeight:1.3, margin:0 }}>{c.case_title}</h2>
@@ -1842,8 +1924,8 @@ function CaseModal({ c, onClose }) {
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12, marginBottom:20 }}>
                 {[
                   { label:'Güven Skoru', value:`${c.confidence_score}%`, color:theme.primary },
-                  { label:'Platform', value:platformLabel(c.target_platform), color:theme.text },
-                  { label:'Kayıp Tipi', value:lossTypeLabel(c.loss_type), color:theme.text },
+                  { label:'Platform', value:displayPlatform(c), color:theme.text },
+                  { label:'Kayıp Tipi', value:displayLossType(c), color:theme.text },
                 ].map(item => (
                   <div key={item.label} style={{ padding:'12px 14px', background:theme.surface2, borderRadius:theme.radiusSm, border:`1px solid ${theme.border}` }}>
                     <p style={{ fontSize:11, color:theme.textMuted, marginBottom:4, textTransform:'uppercase', letterSpacing:'0.5px' }}>{item.label}</p>
@@ -1857,8 +1939,8 @@ function CaseModal({ c, onClose }) {
                 {[
                   'İlk Temas',
                   'Güven Kazanma',
-                  methodLabel(c.attack_method),
-                  lossTypeLabel(c.loss_type),
+                  displayMethod(c),
+                  displayLossType(c),
                   'Mağduriyet',
                 ].map((step, i, arr) => (
                   <div key={i} style={{ display:'flex', alignItems:'center', gap:4 }}>
@@ -1968,7 +2050,7 @@ function SimilarCases({ attackMethod, excludeId }) {
       {cases.map(c=>(
         <div key={c.id} style={{ padding:'12px 16px', background:theme.surface2, borderRadius:theme.radiusSm, border:`1px solid ${theme.border}` }}>
           <div style={{ display:'flex', gap:8, marginBottom:4 }}>
-            <span style={{ fontSize:11, padding:'2px 8px', borderRadius:12, background:`${ATTACK_COLORS[c.attack_method]||theme.primary}22`, color:ATTACK_COLORS[c.attack_method]||theme.primary, fontWeight:700 }}>{methodLabel(c.attack_method)}</span>
+            <span style={{ fontSize:11, padding:'2px 8px', borderRadius:12, background:`${ATTACK_COLORS[c.attack_method]||theme.primary}22`, color:ATTACK_COLORS[c.attack_method]||theme.primary, fontWeight:700 }}>{displayMethod(c)}</span>
             <span style={{ fontSize:11, color:theme.textMuted }}>Risk {c.severity_score}/100</span>
           </div>
           <p style={{ fontSize:13, color:'#fff', fontWeight:600, margin:0 }}>{c.case_title}</p>
@@ -2016,6 +2098,18 @@ function platformLabel(value='') {
     crypto: 'Kripto',
   }
   return labels[value] || value || 'Genel'
+}
+
+function displayMethod(c = {}) {
+  return c.attack_method_tr || methodLabel(c.attack_method)
+}
+
+function displayLossType(c = {}) {
+  return c.loss_type_tr || lossTypeLabel(c.loss_type)
+}
+
+function displayPlatform(c = {}) {
+  return c.target_platform_tr || platformLabel(c.target_platform)
 }
 
 function VictimAtlas() {
@@ -2111,6 +2205,10 @@ function VictimAtlas() {
       </div>
     </div>
 
+    <ModuleErrorBoundary>
+      <TurkeyHeatmapSection compact={false} />
+    </ModuleErrorBoundary>
+
     {/* Trend bar */}
     {topMethods.length>0 && (
       <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', padding:'10px 0', marginBottom:20, borderTop:`1px solid ${theme.border}`, borderBottom:`1px solid ${theme.border}` }}>
@@ -2180,9 +2278,9 @@ function VictimAtlas() {
               <div style={{ fontSize:28, lineHeight:1 }}>{ATTACK_ICONS[c.attack_method] || '⚠️'}</div>
               <div style={{ flex:1, minWidth:200 }}>
                 <div style={{ display:'flex', gap:6, alignItems:'center', marginBottom:5, flexWrap:'wrap' }}>
-                  <span style={{ fontSize:11, fontWeight:700, padding:'2px 8px', borderRadius:12, background:`${ac}20`, color:ac }}>{methodLabel(c.attack_method)}</span>
-                  <span style={{ fontSize:11, color:theme.textMuted }}>{LOSS_ICONS[c.loss_type]} {lossTypeLabel(c.loss_type)}</span>
-                  <span style={{ fontSize:11, color:theme.textMuted }}>• {platformLabel(c.target_platform)}</span>
+                  <span style={{ fontSize:11, fontWeight:700, padding:'2px 8px', borderRadius:12, background:`${ac}20`, color:ac }}>{displayMethod(c)}</span>
+                  <span style={{ fontSize:11, color:theme.textMuted }}>{LOSS_ICONS[c.loss_type]} {displayLossType(c)}</span>
+                  <span style={{ fontSize:11, color:theme.textMuted }}>• {displayPlatform(c)}</span>
                 </div>
                 <p style={{ fontSize:15, fontWeight:700, color:'#fff', margin:'0 0 4px', lineHeight:1.3 }}>{c.case_title}</p>
                 <p style={{ fontSize:12, color:theme.textMuted, margin:0, lineHeight:1.5 }}>{c.critical_warning?.slice(0,100)}{c.critical_warning?.length>100?'...':''}</p>
