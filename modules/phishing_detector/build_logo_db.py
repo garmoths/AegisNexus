@@ -77,12 +77,15 @@ LOGOS: dict[str, list[str]] = {
     ],
     "akbank": [
         "https://www.google.com/s2/favicons?domain=akbank.com&sz=256",
+        "https://icons.duckduckgo.com/ip3/akbank.com.ico",
     ],
     "isbank": [
         "https://www.google.com/s2/favicons?domain=isbank.com.tr&sz=256",
     ],
     "vakifbank": [
+        "https://www.vakifbank.com.tr/favicon.ico",
         "https://www.google.com/s2/favicons?domain=vakifbank.com.tr&sz=256",
+        "https://icons.duckduckgo.com/ip3/vakifbank.com.tr.ico",
     ],
     "halkbank": [
         "https://www.google.com/s2/favicons?domain=halkbank.com.tr&sz=256",
