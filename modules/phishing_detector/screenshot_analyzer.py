@@ -25,8 +25,8 @@ GEMINI_MODEL = "gemini-2.0-flash"
 GEMINI_SKIP_PENALTY_THRESHOLD = int(os.getenv("GEMINI_SKIP_THRESHOLD", "65"))
 MAX_PAGE_TEXT = 3000
 PLAYWRIGHT_TIMEOUT_MS = 25000
-_SCREENSHOT_SETTLE_MS = 2500
-_SCREENSHOT_MAX_RETRIES = 2
+_SCREENSHOT_SETTLE_MS = 1500
+_SCREENSHOT_MAX_RETRIES = 1
 
 SYSTEM_PROMPT = """
 You are a senior phishing detection analyst specialized in visual deception detection.

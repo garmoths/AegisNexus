@@ -807,14 +807,22 @@ def run_threat_intelligence(url, http_meta=None, page_text: str = "", is_whiteli
         futures_map[executor.submit(_task_gsb, url)] = "gsb"
         futures_map[executor.submit(_task_abuseipdb, url)] = "abuseipdb"
         futures_map[executor.submit(_task_spamhaus_group, url, domain, resolved_ip)] = "spamhaus_group"
-        for future in as_completed(futures_map, timeout=65):
-            name = futures_map[future]
-            try:
-                task_results[name] = future.result()
-            except Exception as exc:
-                logger.error(f"Paralel task hatası [{name}]: {exc}")
-                task_results[name] = None
-                all_available = False
+        try:
+            for future in as_completed(futures_map, timeout=85):
+                name = futures_map[future]
+                try:
+                    task_results[name] = future.result()
+                except Exception as exc:
+                    logger.error(f"Paralel task hatası [{name}]: {exc}")
+                    task_results[name] = None
+                    all_available = False
+        except TimeoutError:
+            # Süre dolan tasklar None olarak işle, eldeki sonuçlarla devam et
+            all_available = False
+            for fut, name in futures_map.items():
+                if name not in task_results:
+                    logger.warning(f"Paralel task timeout [{name}] — sonuç atlanıyor")
+                    task_results[name] = None
 
     # ── Sonuçları skorla (ana thread, thread-safe) ────────────────────────
 
