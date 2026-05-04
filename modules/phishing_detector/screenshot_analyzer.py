@@ -305,6 +305,35 @@ def analyze(
     except Exception as exc:
         logger.debug(f"[pHash] Kontrol atlandı: {exc}")
 
+    # B3: OCR metin analizi — pHash'ten sonra, Gemini'den önce
+    ocr_result = None
+    try:
+        from .visual_analyzer import analyze_with_ocr
+        import base64 as _b64
+        from urllib.parse import urlparse as _urlparse
+        _domain = _urlparse(normalized_url).netloc or normalized_url
+        ocr_result = analyze_with_ocr(_b64.b64decode(screenshot_b64), domain=_domain)
+        if ocr_result.get("definitive") and ocr_result.get("penalty", 0) >= 65:
+            logger.info(f"[OCR] Kesin sonuç, Gemini atlanıyor: {normalized_url}")
+            result = _gemini_skipped_result(ocr_result.get("detail", "OCR kesin sonuç"))
+            result.update({
+                "risk_score": min(95, 70 + ocr_result.get("penalty", 0) // 5),
+                "risk_level": "HIGH",
+                "verdict": ocr_result.get("detail", "Marka/credential OCR ile tespit edildi"),
+                "screenshot_b64": screenshot_b64,
+                "ocr_analysis": ocr_result,
+                "available": True,
+                "gemini_skipped": True,
+                "gemini_skip_reason": "OCR kesin sonuç",
+            })
+            return result
+        # Kesin değil ama penalty varsa → Gemini skip kararına ekle
+        pre_penalty = pre_penalty + ocr_result.get("penalty", 0)
+    except ImportError:
+        logger.debug("[OCR] easyocr yüklü değil, atlanıyor")
+    except Exception as exc:
+        logger.debug(f"[OCR] Kontrol atlandı: {exc}")
+
     # Koşullu Gemini: önceki katmanlar yeterliyse veya kota dolmuşsa atla
     skip, skip_reason = _should_skip_gemini(pre_penalty)
     if skip:

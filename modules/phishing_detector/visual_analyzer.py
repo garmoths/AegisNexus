@@ -402,3 +402,185 @@ def check_logo_phash(
         "similarity": round(similarity, 1),
         "detail": detail,
     }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# B3 — EasyOCR Metin Okuma
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_OCR_MODEL_DIR = os.getenv(
+    "EASYOCR_MODEL_DIR", "/var/www/aegis_nexus/.easyocr_models"
+)
+_OCR_MAX_PENALTY = 70
+_OCR_DEFINITIVE_THRESHOLD = 65
+
+# Process-level singleton — her worker process tek seferinde yükler
+_ocr_reader = None
+
+
+def get_ocr_reader():
+    """EasyOCR Reader singleton — lazy init, process başına 1 kez yüklenir."""
+    global _ocr_reader
+    if _ocr_reader is None:
+        try:
+            import easyocr
+            logger.info("[OCR] EasyOCR Reader yükleniyor...")
+            _ocr_reader = easyocr.Reader(
+                ["tr", "en"],
+                gpu=False,
+                verbose=False,
+                model_storage_directory=_OCR_MODEL_DIR,
+            )
+            logger.info("[OCR] EasyOCR Reader hazır.")
+        except ImportError:
+            logger.warning("[OCR] easyocr yüklü değil — pip install easyocr opencv-python-headless numpy")
+            raise
+    return _ocr_reader
+
+
+# ── OCR için credential / brand anahtar kelimeleri ────────────────────────────
+
+_CREDENTIAL_KEYWORDS: List[str] = [
+    "şifre", "sifre", "parola", "password", "pin", "kart no", "kart numarası",
+    "cvv", "cvc", "son kullanma", "expiry", "iban", "tc kimlik", "tckn",
+    "kullanıcı adı", "username", "email", "e-posta", "giriş yap", "login",
+    "hesabınıza", "hesabiniza", "doğrulama kodu", "otp", "sms kodu",
+    "kredi kartı", "banka kartı", "hesap numarası",
+]
+
+_BRAND_OCR_KEYWORDS: Dict[str, str] = {
+    "ziraat": "Ziraat Bankası",
+    "garanti": "Garanti BBVA",
+    "akbank": "Akbank",
+    "isbank": "İş Bankası",
+    "isbankasi": "İş Bankası",
+    "vakifbank": "VakıfBank",
+    "halkbank": "Halkbank",
+    "denizbank": "Denizbank",
+    "enpara": "Enpara",
+    "paypal": "PayPal",
+    "google": "Google",
+    "microsoft": "Microsoft",
+    "apple": "Apple",
+    "amazon": "Amazon",
+    "netflix": "Netflix",
+    "instagram": "Instagram",
+    "facebook": "Facebook",
+    "twitter": "Twitter",
+    "whatsapp": "WhatsApp",
+    "btcturk": "BtcTurk",
+    "paribu": "Paribu",
+}
+
+
+def analyze_with_ocr(
+    screenshot_bytes: bytes,
+    domain: str = "",
+) -> Dict[str, Any]:
+    """
+    B3: Screenshot PNG'den EasyOCR ile metin oku, brand/credential tespit et.
+
+    Mantık:
+      - OCR metni brand keyword içeriyor + domain marka ile eşleşmiyor → penalty=55
+      - Credential keyword de varsa → +15 ekstra
+      - Domain markanın kendi domaini ise ceza yok
+
+    Args:
+        screenshot_bytes: Ham PNG baytları.
+        domain: Tarandığı URL domaini (domain check için).
+
+    Returns:
+        {
+          "penalty": int,
+          "definitive": bool,
+          "ocr_text_sample": str,
+          "brands_found": list,
+          "credentials_found": list,
+          "detail": str,
+        }
+    """
+    _no_match: Dict[str, Any] = {
+        "penalty": 0,
+        "definitive": False,
+        "ocr_text_sample": "",
+        "brands_found": [],
+        "credentials_found": [],
+        "detail": "",
+    }
+
+    if not screenshot_bytes:
+        return {**_no_match, "detail": "Screenshot boş"}
+
+    try:
+        import numpy as np
+        from PIL import Image
+    except ImportError:
+        return {**_no_match, "detail": "numpy/Pillow yüklü değil"}
+
+    # PNG → numpy array
+    try:
+        img = Image.open(io.BytesIO(screenshot_bytes)).convert("RGB")
+        img_np = np.array(img)
+    except Exception as exc:
+        return {**_no_match, "detail": f"Görüntü açılamadı: {exc}"}
+
+    # OCR
+    try:
+        reader = get_ocr_reader()
+        ocr_results = reader.readtext(img_np, detail=0, paragraph=True)
+        ocr_text = " ".join(ocr_results).lower()
+    except ImportError:
+        return {**_no_match, "detail": "easyocr yüklü değil"}
+    except Exception as exc:
+        logger.warning(f"[OCR] readtext hatası: {exc}")
+        return {**_no_match, "detail": f"OCR hatası: {exc}"}
+
+    domain_lower = domain.lower()
+    penalty = 0
+    brands_found: List[str] = []
+    credentials_found: List[str] = []
+
+    # Brand tespiti
+    for keyword, brand_name in _BRAND_OCR_KEYWORDS.items():
+        if keyword in ocr_text:
+            # Domain kendi markasıysa ceza verme
+            if _brand_matches_url(keyword, domain_lower if domain_lower.startswith("http") else f"https://{domain_lower}"):
+                continue
+            if keyword not in brands_found:
+                brands_found.append(keyword)
+
+    # Credential tespiti
+    for cred_kw in _CREDENTIAL_KEYWORDS:
+        if cred_kw in ocr_text:
+            credentials_found.append(cred_kw)
+
+    # Ceza hesapla — marka tespiti olmadan credential tek başına ceza vermez
+    if brands_found:
+        penalty += 55
+        if credentials_found:
+            extra = min(15, len(credentials_found) * 5)
+            penalty += extra
+
+    penalty = min(penalty, _OCR_MAX_PENALTY)
+    definitive = penalty >= _OCR_DEFINITIVE_THRESHOLD
+
+    ocr_sample = ocr_text[:300]
+
+    details = []
+    if brands_found:
+        details.append(f"OCR marka tespiti: {', '.join(brands_found)}")
+    if credentials_found:
+        details.append(f"Kimlik bilgisi isteği: {', '.join(credentials_found[:3])}")
+    detail_str = " | ".join(details) if details else "Şüpheli içerik yok"
+
+    if brands_found or credentials_found:
+        logger.info(f"[OCR] {detail_str} — domain={domain}")
+
+    return {
+        "penalty": penalty,
+        "definitive": definitive,
+        "ocr_text_sample": ocr_sample,
+        "brands_found": brands_found,
+        "credentials_found": credentials_found[:5],
+        "detail": detail_str,
+    }
