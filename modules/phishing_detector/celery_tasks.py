@@ -36,8 +36,8 @@ app.conf.update(
     task_serializer="json",
     result_serializer="json",
     accept_content=["json"],
-    task_soft_time_limit=120,   # 2 dk soft limit
-    task_time_limit=150,        # 2.5 dk hard limit
+    task_soft_time_limit=240,   # 4 dk soft limit
+    task_time_limit=270,        # 4.5 dk hard limit
     worker_max_tasks_per_child=50,  # Memory leak'e karşı
     task_acks_late=True,        # Hata durumunda yeniden kuyruğa alınır
 )

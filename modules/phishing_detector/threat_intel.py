@@ -726,11 +726,19 @@ def _task_virustotal(url: str):
     """VirusTotal yerel DB sorgusu — her thread kendi SQLAlchemy session'ını açar."""
     from .threat_intel_local import check_virustotal_local as check_virustotal
     from app.database import SessionLocal
-    db = SessionLocal()
+    db = None
     try:
-        return check_virustotal(url, db)
+        db = SessionLocal()
+        result = check_virustotal(url, db)
+        return result
+    except Exception as exc:
+        return {"malicious": 0, "suspicious": 0, "available": False, "source": None, "error": str(exc)}
     finally:
-        db.close()
+        if db is not None:
+            try:
+                db.close()
+            except Exception:
+                pass
 
 
 def _task_gsb(url: str):
