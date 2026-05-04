@@ -156,22 +156,32 @@ def check_url(request: URLCheckRequest, db: Session = Depends(get_db)):
             # 1. Redis cache (~0.3ms)
             cached_result = redis_get_scan(url_hash) if url_hash else None
             if cached_result:
-                cached_result["module"] = "01_phishing_detector"
-                cached_result["cache"] = "redis-hit"
-                logger.info(f"Redis cache hit: {requested_url}")
-                write_phishing_url(
-                    url=requested_url,
-                    risk_score=int(cached_result.get("safety_score", cached_result.get("score", 0))),
-                    risk_level=str(cached_result.get("risk_level", "unknown")),
-                    is_safe=bool(cached_result.get("safety_score", cached_result.get("score", 0)) >= 80),
-                    sources=[s.get("name") if isinstance(s, dict) else s for s in cached_result.get("sources", []) if s],
-                    raw_data=cached_result,
-                    track_event=True,
-                )
-                return cached_result
+                if cached_result.get("threat_intel") is None:
+                    # Eski/bozuk cache (threat_intel eksik) — geçersiz kıl, yeniden tara
+                    logger.info(f"Redis cache geçersiz (threat_intel yok), yeniden taranacak: {requested_url}")
+                    redis_invalidate_scan(url_hash)
+                    cached_result = None
+                else:
+                    cached_result["module"] = "01_phishing_detector"
+                    cached_result["cache"] = "redis-hit"
+                    logger.info(f"Redis cache hit: {requested_url}")
+                    write_phishing_url(
+                        url=requested_url,
+                        risk_score=int(cached_result.get("safety_score", cached_result.get("score", 0))),
+                        risk_level=str(cached_result.get("risk_level", "unknown")),
+                        is_safe=bool(cached_result.get("safety_score", cached_result.get("score", 0)) >= 80),
+                        sources=[s.get("name") if isinstance(s, dict) else s for s in cached_result.get("sources", []) if s],
+                        raw_data=cached_result,
+                        track_event=True,
+                    )
+                    return cached_result
 
             # 2. SQLite cache fallback
             cached_result = get_cached_scan_result(requested_url, days=30)
+            if cached_result and cached_result.get("threat_intel") is None:
+                # Eski/bozuk SQLite cache — atla, yeniden tara
+                logger.info(f"SQLite cache geçersiz (threat_intel yok), yeniden taranacak: {requested_url}")
+                cached_result = None
             if cached_result:
                 sources = []
                 for src in cached_result.get("sources", []):
