@@ -12,7 +12,7 @@
 | # | Bölüm | Etki | Tahmini Süre |
 |---|-------|------|-------------|
 | A1 | ~~Redis cache katmanı~~ | ✅ TAMAMLANDI — Trafiğin %60-70'ini keser | 3 Mayıs 2026 |
-| A2 | Celery async pipeline | ⏳ Bekliyor — RAM sabit, kuyruk patlamaz | 4-6 saat |
+| A2 | ~~Celery async pipeline~~ | ✅ TAMAMLANDI — run_quick_checks + run_heavy_analysis task + /result/{job_id} | 4 Mayıs 2026 |
 | A3 | Playwright browser pool | ⏳ Bekliyor — RAM ~%70 düşer | 2-3 saat |
 | A4 | ~~Paralel threat intel~~ | ✅ TAMAMLANDI — 5 task eş zamanlı, ThreadPoolExecutor | 4 Mayıs 2026 |
 | B1 | ~~HTML derin analizi~~ | ✅ TAMAMLANDI — AI'sız marka/credential tespiti | 4 Mayıs 2026 |
@@ -21,7 +21,7 @@
 | B4 | ~~Koşullu Gemini~~ | ✅ TAMAMLANDI — Günlük ~%80 kota tasarrufu | 3 Mayıs 2026 |
 | C1 | Frontend polling UI | UX iyileştirmesi | 2-3 saat |
 
-**Öneri uygulama sırası:** ~~A1~~ ✅ → ~~B4~~ ✅ → ~~B1~~ ✅ → ~~A4~~ ✅ → **A2** → A3 → B2 → B3 → C1
+**Öneri uygulama sırası:** ~~A1~~ ✅ → ~~B4~~ ✅ → ~~B1~~ ✅ → ~~A4~~ ✅ → ~~A2~~ ✅ → **A3** → B2 → B3 → C1
 
 ---
 
