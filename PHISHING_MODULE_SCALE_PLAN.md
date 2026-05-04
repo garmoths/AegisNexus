@@ -19,9 +19,11 @@
 | B2 | ~~pHash logo karşılaştırma~~ | ✅ TAMAMLANDI — check_logo_phash, 12 marka DB, Gemini bypass | 4 Mayıs 2026 |
 | B3 | ~~EasyOCR metin okuma~~ | ✅ TAMAMLANDI — analyze_with_ocr, brand+credential tespit, Gemini bypass | 4 Mayıs 2026 |
 | B4 | ~~Koşullu Gemini~~ | ✅ TAMAMLANDI — Günlük ~%80 kota tasarrufu | 3 Mayıs 2026 |
-| C1 | Frontend polling UI | UX iyileştirmesi | 2-3 saat |
+| C1 | ~~Frontend polling UI~~ | ✅ TAMAMLANDI — progress bar, 3s polling, 90s timeout, job_id desteği | 4 Mayıs 2026 |
 
-**Öneri uygulama sırası:** ~~A1~~ ✅ → ~~B4~~ ✅ → ~~B1~~ ✅ → ~~A4~~ ✅ → ~~A2~~ ✅ → ~~A3~~ ✅ → ~~B2~~ ✅ → ~~B3~~ ✅ → **C1**
+**Öneri uygulama sırası:** ~~A1~~ ✅ → ~~B4~~ ✅ → ~~B1~~ ✅ → ~~A4~~ ✅ → ~~A2~~ ✅ → ~~A3~~ ✅ → ~~B2~~ ✅ → ~~B3~~ ✅ → ~~C1~~ ✅
+
+**🎉 Tüm görevler tamamlandı!**
 
 ---
 
