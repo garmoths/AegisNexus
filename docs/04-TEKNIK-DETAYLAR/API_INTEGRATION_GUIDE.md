@@ -5,11 +5,12 @@
 - Local: `http://127.0.0.1:8000/api/v2`
 
 ## Core Endpoints
-- `POST /phishing/check-url`
+- `POST /phishing/check-url` — Hızlı kontrol; belirsizse `{status:"analyzing", job_id}` döner (A2)
+- `GET /phishing/result/{job_id}` — Async job sonucu sorgulama (A2/C1)
 - `GET /phishing/stats`
 - `GET /phishing/latest-paged?limit=20&page=1`
 - `GET /phishing/history?limit=50&days=30`
-- `GET /phishing/cache-health` — Redis + SQLite cache durumu (monitoring)
+- `GET /phishing/cache-health` — Redis + SQLite + Playwright pool sağlık durumu (A1/A3)
 
 ## Minimal Request/Response
 ### `POST /phishing/check-url`
@@ -39,6 +40,49 @@
 ```
 
 `cache` alanı değerleri: `"redis-hit"` | `"sqlite-hit"` | `"none"` (yeni tarama)
+
+**Async yanıt (ağır analiz kuyruğa alındıysa — A2):**
+```json
+{
+  "status": "analyzing",
+  "job_id": "3f7a21b0-...",
+  "safety_score": 45,
+  "risk_level": "⚠️ Şüpheli",
+  "cache": "none",
+  "module": "01_phishing_detector"
+}
+```
+
+### `GET /phishing/result/{job_id}` (A2/C1)
+
+**Bekliyor:**
+```json
+{"status": "pending"}
+```
+
+**Tamamlandı:**
+```json
+{
+  "status": "complete",
+  "url": "https://example.com",
+  "safety_score": 12,
+  "risk_level": "🚨 Tehlikeli",
+  "threat_intel": { ... },
+  "gemini_skipped": false
+}
+```
+
+**Polling Örüntüsü (JavaScript):**
+```javascript
+async function pollResult(jobId, interval = 3000, maxTries = 30) {
+  for (let i = 0; i < maxTries; i++) {
+    await new Promise(r => setTimeout(r, interval))
+    const d = await fetch(`/api/v2/phishing/result/${jobId}`).then(r => r.json())
+    if (d.status === 'complete') return d
+  }
+  throw new Error('Analiz zaman aşımına uğradı')
+}
+```
 
 **Önemli:** `score` alanı `safety_score` ile eşanlamlıdır; ikisi de aynı değeri döner. Frontend `safety_score` kullanmalıdır.
 
@@ -235,7 +279,7 @@ GET /api/v2/phishing/cache-health
 {
   "redis": {
     "available": true,
-    "used_memory_human": "917.30K",
+    "used_memory_human": "1.60M",
     "gemini_daily_count": 42,
     "gemini_daily_limit": 1400
   },
@@ -243,25 +287,47 @@ GET /api/v2/phishing/cache-health
     "available": true,
     "total_urls": 1823,
     "today_scans": 14
-  }
+  },
+  "playwright_pool": {
+    "browser_alive": true
+  },
+  "module": "01_phishing_detector"
 }
 ```
 
 ## Frontend Integration
 
-### API Fetch
+### API Fetch — Async Polling Örüntüsü (C1)
+
+`check-url` anında sync veya async yanıt dönebilir. Frontend her iki durumu da işlemelidir:
+
 ```javascript
 const API = import.meta.env.VITE_API_BASE_URL || "/api/v2";
 
-export async function checkUrl(url) {
-  const normalized = /^https?:\/\//i.test(url) ? url : `https://${url}`;
-  const res = await fetch(`${API}/phishing/check-url`, {
+async function handleCheck(url) {
+  const normalized = /^https?:\/\//i.test(url) ? url : `https://${url}`
+  const d = await fetch(`${API}/phishing/check-url`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ url: normalized }),
-  });
-  if (!res.ok) throw new Error(`API error ${res.status}`);
-  return await res.json();
+  }).then(r => r.json())
+
+  if (d.status === "analyzing" && d.job_id) {
+    // Hızlı sonucu göster, polling başlat
+    showQuickResult(d)
+    return pollUntilComplete(d.job_id)
+  }
+  // Kesin sonuç — direkt göster
+  return d
+}
+
+async function pollUntilComplete(jobId, maxPolls = 30) {
+  for (let i = 0; i < maxPolls; i++) {
+    await new Promise(r => setTimeout(r, 3000))
+    const d = await fetch(`${API}/phishing/result/${jobId}`).then(r => r.json())
+    if (d.status === "complete") return d
+  }
+  throw new Error("Analiz zaman aşımına uğradı (90s)")
 }
 ```
 
