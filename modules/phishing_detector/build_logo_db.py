@@ -1,0 +1,143 @@
+"""
+B2 — Logo pHash Veritabanı Oluşturucu
+======================================
+Marka logolarını indir, pHash ile hash'le, JSON'a kaydet.
+
+Kullanım (sunucuda veya lokalde, bir kez çalıştır):
+    cd /var/www/aegis_nexus
+    python -m modules.phishing_detector.build_logo_db
+
+Çıktı:
+    modules/phishing_detector/data/logo_hashes.json
+"""
+
+from __future__ import annotations
+
+import json
+import sys
+from io import BytesIO
+from pathlib import Path
+
+import requests
+
+try:
+    import imagehash
+    from PIL import Image
+except ImportError:
+    print("❌ imagehash ve Pillow gerekli: pip install imagehash Pillow")
+    sys.exit(1)
+
+OUTPUT_PATH = Path(__file__).parent / "data" / "logo_hashes.json"
+OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+# ── Logo kaynakları ───────────────────────────────────────────────────────────
+# Her marka için birden fazla logo varyantı (farklı boyut/renk) eklenebilir.
+# URL'ler erişilebilir olmalı; timeout=15s
+LOGOS: dict[str, list[str]] = {
+    "paypal": [
+        "https://www.paypalobjects.com/webstatic/icon/pp258.png",
+        "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/PayPal.svg/320px-PayPal.svg.png",
+    ],
+    "google": [
+        "https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png",
+    ],
+    "microsoft": [
+        "https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/Microsoft_logo.svg/320px-Microsoft_logo.svg.png",
+    ],
+    "apple": [
+        "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fa/Apple_logo_black.svg/195px-Apple_logo_black.svg.png",
+    ],
+    "amazon": [
+        "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/Amazon_logo.svg/320px-Amazon_logo.svg.png",
+    ],
+    "netflix": [
+        "https://upload.wikimedia.org/wikipedia/commons/thumb/0/08/Netflix_2015_logo.svg/320px-Netflix_2015_logo.svg.png",
+    ],
+    "facebook": [
+        "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/Facebook_icon.svg/240px-Facebook_icon.svg.png",
+    ],
+    "instagram": [
+        "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/Instagram_logo_2016.svg/240px-Instagram_logo_2016.svg.png",
+    ],
+    "twitter": [
+        "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6f/Logo_of_Twitter.svg/300px-Logo_of_Twitter.svg.png",
+    ],
+    "whatsapp": [
+        "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/WhatsApp.svg/240px-WhatsApp.svg.png",
+    ],
+    # Türk bankaları
+    "ziraat": [
+        "https://upload.wikimedia.org/wikipedia/commons/thumb/7/74/Ziraat_Bankas%C4%B1_logo.svg/320px-Ziraat_Bankas%C4%B1_logo.svg.png",
+    ],
+    "garanti": [
+        "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a1/Garanti_BBVA_logo.svg/320px-Garanti_BBVA_logo.svg.png",
+    ],
+    "akbank": [
+        "https://upload.wikimedia.org/wikipedia/commons/thumb/5/53/Akbank_logo.svg/320px-Akbank_logo.svg.png",
+    ],
+    "isbank": [
+        "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5d/Is_Bankasi_logo.svg/320px-Is_Bankasi_logo.svg.png",
+    ],
+    "vakifbank": [
+        "https://upload.wikimedia.org/wikipedia/commons/thumb/2/29/VakifBank_logo.svg/320px-VakifBank_logo.svg.png",
+    ],
+    "halkbank": [
+        "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d7/Halkbank_logo.svg/320px-Halkbank_logo.svg.png",
+    ],
+    # Kripto
+    "btcturk": [
+        "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/BtcTurk_Logo.png/320px-BtcTurk_Logo.png",
+    ],
+}
+
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (compatible; AegisNexus/1.0; "
+        "+https://github.com/garmoths/AegisNexus)"
+    )
+}
+
+
+def fetch_and_hash(brand: str, url: str) -> dict | None:
+    try:
+        resp = requests.get(url, timeout=15, headers=HEADERS)
+        resp.raise_for_status()
+        img = Image.open(BytesIO(resp.content)).convert("RGB")
+        h = str(imagehash.phash(img))
+        print(f"  ✅ {brand}: {h}  ({img.size[0]}x{img.size[1]})")
+        return {"url": url, "hash": h, "size": list(img.size)}
+    except Exception as exc:
+        print(f"  ❌ {brand} — {url}: {exc}")
+        return None
+
+
+def main():
+    # Mevcut DB'yi yükle (güncelleme modu)
+    existing: dict = {}
+    if OUTPUT_PATH.exists():
+        try:
+            existing = json.loads(OUTPUT_PATH.read_text())
+            print(f"Mevcut DB yüklendi ({len(existing)} marka), güncelleniyor...\n")
+        except Exception:
+            pass
+
+    db: dict = dict(existing)
+
+    for brand, urls in LOGOS.items():
+        print(f"\n[{brand}]")
+        entries = []
+        for url in urls:
+            entry = fetch_and_hash(brand, url)
+            if entry:
+                entries.append(entry)
+        if entries:
+            db[brand] = entries
+
+    OUTPUT_PATH.write_text(json.dumps(db, indent=2, ensure_ascii=False))
+    total = sum(len(v) for v in db.values())
+    print(f"\n✅ Logo DB hazır → {OUTPUT_PATH}")
+    print(f"   {len(db)} marka, {total} hash kaydı")
+
+
+if __name__ == "__main__":
+    main()

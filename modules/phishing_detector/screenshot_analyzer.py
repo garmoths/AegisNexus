@@ -282,6 +282,29 @@ def analyze(
         logger.warning(f"Screenshot capture failed for {normalized_url}: {exc}")
         return _fallback_result()
 
+    # B2: pHash logo karşılaştırma — Gemini'den önce çalışır
+    try:
+        from .visual_analyzer import check_logo_phash
+        import base64 as _b64
+        phash_result = check_logo_phash(_b64.b64decode(screenshot_b64), url=normalized_url)
+        if phash_result.get("definitive") and phash_result.get("penalty", 0) >= 60:
+            brand = phash_result.get("brand", "bilinmeyen")
+            logger.info(f"[pHash] Marka logosu tespit edildi ({brand}), Gemini atlanıyor: {normalized_url}")
+            result = _gemini_skipped_result(f"pHash logo eşleşti: {brand}")
+            result.update({
+                "risk_score": 85,
+                "risk_level": "HIGH",
+                "verdict": f"Marka taklidi tespit edildi: {brand}",
+                "screenshot_b64": screenshot_b64,
+                "phash_logo": phash_result,
+                "available": True,
+                "gemini_skipped": True,
+                "gemini_skip_reason": f"pHash logo eşleşti: {brand}",
+            })
+            return result
+    except Exception as exc:
+        logger.debug(f"[pHash] Kontrol atlandı: {exc}")
+
     # Koşullu Gemini: önceki katmanlar yeterliyse veya kota dolmuşsa atla
     skip, skip_reason = _should_skip_gemini(pre_penalty)
     if skip:

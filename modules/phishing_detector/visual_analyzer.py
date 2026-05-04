@@ -22,9 +22,13 @@ Tespit edilen tehditler:
 
 from __future__ import annotations
 
+import io
+import json
 import logging
+import os
 import re
-from typing import Any, Dict, List, Tuple
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
@@ -253,4 +257,148 @@ def analyze_html(html_content: str, url: str) -> Dict[str, Any]:
         "details": details,
         "definitive": definitive,
         "html_analysis": raw,
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# B2 — pHash Logo Karşılaştırma
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_LOGO_DB_PATH = Path(__file__).parent / "data" / "logo_hashes.json"
+_PHASH_THRESHOLD = int(os.getenv("PHASH_THRESHOLD", "8"))
+
+_LOGO_DB: Dict[str, List[Dict[str, str]]] = {}
+
+
+def _load_logo_db() -> None:
+    """logo_hashes.json dosyasını yükle. Dosya yoksa boş devam et."""
+    global _LOGO_DB
+    try:
+        if _LOGO_DB_PATH.exists():
+            with open(_LOGO_DB_PATH, "r", encoding="utf-8") as f:
+                _LOGO_DB = json.load(f)
+            logger.debug(f"[pHash] Logo DB yüklendi: {len(_LOGO_DB)} marka")
+        else:
+            _LOGO_DB = {}
+    except Exception as exc:
+        logger.warning(f"[pHash] Logo DB yüklenemedi: {exc}")
+        _LOGO_DB = {}
+
+
+_load_logo_db()
+
+
+def _brand_matches_url(brand: str, url: str) -> bool:
+    """URL zaten markanın resmi domaini ise True döner — pHash cezası verilmez."""
+    url_lower = url.lower()
+    brand_lower = brand.lower()
+    if brand_lower in url_lower:
+        official_domains = BRAND_DOMAINS.get(brand_lower, [])
+        if official_domains:
+            return any(d in url_lower for d in official_domains)
+        return True
+    return False
+
+
+def check_logo_phash(
+    screenshot_bytes: bytes,
+    url: str = "",
+) -> Dict[str, Any]:
+    """
+    B2: Screenshot PNG baytlarından perceptual hash hesaplar, logo DB ile karşılaştırır.
+
+    Kontrol edilen bölgeler:
+      - Tam sayfa
+      - Header crop (üst %30) — logolar genelde üstte olur
+
+    distance <= _PHASH_THRESHOLD → ~%92+ benzerlik → penalty=60, definitive=True
+
+    Args:
+        screenshot_bytes: Ham PNG baytları (base64-decode edilmiş).
+        url: Tarandığı URL — domain eşleşme kontrolü için.
+
+    Returns:
+        {
+          "penalty": int,
+          "brand": str | None,
+          "definitive": bool,
+          "distance": int,
+          "similarity": float,
+          "detail": str,
+        }
+    """
+    _no_match = {"penalty": 0, "brand": None, "definitive": False,
+                 "distance": 999, "similarity": 0.0, "detail": ""}
+
+    if not _LOGO_DB:
+        return {**_no_match, "detail": "Logo DB boş — build_logo_db.py çalıştırın"}
+
+    if not screenshot_bytes:
+        return {**_no_match, "detail": "Screenshot boş"}
+
+    try:
+        import imagehash
+        from PIL import Image
+    except ImportError:
+        return {**_no_match, "detail": "imagehash/Pillow yüklü değil"}
+
+    try:
+        img = Image.open(io.BytesIO(screenshot_bytes)).convert("RGB")
+        w, h = img.size
+    except Exception as exc:
+        return {**_no_match, "detail": f"Görüntü açılamadı: {exc}"}
+
+    # Kontrol bölgeleri: tam sayfa + header (üst %30)
+    regions: Dict[str, Any] = {"full": img}
+    if h > 100:
+        regions["header"] = img.crop((0, 0, w, max(100, int(h * 0.30))))
+
+    best_distance = 999
+    best_brand: Optional[str] = None
+    best_region = "full"
+
+    for region_name, region_img in regions.items():
+        try:
+            region_hash = imagehash.phash(region_img)
+        except Exception:
+            continue
+
+        for brand, entries in _LOGO_DB.items():
+            for entry in entries:
+                try:
+                    stored = imagehash.hex_to_hash(entry["hash"])
+                    dist = region_hash - stored
+                    if dist < best_distance:
+                        best_distance = dist
+                        best_brand = brand
+                        best_region = region_name
+                except Exception:
+                    continue
+
+    if best_distance > _PHASH_THRESHOLD or best_brand is None:
+        return {**_no_match, "distance": best_distance,
+                "detail": f"Eşleşme yok (en yakın: {best_brand}, dist={best_distance})"}
+
+    # Domain kontrolü — markanın kendi sitesiyse ceza verme
+    if _brand_matches_url(best_brand, url):
+        logger.debug(f"[pHash] {best_brand} logou eşleşti ama domain doğru — ceza verilmedi")
+        return {
+            "penalty": 0, "brand": best_brand, "definitive": False,
+            "distance": best_distance, "similarity": 0.0,
+            "detail": f"Logo eşleşti ama domain doğru ({best_brand})",
+        }
+
+    similarity = max(0.0, (1.0 - best_distance / 64.0) * 100)
+    detail = (
+        f"⚠️ Marka logosu tespit edildi: {best_brand} "
+        f"(benzerlik ~%{similarity:.0f}, bölge: {best_region}, dist={best_distance})"
+    )
+    logger.info(f"[pHash] {detail} — url={url}")
+    return {
+        "penalty": 60,
+        "brand": best_brand,
+        "definitive": True,
+        "distance": best_distance,
+        "similarity": round(similarity, 1),
+        "detail": detail,
     }
