@@ -48,6 +48,8 @@ def stats_overview(api_key: APIKey = Depends(resolve_api_key), db: Session = Dep
 @router.get("/heatmap", summary="İl bazlı vaka yoğunluğu (GeoJSON)")
 def stats_heatmap(api_key: APIKey = Depends(resolve_api_key), db: Session = Depends(get_db)):
     """Türkiye il bazlı vaka dağılımı — GeoJSON formatında."""
+    from collections import defaultdict
+
     region_counts = (
         db.query(VictimCase.region, func.count(VictimCase.id).label("c"))
         .filter(VictimCase.region.isnot(None), VictimCase.region != "")
@@ -56,11 +58,35 @@ def stats_heatmap(api_key: APIKey = Depends(resolve_api_key), db: Session = Depe
         .all()
     )
 
+    # Bölge başına baskın saldırı yöntemini hesapla
+    method_rows = (
+        db.query(
+            VictimCase.region,
+            VictimCase.attack_method,
+            func.count(VictimCase.id).label("mc"),
+        )
+        .filter(VictimCase.region.isnot(None), VictimCase.region != "")
+        .filter(VictimCase.attack_method.isnot(None))
+        .group_by(VictimCase.region, VictimCase.attack_method)
+        .all()
+    )
+    method_buckets: dict = defaultdict(list)
+    for row in method_rows:
+        method_buckets[row.region].append((row.attack_method, int(row.mc)))
+    dominant_method: dict = {
+        region: max(methods, key=lambda x: x[1])[0]
+        for region, methods in method_buckets.items()
+    }
+
     features = [
         {
             "type": "Feature",
-            "properties": {"name": r.region, "case_count": r.c},
-            "geometry": None,  # GeoJSON koordinatları haritada client tarafında eşleştirilecek
+            "properties": {
+                "name": r.region,
+                "case_count": int(r.c),
+                "attack_method": dominant_method.get(r.region),
+            },
+            "geometry": None,
         }
         for r in region_counts
     ]

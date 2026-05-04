@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { theme } from '../theme'
-import { casesAPI, statsAPI } from '../lib/endpoints'
+import { statsAPI } from '../lib/endpoints'
 import { simplemapsTurkeyAdmin1MapInfo } from '../assets/maps/simplemaps_tr_admin1_mapinfo.js'
 
 const TURKEY_PROVINCES = [
@@ -57,7 +57,6 @@ const mapPaths = simplemapsTurkeyAdmin1MapInfo.paths || {}
 const mapBBoxes = simplemapsTurkeyAdmin1MapInfo.state_bbox_array || {}
 
 export default function TurkeyHeatmapSection({ compact = false }) {
-  const [cases, setCases] = useState([])
   const [heatmapFeatures, setHeatmapFeatures] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -65,55 +64,30 @@ export default function TurkeyHeatmapSection({ compact = false }) {
 
   useEffect(() => {
     let cancelled = false
-
-    Promise.all([
-      casesAPI.list({ limit: 200, hot_set_only: false }),
-      statsAPI.heatmap(),
-    ])
-      .then(([casesResponse, heatmapResponse]) => {
+    statsAPI.heatmap()
+      .then((response) => {
         if (cancelled) return
-        setCases(casesResponse.data?.data || [])
-        setHeatmapFeatures(heatmapResponse.data?.features || [])
+        setHeatmapFeatures(response.data?.features || [])
         setError('')
       })
       .catch((err) => {
         if (cancelled) return
-        setCases([])
         setHeatmapFeatures([])
         setError(err?.response?.data?.detail || err?.response?.data?.message || 'Harita verisi alınamadı.')
       })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-
-    return () => {
-      cancelled = true
-    }
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
   }, [])
 
-  const regionAttackMap = useMemo(() => {
-    const map = {}
-    cases.forEach((c) => {
-      const region = c.region
-      const attackMethod = c.attack_method
-      if (region && attackMethod) {
-        const key = normalizeProvinceKey(region)
-        if (!map[key]) {
-          map[key] = { attackMethod, count: 0 }
-        }
-        map[key].count++
-      }
-    })
-    return map
-  }, [cases])
-
-  const regionCountMap = useMemo(() => {
+  // heatmap features'dan bölge verisi: { count, attackMethod }
+  const regionDataMap = useMemo(() => {
     const map = {}
     heatmapFeatures.forEach((feature) => {
       const region = feature?.properties?.name
       const count = Number(feature?.properties?.case_count || 0)
+      const attackMethod = feature?.properties?.attack_method || null
       if (region && count > 0) {
-        map[normalizeProvinceKey(region)] = count
+        map[normalizeProvinceKey(region)] = { count, attackMethod }
       }
     })
     return map
@@ -122,19 +96,19 @@ export default function TurkeyHeatmapSection({ compact = false }) {
   const regionEntries = useMemo(
     () => TURKEY_PROVINCES.map((province) => {
       const key = normalizeProvinceKey(province.name)
-      const data = regionAttackMap[key]
-      const count = regionCountMap[key] ?? data?.count ?? 0
-      return { ...province, attackMethod: data?.attackMethod, count }
+      const data = regionDataMap[key]
+      return { ...province, attackMethod: data?.attackMethod ?? null, count: data?.count ?? 0 }
     }).sort((a, b) => b.count - a.count),
-    [regionAttackMap, regionCountMap],
+    [regionDataMap],
   )
 
-  const totalCount = cases.length
+  const totalCount = regionEntries.reduce((s, r) => s + r.count, 0)
   const activeRegionCount = regionEntries.filter((item) => item.count > 0).length
   const topRegion = regionEntries[0] || null
   const hoveredKey = hoveredProvince ? normalizeProvinceKey(hoveredProvince) : ''
-  const hoveredCount = hoveredKey ? (regionCountMap[hoveredKey] ?? regionAttackMap[hoveredKey]?.count ?? 0) : 0
-  const hoveredMethod = hoveredKey ? regionAttackMap[hoveredKey]?.attackMethod : null
+  const hoveredData = hoveredKey ? regionDataMap[hoveredKey] : null
+  const hoveredCount = hoveredData?.count ?? 0
+  const hoveredMethod = hoveredData?.attackMethod ?? null
 
   return (
     <section style={{ maxWidth: compact ? '100%' : 1200, margin: '0 auto', padding: compact ? '0' : '30px 24px' }}>
@@ -192,7 +166,7 @@ export default function TurkeyHeatmapSection({ compact = false }) {
                   {TURKEY_PROVINCES.map((province) => {
                     const path = mapPaths[`TR${province.id}`]
                     const bbox = mapBBoxes[`TR${province.id}`]
-                    const data = regionAttackMap[normalizeProvinceKey(province.name)]
+                    const data = regionDataMap[normalizeProvinceKey(province.name)]
                     const isHovered = hoveredProvince === province.name
                     const fill = data?.attackMethod ? getProvinceColor(data.attackMethod) : '#20283b'
                     if (!path) return null
