@@ -713,7 +713,7 @@ def _persist_screenshot_indicators(url: str, indicators: list, confidence: int =
 # 4. TOPLU TEHDİT İSTİHBARATI
 # =========================================================
 
-def run_threat_intelligence(url, http_meta=None, page_text: str = "", is_whitelisted: bool = False):
+def run_threat_intelligence(url, http_meta=None, page_text: str = "", is_whitelisted: bool = False, pre_penalty: int = 0):
     """
     Tüm harici API'leri paralel olmayan şekilde çalıştırır.
     PRIMARY: Screenshot Analyzer (Playwright + Gemini Vision)
@@ -737,9 +737,9 @@ def run_threat_intelligence(url, http_meta=None, page_text: str = "", is_whiteli
     all_available = True
 
     # --- Screenshot Analyzer (PRIMARY) ---
-    # pre_penalty=0 şimdilik; B1/B2/B3 uygulandığında burada toplam pre_penalty geçilecek
+    # pre_penalty: HTML Analyzer (B1) cezası buraya gelir; >= 65 ise Gemini atlanır
     try:
-        shot = analyze_screenshot(url=url, http_meta=http_meta, page_text=page_text, pre_penalty=0)
+        shot = analyze_screenshot(url=url, http_meta=http_meta, page_text=page_text, pre_penalty=pre_penalty)
         results["screenshot_analysis"] = shot
         if shot.get("gemini_skipped"):
             # Gemini atlandı: screenshot var ama AI analizi yok — küçük belirsizlik cezası

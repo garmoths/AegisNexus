@@ -16,6 +16,7 @@ from .url_normalize import normalize_url_record
 from .ai_analyzer import analyze_page_content
 from .ml_classifier import classify_url
 from .threat_intel import check_ioc_threatfox, run_threat_intelligence
+from .visual_analyzer import analyze_html
 
 logger = logging.getLogger(__name__)
 
@@ -578,7 +579,9 @@ def calculate_safety_score(input_url, db: Session = None):
 
         if exact_match:
             return {
-                "url": input_url, "score": 0,
+                "url": input_url,
+                "safety_score": 0,
+                "score": 0,
                 "risk_level": "🚨 ÇOK TEHLİKELİ (DB Kayıtlı)",
                 "details": [
                     f"Tehlikeli site veritabanında tespit edildi! (ID: {exact_match.phish_id})",
@@ -593,7 +596,9 @@ def calculate_safety_score(input_url, db: Session = None):
     # ---------------------------------------------------------
     if domain in PHISHTANK_DB or raw_domain in PHISHTANK_DB:
         return {
-            "url": input_url, "score": 0,
+            "url": input_url,
+            "safety_score": 0,
+            "score": 0,
             "risk_level": "🚨 ÇOK TEHLİKELİ (PhishTank)",
             "details": [
                 "Bu site global kara listede (PhishTank) mevcut!",
@@ -645,6 +650,25 @@ def calculate_safety_score(input_url, db: Session = None):
                 page_content = None
 
     # ---------------------------------------------------------
+    # B1. KATMAN: HTML DERİN ANALİZİ (BeautifulSoup DOM)
+    # ---------------------------------------------------------
+    html_pre_penalty = 0
+    html_result = None
+    if page_content:
+        try:
+            html_result = analyze_html(page_content, check_url)
+            html_pre_penalty = html_result.get("penalty", 0)
+            if html_pre_penalty > 0 and not is_whitelisted:
+                score -= html_pre_penalty
+                risks.extend(html_result.get("details", []))
+                sources.append({
+                    "name": "HTML Analyzer",
+                    "status": f"penalty={html_pre_penalty} {'🚨 KESİN' if html_result.get('definitive') else '⚠️'}",
+                })
+        except Exception as e:
+            logger.error(f"HTML Analyzer hatası: {e}")
+
+    # ---------------------------------------------------------
 # 8. KATMAN: HARİCİ TEHDİT İSTİHBARATI (Local - site reachability'den önce)
 # ---------------------------------------------------------
     threat_result = None
@@ -677,6 +701,7 @@ def calculate_safety_score(input_url, db: Session = None):
             http_meta=http_meta,
             page_text=(page_content or "")[:3000],
             is_whitelisted=is_whitelisted,
+            pre_penalty=html_pre_penalty,
         )
         if threat_result["total_penalty"] > 0:
             score -= threat_result["total_penalty"]
@@ -695,7 +720,9 @@ def calculate_safety_score(input_url, db: Session = None):
 
     if not site_is_up:
         return {
-            "url": input_url, "score": score,
+            "url": input_url,
+            "safety_score": max(0, min(100, score)),
+            "score": max(0, min(100, score)),
             "risk_level": "❌ Siteye Ulaşılamıyor",
             "details": [
                 "Böyle bir site bulunamadı veya sunucusu kapalı.",
@@ -931,11 +958,17 @@ def calculate_safety_score(input_url, db: Session = None):
 
     result = {
         "url": input_url,
+        "safety_score": final_score,
         "score": final_score,
         "risk_level": risk_level,
         "details": risks,
         "sources": sources,
         "threat_intel": threat_result,
+        "html_analysis": {
+            "penalty": html_result.get("penalty", 0) if html_result else 0,
+            "definitive": html_result.get("definitive", False) if html_result else False,
+            "findings_count": len(html_result.get("details", [])) if html_result else 0,
+        } if html_result else None,
     }
 
     # AI ek bilgileri (frontend için)
