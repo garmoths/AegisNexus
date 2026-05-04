@@ -66,35 +66,41 @@ LOGOS: dict[str, list[str]] = {
     "whatsapp": [
         "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/WhatsApp.svg/240px-WhatsApp.svg.png",
     ],
-    # Türk bankaları (resmi favicon/logo endpoint'leri)
+    # Türk bankaları — Google Favicon API (sz=256)
+    # Not: sz=256 ile 256x256 PNG döner; küçük placeholder (˜500b) otomatik atlanır
     "ziraat": [
         "https://www.ziraatbank.com.tr/SiteAssets/images/logo.png",
-        "https://www.ziraatbank.com.tr/favicon.ico",
+        "https://www.google.com/s2/favicons?domain=ziraatbank.com.tr&sz=256",
     ],
     "garanti": [
-        "https://www.garantibbva.com.tr/content/dam/garanti/logos/logo-garanti-bbva.png",
+        "https://www.google.com/s2/favicons?domain=garantibbva.com.tr&sz=256",
     ],
     "akbank": [
-        "https://www.akbank.com/assets/images/akbank-logo.png",
+        "https://www.google.com/s2/favicons?domain=akbank.com&sz=256",
     ],
     "isbank": [
-        "https://www.isbank.com.tr/assets/images/isbank-logo.png",
+        "https://www.google.com/s2/favicons?domain=isbank.com.tr&sz=256",
     ],
     "vakifbank": [
-        "https://www.vakifbank.com.tr/assets/images/vakifbank-logo.png",
+        "https://www.google.com/s2/favicons?domain=vakifbank.com.tr&sz=256",
     ],
     "halkbank": [
-        "https://www.halkbank.com.tr/assets/images/halkbank-logo.png",
+        "https://www.google.com/s2/favicons?domain=halkbank.com.tr&sz=256",
     ],
     "denizbank": [
-        "https://www.denizbank.com/assets/images/denizbank-logo.png",
+        "https://www.google.com/s2/favicons?domain=denizbank.com&sz=256",
+    ],
+    "enpara": [
+        "https://www.google.com/s2/favicons?domain=enpara.com&sz=256",
     ],
     # Kripto
     "btcturk": [
-        "https://btcturk.com/favicon.ico",
+        "https://www.google.com/s2/favicons?domain=pro.btcturk.com&sz=256",
+        "https://upload.wikimedia.org/wikipedia/commons/8/8b/BtcTurk_Logo.png",
     ],
     "paribu": [
         "https://www.paribu.com/favicon.ico",
+        "https://www.google.com/s2/favicons?domain=paribu.com&sz=256",
     ],
 }
 
@@ -105,11 +111,15 @@ HEADERS = {
     )
 }
 
+MIN_SIZE_BYTES = 500  # Google'nin placeholder ikonunu elemek için
 
 def fetch_and_hash(brand: str, url: str) -> dict | None:
     try:
         resp = requests.get(url, timeout=15, headers=HEADERS)
         resp.raise_for_status()
+        if len(resp.content) < MIN_SIZE_BYTES:
+            print(f"  ⚠️  {brand}: çok küçük ({len(resp.content)}b) — muhtemelen placeholder, atlanıyor")
+            return None
         img = Image.open(BytesIO(resp.content)).convert("RGB")
         h = str(imagehash.phash(img))
         print(f"  ✅ {brand}: {h}  ({img.size[0]}x{img.size[1]})")
