@@ -14,7 +14,7 @@ import requests
 from google import genai
 from google.genai import types
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
-from playwright.sync_api import sync_playwright
+from .playwright_pool import acquire_browser_context
 
 from .redis_cache import redis_get_gemini_count, redis_incr_gemini_counter, GEMINI_DAILY_LIMIT
 
@@ -99,6 +99,9 @@ def _clean_page_text(page_text: str | None) -> str:
 def _capture_screenshot_base64(url: str, page_text: str) -> Tuple[str, str]:
     """Headless Chromium ile tam sayfa PNG al ve base64'e cevir.
 
+    A3: Her çağrıda yeni browser başlatmaz — pool'dan BrowserContext al.
+    Browser process'e bağlı persistent kalır; sadece context (tab) açılıp kapatılır.
+
     Strateji:
     1. networkidle ile beklemeyi dener; timeout olursa domcontentloaded'a düşer.
     2. Sayfayı en alta kaydırarak lazy-load içeriklerin yüklenmesini tetikler.
@@ -110,17 +113,7 @@ def _capture_screenshot_base64(url: str, page_text: str) -> Tuple[str, str]:
 
     for attempt in range(1, _SCREENSHOT_MAX_RETRIES + 1):
         try:
-            with sync_playwright() as p:
-                browser = p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
-                context = browser.new_context(
-                    ignore_https_errors=True,
-                    viewport={"width": 1440, "height": 900},
-                    user_agent=(
-                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                        "AppleWebKit/537.36 (KHTML, like Gecko) "
-                        "Chrome/124.0.0.0 Safari/537.36"
-                    ),
-                )
+            with acquire_browser_context() as context:
                 page = context.new_page()
                 page.set_default_navigation_timeout(PLAYWRIGHT_TIMEOUT_MS)
                 page.set_default_timeout(PLAYWRIGHT_TIMEOUT_MS)
@@ -150,7 +143,7 @@ def _capture_screenshot_base64(url: str, page_text: str) -> Tuple[str, str]:
                         captured_text = ""
 
                 screenshot_bytes = page.screenshot(type="png", full_page=True)
-                browser.close()
+
             return base64.b64encode(screenshot_bytes).decode("utf-8"), captured_text
 
         except PlaywrightTimeoutError as exc:

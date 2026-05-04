@@ -19,6 +19,7 @@ import logging
 import os
 
 from celery import Celery
+from celery.signals import worker_process_init, worker_process_shutdown
 
 from .redis_cache import redis_set_scan
 from .url_normalize import normalize_url_record
@@ -43,6 +44,30 @@ app.conf.update(
 
 # Job sonuçları Redis'te bu TTL ile saklanır (1 saat)
 _JOB_TTL = int(os.getenv("PHISHING_JOB_TTL", "3600"))
+
+# ── A3: Worker process sinyalleri — Playwright pool ───────────────────────
+
+
+@worker_process_init.connect
+def _init_playwright_pool(**kwargs):
+    """Worker process başladığında Playwright browser'ı pre-warm et."""
+    try:
+        from .playwright_pool import init_pool
+        init_pool()
+        logger.info("[A3] Playwright pool hazır (worker process init)")
+    except Exception as exc:
+        logger.warning(f"[A3] Playwright pool init başarısız (lazy init devreye girer): {exc}")
+
+
+@worker_process_shutdown.connect
+def _close_playwright_pool(**kwargs):
+    """Worker process kapanırken Playwright browser'ı temiz kapat."""
+    try:
+        from .playwright_pool import close_pool
+        close_pool()
+        logger.info("[A3] Playwright pool kapatıldı (worker process shutdown)")
+    except Exception as exc:
+        logger.warning(f"[A3] Playwright pool close hatası: {exc}")
 
 
 def _get_redis():

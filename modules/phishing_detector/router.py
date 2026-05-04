@@ -304,12 +304,16 @@ def get_cache_health():
     """Redis ve SQLite cache durumunu döner (monitoring)."""
     from .cache_db import get_phishing_stats
     sqlite_stats = get_phishing_stats()
+    from .playwright_pool import is_healthy as pw_healthy
     return {
         "redis": redis_health(),
         "sqlite": {
             "available": True,
             "total_urls": sqlite_stats.get("total_urls", 0),
             "today_scans": sqlite_stats.get("today_scans", 0),
+        },
+        "playwright_pool": {
+            "browser_alive": pw_healthy(),
         },
         "module": "01_phishing_detector",
     }
