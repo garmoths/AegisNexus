@@ -1237,7 +1237,7 @@ function PhishingDetector() {
   const [jobId, setJobId] = useState(null)
   const [analyzing, setAnalyzing] = useState(false)
   const [pollCount, setPollCount] = useState(0)
-  const MAX_POLLS = 30
+  const MAX_POLLS = 70
 
   function showToast(msg,t='success'){setToast({message:msg,type:t,visible:true});setTimeout(()=>setToast(t=>({...t,visible:false})),3000)}
 
