@@ -811,8 +811,17 @@ def calculate_safety_score(input_url, db: Session = None):
             risks.extend(threat_result["findings"])
         else:
             # VirusTotal temiz (penalty 0) + SSL geçerli = BONUS +25
+            # Ancak HTML/AI phishing sinyali varsa bonus uygulanmaz
+            _has_phishing_signal = html_pre_penalty > 10 or (
+                html_result is not None and html_result.get("definitive")
+            )
             vt_status = threat_result.get("virustotal") or {}
-            if vt_status.get("available") and vt_status.get("malicious", 0) == 0 and vt_status.get("suspicious", 0) == 0:
+            if (
+                not _has_phishing_signal
+                and vt_status.get("available")
+                and vt_status.get("malicious", 0) == 0
+                and vt_status.get("suspicious", 0) == 0
+            ):
                 ssl_status = check_ssl_certificate(domain.split(":")[0])
                 if ssl_status["valid"] and not ssl_status["expired"]:
                     score += 25  # VirusTotal + SSL bonus
@@ -1030,6 +1039,8 @@ def calculate_safety_score(input_url, db: Session = None):
             if ai_result.get("brand_impersonation") and not is_whitelisted:
                 sources.append({"name": "Marka Taklidi", "status": f"⚠️ {ai_result['brand_impersonation'].upper()}"})
             if ai_result.get("credential_harvesting") and not is_whitelisted:
+                score -= 35
+                risks.append("🚨 Credential harvesting tespit edildi (form/veri toplama)")
                 sources.append({"name": "Credential Harvesting", "status": "🚨 Tespit Edildi"})
     except Exception as e:
         logger.error(f"AI Analyzer hatası: {e}")

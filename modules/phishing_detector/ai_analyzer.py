@@ -267,7 +267,7 @@ def analyze_page_content(html_content, url):
     all_findings.extend(anomaly_result["findings"])
 
     return {
-        "ai_score_penalty": min(total_penalty, 3),  # Çok düşük: AI findings are noisy
+        "ai_score_penalty": min(total_penalty, 60),
         "ai_findings": all_findings,
         "brand_impersonation": brand_result.get("brand"),
         "credential_harvesting": cred_result["detected"],

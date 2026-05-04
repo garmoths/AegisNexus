@@ -919,6 +919,8 @@ def run_threat_intelligence(url, http_meta=None, page_text: str = "", is_whiteli
             write_ioc(ioc_type="url", ioc_value=url, threat_type=urlhaus_result.get("threat_type", "phishing"), confidence=80, source="urlhaus", raw_data=urlhaus_result)
     elif urlhaus_result:
         results["urlhaus"] = urlhaus_result
+    else:
+        results["urlhaus"] = {"listed": False, "available": False, "status": "Sorgulama yapılamadı"}
 
     # Spamhaus domain
     if spamhaus_domain_result and spamhaus_domain_result.get("listed"):
@@ -942,6 +944,8 @@ def run_threat_intelligence(url, http_meta=None, page_text: str = "", is_whiteli
             write_ioc(ioc_type="domain", ioc_value=domain, threat_type="spamhaus_dbl", confidence=75, source="spamhaus", raw_data=spamhaus_domain_result)
     elif spamhaus_domain_result:
         results["spamhaus_domain"] = spamhaus_domain_result
+    else:
+        results["spamhaus_domain"] = {"listed": False, "available": False, "status": "Sorgulama yapılamadı"}
 
     # Spamhaus IP
     if spamhaus_ip_result and spamhaus_ip_result.get("listed"):
@@ -961,6 +965,8 @@ def run_threat_intelligence(url, http_meta=None, page_text: str = "", is_whiteli
             write_ioc(ioc_type="ip", ioc_value=resolved_ip, threat_type="spamhaus_xbl", confidence=70, source="spamhaus", raw_data=spamhaus_ip_result)
     elif spamhaus_ip_result:
         results["spamhaus_ip"] = spamhaus_ip_result
+    else:
+        results["spamhaus_ip"] = {"listed": False, "available": False, "status": "Sorgulama yapılamadı"}
 
     # ThreatFox
     if threatfox_result and threatfox_result.get("found"):
@@ -977,6 +983,8 @@ def run_threat_intelligence(url, http_meta=None, page_text: str = "", is_whiteli
             write_ioc(ioc_type="domain", ioc_value=domain, threat_type=threatfox_result.get("threat_name", "unknown"), confidence=threatfox_result.get("confidence", 50), source="threatfox", raw_data=threatfox_result)
     elif threatfox_result:
         results["threatfox"] = threatfox_result
+    else:
+        results["threatfox"] = {"found": False, "available": False, "status": "Sorgulama yapılamadı"}
 
     # Risk skorunu ve seviyesini hesapla
     risk_score = min(100, results["total_penalty"])

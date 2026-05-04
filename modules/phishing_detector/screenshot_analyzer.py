@@ -96,7 +96,7 @@ def _clean_page_text(page_text: str | None) -> str:
     return (page_text or "").strip()[:MAX_PAGE_TEXT]
 
 
-def _capture_screenshot_base64(url: str, page_text: str) -> Tuple[str, str]:
+def _capture_screenshot_base64(url: str, page_text: str) -> Tuple[str, str, bool]:
     """Headless Chromium ile tam sayfa PNG al ve base64'e cevir.
 
     A3: Her çağrıda yeni browser başlatmaz — pool'dan BrowserContext al.
@@ -118,14 +118,28 @@ def _capture_screenshot_base64(url: str, page_text: str) -> Tuple[str, str]:
                 page.set_default_navigation_timeout(PLAYWRIGHT_TIMEOUT_MS)
                 page.set_default_timeout(PLAYWRIGHT_TIMEOUT_MS)
 
-                # networkidle tercih edilir; bazı siteler bitmez — fallback: domcontentloaded
+                # domcontentloaded ile git — networkidle bazı sitelerde hiç bitmiyor
                 try:
-                    page.goto(url, wait_until="networkidle", timeout=PLAYWRIGHT_TIMEOUT_MS)
-                except PlaywrightTimeoutError:
-                    logger.debug(f"networkidle timeout, falling back to domcontentloaded for {url}")
                     page.goto(url, wait_until="domcontentloaded", timeout=PLAYWRIGHT_TIMEOUT_MS)
+                except PlaywrightTimeoutError:
+                    logger.debug(f"domcontentloaded timeout, devam ediliyor: {url}")
 
-                # Lazy-load içerikleri tetikle: en alta kaydır, bekle, en üste dön
+                # Cloudflare 5s challenge ve diğer JS korumaları için bekle
+                page.wait_for_timeout(6000)
+
+                # Bot / challenge sayfası tespiti
+                bot_detected = False
+                try:
+                    title = (page.title() or "").lower()
+                    bot_keywords = ("just a moment", "access denied", "captcha", "robot",
+                                    "ddos-guard", "cf-browser-verification", "please wait")
+                    if any(kw in title for kw in bot_keywords):
+                        logger.warning(f"[Screenshot] Bot sayfası tespit edildi: '{title}' — {url}")
+                        bot_detected = True
+                except Exception:
+                    pass
+
+                # Lazy-load içerikleri tetikle
                 try:
                     page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
                     page.wait_for_timeout(800)
@@ -133,7 +147,6 @@ def _capture_screenshot_base64(url: str, page_text: str) -> Tuple[str, str]:
                 except Exception:
                     pass
 
-                # Animasyonlar / son yüklemeler için bekle
                 page.wait_for_timeout(_SCREENSHOT_SETTLE_MS)
 
                 if not captured_text:
@@ -144,7 +157,7 @@ def _capture_screenshot_base64(url: str, page_text: str) -> Tuple[str, str]:
 
                 screenshot_bytes = page.screenshot(type="png", full_page=True)
 
-            return base64.b64encode(screenshot_bytes).decode("utf-8"), captured_text
+            return base64.b64encode(screenshot_bytes).decode("utf-8"), captured_text, bot_detected
 
         except PlaywrightTimeoutError as exc:
             last_exc = exc
@@ -270,8 +283,9 @@ def analyze(
         normalized_url = f"https://{normalized_url}"
 
     screenshot_b64 = None
+    bot_detected = False
     try:
-        screenshot_b64, captured_text = _capture_screenshot_base64(
+        screenshot_b64, captured_text, bot_detected = _capture_screenshot_base64(
             normalized_url,
             _clean_page_text(page_text),
         )
@@ -341,6 +355,7 @@ def analyze(
         result = _gemini_skipped_result(skip_reason)
         if screenshot_b64:
             result["screenshot_b64"] = screenshot_b64
+        result["bot_detected"] = bot_detected
         return result
 
     try:
@@ -356,10 +371,12 @@ def analyze(
         result = _normalize_result(gemini_result)
         if screenshot_b64:
             result["screenshot_b64"] = screenshot_b64
+        result["bot_detected"] = bot_detected
         return result
     except Exception as exc:
         logger.warning(f"Gemini screenshot analysis failed for {normalized_url}: {exc}")
         result = _fallback_result()
         if screenshot_b64:
             result["screenshot_b64"] = screenshot_b64
+        result["bot_detected"] = bot_detected
         return result

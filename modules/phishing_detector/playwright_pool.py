@@ -23,6 +23,7 @@ from __future__ import annotations
 import atexit
 import logging
 import os
+import random
 import threading
 from contextlib import contextmanager
 
@@ -47,7 +48,43 @@ _LAUNCH_ARGS = [
     "--no-first-run",
     "--safebrowsing-disable-auto-update",
     "--js-flags=--max-old-space-size=128",
+    # Stealth: otomasyon tespitini gizle
+    "--disable-blink-features=AutomationControlled",
+    "--disable-infobars",
+    "--window-size=1440,900",
+    "--lang=tr-TR,tr",
 ]
+
+# Gerçekçi UA listesi (rotasyon)
+_USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+]
+
+# navigator.webdriver ve diğer headless imzalarını gizleyen init script
+_STEALTH_INIT_SCRIPT = """
+// navigator.webdriver gizle
+Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+// Plugin listesi doldur (gerçek tarayıcı gibi)
+Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+// Dil seti
+Object.defineProperty(navigator, 'languages', { get: () => ['tr-TR', 'tr', 'en-US', 'en'] });
+// chrome runtime var gibi göster
+window.chrome = { runtime: {} };
+// permissions.query notification override
+try {
+  const originalQuery = window.navigator.permissions.query;
+  window.navigator.permissions.query = (p) =>
+    p.name === 'notifications'
+      ? Promise.resolve({ state: Notification.permission })
+      : originalQuery(p);
+} catch(_) {}
+// Otomasyon imzasını kaldır
+try { delete window.__playwright; } catch(_) {}
+try { delete window.__pw_manual; } catch(_) {}
+"""
 
 # ── Process-local state (her fork'ta sıfır) ───────────────────────────────────
 _lock = threading.Lock()
@@ -114,28 +151,35 @@ atexit.register(close_pool)
 def acquire_browser_context(
     viewport_width: int = 1440,
     viewport_height: int = 900,
-    user_agent: str = (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0.0.0 Safari/537.36"
-    ),
 ) -> BrowserContext:
     """
     Pool'daki browser'dan yeni BrowserContext al.
     Context işlem bitince otomatik kapatılır (browser değil).
+    Her context rastgele UA + stealth init script ile oluşturulur.
 
     with acquire_browser_context() as ctx:
         page = ctx.new_page()
         ...
     """
     browser = _ensure_browser()
+    ua = random.choice(_USER_AGENTS)
     context: BrowserContext | None = None
     try:
         context = browser.new_context(
             ignore_https_errors=True,
             viewport={"width": viewport_width, "height": viewport_height},
-            user_agent=user_agent,
+            user_agent=ua,
+            locale="tr-TR",
+            timezone_id="Europe/Istanbul",
+            extra_http_headers={
+                "Accept-Language": "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+                "Sec-CH-UA": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+                "Sec-CH-UA-Mobile": "?0",
+                "Sec-CH-UA-Platform": '"Windows"',
+            },
         )
+        context.add_init_script(_STEALTH_INIT_SCRIPT)
         yield context
     except Exception:
         # Browser çöktüyse sıfırla — bir sonraki çağrıda yeniden başlatılır
