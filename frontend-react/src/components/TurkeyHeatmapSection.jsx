@@ -1,7 +1,7 @@
-import { cloneElement, useEffect, useMemo, useState } from 'react'
-import TurkeyMap from 'turkey-map-react'
+import { useEffect, useMemo, useState } from 'react'
 import { theme } from '../theme'
-import { statsAPI } from '../lib/endpoints'
+import { casesAPI, statsAPI } from '../lib/endpoints'
+import { simplemapsTurkeyAdmin1MapInfo } from '../assets/maps/simplemaps_tr_admin1_mapinfo.js'
 
 const TURKEY_PROVINCES = [
   { id: '01', name: 'Adana' }, { id: '02', name: 'Adıyaman' }, { id: '03', name: 'Afyonkarahisar' },
@@ -33,48 +33,32 @@ const TURKEY_PROVINCES = [
   { id: '79', name: 'Kilis' }, { id: '80', name: 'Osmaniye' }, { id: '81', name: 'Düzce' },
 ]
 
+const ATTACK_METHOD_COLORS = {
+  phishing: '#ef4444',
+  smishing: '#f59e0b',
+  vishing: '#8b5cf6',
+  social_engineering: '#06b6d4',
+  malware_assisted: '#ec4899',
+  sahte_mobil_uygulama: '#10b981',
+  banka_taklit: '#f97316',
+}
+
 const normalizeProvinceKey = (value = '') => value
   .toLocaleLowerCase('tr-TR')
   .normalize('NFD')
   .replace(/[\u0300-\u036f]/g, '')
   .replace(/ı/g, 'i')
 
-const getProvinceColor = (count, maxCount) => {
-  if (count === 0) return '#262633'
-  const intensity = count / maxCount
-  if (intensity > 0.7) return '#ef4444'
-  if (intensity > 0.4) return '#f59e0b'
-  return '#22c55e'
+const getProvinceColor = (attackMethod) => {
+  return ATTACK_METHOD_COLORS[attackMethod] || '#262633'
 }
 
-function ProvinceShape({ cityComponent, city, count, hoveredProvince, onHoverProvince, onLeaveProvince, maxCount }) {
-  const pathElement = cityComponent?.props?.children
-  const provinceFill = hoveredProvince === city.name
-    ? (count === 0 ? '#394150' : '#f59e0b')
-    : getProvinceColor(count, maxCount)
-
-  const childPath = Array.isArray(pathElement) ? pathElement[0] : pathElement
-
-  return cloneElement(cityComponent, {
-    onMouseEnter: () => onHoverProvince(city.name),
-    onMouseLeave: () => onLeaveProvince(),
-    children: childPath
-      ? cloneElement(childPath, {
-          style: {
-            ...(childPath.props?.style || {}),
-            cursor: 'pointer',
-            fill: provinceFill,
-            stroke: hoveredProvince === city.name ? '#ffffff' : '#101018',
-            strokeWidth: hoveredProvince === city.name ? 2 : 1,
-            transition: 'fill 120ms ease, stroke 120ms ease',
-          },
-        })
-      : childPath,
-  })
-}
+const mapPaths = simplemapsTurkeyAdmin1MapInfo.paths || {}
+const mapBBoxes = simplemapsTurkeyAdmin1MapInfo.state_bbox_array || {}
 
 export default function TurkeyHeatmapSection({ compact = false }) {
-  const [features, setFeatures] = useState([])
+  const [cases, setCases] = useState([])
+  const [heatmapFeatures, setHeatmapFeatures] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [hoveredProvince, setHoveredProvince] = useState(null)
@@ -82,15 +66,20 @@ export default function TurkeyHeatmapSection({ compact = false }) {
   useEffect(() => {
     let cancelled = false
 
-    statsAPI.heatmap()
-      .then((response) => {
+    Promise.all([
+      casesAPI.list({ limit: 200, hot_set_only: false }),
+      statsAPI.heatmap(),
+    ])
+      .then(([casesResponse, heatmapResponse]) => {
         if (cancelled) return
-        setFeatures(response.data?.features || [])
+        setCases(casesResponse.data?.data || [])
+        setHeatmapFeatures(heatmapResponse.data?.features || [])
         setError('')
       })
       .catch((err) => {
         if (cancelled) return
-        setFeatures([])
+        setCases([])
+        setHeatmapFeatures([])
         setError(err?.response?.data?.detail || err?.response?.data?.message || 'Harita verisi alınamadı.')
       })
       .finally(() => {
@@ -102,37 +91,50 @@ export default function TurkeyHeatmapSection({ compact = false }) {
     }
   }, [])
 
-  const regionMap = useMemo(() => {
+  const regionAttackMap = useMemo(() => {
     const map = {}
-    features.forEach((feature) => {
-      const name = feature.properties?.name
-      if (name) map[normalizeProvinceKey(name)] = feature.properties?.case_count || 0
+    cases.forEach((c) => {
+      const region = c.region
+      const attackMethod = c.attack_method
+      if (region && attackMethod) {
+        const key = normalizeProvinceKey(region)
+        if (!map[key]) {
+          map[key] = { attackMethod, count: 0 }
+        }
+        map[key].count++
+      }
     })
     return map
-  }, [features])
+  }, [cases])
+
+  const regionCountMap = useMemo(() => {
+    const map = {}
+    heatmapFeatures.forEach((feature) => {
+      const region = feature?.properties?.name
+      const count = Number(feature?.properties?.case_count || 0)
+      if (region && count > 0) {
+        map[normalizeProvinceKey(region)] = count
+      }
+    })
+    return map
+  }, [heatmapFeatures])
 
   const regionEntries = useMemo(
-    () => TURKEY_PROVINCES.map((province) => ({ ...province, count: regionMap[normalizeProvinceKey(province.name)] || 0 })).sort((a, b) => b.count - a.count),
-    [regionMap],
+    () => TURKEY_PROVINCES.map((province) => {
+      const key = normalizeProvinceKey(province.name)
+      const data = regionAttackMap[key]
+      const count = regionCountMap[key] ?? data?.count ?? 0
+      return { ...province, attackMethod: data?.attackMethod, count }
+    }).sort((a, b) => b.count - a.count),
+    [regionAttackMap, regionCountMap],
   )
 
-  const maxCount = Math.max(...regionEntries.map((item) => item.count), 1)
-  const totalCount = regionEntries.reduce((sum, item) => sum + item.count, 0)
+  const totalCount = cases.length
   const activeRegionCount = regionEntries.filter((item) => item.count > 0).length
   const topRegion = regionEntries[0] || null
-  const hoveredCount = hoveredProvince ? (regionMap[normalizeProvinceKey(hoveredProvince)] || 0) : null
-
-  const renderCityWrapper = (cityComponent, city) => (
-    <ProvinceShape
-      cityComponent={cityComponent}
-      city={city}
-      count={regionMap[normalizeProvinceKey(city.name)] || 0}
-      hoveredProvince={hoveredProvince}
-      onHoverProvince={setHoveredProvince}
-      onLeaveProvince={() => setHoveredProvince(null)}
-      maxCount={maxCount}
-    />
-  )
+  const hoveredKey = hoveredProvince ? normalizeProvinceKey(hoveredProvince) : ''
+  const hoveredCount = hoveredKey ? (regionCountMap[hoveredKey] ?? regionAttackMap[hoveredKey]?.count ?? 0) : 0
+  const hoveredMethod = hoveredKey ? regionAttackMap[hoveredKey]?.attackMethod : null
 
   return (
     <section style={{ maxWidth: compact ? '100%' : 1200, margin: '0 auto', padding: compact ? '0' : '30px 24px' }}>
@@ -153,15 +155,15 @@ export default function TurkeyHeatmapSection({ compact = false }) {
             ))}
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'minmax(320px, 1.2fr) minmax(280px, 0.8fr)', gap: 18, alignItems: 'stretch' }}>
-            <div style={{ background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: theme.radius.lg, padding: 18, position: 'relative', overflow: 'hidden' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'minmax(520px, 1.45fr) minmax(260px, 0.55fr)', gap: 18, alignItems: 'start' }}>
+            <div style={{ background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: theme.radius.lg, padding: 18 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
                 <div>
-                  <h2 style={{ color: theme.text, margin: 0, fontSize: 18, fontWeight: 800 }}>Türkiye Haritası</h2>
-                  <p style={{ color: theme.textMuted, margin: '6px 0 0', fontSize: 13 }}>İl bazlı vaka yoğunluğu, gerçek Türkiye silueti üzerinde gösterilir.</p>
+                  <h2 style={{ color: theme.text, margin: 0, fontSize: 18, fontWeight: 800 }}>İller Bazlı Vaka Dağılımı</h2>
+                  <p style={{ color: theme.textMuted, margin: '6px 0 0', fontSize: 13 }}>İller dolandırıcılık yöntemlerine göre renklendirilir.</p>
                 </div>
                 <div style={{ background: `${theme.primary}14`, color: theme.primary, border: `1px solid ${theme.primary}33`, borderRadius: 999, padding: '8px 12px', fontSize: 12, fontWeight: 700 }}>
-                  {totalCount > 0 ? 'Canlı yoğunluk' : 'Veri yok'}
+                  {totalCount > 0 ? 'Canlı veri' : 'Veri yok'}
                 </div>
               </div>
 
@@ -171,35 +173,90 @@ export default function TurkeyHeatmapSection({ compact = false }) {
                 </div>
               )}
 
-              <div style={{ position: 'relative', borderRadius: theme.radius.lg, overflow: 'hidden', background: 'radial-gradient(circle at 50% 45%, rgba(245,158,11,0.12), transparent 60%), linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.08))' }}>
-                <TurkeyMap
-                  showTooltip={false}
-                  hoverable={false}
-                  customStyle={{ idleColor: '#262633', hoverColor: '#f59e0b' }}
-                  cityWrapper={renderCityWrapper}
-                />
+              <div style={{ position: 'relative', borderRadius: theme.radius.lg, overflow: 'hidden', background: 'radial-gradient(circle at 50% 42%, rgba(0,212,255,0.16), transparent 58%), linear-gradient(135deg, rgba(15,23,42,0.92), rgba(8,12,20,0.99))', border: `1px solid ${theme.border}`, padding: '10px 14px 4px', minHeight: 260 }}>
+                <svg viewBox="0 0 1000 422" role="img" aria-label="Türkiye il bazlı vaka haritası" style={{ width: '100%', height: '260px', display: 'block', filter: 'drop-shadow(0 22px 28px rgba(0,0,0,0.28))' }} preserveAspectRatio="xMidYMid meet">
+                  <defs>
+                    <filter id="provinceGlow" x="-30%" y="-30%" width="160%" height="160%">
+                      <feGaussianBlur stdDeviation="3" result="blur" />
+                      <feMerge>
+                        <feMergeNode in="blur" />
+                        <feMergeNode in="SourceGraphic" />
+                      </feMerge>
+                    </filter>
+                    <linearGradient id="mapFrame" x1="0" x2="1" y1="0" y2="1">
+                      <stop offset="0%" stopColor="rgba(255,255,255,0.08)" />
+                      <stop offset="100%" stopColor="rgba(255,255,255,0.01)" />
+                    </linearGradient>
+                  </defs>
+                  <rect x="0" y="0" width="1000" height="422" rx="28" fill="url(#mapFrame)" opacity="0.18" />
+                  {TURKEY_PROVINCES.map((province) => {
+                    const path = mapPaths[`TR${province.id}`]
+                    const bbox = mapBBoxes[`TR${province.id}`]
+                    const data = regionAttackMap[normalizeProvinceKey(province.name)]
+                    const isHovered = hoveredProvince === province.name
+                    const fill = data?.attackMethod ? getProvinceColor(data.attackMethod) : '#20283b'
+                    if (!path) return null
+                    return (
+                      <g
+                        key={province.name}
+                        onMouseEnter={() => setHoveredProvince(province.name)}
+                        onMouseLeave={() => setHoveredProvince(null)}
+                        style={{ cursor: 'pointer' }}
+                        filter={isHovered ? 'url(#provinceGlow)' : undefined}
+                      >
+                        <path
+                          d={path}
+                          fill={fill}
+                          fillOpacity={data ? (isHovered ? 0.98 : 0.82) : 0.42}
+                          stroke={isHovered ? '#ffffff' : 'rgba(255,255,255,0.2)'}
+                          strokeWidth={isHovered ? 2 : 0.9}
+                          style={{ transition: 'fill-opacity 120ms ease, stroke 120ms ease' }}
+                        />
+                        {bbox && data && data.count > 0 && (
+                          <circle
+                            cx={bbox.cx}
+                            cy={bbox.cy}
+                            r={Math.min(16, 5 + data.count * 0.55)}
+                            fill="#ffffff"
+                            fillOpacity={isHovered ? 0.92 : 0.68}
+                            stroke={fill}
+                            strokeWidth="2"
+                          />
+                        )}
+                      </g>
+                    )
+                  })}
+                </svg>
 
-                <div style={{ position: 'absolute', left: 16, bottom: 16, background: 'rgba(8,8,14,0.78)', backdropFilter: 'blur(10px)', border: `1px solid ${theme.border}`, borderRadius: theme.radius.md, padding: '12px 14px', minWidth: 210 }}>
-                  <div style={{ color: theme.textMuted, fontSize: 11, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 6 }}>Harita özeti</div>
-                  <div style={{ color: theme.text, fontSize: 18, fontWeight: 800 }}>{hoveredProvince || 'Türkiye'}</div>
+                <div style={{ position: 'absolute', right: 16, top: 16, background: 'rgba(8,12,20,0.78)', backdropFilter: 'blur(14px)', border: `1px solid ${theme.border}`, borderRadius: theme.radius.md, padding: '12px 14px', minWidth: 210, boxShadow: '0 18px 40px rgba(0,0,0,0.35)' }}>
+                  <div style={{ color: theme.textMuted, fontSize: 11, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 6 }}>{hoveredProvince || 'Türkiye'}</div>
+                  <div style={{ color: theme.text, fontSize: 18, fontWeight: 800 }}>{hoveredProvince ? `${hoveredCount} vaka` : `${totalCount} toplam vaka`}</div>
                   <div style={{ color: theme.textMuted, fontSize: 12, marginTop: 4 }}>
-                    {hoveredProvince ? `Vaka: ${hoveredCount}` : `Toplam ${totalCount} vaka, ${activeRegionCount} ilde veri`}
+                    {hoveredProvince ? (hoveredMethod ? hoveredMethod.replace(/_/g, ' ') : 'Yöntem verisi sınırlı') : `${activeRegionCount} ilde canlı dağılım`}
                   </div>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 16 }}>
-                {[
-                  { label: 'Düşük', color: '#22c55e' },
-                  { label: 'Orta', color: '#f59e0b' },
-                  { label: 'Yüksek', color: '#ef4444' },
-                  { label: 'Veri yok', color: '#262633' },
-                ].map((item) => (
-                  <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ width: 14, height: 14, borderRadius: 4, background: item.color, border: item.label === 'Veri yok' ? `1px solid ${theme.border}` : 'none' }} />
-                    <span style={{ color: theme.text, fontSize: 12 }}>{item.label}</span>
+              {hoveredProvince && hoveredCount > 0 && (
+                <div style={{ marginTop: 12, padding: '12px 14px', borderRadius: theme.radius.md, background: theme.primaryDim, border: `1px solid ${theme.primary}33` }}>
+                  <div style={{ color: theme.text, fontSize: 14, fontWeight: 800 }}>{hoveredProvince}</div>
+                  <div style={{ color: theme.textMuted, fontSize: 12, marginTop: 4 }}>
+                    {hoveredCount} vaka · {hoveredMethod || 'Belirsiz yöntem'}
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 12px', marginTop: 14, padding: '10px 12px', borderRadius: theme.radius.md, background: 'rgba(8,12,20,0.42)', border: `1px solid ${theme.border}` }}>
+                {Object.entries(ATTACK_METHOD_COLORS).map(([key, color]) => (
+                  <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ width: 10, height: 10, borderRadius: 999, background: color, boxShadow: `0 0 12px ${color}88` }} />
+                    <span style={{ color: theme.text, fontSize: 11 }}>{key.replace(/_/g, ' ')}</span>
                   </div>
                 ))}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: 999, background: '#262633', border: `1px solid ${theme.border}` }} />
+                  <span style={{ color: theme.text, fontSize: 11 }}>Veri yok</span>
+                </div>
               </div>
             </div>
 
@@ -208,8 +265,7 @@ export default function TurkeyHeatmapSection({ compact = false }) {
                 <h3 style={{ margin: '0 0 12px', color: theme.text, fontSize: 15, fontWeight: 800 }}>İlk 10 İl</h3>
                 <div style={{ display: 'grid', gap: 10 }}>
                   {regionEntries.slice(0, 10).map((item, index) => {
-                    const intensity = item.count / maxCount
-                    const barColor = item.count === 0 ? '#262633' : intensity > 0.7 ? '#ef4444' : intensity > 0.4 ? '#f59e0b' : '#22c55e'
+                    const barColor = item.attackMethod ? ATTACK_METHOD_COLORS[item.attackMethod] : '#262633'
                     return (
                       <div key={item.id} style={{ display: 'grid', gridTemplateColumns: '28px 1fr 52px', gap: 10, alignItems: 'center' }}>
                         <span style={{ color: theme.textMuted, fontSize: 12, textAlign: 'right' }}>{index + 1}</span>
@@ -219,7 +275,7 @@ export default function TurkeyHeatmapSection({ compact = false }) {
                             <span style={{ color: barColor, fontSize: 12, fontWeight: 800 }}>{item.count}</span>
                           </div>
                           <div style={{ height: 6, borderRadius: 999, background: theme.bgDeep, overflow: 'hidden' }}>
-                            <div style={{ width: `${Math.max((item.count / maxCount) * 100, item.count > 0 ? 8 : 0)}%`, height: '100%', background: barColor, borderRadius: 999 }} />
+                            <div style={{ width: `${Math.max((item.count / totalCount) * 100, item.count > 0 ? 8 : 0)}%`, height: '100%', background: barColor, borderRadius: 999 }} />
                           </div>
                         </div>
                         <span style={{ color: theme.textMuted, fontSize: 11, textAlign: 'right' }}>vaka</span>
@@ -232,8 +288,7 @@ export default function TurkeyHeatmapSection({ compact = false }) {
               <div style={{ background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: theme.radius.lg, padding: 18 }}>
                 <h3 style={{ margin: '0 0 12px', color: theme.text, fontSize: 15, fontWeight: 800 }}>Neden burada?</h3>
                 <p style={{ margin: 0, color: theme.textMuted, lineHeight: 1.7, fontSize: 13 }}>
-                  Bu harita Mağduriyet Atlası içinde görünür; roadmap’in istediği kullanım da bu. Aşağıdaki vaka kartlarıyla birlikte,
-                  yoğunluk dağılımını tek sayfada vererek operasyon ekibine ve dış sunuma hazır bir görünüm sağlar.
+                  Bu harita SimpleMaps Türkiye Admin-1 il sınırlarını kullanır; iller dolandırıcılık yöntemlerine göre canlı renklendirilir.
                 </p>
               </div>
             </div>
