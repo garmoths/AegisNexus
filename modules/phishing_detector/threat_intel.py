@@ -713,92 +713,150 @@ def _persist_screenshot_indicators(url: str, indicators: list, confidence: int =
 # 4. TOPLU TEHDİT İSTİHBARATI
 # =========================================================
 
+# A4: Paralel çalışma için iş parçacığı sayısı
+_THREAT_INTEL_WORKERS = int(os.getenv("THREAT_INTEL_WORKERS", "5"))
+
+
+def _task_screenshot(url: str, http_meta, page_text: str, pre_penalty: int):
+    """Playwright screenshot + Gemini Vision analizi (en ağır iş, B1 pre_penalty ile)."""
+    return analyze_screenshot(url=url, http_meta=http_meta, page_text=page_text, pre_penalty=pre_penalty)
+
+
+def _task_virustotal(url: str):
+    """VirusTotal yerel DB sorgusu — her thread kendi SQLAlchemy session'ını açar."""
+    from .threat_intel_local import check_virustotal_local as check_virustotal
+    from app.database import SessionLocal
+    db = SessionLocal()
+    try:
+        return check_virustotal(url, db)
+    finally:
+        db.close()
+
+
+def _task_gsb(url: str):
+    """Google Safe Browsing harici API sorgusu."""
+    return check_google_safe_browsing(url)
+
+
+def _task_abuseipdb(url: str):
+    """AbuseIPDB yerel IP blacklist sorgusu."""
+    from .threat_intel_local import check_abuseipdb_local as check_abuseipdb, load_ip_blacklists
+    load_ip_blacklists("/opt/phishing/ip_lists")
+    return check_abuseipdb(url)
+
+
+def _task_spamhaus_group(url: str, domain: str, resolved_ip: str | None):
+    """URLhaus + Spamhaus (domain+IP) + ThreatFox — dahili paralel ThreadPoolExecutor."""
+    from .spamhaus_client import query_ip as spamhaus_query_ip, query_domain as spamhaus_query_domain
+    from .urlhaus_client import query_url as urlhaus_query_url
+    from .threatfox_client import query_ioc as threatfox_query_ioc
+
+    inner_futures: dict = {}
+    group: dict = {}
+    with ThreadPoolExecutor(max_workers=4) as inner_executor:
+        inner_futures[inner_executor.submit(urlhaus_query_url, url)] = "urlhaus"
+        inner_futures[inner_executor.submit(spamhaus_query_domain, domain)] = "spamhaus_domain"
+        if resolved_ip:
+            inner_futures[inner_executor.submit(spamhaus_query_ip, resolved_ip)] = "spamhaus_ip"
+        inner_futures[inner_executor.submit(threatfox_query_ioc, domain, "domain")] = "threatfox"
+
+    for future in as_completed(inner_futures, timeout=30):
+        key = inner_futures[future]
+        try:
+            group[key] = future.result()
+        except Exception as exc:
+            logger.warning(f"Spamhaus grup alt-sorgu hatası [{key}]: {exc}")
+    return group
+
+
 def run_threat_intelligence(url, http_meta=None, page_text: str = "", is_whitelisted: bool = False, pre_penalty: int = 0):
     """
-    Tüm harici API'leri paralel olmayan şekilde çalıştırır.
-    PRIMARY: Screenshot Analyzer (Playwright + Gemini Vision)
-    LOCAL REPLACEMENTS: VirusTotal → local DB, AbuseIPDB → IP blacklist
-    SECONDARY: Google Safe Browsing
-    
-    validated=True ise: TÜM API'ler başarılı (200 status)
-    validated=False ise: En az bir API fail oldu (cache'e alınmaz)
+    Tüm tehdit istihbaratı kontrollerini PARALEL çalıştırır (A4).
+    5 eş zamanlı iş: Screenshot · VT · GSB · AbuseIPDB · Spamhaus/URLhaus/ThreatFox
+
+    validated=True ise: TÜM kontroller başarılı
+    validated=False ise: En az bir kontrol başarısız
     """
     results = {
-        "screenshot_analysis": None,  # PRIMARY
-        "virustotal": None,         # LOCAL REPLACEMENT
+        "screenshot_analysis": None,
+        "virustotal": None,
         "google_safe_browsing": None,
-        "abuseipdb": None,          # LOCAL REPLACEMENT
+        "abuseipdb": None,
         "total_penalty": 0,
         "findings": [],
         "sources": [],
-        "validated": False  # Başlangıç: invalid, tüm API'ler başarılı olursa True olur
+        "validated": False,
     }
-
     all_available = True
 
-    # --- Screenshot Analyzer (PRIMARY) ---
-    # pre_penalty: HTML Analyzer (B1) cezası buraya gelir; >= 65 ise Gemini atlanır
+    # ── A4: Domain / IP çözümlemesi (paralel task'lar için ön hazırlık) ──
+    parsed_url = urlparse(url if url.startswith("http") else "https://" + url)
+    domain = (parsed_url.netloc or parsed_url.path or "").lower().replace("www.", "").split(":")[0]
+    resolved_ip = None
     try:
-        shot = analyze_screenshot(url=url, http_meta=http_meta, page_text=page_text, pre_penalty=pre_penalty)
-        results["screenshot_analysis"] = shot
-        if shot.get("gemini_skipped"):
-            # Gemini atlandı: screenshot var ama AI analizi yok — küçük belirsizlik cezası
-            results["total_penalty"] += 10
-            skip_reason = shot.get("gemini_skip_reason", "bilinmiyor")
-            results["sources"].append({
-                "name": "Screenshot Analyzer",
-                "status": f"Gemini atlandı ({skip_reason})"
-            })
+        resolved_ip = socket.gethostbyname(domain)
+    except Exception:
+        pass
+
+    # ── A4: 5 kontrolü paralel çalıştır ───────────────────────────────────
+    task_results: dict = {}
+    futures_map: dict = {}
+    with ThreadPoolExecutor(max_workers=_THREAT_INTEL_WORKERS) as executor:
+        futures_map[executor.submit(_task_screenshot, url, http_meta, page_text, pre_penalty)] = "screenshot"
+        futures_map[executor.submit(_task_virustotal, url)] = "virustotal"
+        futures_map[executor.submit(_task_gsb, url)] = "gsb"
+        futures_map[executor.submit(_task_abuseipdb, url)] = "abuseipdb"
+        futures_map[executor.submit(_task_spamhaus_group, url, domain, resolved_ip)] = "spamhaus_group"
+        for future in as_completed(futures_map, timeout=65):
+            name = futures_map[future]
+            try:
+                task_results[name] = future.result()
+            except Exception as exc:
+                logger.error(f"Paralel task hatası [{name}]: {exc}")
+                task_results[name] = None
+                all_available = False
+
+    # ── Sonuçları skorla (ana thread, thread-safe) ────────────────────────
+
+    # --- Screenshot Analyzer ---
+    shot = task_results.get("screenshot") or {}
+    results["screenshot_analysis"] = shot or None
+    if shot.get("gemini_skipped"):
+        skip_reason = shot.get("gemini_skip_reason", "bilinmiyor")
+        results["total_penalty"] += 10
+        results["sources"].append({"name": "Screenshot Analyzer", "status": f"Gemini atlandı ({skip_reason})"})
+        results["findings"].append(f"📸 Screenshot Analyzer: Gemini atlandı — {skip_reason} (belirsizlik cezası +10)")
+    elif shot.get("available", True) and shot:
+        risk_score = max(0, min(100, int(shot.get("risk_score", 50))))
+        risk_level_str = str(shot.get("risk_level", "UNKNOWN")).upper()
+        weighted_penalty = int(round(risk_score * 0.60))
+        if risk_level_str == "CRITICAL":
+            weighted_penalty = max(weighted_penalty, 70)
+        elif risk_level_str == "HIGH":
+            weighted_penalty = max(weighted_penalty, 50)
+        elif risk_level_str == "MEDIUM":
+            weighted_penalty = max(weighted_penalty, 25)
+        results["sources"].append({"name": "Screenshot Analyzer", "status": f"{risk_level_str} ({risk_score}/100)"})
+        results["total_penalty"] += weighted_penalty
+        if weighted_penalty > 0:
             results["findings"].append(
-                f"📸 Screenshot Analyzer: Gemini atlandı — {skip_reason} (belirsizlik cezası +10)"
+                f"📸 Screenshot Analyzer: {shot.get('verdict', 'Analiz tamamlandı')} "
+                f"(risk={risk_score}, ağırlıklı ceza={weighted_penalty})"
             )
-        elif shot.get("available", True):
-            risk_score = max(0, min(100, int(shot.get("risk_score", 50))))
-            risk_level_str = str(shot.get("risk_level", "UNKNOWN")).upper()
-            weighted_penalty = int(round(risk_score * 0.60))
-            if risk_level_str == "CRITICAL":
-                weighted_penalty = max(weighted_penalty, 70)
-            elif risk_level_str == "HIGH":
-                weighted_penalty = max(weighted_penalty, 50)
-            elif risk_level_str == "MEDIUM":
-                weighted_penalty = max(weighted_penalty, 25)
-            results["sources"].append({
-                "name": "Screenshot Analyzer",
-                "status": f"{risk_level_str} ({risk_score}/100)"
-            })
-            results["total_penalty"] += weighted_penalty
-            if weighted_penalty > 0:
-                results["findings"].append(
-                    f"📸 Screenshot Analyzer: {shot.get('verdict', 'Analiz tamamlandı')} "
-                    f"(risk={risk_score}, ağırlıklı ceza={weighted_penalty})"
-                )
-            indicators = shot.get("threat_indicators", []) if isinstance(shot, dict) else []
-            if indicators:
-                _persist_screenshot_indicators(url, indicators, confidence=risk_score)
-        else:
-            all_available = False
-            results["total_penalty"] += 15
-            results["findings"].append("📸 Screenshot Analyzer: Ekran görüntüsü alınamadı (belirsizlik cezası uygulandı)")
-    except Exception as e:
-        logger.error(f"Screenshot Analyzer err: {e}")
+        indicators = shot.get("threat_indicators", []) if isinstance(shot, dict) else []
+        if indicators:
+            _persist_screenshot_indicators(url, indicators, confidence=risk_score)
+    elif shot is not None:
         all_available = False
-    
-    # --- VirusTotal LOCAL REPLACEMENT ---
-    try:
-        from .threat_intel_local import check_virustotal_local as check_virustotal
-        from app.database import SessionLocal
-        
-        logger.info(f"Calling local VirusTotal replacement for: {url}")
-        db = SessionLocal()
-        vt = check_virustotal(url, db)
-        db.close()
-        logger.info(f"Local VirusTotal result: {vt}")
-        results["virustotal"] = vt
+        results["total_penalty"] += 15
+        results["findings"].append("📸 Screenshot Analyzer: Ekran görüntüsü alınamadı (belirsizlik cezası uygulandı)")
+
+    # --- VirusTotal LOCAL ---
+    vt = task_results.get("virustotal")
+    results["virustotal"] = vt
+    if vt is not None:
         if vt.get("available"):
-            results["sources"].append({
-                "name": "VirusTotal",
-                "status": vt["status"]
-            })
+            results["sources"].append({"name": "VirusTotal", "status": vt["status"]})
             if vt["malicious"] >= 3:
                 results["total_penalty"] += 40
                 results["findings"].append(f"🛡️ VirusTotal: {vt['malicious']} motor tehlikeli olarak işaretledi!")
@@ -810,241 +868,115 @@ def run_threat_intelligence(url, http_meta=None, page_text: str = "", is_whiteli
                 results["findings"].append(f"⚠️ VirusTotal: {vt['suspicious']} motor şüpheli olarak işaretledi")
         else:
             all_available = False
-    except Exception as e:
-        logger.error(f"VT err: {e}")
+    else:
         all_available = False
 
     # --- Google Safe Browsing ---
-    try:
-        gsb = check_google_safe_browsing(url)
-        results["google_safe_browsing"] = gsb
+    gsb = task_results.get("gsb")
+    results["google_safe_browsing"] = gsb
+    if gsb is not None:
         if gsb.get("available"):
-            results["sources"].append({
-                "name": "Google Safe Browsing",
-                "status": gsb["status"]
-            })
+            results["sources"].append({"name": "Google Safe Browsing", "status": gsb["status"]})
             if gsb["threat"]:
                 results["total_penalty"] += 50
                 results["findings"].append(f"🛡️ {gsb['status']}")
         else:
             all_available = False
-    except Exception as e:
-        logger.error(f"GSB err: {e}")
+    else:
         all_available = False
 
-    # --- AbuseIPDB LOCAL REPLACEMENT ---
-    try:
-        from .threat_intel_local import check_abuseipdb_local as check_abuseipdb
-        
-        # Load IP blacklists on first use
-        from .threat_intel_local import load_ip_blacklists
-        load_ip_blacklists("/opt/phishing/ip_lists")
-        
-        aipdb = check_abuseipdb(url)
-        results["abuseipdb"] = aipdb
+    # --- AbuseIPDB LOCAL ---
+    aipdb = task_results.get("abuseipdb")
+    results["abuseipdb"] = aipdb
+    if aipdb is not None:
         if aipdb.get("abuse_score", 0) >= 70:
-            results["sources"].append({
-                "name": "AbuseIPDB (Local)",
-                "status": "IP blacklist match"
-            })
+            results["sources"].append({"name": "AbuseIPDB (Local)", "status": "IP blacklist match"})
             results["total_penalty"] += 25
             results["findings"].append(f"🛡️ AbuseIPDB (Local): Yüksek suistimal skoru ({aipdb['abuse_score']}%)")
         elif aipdb.get("abuse_score", 0) >= 30:
-            results["sources"].append({
-                "name": "AbuseIPDB (Local)",
-                "status": "IP suspicious"
-            })
+            results["sources"].append({"name": "AbuseIPDB (Local)", "status": "IP suspicious"})
             results["total_penalty"] += 10
             results["findings"].append(f"⚠️ AbuseIPDB (Local): Orta suistimal skoru ({aipdb['abuse_score']}%)")
-    except Exception as e:
-        logger.error(f"AIPDB local err: {e}")
+    else:
         all_available = False
 
-    # --- Spamhaus / URLhaus / ThreatFox (paralel) ---
-    try:
-        from .spamhaus_client import query_ip as spamhaus_query_ip, query_domain as spamhaus_query_domain
-        from .urlhaus_client import query_url as urlhaus_query_url
-        from .threatfox_client import query_ioc as threatfox_query_ioc
+    # --- Spamhaus / URLhaus / ThreatFox ---
+    sg = task_results.get("spamhaus_group") or {}
+    urlhaus_result = sg.get("urlhaus")
+    spamhaus_domain_result = sg.get("spamhaus_domain")
+    spamhaus_ip_result = sg.get("spamhaus_ip")
+    threatfox_result = sg.get("threatfox")
 
-        # URL'den domain ve IP parse et
-        parsed_url = urlparse(url if url.startswith("http") else "https://" + url)
-        domain = (parsed_url.netloc or parsed_url.path or "").lower().replace("www.", "").split(":")[0]
-        resolved_ip = None
-        try:
-            resolved_ip = socket.gethostbyname(domain)
-        except Exception:
-            pass
+    # URLhaus
+    if urlhaus_result and urlhaus_result.get("listed"):
+        results["urlhaus"] = urlhaus_result
+        if is_whitelisted:
+            results["sources"].append({"name": "URLhaus", "status": "Listed ancak whitelist nedeniyle ceza uygulanmadı"})
+        else:
+            results["total_penalty"] += 40
+            results["sources"].append({"name": "URLhaus", "status": f"Listed ({urlhaus_result.get('threat_type', 'unknown')})"})
+            results["findings"].append(f"🛡️ URLhaus: URL kara listede ({urlhaus_result.get('threat_type', 'unknown')})")
+            write_ioc(ioc_type="url", ioc_value=url, threat_type=urlhaus_result.get("threat_type", "phishing"), confidence=80, source="urlhaus", raw_data=urlhaus_result)
+    elif urlhaus_result:
+        results["urlhaus"] = urlhaus_result
 
-        # Paralel sorgular
-        futures_map = {}
-        with ThreadPoolExecutor(max_workers=4) as executor:
-            futures_map[executor.submit(urlhaus_query_url, url)] = "urlhaus"
-            futures_map[executor.submit(spamhaus_query_domain, domain)] = "spamhaus_domain"
-            if resolved_ip:
-                futures_map[executor.submit(spamhaus_query_ip, resolved_ip)] = "spamhaus_ip"
-            futures_map[executor.submit(threatfox_query_ioc, domain, "domain")] = "threatfox"
+    # Spamhaus domain
+    if spamhaus_domain_result and spamhaus_domain_result.get("listed"):
+        results["spamhaus_domain"] = spamhaus_domain_result
+        lists = spamhaus_domain_result.get("lists", [])
+        if is_whitelisted:
+            results["sources"].append({"name": "Spamhaus Domain", "status": f"Listed ({', '.join(lists)}) whitelist nedeniyle ceza yok"})
+        else:
+            if "DBL" in lists:
+                results["total_penalty"] += 35
+                results["sources"].append({"name": "Spamhaus DBL", "status": f"Domain listed ({', '.join(lists)})"})
+                results["findings"].append(f"🛡️ Spamhaus DBL: Domain kara listede ({', '.join(lists)})")
+            if spamhaus_domain_result.get("zrd"):
+                results["total_penalty"] += 15
+                results["sources"].append({"name": "Spamhaus ZRD", "status": "Sıfır itibar domain"})
+                results["findings"].append("⚠️ Spamhaus ZRD: Sıfır itibar domain (yeni/şüpheli)")
+            if "DBL" not in lists and not spamhaus_domain_result.get("zrd"):
+                results["total_penalty"] += 35
+                results["sources"].append({"name": "Spamhaus Domain", "status": f"Domain listed ({', '.join(lists)})"})
+                results["findings"].append(f"🛡️ Spamhaus: Domain listed ({', '.join(lists)})")
+            write_ioc(ioc_type="domain", ioc_value=domain, threat_type="spamhaus_dbl", confidence=75, source="spamhaus", raw_data=spamhaus_domain_result)
+    elif spamhaus_domain_result:
+        results["spamhaus_domain"] = spamhaus_domain_result
 
-        urlhaus_result = None
-        spamhaus_ip_result = None
-        spamhaus_domain_result = None
-        threatfox_result = None
+    # Spamhaus IP
+    if spamhaus_ip_result and spamhaus_ip_result.get("listed"):
+        results["spamhaus_ip"] = spamhaus_ip_result
+        ip_lists = spamhaus_ip_result.get("lists", [])
+        if is_whitelisted:
+            results["sources"].append({"name": "Spamhaus IP", "status": f"IP listed whitelist nedeniyle ceza yok"})
+        else:
+            if any(ll in ip_lists for ll in ("XBL", "eXBL")):
+                results["total_penalty"] += 30
+                results["sources"].append({"name": "Spamhaus XBL/eXBL", "status": f"IP listed ({', '.join(ip_lists)})"})
+                results["findings"].append(f"🛡️ Spamhaus XBL/eXBL: IP kara listede ({', '.join(ip_lists)})")
+            elif ip_lists:
+                results["total_penalty"] += 20
+                results["sources"].append({"name": "Spamhaus IP", "status": f"IP listed ({', '.join(ip_lists)})"})
+                results["findings"].append(f"⚠️ Spamhaus: IP listed ({', '.join(ip_lists)})")
+            write_ioc(ioc_type="ip", ioc_value=resolved_ip, threat_type="spamhaus_xbl", confidence=70, source="spamhaus", raw_data=spamhaus_ip_result)
+    elif spamhaus_ip_result:
+        results["spamhaus_ip"] = spamhaus_ip_result
 
-        for future in as_completed(futures_map, timeout=30):
-            source_name = futures_map[future]
-            try:
-                res = future.result()
-            except Exception as exc:
-                logger.warning(f"{source_name} paralel sorgu hatası: {exc}")
-                continue
-
-            if source_name == "urlhaus":
-                urlhaus_result = res
-            elif source_name == "spamhaus_ip":
-                spamhaus_ip_result = res
-            elif source_name == "spamhaus_domain":
-                spamhaus_domain_result = res
-            elif source_name == "threatfox":
-                threatfox_result = res
-
-        # URLhaus skorlama
-        if urlhaus_result and urlhaus_result.get("listed"):
-            results["urlhaus"] = urlhaus_result
-            if is_whitelisted:
-                results["sources"].append({
-                    "name": "URLhaus",
-                    "status": "Listed ancak whitelist nedeniyle ceza uygulanmadı"
-                })
-            else:
-                results["total_penalty"] += 40
-                results["sources"].append({
-                    "name": "URLhaus",
-                    "status": f"Listed ({urlhaus_result.get('threat_type', 'unknown')})"
-                })
-                results["findings"].append(
-                    f"🛡️ URLhaus: URL kara listede ({urlhaus_result.get('threat_type', 'unknown')})"
-                )
-                # IOC olarak kaydet
-                write_ioc(
-                    ioc_type="url", ioc_value=url,
-                    threat_type=urlhaus_result.get("threat_type", "phishing"),
-                    confidence=80, source="urlhaus",
-                    raw_data=urlhaus_result,
-                )
-        elif urlhaus_result:
-            results["urlhaus"] = urlhaus_result
-
-        # Spamhaus domain skorlama
-        if spamhaus_domain_result and spamhaus_domain_result.get("listed"):
-            results["spamhaus_domain"] = spamhaus_domain_result
-            lists = spamhaus_domain_result.get("lists", [])
-            if is_whitelisted:
-                results["sources"].append({
-                    "name": "Spamhaus Domain",
-                    "status": f"Listed ({', '.join(lists)}) ancak whitelist nedeniyle ceza uygulanmadı"
-                })
-            else:
-                if "DBL" in lists:
-                    results["total_penalty"] += 35
-                    results["sources"].append({
-                        "name": "Spamhaus DBL",
-                        "status": f"Domain listed ({', '.join(lists)})"
-                    })
-                    results["findings"].append(
-                        f"🛡️ Spamhaus DBL: Domain kara listede ({', '.join(lists)})"
-                    )
-                if spamhaus_domain_result.get("zrd"):
-                    results["total_penalty"] += 15
-                    results["sources"].append({
-                        "name": "Spamhaus ZRD",
-                        "status": "Sıfır itibar domain"
-                    })
-                    results["findings"].append("⚠️ Spamhaus ZRD: Sıfır itibar domain (yeni/şüpheli)")
-                if "DBL" not in lists and not spamhaus_domain_result.get("zrd"):
-                    results["total_penalty"] += 35
-                    results["sources"].append({
-                        "name": "Spamhaus Domain",
-                        "status": f"Domain listed ({', '.join(lists)})"
-                    })
-                    results["findings"].append(
-                        f"🛡️ Spamhaus: Domain listed ({', '.join(lists)})"
-                    )
-                # IOC kaydet
-                write_ioc(
-                    ioc_type="domain", ioc_value=domain,
-                    threat_type="spamhaus_dbl", confidence=75,
-                    source="spamhaus", raw_data=spamhaus_domain_result,
-                )
-        elif spamhaus_domain_result:
-            results["spamhaus_domain"] = spamhaus_domain_result
-
-        # Spamhaus IP skorlama
-        if spamhaus_ip_result and spamhaus_ip_result.get("listed"):
-            results["spamhaus_ip"] = spamhaus_ip_result
-            ip_lists = spamhaus_ip_result.get("lists", [])
-            if is_whitelisted:
-                results["sources"].append({
-                    "name": "Spamhaus IP",
-                    "status": f"IP listed ({', '.join(ip_lists)}) ancak whitelist nedeniyle ceza uygulanmadı"
-                })
-            else:
-                if any(l in ip_lists for l in ("XBL", "eXBL")):
-                    results["total_penalty"] += 30
-                    results["sources"].append({
-                        "name": "Spamhaus XBL/eXBL",
-                        "status": f"IP listed ({', '.join(ip_lists)})"
-                    })
-                    results["findings"].append(
-                        f"🛡️ Spamhaus XBL/eXBL: IP kara listede ({', '.join(ip_lists)})"
-                    )
-                elif ip_lists:
-                    results["total_penalty"] += 20
-                    results["sources"].append({
-                        "name": "Spamhaus IP",
-                        "status": f"IP listed ({', '.join(ip_lists)})"
-                    })
-                    results["findings"].append(
-                        f"⚠️ Spamhaus: IP listed ({', '.join(ip_lists)})"
-                    )
-                # IOC kaydet
-                write_ioc(
-                    ioc_type="ip", ioc_value=resolved_ip,
-                    threat_type="spamhaus_xbl", confidence=70,
-                    source="spamhaus", raw_data=spamhaus_ip_result,
-                )
-        elif spamhaus_ip_result:
-            results["spamhaus_ip"] = spamhaus_ip_result
-
-        # ThreatFox skorlama
-        if threatfox_result and threatfox_result.get("found"):
-            results["threatfox"] = threatfox_result
-            if is_whitelisted:
-                results["sources"].append({
-                    "name": "ThreatFox",
-                    "status": "IOC bulundu ancak whitelist nedeniyle ceza uygulanmadı"
-                })
-            else:
-                results["total_penalty"] += 25
-                results["sources"].append({
-                    "name": "ThreatFox",
-                    "status": f"IOC bulundu ({threatfox_result.get('malware_family', 'unknown')})"
-                })
-                results["findings"].append(
-                    f"🛡️ ThreatFox: IOC bulundu — {threatfox_result.get('malware_family', 'bilinmeyen')} "
-                    f"(confidence: {threatfox_result.get('confidence', 0)})"
-                )
-                # IOC kaydet
-                write_ioc(
-                    ioc_type="domain", ioc_value=domain,
-                    threat_type=threatfox_result.get("threat_name", "unknown"),
-                    confidence=threatfox_result.get("confidence", 50),
-                    source="threatfox", raw_data=threatfox_result,
-                )
-        elif threatfox_result:
-            results["threatfox"] = threatfox_result
-
-    except Exception as e:
-        logger.error(f"Spamhaus/URLhaus/ThreatFox err: {e}")
-        all_available = False
+    # ThreatFox
+    if threatfox_result and threatfox_result.get("found"):
+        results["threatfox"] = threatfox_result
+        if is_whitelisted:
+            results["sources"].append({"name": "ThreatFox", "status": "IOC bulundu ancak whitelist nedeniyle ceza uygulanmadı"})
+        else:
+            results["total_penalty"] += 25
+            results["sources"].append({"name": "ThreatFox", "status": f"IOC bulundu ({threatfox_result.get('malware_family', 'unknown')})"})
+            results["findings"].append(
+                f"🛡️ ThreatFox: IOC bulundu — {threatfox_result.get('malware_family', 'bilinmeyen')} "
+                f"(confidence: {threatfox_result.get('confidence', 0)})"
+            )
+            write_ioc(ioc_type="domain", ioc_value=domain, threat_type=threatfox_result.get("threat_name", "unknown"), confidence=threatfox_result.get("confidence", 50), source="threatfox", raw_data=threatfox_result)
+    elif threatfox_result:
+        results["threatfox"] = threatfox_result
 
     # Risk skorunu ve seviyesini hesapla
     risk_score = min(100, results["total_penalty"])
@@ -1162,7 +1094,7 @@ def extract_threat_details(results):
     details = []
     
     # VirusTotal detayları
-    vt = results.get("virustotal", {})
+    vt = results.get("virustotal") or {}
     if vt.get("available"):
         if vt.get("malicious", 0) > 0:
             details.append(f"🛡️ VirusTotal: {vt['malicious']}/{vt.get('total', 0)} motor tehlikeli")
@@ -1170,12 +1102,12 @@ def extract_threat_details(results):
             details.append(f"⚠️ VirusTotal: {vt['suspicious']} motor şüpheli")
     
     # Google Safe Browsing detayları
-    gsb = results.get("google_safe_browsing", {})
+    gsb = results.get("google_safe_browsing") or {}
     if gsb.get("available") and gsb.get("threat"):
         details.append(f"🔍 Google: {gsb.get('threat_type', 'Bilinmeyen tehdit')}")
     
     # AbuseIPDB detayları
-    abuse = results.get("abuseipdb", {})
+    abuse = results.get("abuseipdb") or {}
     if abuse.get("available"):
         if abuse.get("abuse_score", 0) > 0:
             details.append(f"📊 AbuseIPDB: %{abuse['abuse_score']} suistimal skoru")
