@@ -187,6 +187,41 @@ class URLAnalizHistory(Base):
     created_at = Column(DateTime, index=True, nullable=False, default=lambda: datetime.now(timezone.utc))
 
 
+class PhishingForm(Base):
+    """
+    Phishing Form Detection — Phishing sayfaları üzerinde bulunan form'ları detektlemek.
+    Extension veya scanner tarafından yapılan raporlar.
+    """
+    __tablename__ = "phishing_forms"
+    
+    id = Column(BigInteger, primary_key=True, index=True)
+    
+    # Form URL ve domain
+    url = Column(String(2000), index=True, nullable=False)
+    domain = Column(String(512), index=True, nullable=False)
+    action_url = Column(String(2000), nullable=True)
+    
+    # Form analizi
+    field_types = Column(JSON, nullable=True, default=[])  # ["password", "credit_card", "otp_2fa"]
+    risk_score = Column(Integer, nullable=False)
+    flags = Column(JSON, nullable=True, default=[])  # ["form-has-password", "form-action-different-domain"]
+    
+    # Reporting
+    reported_by = Column(String(50), default="extension", nullable=False)  # 'extension', 'scanner', 'api'
+    detection_count = Column(Integer, default=1)
+    status = Column(String(50), default="pending_review", index=True)  # 'pending_review', 'confirmed', 'false_positive', 'archived'
+    
+    # Timestamps
+    created_at = Column(DateTime, index=True, nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    
+    __table_args__ = (
+        Index('ix_phishing_form_url_action', 'url', 'action_url', unique=True),
+        Index('ix_phishing_form_domain', 'domain'),
+        Index('ix_phishing_form_created', 'created_at'),
+    )
+
+
 # =========================================================
 # SİBER MAĞDURİYET ATLASI — YENİ MODELLER
 # =========================================================

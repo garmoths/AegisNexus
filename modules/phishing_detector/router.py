@@ -6,6 +6,7 @@ import uuid
 import logging
 import hmac
 import os
+import requests
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from typing import Any
@@ -16,7 +17,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from sqlalchemy import case, event, func
+from sqlalchemy import case, event, func, or_
 from sqlalchemy import inspect, text
 from sqlalchemy.exc import SQLAlchemyError
 try:
@@ -25,7 +26,7 @@ except ImportError:  # pragma: no cover - optional runtime dependency
     redis = None
 
 from shared.utils.db import get_db
-from app.models import PhishingURL, WhitelistDomain
+from app.models import IndicatorOfCompromise, PhishingURL, WhitelistDomain, PhishingForm, URLAnalizHistory
 from app.security import require_admin_api_key
 from .scanner import calculate_safety_score
 from .url_normalize import normalize_url_record
@@ -57,6 +58,8 @@ REPORT_RATE_LIMIT_PER_MINUTE = 10
 REPORT_RATE_LIMIT_WINDOW_SECONDS = 60
 VERIFY_RATE_LIMIT_PER_HOUR = 2
 VERIFY_RATE_LIMIT_WINDOW_SECONDS = 3600
+REPORT_FORM_RATE_LIMIT_PER_MINUTE = 20
+REPORT_FORM_RATE_LIMIT_WINDOW_SECONDS = 60
 MAX_VERIFY_DOMAINS = 500
 VALID_REPORT_REASONS = {"phishing", "malware", "scam", "spam", "other"}
 REDIS_ERRORS = (redis.RedisError,) if redis else ()
@@ -64,6 +67,8 @@ REPORT_SCHEMA_READY = False
 WHITELIST_SCHEMA_READY = False
 WHITELIST_EVENTS_READY = False
 DOMAIN_RE = re.compile(r"^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$")
+DNS_CLOUDFLARE_DOH_URL = (os.getenv("DNS_CLOUDFLARE_DOH_URL") or "https://cloudflare-dns.com/dns-query").strip()
+DNS_QUAD9_DOH_URL = (os.getenv("DNS_QUAD9_DOH_URL") or "https://dns.quad9.net/dns-query").strip()
 
 
 def _get_redis_client() -> Any | None:
@@ -343,6 +348,18 @@ def _normalize_domain(domain: str) -> str:
     return str(domain or "").strip().lower().strip(".")
 
 
+def _query_doh_provider(endpoint: str, domain: str, timeout: int = 5) -> bool:
+    response = requests.get(
+        f"{endpoint}?name={domain}&type=A",
+        headers={"Accept": "application/dns-json"},
+        timeout=timeout,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    status = payload.get("Status")
+    return status in {2, 5}  # SERVFAIL, REFUSED
+
+
 def _validate_verify_domains_payload(payload: dict[str, Any]) -> list[str]:
     domains = payload.get("domains")
     if not isinstance(domains, list):
@@ -450,6 +467,79 @@ def _check_verify_rate_limit(redis_client: Any | None, client_ip: str) -> bool:
         return True
 
 
+def _check_report_form_rate_limit(redis_client: Any | None, client_ip: str) -> bool:
+    if redis_client is None:
+        return True
+    key = f"rate:report-form:{client_ip}"
+    try:
+        count = redis_client.incr(key)
+        if count == 1:
+            redis_client.expire(key, REPORT_FORM_RATE_LIMIT_WINDOW_SECONDS)
+        return int(count) <= REPORT_FORM_RATE_LIMIT_PER_MINUTE
+    except REDIS_ERRORS as exc:
+        logger.warning("Report-form rate-limit unavailable: %s", exc)
+        return True
+
+
+def _validate_report_form_payload(payload: dict[str, Any]) -> tuple[str, str, dict[str, Any]]:
+    """
+    Validates phishing form report payload.
+    Returns: (url, domain, form_data)
+    """
+    raw_url = str(payload.get("url") or "").strip()
+    domain = str(payload.get("domain") or "").strip()
+    form_data = payload.get("form_data")
+    
+    # Validate url
+    if not raw_url:
+        raise ValueError("url zorunlu")
+    if len(raw_url) > 2048:
+        raise ValueError("url en fazla 2048 karakter olabilir")
+    
+    # Validate domain
+    if not domain:
+        raise ValueError("domain zorunlu")
+    if len(domain) > 512:
+        raise ValueError("domain en fazla 512 karakter olabilir")
+    
+    # Validate form_data
+    if not isinstance(form_data, dict):
+        raise ValueError("form_data zorunlu ve object olmalı")
+    
+    action_url = form_data.get("action_url")
+    if action_url is not None:
+        action_url = str(action_url).strip()
+        if len(action_url) > 2000:
+            raise ValueError("action_url en fazla 2000 karakter olabilir")
+    
+    field_types = form_data.get("field_types")
+    if not isinstance(field_types, list):
+        raise ValueError("field_types array olmalı")
+    for item in field_types:
+        if not isinstance(item, str):
+            raise ValueError("field_types sadece string değerler içermeli")
+    
+    risk_score = form_data.get("risk_score")
+    if not isinstance(risk_score, int):
+        raise ValueError("risk_score zorunlu ve integer olmalı")
+    if risk_score < 0 or risk_score > 100:
+        raise ValueError("risk_score 0-100 aralığında olmalı")
+    
+    flags = form_data.get("flags")
+    if not isinstance(flags, list):
+        raise ValueError("flags array olmalı")
+    for item in flags:
+        if not isinstance(item, str):
+            raise ValueError("flags sadece string değerler içermeli")
+    
+    return raw_url, domain, {
+        "action_url": action_url,
+        "field_types": field_types,
+        "risk_score": risk_score,
+        "flags": flags
+    }
+
+
 @router.get("/export-domains")
 def export_domains(
     x_aegisnexus_key: str | None = Header(default=None, alias="X-AegisNexus-Key"),
@@ -548,6 +638,88 @@ def report_url(payload: dict[str, Any], request: Request, db: Session = Depends(
         return _json_error(500, "Sunucu hatası")
 
 
+@router.post("/report-form")
+def report_form(payload: dict[str, Any], request: Request, db: Session = Depends(get_db)):
+    """
+    Report a phishing form detected on a page.
+    
+    Body:
+    {
+        "url": "https://example.com/phishing",
+        "domain": "example.com",
+        "form_data": {
+            "action_url": "https://attacker.com/steal",
+            "field_types": ["password", "credit_card"],
+            "risk_score": 85,
+            "flags": ["form-has-password", "form-action-different-domain"]
+        }
+    }
+    """
+    if not isinstance(payload, dict):
+        return _json_error(400, "Geçersiz JSON body")
+    
+    try:
+        raw_url, domain, form_data = _validate_report_form_payload(payload)
+    except ValueError as exc:
+        return _json_error(400, str(exc))
+    
+    # Get client IP for rate limiting
+    client_ip = _extract_client_ip(request)
+    redis_client = _get_redis_client()
+    
+    # Check rate limit: 20 requests/minute per IP
+    if not _check_report_form_rate_limit(redis_client, client_ip):
+        return _json_error(
+            429,
+            "Çok fazla form raporu gönderdiniz, lütfen bekleyin",
+            headers={"Retry-After": str(REPORT_FORM_RATE_LIMIT_WINDOW_SECONDS)},
+        )
+    
+    now = datetime.now(timezone.utc)
+    try:
+        action_url = form_data.get("action_url")
+        
+        # Check for duplicate: same url + action_url combination
+        if action_url:
+            existing = db.query(PhishingForm).filter(
+                PhishingForm.url == raw_url,
+                PhishingForm.action_url == action_url
+            ).first()
+        else:
+            existing = db.query(PhishingForm).filter(
+                PhishingForm.url == raw_url
+            ).first()
+        
+        if existing:
+            # Increment detection count and update timestamp
+            existing.detection_count = int(existing.detection_count or 1) + 1
+            existing.updated_at = now
+            db.commit()
+            return {"success": True, "message": "Form raporu alındı"}
+        
+        # Create new form report
+        new_report = PhishingForm(
+            url=raw_url,
+            domain=domain,
+            action_url=action_url,
+            field_types=form_data.get("field_types", []),
+            risk_score=form_data.get("risk_score"),
+            flags=form_data.get("flags", []),
+            reported_by="extension",
+            detection_count=1,
+            status="pending_review",
+            created_at=now,
+            updated_at=now
+        )
+        db.add(new_report)
+        db.commit()
+        return {"success": True, "message": "Form raporu alındı"}
+    except SQLAlchemyError as exc:
+        db.rollback()
+        logger.error("Form report save failed: %s", exc)
+        return _json_error(500, "Sunucu hatası")
+
+
 @whitelist_router.post("/verify-user")
 def verify_user_whitelist(payload: dict[str, Any], request: Request, db: Session = Depends(get_db)):
     if not isinstance(payload, dict):
@@ -621,6 +793,13 @@ class SiteAddRequest(BaseModel):
 
 class URLCheckRequest(BaseModel):
     url: str
+    domain: str | None = None
+    local_score: float | None = None
+    risk_level: str | None = None
+    flags: list[str] = []
+    dns: dict[str, Any] | None = None
+    gsb: dict[str, Any] | None = None
+    bloom: dict[str, Any] | None = None
     force_fresh: bool = False
     db_only: bool = False
 
@@ -630,6 +809,19 @@ class URLCheckResponse(BaseModel):
     score: float
     threat_level: str
     details: dict
+
+
+class FormDataRequest(BaseModel):
+    action_url: str | None = None
+    field_types: list[str] = []
+    risk_score: int
+    flags: list[str] = []
+
+
+class PhishingFormReportRequest(BaseModel):
+    url: str
+    domain: str
+    form_data: FormDataRequest
 
 
 # Rate limiting decorator
@@ -730,6 +922,19 @@ def _build_db_only_result(requested_url: str, db: Session) -> dict[str, Any]:
     }
 
 
+def _score_to_risk_level(score: float) -> str:
+    safe_score = max(0, min(100, int(score)))
+    if safe_score <= 20:
+        return "SAFE"
+    if safe_score <= 40:
+        return "LOW"
+    if safe_score <= 60:
+        return "MEDIUM"
+    if safe_score <= 80:
+        return "HIGH"
+    return "CRITICAL"
+
+
 @router.post("/add-site")
 def add_site(
     item: SiteAddRequest,
@@ -772,6 +977,102 @@ def add_site(
         raise HTTPException(status_code=500, detail="Kayıt hatası")
 
 
+def _write_analiz_history(db: Session, url: str, result: dict[str, Any]) -> None:
+    try:
+        parsed = urlparse(url)
+        domain = (parsed.hostname or "").strip().lower()
+        if not domain:
+            return
+
+        risk_level = str(result.get("risk_level", "unknown")).lower()
+        is_phishing = risk_level in {"high", "critical"}
+        confidence = min(result.get("score", 0) / 100.0, 1.0) if result.get("score") else None
+
+        record = URLAnalizHistory(
+            url=url,
+            domain=domain,
+            risk_level=risk_level,
+            is_phishing=is_phishing,
+            confidence=confidence,
+            analysis_result=result,
+            url_checks=result.get("details") if isinstance(result.get("details"), (list, dict)) else None,
+        )
+        db.add(record)
+        db.commit()
+    except SQLAlchemyError as exc:
+        db.rollback()
+        logger.warning("URLAnalizHistory write failed: %s", exc)
+
+
+@router.get("/analysis-history")
+def get_analysis_history(domain: str, limit: int = 5, db: Session = Depends(get_db)):
+    """Bir domain'in geçmiş analiz sonuçlarını döndür."""
+    if not domain:
+        raise HTTPException(status_code=400, detail="domain parametresi zorunlu")
+    limit = max(1, min(limit, 50))
+
+    try:
+        rows = (
+            db.query(URLAnalizHistory)
+            .filter(func.lower(URLAnalizHistory.domain) == domain.strip().lower())
+            .order_by(URLAnalizHistory.created_at.desc())
+            .limit(limit)
+            .all()
+        )
+
+        results = [
+            {
+                "url": row.url,
+                "domain": row.domain,
+                "risk_level": row.risk_level,
+                "is_phishing": row.is_phishing,
+                "confidence": row.confidence,
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+            }
+            for row in rows
+        ]
+
+        return {
+            "success": True,
+            "domain": domain.strip().lower(),
+            "count": len(results),
+            "results": results,
+            "module": "01_phishing_detector",
+        }
+    except SQLAlchemyError as exc:
+        logger.error("Analysis history query failed: %s", exc)
+        return _json_error(500, "Sunucu hatası")
+
+
+@router.get("/dns-check")
+def dns_check(domain: str):
+    normalized_domain = _normalize_domain(domain)
+    if not normalized_domain:
+        raise HTTPException(status_code=400, detail="domain parametresi zorunlu")
+
+    cloudflare_blocked = False
+    quad9_blocked = False
+
+    try:
+        cloudflare_blocked = _query_doh_provider(DNS_CLOUDFLARE_DOH_URL, normalized_domain)
+    except Exception as exc:
+        logger.warning("Cloudflare DNS check failed for %s: %s", normalized_domain, exc)
+
+    try:
+        quad9_blocked = _query_doh_provider(DNS_QUAD9_DOH_URL, normalized_domain)
+    except Exception as exc:
+        logger.warning("Quad9 DNS check failed for %s: %s", normalized_domain, exc)
+
+    return {
+        "domain": normalized_domain,
+        "cloudflare_blocked": cloudflare_blocked,
+        "quad9_blocked": quad9_blocked,
+        "consensus_blocked": cloudflare_blocked and quad9_blocked,
+        "source": "external_dns",
+        "module": "01_phishing_detector",
+    }
+
+
 @router.post("/check-url")
 @rate_limit(max_requests=60, time_window=60)
 def check_url(request: URLCheckRequest, db: Session = Depends(get_db)):
@@ -801,6 +1102,7 @@ def check_url(request: URLCheckRequest, db: Session = Depends(get_db)):
                 raw_data=db_result,
                 track_event=True,
             )
+            _write_analiz_history(db, requested_url, db_result)
             db_result["module"] = "01_phishing_detector"
             return db_result
         
@@ -825,12 +1127,105 @@ def check_url(request: URLCheckRequest, db: Session = Depends(get_db)):
                     raw_data=cached_result,
                     track_event=True,
                 )
+                _write_analiz_history(db, requested_url, cached_result)
                 cached_result["module"] = "01_phishing_detector"
                 cached_result["cache"] = "30d-hit"
                 logger.info(f"Cache hit: {requested_url} - Skor: {cached_result.get('score')}")
                 return cached_result
 
-        result = calculate_safety_score(requested_url, db)
+        if request.local_score is not None:
+            local_score = float(request.local_score or 0)
+            local_score = max(0.0, min(100.0, local_score))
+            merged_flags = [str(flag) for flag in (request.flags or []) if str(flag).strip()]
+
+            db_result = _build_db_only_result(requested_url, db)
+            db_details = [str(item) for item in db_result.get("details", [])]
+            db_sources = db_result.get("sources", [])
+            db_hit = "db_miss" not in db_details
+
+            score = local_score
+            if db_hit:
+                score = max(score, float(db_result.get("score", 0) or 0))
+                merged_flags.append("db-match")
+
+            if request.dns and isinstance(request.dns, dict):
+                dns = request.dns
+                if dns.get("consensus_blocked"):
+                    score = min(100.0, score + 40)
+                elif dns.get("cloudflare_blocked") or dns.get("quad9_blocked"):
+                    score = min(100.0, score + 20)
+            if request.gsb and isinstance(request.gsb, dict) and request.gsb.get("threat_found"):
+                score = min(100.0, max(score, 90.0))
+                merged_flags.append("gsb-threat")
+
+            normalized_score = max(0, min(100, int(round(score))))
+            risk_level = _score_to_risk_level(normalized_score)
+            result = {
+                "status": "ok",
+                "url": requested_url,
+                "domain": request.domain or _normalize_domain(urlparse(requested_url).hostname or ""),
+                "score": normalized_score,
+                "risk_level": risk_level,
+                "flags": sorted(set(merged_flags)),
+                "is_phishing": bool(db_hit or normalized_score >= 60),
+                "source": "server",
+                "dns": request.dns or {},
+                "gsb": request.gsb or {},
+                "bloom": request.bloom or {},
+                "decision": "block" if normalized_score >= 80 else "suspicious" if normalized_score >= 40 else "safe",
+                "details": db_details if db_hit else ["local_only"],
+                "sources": db_sources if db_hit else [{"name": "local_payload", "status": "used"}],
+            }
+        else:
+            result = calculate_safety_score(requested_url, db)
+            
+            # DNS kontrolleri (Quad9/Cloudflare) - backend'de score'a ekle
+            try:
+                domain_to_check = urlparse(requested_url).netloc.split(":")[0] or ""
+                if domain_to_check:
+                    cloudflare_blocked = False
+                    quad9_blocked = False
+                    
+                    try:
+                        cloudflare_blocked = _query_doh_provider(DNS_CLOUDFLARE_DOH_URL, domain_to_check)
+                    except Exception as e:
+                        logger.warning(f"Cloudflare DNS check failed: {e}")
+                    
+                    try:
+                        quad9_blocked = _query_doh_provider(DNS_QUAD9_DOH_URL, domain_to_check)
+                    except Exception as e:
+                        logger.warning(f"Quad9 DNS check failed: {e}")
+                    
+                    if cloudflare_blocked and quad9_blocked:
+                        result["score"] = min(100, result.get("score", 0) + 40)
+                        if "details" not in result:
+                            result["details"] = []
+                        result["details"].append("🚨 DNS: Hem Cloudflare hem Quad9 tarafından engellendi")
+                        if "sources" not in result:
+                            result["sources"] = []
+                        result["sources"].append({"name": "DNS Filtering", "status": "Consensus Blocked"})
+                    elif cloudflare_blocked or quad9_blocked:
+                        result["score"] = min(100, result.get("score", 0) + 20)
+                        blocked_by = []
+                        if cloudflare_blocked:
+                            blocked_by.append("Cloudflare")
+                        if quad9_blocked:
+                            blocked_by.append("Quad9")
+                        if "details" not in result:
+                            result["details"] = []
+                        result["details"].append(f"⚠️ DNS: {', '.join(blocked_by)} tarafından engellendi")
+                        if "sources" not in result:
+                            result["sources"] = []
+                        result["sources"].append({"name": "DNS Filtering", "status": "Provider Blocked"})
+                    result["dns"] = {
+                        "cloudflare_blocked": cloudflare_blocked,
+                        "quad9_blocked": quad9_blocked,
+                        "consensus_blocked": cloudflare_blocked and quad9_blocked,
+                        "source": "external_dns",
+                    }
+            except Exception as e:
+                logger.warning(f"DNS check failed for {requested_url}: {e}")
+        
         sources = []
         for src in result.get("sources", []):
             if isinstance(src, dict):
@@ -846,6 +1241,7 @@ def check_url(request: URLCheckRequest, db: Session = Depends(get_db)):
             raw_data=result,
             track_event=True,
         )
+        _write_analiz_history(db, requested_url, result)
         result["module"] = "01_phishing_detector"
         logger.info(f"URL kontrol yapıldı: {requested_url} - Skor: {result.get('score')}")
         return result
@@ -897,6 +1293,67 @@ def get_stats(db: Session = Depends(get_db)):
         }
     except Exception:
         return {"stats": {"total_urls": 0, "phishing_count": 0, "safe_count": 0, "today_scans": 0}, "module": "01_phishing_detector"}
+
+
+@router.get("/stats-summary")
+def get_stats_summary(db: Session = Depends(get_db)):
+    """Tek istekte phishing, whitelist, IOC ve form özet istatistiklerini döndür."""
+    phishing_url_count = db.query(func.count(PhishingURL.id)).scalar() or 0
+    phishing_url_online_count = (
+        db.query(func.count(PhishingURL.id))
+        .filter(
+            or_(
+                PhishingURL.online.is_(True),
+                func.lower(PhishingURL.status).in_(["online", "active"]),
+            )
+        )
+        .scalar()
+        or 0
+    )
+    whitelist_domain_count = db.query(func.count(WhitelistDomain.id)).scalar() or 0
+
+    active_ioc_filter = or_(
+        IndicatorOfCompromise.status == "active",
+        IndicatorOfCompromise.status.is_(None),
+    )
+    ioc_active_count = (
+        db.query(func.count(IndicatorOfCompromise.id))
+        .filter(active_ioc_filter)
+        .scalar()
+        or 0
+    )
+
+    ioc_by_type = {"ip": 0, "domain": 0, "url": 0, "hash": 0}
+    ioc_type_rows = (
+        db.query(
+            func.lower(IndicatorOfCompromise.ioc_type).label("ioc_type"),
+            func.count(IndicatorOfCompromise.id).label("count"),
+        )
+        .filter(active_ioc_filter)
+        .group_by(func.lower(IndicatorOfCompromise.ioc_type))
+        .all()
+    )
+    for row in ioc_type_rows:
+        ioc_type = str(row.ioc_type or "").strip().lower()
+        if ioc_type in ioc_by_type:
+            ioc_by_type[ioc_type] = int(row.count or 0)
+
+    form_pending_review_count = (
+        db.query(func.count(PhishingForm.id))
+        .filter(PhishingForm.status == "pending_review")
+        .scalar()
+        or 0
+    )
+
+    return {
+        "phishing_url_count": int(phishing_url_count),
+        "phishing_url_online_count": int(phishing_url_online_count),
+        "whitelist_domain_count": int(whitelist_domain_count),
+        "ioc_active_count": int(ioc_active_count),
+        "ioc_by_type": ioc_by_type,
+        "form_pending_review_count": int(form_pending_review_count),
+        "last_updated": datetime.now(timezone.utc).isoformat(),
+    }
 
 
 @router.get("/latest-paged")
@@ -1211,3 +1668,40 @@ def perform_cleanup(days: int = 30, unscanned: bool = True, no_sources: bool = F
             },
             "module": "01_phishing_detector"
         }
+
+
+@router.get("/stats-summary")
+def get_stats_summary(db: Session = Depends(get_db)):
+    """Veritabanı özet istatistikleri — extension popup için."""
+    try:
+        phishing_count = db.query(func.count(PhishingURL.id)).scalar() or 0
+        phishing_online = db.query(func.count(PhishingURL.id)).filter(PhishingURL.online == True).scalar() or 0
+        whitelist_count = db.query(func.count(WhitelistDomain.id)).scalar() or 0
+        ioc_active = db.query(func.count(IndicatorOfCompromise.id)).filter(
+            or_(IndicatorOfCompromise.status == "active", IndicatorOfCompromise.status.is_(None))
+        ).scalar() or 0
+
+        ioc_by_type_rows = (
+            db.query(IndicatorOfCompromise.ioc_type, func.count(IndicatorOfCompromise.id))
+            .filter(or_(IndicatorOfCompromise.status == "active", IndicatorOfCompromise.status.is_(None)))
+            .group_by(IndicatorOfCompromise.ioc_type)
+            .all()
+        )
+        ioc_by_type = {row[0]: row[1] for row in ioc_by_type_rows if row[0]}
+
+        form_pending = db.query(func.count(PhishingForm.id)).filter(
+            PhishingForm.status == "pending_review"
+        ).scalar() or 0
+
+        return {
+            "phishing_url_count": phishing_count,
+            "phishing_url_online_count": phishing_online,
+            "whitelist_domain_count": whitelist_count,
+            "ioc_active_count": ioc_active,
+            "ioc_by_type": ioc_by_type,
+            "form_pending_review_count": form_pending,
+            "last_updated": datetime.now(timezone.utc).isoformat(),
+        }
+    except Exception as e:
+        logger.error("Stats summary error: %s", e)
+        raise HTTPException(status_code=500, detail="Stats query failed")

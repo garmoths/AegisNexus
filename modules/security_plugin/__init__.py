@@ -19,6 +19,11 @@ Katman 2 — External API (~3-5sn):
   - dns_check.js    : Cloudflare Security DNS + Quad9 DNS-over-HTTPS
   - gsb_check.js    : Google Safe Browsing v4 Lookup API
 
+Katman 2.5 — IOC Entegrasyonu:
+  - service_worker.js → GET /api/v2/ioc/check-ip?ip={ip}
+  - IndicatorOfCompromise tablosundan IP itibar kontrolü
+  - malicious: +30 puan, c2_server: +40 puan + CRITICAL
+
 Katman 3 — AegisNexus Sunucu:
   - service_worker.js → POST /api/v2/phishing/check-url
 
@@ -86,6 +91,16 @@ bulunmalıdır:
    - Yanıt: { "results": [{ "domain": str, "is_safe": bool, "reason": str }] }
    - Personal whitelist doğrulama
 
+7. GET /api/v2/ioc/check-ip
+   - Query: ?ip={ip}
+   - Yanıt: { "data": { "malicious": bool, "is_c2_server": bool, "threat_types": [str], "confidence": int } }
+   - IOC katmanı: IP itibar kontrolü (Katman 2.5)
+
+8. GET /api/v2/phishing/analysis-history
+   - Query: ?domain={domain}&limit={int}
+   - Yanıt: { "results": [{ "url": str, "risk_level": str, "is_phishing": bool, "confidence": float, "created_at": str }] }
+   - Bir domain'in geçmiş analiz sonuçları (URLAnalizHistory tablosu)
+
 ============================================================
 CHROME API GEREKSİNİMLERİ
 ============================================================
@@ -115,6 +130,7 @@ DAHİLİ DEPOLAMA ANAHTARLARI (chrome.storage.local)
   bloom_data             : Bloom filtresi bit array verisi
   stats                  : { scanned, risky, notifications, lastRiskUrl }
   lastScan               : Son tarama sonucu
+  lastFormScan           : Son form tarama sonucu (form_count, highest_risk_score, flags, suspicious_forms)
 """
 
 # Bu modül Python çalıştırılabilir kodu içermez.

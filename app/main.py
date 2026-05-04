@@ -32,6 +32,7 @@ from modules import (
     victim_atlas_router,         # 06 - Magduriyet Atlasi
 )
 from modules.honeypot.ioc_api import router as honeypot_ioc_router
+from modules.phishing_detector.router import whitelist_router
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
 logger = logging.getLogger("aegis")
@@ -112,6 +113,7 @@ app.include_router(breach_intel_router, prefix="/api/v2/breach")
 app.include_router(password_shield_router, prefix="/api/v2/shield")
 app.include_router(ai_analyzer_router, prefix="/api/v2/ai-analyzer")
 app.include_router(victim_atlas_router, prefix="/api/v2/victim-atlas")
+app.include_router(whitelist_router, prefix="/api/v2/whitelist")
 app.include_router(auth_router, prefix="/api/v2/auth")
 app.include_router(reports_router, prefix="/api/v2/reports")
 app.include_router(subscription_router, prefix="/api/v2/subscription")

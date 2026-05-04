@@ -9,6 +9,7 @@ from __future__ import annotations
 import ipaddress
 from datetime import datetime, timedelta
 from typing import Dict, List, Set
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -38,6 +39,16 @@ def _is_valid_ip(value: str) -> bool:
         return False
 
 
+def _normalize_domain(value: str) -> str:
+    raw = (value or "").strip().lower()
+    if not raw:
+        return ""
+
+    parsed = urlparse(raw if "://" in raw else f"//{raw}")
+    host = (parsed.hostname or parsed.path or "").strip().lower().rstrip(".")
+    return host
+
+
 def _lookup_local_ioc(db: Session, value: str) -> Dict:
     row = (
         db.query(IndicatorOfCompromise)
@@ -58,6 +69,66 @@ def _lookup_local_ioc(db: Session, value: str) -> Dict:
         "type": row.threat_type,
         "risk_score": row.risk_score,
         "source": row.source,
+    }
+
+
+@router.get("/check-domain")
+async def check_domain_reputation(domain: str, db: Session = Depends(get_db)):
+    normalized_domain = _normalize_domain(domain)
+    if not normalized_domain or "." not in normalized_domain:
+        raise HTTPException(status_code=400, detail="Geçersiz domain")
+
+    active_filter = or_(
+        IndicatorOfCompromise.status == "active",
+        IndicatorOfCompromise.status.is_(None),
+    )
+
+    domain_rows = (
+        db.query(IndicatorOfCompromise)
+        .filter(
+            IndicatorOfCompromise.ioc_type == "domain",
+            IndicatorOfCompromise.ioc_value == normalized_domain,
+            active_filter,
+        )
+        .all()
+    )
+
+    url_rows = (
+        db.query(IndicatorOfCompromise)
+        .filter(
+            IndicatorOfCompromise.ioc_type == "url",
+            active_filter,
+            or_(
+                IndicatorOfCompromise.ioc_value.ilike(f"http://{normalized_domain}%"),
+                IndicatorOfCompromise.ioc_value.ilike(f"https://{normalized_domain}%"),
+                IndicatorOfCompromise.ioc_value.ilike(f"ftp://{normalized_domain}%"),
+                IndicatorOfCompromise.ioc_value.ilike(f"{normalized_domain}%"),
+            ),
+        )
+        .all()
+    )
+
+    matched_rows = domain_rows + url_rows
+    if not matched_rows:
+        return {
+            "found": False,
+            "malicious": False,
+            "risk_score": 0,
+            "threat_types": [],
+            "confidence": 0.0,
+            "sources": [],
+        }
+
+    risk_score = max(int(r.risk_score or 0) for r in matched_rows)
+    confidence = max(float(r.confidence or 0.0) for r in matched_rows)
+
+    return {
+        "found": True,
+        "malicious": risk_score >= 40 or confidence >= 0.4,
+        "risk_score": risk_score,
+        "threat_types": sorted({str(r.threat_type) for r in matched_rows if r.threat_type}),
+        "confidence": confidence,
+        "sources": sorted({str(r.source) for r in matched_rows if r.source}),
     }
 
 

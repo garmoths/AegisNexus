@@ -1,10 +1,11 @@
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => e.waitUntil(clients.claim()));
 
-import { analyzeURL } from "../utils/heuristic.js";
 import { BloomFilter } from "../utils/bloom_filter.js";
-import { checkDomainViaDNS } from "../utils/dns_check.js";
 import { addToPersonalWhitelist, removeFromPersonalWhitelist, initializeWhitelistRefresh, isWhitelisted } from "../utils/whitelist.js";
+import { analyzeURL } from "../utils/heuristic.js";
+import { checkDomainViaDNS } from "../utils/dns_check.js";
+import { checkURL as checkGoogleSafeBrowsing } from "../utils/gsb_check.js";
 
 const DOMAIN_CACHE_KEY = "domain_cache";
 const DOMAIN_CACHE_TTL_MS = 86400000; // 24h
@@ -25,6 +26,17 @@ function getRiskLevel(score) {
   if (score <= 60) return "MEDIUM";
   if (score <= 80) return "HIGH";
   return "CRITICAL";
+}
+
+function normalizeServerRiskLevel(value, fallbackScore = 0) {
+  const level = String(value || "").toLowerCase();
+  if (!level) return getRiskLevel(fallbackScore);
+  if (level.includes("critical") || level.includes("çok tehlikeli")) return "CRITICAL";
+  if (level.includes("high") || level.includes("tehlikeli")) return "HIGH";
+  if (level.includes("medium") || level.includes("riskli") || level.includes("şüpheli") || level.includes("supheli")) return "MEDIUM";
+  if (level.includes("low")) return "LOW";
+  if (level.includes("safe") || level.includes("güvenli") || level.includes("guvenli")) return "SAFE";
+  return getRiskLevel(fallbackScore);
 }
 
 function uniqueFlags(flags) {
@@ -79,23 +91,39 @@ async function writeDomainCache(cache) {
   await chrome.storage.local.set({ [DOMAIN_CACHE_KEY]: cache });
 }
 
-async function getCachedDomainResult(domain) {
+function buildDomainCacheKey(domain, url) {
+  const normalizedDomain = normalizeDomain(domain);
+  const rawUrl = String(url || "").trim();
+  if (!rawUrl) return normalizedDomain;
+  try {
+    const parsed = new URL(rawUrl);
+    const normalizedUrl = `${parsed.protocol}//${parsed.host}${parsed.pathname}${parsed.search}`;
+    return `${normalizedDomain}::${normalizedUrl}`;
+  } catch {
+    return `${normalizedDomain}::${rawUrl}`;
+  }
+}
+
+async function getCachedDomainResult(domain, url) {
   const cache = await readDomainCache();
-  const entry = cache[domain];
+  const cacheKey = buildDomainCacheKey(domain, url);
+  const entry = cache[cacheKey];
+
   if (!entry || typeof entry !== "object") return null;
 
   const cachedAt = Number(entry.cachedAt || 0);
   if (!cachedAt || Date.now() - cachedAt > DOMAIN_CACHE_TTL_MS) {
-    delete cache[domain];
+    delete cache[cacheKey];
     await writeDomainCache(cache);
     return null;
   }
   return entry.result || null;
 }
 
-async function setCachedDomainResult(domain, result) {
+async function setCachedDomainResult(domain, url, result) {
   const cache = await readDomainCache();
-  cache[domain] = {
+  const cacheKey = buildDomainCacheKey(domain, url || result?.url);
+  cache[cacheKey] = {
     cachedAt: Date.now(),
     result,
   };
@@ -139,7 +167,7 @@ function getSafeDnsResult() {
     cloudflare_blocked: false,
     quad9_blocked: false,
     consensus_blocked: false,
-    source: "dns",
+    source: "server_dns",
   };
 }
 
@@ -147,18 +175,28 @@ function getSafeGsbResult() {
   return {
     threat_found: false,
     threat_type: null,
-    source: "gsb",
+    source: "server_gsb",
+    available: false,
   };
 }
 
-async function runLayer3(url, domain) {
+async function runServerUrlCheck(url, domain, options = {}) {
+  const dbOnly = options.dbOnly === true;
+  const forceFresh = options.forceFresh === true;
+  const localPayload = options.localPayload && typeof options.localPayload === "object" ? options.localPayload : {};
   const apiBaseUrl = await getApiBaseUrl();
   const endpoint = `${apiBaseUrl}/api/v2/phishing/check-url`;
   try {
     const response = await fetch(endpoint, {
       method: "POST",
       headers: await getServerRequestHeaders(),
-      body: JSON.stringify({ url, domain, force_fresh: false, db_only: true }),
+      body: JSON.stringify({
+        url,
+        domain,
+        force_fresh: forceFresh,
+        db_only: dbOnly,
+        ...localPayload,
+      }),
     });
 
     let data = null;
@@ -175,6 +213,90 @@ async function runLayer3(url, domain) {
   } catch (error) {
     return {
       requested: true,
+      ok: false,
+      error: String(error),
+    };
+  }
+}
+
+
+async function resolveDomainIP(domain) {
+  try {
+    // Try to resolve domain to IP via DNS API (using chrome extension capabilities)
+    // As a fallback, we'll attempt via fetch (may be blocked by CORS)
+    const response = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(domain)}&type=A`, {
+      headers: { "Accept": "application/dns-json" }
+    });
+    
+    if (!response.ok) return null;
+    
+    const data = await response.json();
+    if (data.Answer && Array.isArray(data.Answer)) {
+      for (const answer of data.Answer) {
+        if (answer.type === 1) { // A record
+          return answer.data;
+        }
+      }
+    }
+    return null;
+  } catch (error) {
+    console.warn(`IP resolution for ${domain} failed:`, error);
+    return null;
+  }
+}
+
+async function checkIOCIP(ip) {
+  const apiBaseUrl = await getApiBaseUrl();
+  const endpoint = `${apiBaseUrl}/api/v2/ioc/check-ip?ip=${encodeURIComponent(ip)}`;
+  try {
+    const response = await fetch(endpoint, {
+      method: "GET",
+      headers: await getServerRequestHeaders(),
+    });
+
+    let data = null;
+    try {
+      data = await response.json();
+    } catch {}
+
+    return {
+      checked: response.ok,
+      ok: response.ok,
+      status: response.status,
+      data,
+    };
+  } catch (error) {
+    return {
+      checked: false,
+      ok: false,
+      error: String(error),
+    };
+  }
+}
+
+async function checkIOCDomain(domain) {
+  const apiBaseUrl = await getApiBaseUrl();
+  const endpoint = `${apiBaseUrl}/api/v2/ioc/check-domain?domain=${encodeURIComponent(domain)}`;
+  try {
+    const response = await fetch(endpoint, {
+      method: "GET",
+      headers: await getServerRequestHeaders(),
+    });
+
+    let data = null;
+    try {
+      data = await response.json();
+    } catch {}
+
+    return {
+      checked: response.ok,
+      ok: response.ok,
+      status: response.status,
+      data,
+    };
+  } catch (error) {
+    return {
+      checked: false,
       ok: false,
       error: String(error),
     };
@@ -218,79 +340,115 @@ async function checkDomain(domain, url, options = {}) {
   }
 
   const forceScan = options.forceScan === true;
-  const cached = forceScan ? null : await getCachedDomainResult(normalizedDomain);
+  const cached = forceScan ? null : await getCachedDomainResult(normalizedDomain, url);
   if (cached && !forceScan) {
     return { ...cached, cache_hit: true };
   }
 
-  const heuristicBase = analyzeURL(url);
-  let score = heuristicBase.score;
-  const flags = [...heuristicBase.flags];
-
   const bloomMatched = isBloomMatch(normalizedDomain);
-  if (bloomMatched) {
-    score += 20;
-    flags.push("bloom-suspect-domain");
-  }
-
-  const [dnsSettled] = await Promise.allSettled([checkDomainViaDNS(normalizedDomain)]);
-  const dnsResult = dnsSettled.status === "fulfilled" ? dnsSettled.value : getSafeDnsResult();
-  const gsbResult = getSafeGsbResult();
-
-  if (dnsResult.consensus_blocked) {
-    score += 40;
-    flags.push("dns-consensus-blocked");
-  } else if (dnsResult.cloudflare_blocked || dnsResult.quad9_blocked) {
-    score += 20;
-    flags.push("dns-provider-blocked");
-  }
-
-  if (gsbResult.threat_found === true) {
-    score += 50;
-    flags.push("gsb-threat");
-  }
-
-  score = Math.min(score, 100);
-  let riskLevel = gsbResult.threat_found === true ? "CRITICAL" : getRiskLevel(score);
-  const shouldRunLayer3 = true;
-  const isSuspicious = !shouldRunLayer3 && score >= 40 && score <= 69;
-
-  let layer3 = { requested: false };
-  if (shouldRunLayer3) {
-    layer3 = await runLayer3(url, normalizedDomain);
-    if (layer3.ok && layer3.data && typeof layer3.data === "object") {
-      const layer3Score = Number(layer3.data.score);
-      if (Number.isFinite(layer3Score)) {
-        score = Math.min(100, Math.max(score, layer3Score));
-      }
-
-      const layer3Risk = String(layer3.data.risk_level || "").toUpperCase();
-      const severity = { SAFE: 0, LOW: 1, MEDIUM: 2, HIGH: 3, CRITICAL: 4 };
-      if (layer3Risk in severity && severity[layer3Risk] > severity[riskLevel]) {
-        riskLevel = layer3Risk;
-      }
+  const [dnsSettled, gsbSettled] = await Promise.allSettled([
+    checkDomainViaDNS(normalizedDomain),
+    checkGoogleSafeBrowsing(url),
+  ]);
+  const dnsResult = dnsSettled.status === "fulfilled" && dnsSettled.value && typeof dnsSettled.value === "object"
+    ? {
+      cloudflare_blocked: Boolean(dnsSettled.value.cloudflare_blocked),
+      quad9_blocked: Boolean(dnsSettled.value.quad9_blocked),
+      consensus_blocked: Boolean(dnsSettled.value.consensus_blocked),
+      source: String(dnsSettled.value.source || "dns"),
     }
-  }
+    : getSafeDnsResult();
+  const gsbResult = gsbSettled.status === "fulfilled" && gsbSettled.value && typeof gsbSettled.value === "object"
+    ? {
+      threat_found: Boolean(gsbSettled.value.threat_found),
+      threat_type: gsbSettled.value.threat_type || null,
+      available: !Boolean(gsbSettled.value.skipped),
+      skipped: Boolean(gsbSettled.value.skipped),
+      source: String(gsbSettled.value.source || "gsb"),
+    }
+    : getSafeGsbResult();
 
-  const result = {
+  const heuristicResult = analyzeURL(url, {
+    bloomMatched,
+    dnsResult,
+    gsbResult,
+  });
+  const localScore = Number.isFinite(Number(heuristicResult.score)) ? Math.max(0, Math.min(100, Number(heuristicResult.score))) : 0;
+  const localFlags = Array.isArray(heuristicResult.flags) ? heuristicResult.flags.map((f) => String(f)) : [];
+  const localRiskLevel = String(heuristicResult.risk_level || getRiskLevel(localScore)).toUpperCase();
+
+  const localResult = {
     domain: normalizedDomain,
     host: normalizedDomain,
     url,
     https: parsedUrl?.protocol === "https:",
-    score,
-    flags: uniqueFlags(flags),
-    risk_level: riskLevel,
+    score: localScore,
+    flags: uniqueFlags(localFlags),
+    risk_level: localRiskLevel,
     cache_hit: false,
-    decision: shouldRunLayer3 ? "layer3_checked" : isSuspicious ? "suspicious" : "safe",
-    heuristic: heuristicBase,
+    decision: "local_fallback",
+    source: "local",
+    is_phishing: localScore >= 60,
+    heuristic: {
+      source: "local",
+      risk_level_raw: localRiskLevel,
+      details: localFlags,
+    },
     bloom: { matched: bloomMatched, source: "bloom" },
     dns: dnsResult,
     gsb: gsbResult,
-    layer3,
   };
 
-  await setCachedDomainResult(normalizedDomain, result);
-  return result;
+  const fullScan = await runServerUrlCheck(url, normalizedDomain, {
+    dbOnly: false,
+    forceFresh: forceScan,
+    localPayload: {
+      local_score: localScore,
+      risk_level: localRiskLevel,
+      flags: localFlags,
+      dns: dnsResult,
+      gsb: gsbResult,
+      bloom: { matched: bloomMatched, source: "bloom" },
+    },
+  });
+
+  if (!fullScan.ok || !fullScan.data || typeof fullScan.data !== "object") {
+    await setCachedDomainResult(normalizedDomain, url, localResult);
+    return localResult;
+  }
+
+  const serverData = fullScan.data?.data && typeof fullScan.data.data === "object" ? fullScan.data.data : fullScan.data;
+  let serverScore = Number(serverData.score ?? localScore);
+  if (!Number.isFinite(serverScore)) serverScore = localScore;
+  serverScore = Math.max(0, Math.min(100, serverScore));
+
+  const serverFlags = Array.isArray(serverData.flags) ? serverData.flags.map((item) => String(item)) : localFlags;
+  const serverRiskLevel = normalizeServerRiskLevel(serverData.risk_level, serverScore);
+  const mergedResult = {
+    domain: normalizedDomain,
+    host: normalizedDomain,
+    url,
+    https: parsedUrl?.protocol === "https:",
+    score: serverScore,
+    flags: uniqueFlags(serverFlags),
+    risk_level: serverRiskLevel,
+    cache_hit: false,
+    decision: String(serverData.decision || "server_merged"),
+    source: String(serverData.source || "server"),
+    is_phishing: Boolean(serverData.is_phishing),
+    heuristic: {
+      source: "local",
+      risk_level_raw: localRiskLevel,
+      details: localFlags,
+    },
+    bloom: serverData.bloom && typeof serverData.bloom === "object" ? serverData.bloom : { matched: bloomMatched, source: "bloom" },
+    dns: serverData.dns && typeof serverData.dns === "object" ? serverData.dns : dnsResult,
+    gsb: serverData.gsb && typeof serverData.gsb === "object" ? serverData.gsb : gsbResult,
+    layer3: fullScan,
+  };
+
+  await setCachedDomainResult(normalizedDomain, url, mergedResult);
+  return mergedResult;
 }
 
 chrome.runtime.onInstalled.addListener(async () => {
@@ -312,10 +470,14 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   });
 });
 
-async function showDomainRiskNotification(domain, riskLevel, score, tabId) {
+async function showDomainRiskNotification(domain, riskLevel, score, tabId, source = "scan") {
   try {
     const dismissedData = await chrome.storage.local.get([`dismissed:${domain}`]);
     if (dismissedData[`dismissed:${domain}`]) return;
+
+    const sourceMessage = source === "database"
+      ? "Bu site veritabanında tehlikeli olarak kayıtlı"
+      : "Bu site tarama sonucu tehlikeli tespit edildi";
 
     const notifId = `aegis-${Date.now()}`;
     await chrome.storage.local.set({
@@ -325,9 +487,9 @@ async function showDomainRiskNotification(domain, riskLevel, score, tabId) {
 
     await chrome.notifications.create(notifId, {
       type: "basic",
-      iconUrl: "icons/icon128.png",
+      iconUrl: chrome.runtime.getURL("icons/icon128.png"),
       title: `⚠️ AegisNexus Shield — ${riskLevel}`,
-      message: `${domain} | Skor: ${score}`,
+      message: `${sourceMessage}\n${domain} | Skor: ${score}`,
       priority: 2,
       buttons: [
         { title: "🔙 Geri Dön" },
@@ -371,7 +533,8 @@ chrome.webNavigation.onCommitted.addListener(async (details) => {
   } catch {
     return;
   }
-
+  
+  console.log("LISTENER TETIKLENDI:", details.url);
   const domain = normalizeDomain(parsed.hostname);
 
   try {
@@ -381,28 +544,29 @@ chrome.webNavigation.onCommitted.addListener(async (details) => {
       lastScan: { ...result, scannedAt: Date.now() }
     });
 
-    if (result.risk_level === "SAFE" || result.risk_level === "LOW") return;
+    const riskLevel = String(result.risk_level || "SAFE").toUpperCase();
+    if (riskLevel === "SAFE" || riskLevel === "LOW") return;
 
-    const dismissedData = await chrome.storage.local.get([`dismissed:${domain}`]);
-    if (dismissedData[`dismissed:${domain}`]) return;
-
-    const notifId = `aegis-${Date.now()}`;
-    await chrome.notifications.create(notifId, {
-      type: "basic",
-      iconUrl: chrome.runtime.getURL("icons/icon128.png"),
-      title: `⚠️ ${result.risk_level} — AegisNexus Shield`,
-      message: `${domain} | Skor: ${result.score}`,
-      priority: 2,
-      buttons: [
-        { title: "🔙 Geri Dön" },
-        { title: "⚠️ Yine de Devam Et" }
-      ]
-    });
-
-    if (result.risk_level === "HIGH" || result.risk_level === "CRITICAL") {
+    const isDbFirstHit = result?.db_fast_path === true;
+    if (isDbFirstHit) {
+      if (riskLevel !== "HIGH" && riskLevel !== "CRITICAL") {
+        return;
+      }
+      await showDomainRiskNotification(domain, riskLevel, result.score, details.tabId, "database");
       chrome.tabs.sendMessage(details.tabId, {
         type: "show_warning",
-        risk_level: result.risk_level,
+        risk_level: riskLevel,
+        score: result.score,
+        flags: result.flags,
+      }).catch(() => {});
+      return;
+    }
+
+    await showDomainRiskNotification(domain, riskLevel, result.score, details.tabId, "scan");
+    if (riskLevel === "HIGH" || riskLevel === "CRITICAL") {
+      chrome.tabs.sendMessage(details.tabId, {
+        type: "show_warning",
+        risk_level: riskLevel,
         score: result.score,
         flags: result.flags,
       }).catch(() => {});
@@ -412,15 +576,6 @@ chrome.webNavigation.onCommitted.addListener(async (details) => {
     console.error("AegisNexus error:", error);
   }
 });
-
-chrome.webRequest.onBeforeRequest.addListener(
-  async (details) => {
-    if (details.type !== "main_frame") return;
-    if (!details.url || !isHttpUrl(details.url)) return;
-    console.log("WEB REQUEST:", details.url);
-  },
-  { urls: ["<all_urls>"] }
-);
 
 async function reportFormToServer(domain, formData) {
   const apiBaseUrl = await getApiBaseUrl();

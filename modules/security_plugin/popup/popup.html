@@ -70,6 +70,29 @@
         </details>
 
         <details class="accordion">
+          <summary>📋 Geçmiş Taramalar</summary>
+          <div class="accordion-content">
+            <div id="analysis-history-list" style="max-height: 200px; overflow-y: auto; font-size: 12px;">
+              <p style="text-align: center; color: #94a3b8;">Yükleniyor...</p>
+            </div>
+            <button id="btn-show-all-history" class="action-btn action-accent" style="margin-top: 8px; font-size: 12px;">
+              📖 Tümünü Göster
+            </button>
+          </div>
+        </details>
+
+        <details class="accordion">
+          <summary>📊 Veritabanı İstatistikleri</summary>
+          <div class="accordion-content">
+            <p>Phishing URL: <strong id="db-phishing-urls">-</strong></p>
+            <p>Whitelist domain: <strong id="db-whitelist-count">-</strong></p>
+            <p>Aktif IOC: <strong id="db-ioc-active">-</strong></p>
+            <p>İnceleme bekleyen form: <strong id="db-form-pending">-</strong></p>
+            <p>Son güncelleme: <strong id="db-last-updated">-</strong></p>
+          </div>
+        </details>
+
+        <details class="accordion">
           <summary>🧾 Form Tespiti</summary>
           <div class="accordion-content">
             <p>Form sayısı: <strong id="form-count">0</strong></p>
@@ -83,6 +106,28 @@
             <ul id="form-field-types" class="flag-list">
               <li>Henüz veri yok</li>
             </ul>
+          </div>
+        </details>
+
+        <details class="accordion">
+          <summary>📋 Geçmiş Taramalar</summary>
+          <div class="accordion-content">
+            <ul id="analysis-history" class="flag-list">
+              <li>Yükleniyor...</li>
+            </ul>
+            <button id="btn-load-more-history" class="action-btn action-accent" style="display:none;margin-top:8px;font-size:11px;padding:4px 10px;">Tümünü Göster</button>
+          </div>
+        </details>
+
+        <details class="accordion">
+          <summary>📊 Veritabanı İstatistikleri</summary>
+          <div class="accordion-content">
+            <p>Phishing URL: <strong id="stat-phishing-count">-</strong> (<strong id="stat-phishing-online">-</strong> online)</p>
+            <p>Whitelist Domain: <strong id="stat-whitelist-count">-</strong></p>
+            <p>Aktif IOC: <strong id="stat-ioc-count">-</strong></p>
+            <ul id="stat-ioc-by-type" class="flag-list" style="font-size:11px;"></ul>
+            <p>İnceleme bekleyen form: <strong id="stat-form-pending">-</strong></p>
+            <p style="font-size:10px;opacity:0.7;">Son güncelleme: <strong id="stat-last-updated">-</strong></p>
           </div>
         </details>
       </section>

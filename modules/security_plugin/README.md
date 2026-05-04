@@ -1,6 +1,6 @@
 # 🛡️ AegisNexus Shield
 
-**AegisNexus Shield**, 3 katmanlı phishing koruması sunan bir Manifest V3 Chrome uzantısıdır: **Local → DNS/GSB → Sunucu**.
+**AegisNexus Shield**, 4 katmanlı phishing koruması sunan bir Manifest V3 Chrome uzantısıdır: **Local → DNS/GSB → IOC → Sunucu**.
 
 ![Manifest V3](https://img.shields.io/badge/Manifest-V3-blue)
 ![Chrome Extension](https://img.shields.io/badge/Chrome-Extension-4285F4)
@@ -12,7 +12,8 @@
 
 1. **Katman 1 (Local):** Heuristic + Bloom Filter (tamamen local, 0ms gecikme)
 2. **Katman 2 (External):** DNS-over-HTTPS (Cloudflare + Quad9) + Google Safe Browsing
-3. **Katman 3 (Sunucu):** AegisNexus API ile derin analiz
+3. **Katman 2.5 (IOC):** IP itibar kontrolü — IndicatorOfCompromise tablosu + ThreatFox + Shodan
+4. **Katman 3 (Sunucu):** AegisNexus API ile derin analiz + URLAnalizHistory kaydı
 
 ```text
 security_plugin/
@@ -25,11 +26,18 @@ security_plugin/
 │   ├── popup.html
 │   ├── popup.css
 │   └── popup.js
+├── options/
+│   ├── options.html
+│   ├── options.css
+│   └── options.js
 └── utils/
     ├── heuristic.js
     ├── bloom_filter.js
     ├── dns_check.js
-    └── gsb_check.js
+    ├── gsb_check.js
+    ├── whitelist.js
+    ├── field_classifier.js
+    └── form_detector.js
 ```
 
 ---
@@ -60,6 +68,17 @@ security_plugin/
 | 6 | GSB'de kayıtlı malware URL | CRITICAL | GSB threat +50 |
 | 7 | `https://subdomain.sub.sub.sub.example.com` | MEDIUM | Subdomain >3 +15, nokta >5 +10 |
 
+### Form Tespiti Test Senaryoları
+
+| # | Test Sayfası | Beklenen Sonuç | Kontrol Edilen Kural |
+|---|---|---|---|
+| F1 | Şifre + farklı domain action'lı form | HIGH | password +30, action-different-domain +40 |
+| F2 | Kredi kartı + CVV alanlı form | CRITICAL | credit_card +40, cvv dahil |
+| F3 | Kimlik (TC/SSN) alanlı form | HIGH | national_id +35 |
+| F4 | HTTP action'lı form + gizli input >3 | MEDIUM | action-http +25, hidden-inputs +15 |
+| F5 | iframe içinde şifre formu | CRITICAL | iframe +30, password +30 |
+| F6 | Basit arama formu (tek text input) | SAFE | Hiçbir risk kuralı tetiklenmez |
+
 ---
 
 ## Geliştirici Notları
@@ -71,6 +90,9 @@ security_plugin/
   ```
 - GSB API Key olmadan Katman 2 kısmen çalışır, DNS kontrolleri aktif kalır.
 - Katman 3 API URL girilmezse sistem Katman 1+2 ile çalışır.
+- IOC katmanı (2.5) domain IP'sini `GET /api/v2/ioc/check-ip` ile kontrol eder; malicious IP +30, C2 sunucu +40 puan ekler.
+- Form tespiti content_script'te `MutationObserver` ile dinamik form eklenmesini izler; HIGH/CRITICAL formlar otomatik raporlanır.
+- `GET /api/v2/phishing/analysis-history?domain=example.com` ile bir domain'in geçmiş tarama sonuçları sorgulanabilir.
 
 ---
 

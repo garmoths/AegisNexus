@@ -38,6 +38,16 @@ const FLAG_ICONS = {
   "gsb-threat": "🛡️",
 };
 
+const RISK_BADGE_EMOJI = {
+  "CRITICAL": "🔴",
+  "HIGH": "🟠",
+  "MEDIUM": "🟡",
+  "LOW": "🟢",
+  "SAFE": "✅",
+};
+const DB_STATS_CACHE_KEY = "db_stats_summary_cache";
+const DB_STATS_CACHE_TTL_MS = 60 * 60 * 1000;
+
 const state = {
   tab: null,
   domain: "",
@@ -224,6 +234,94 @@ function renderFormDetection(formScan) {
   renderFormList("form-field-types", data.field_types || data.suspicious_forms?.flatMap((form) => form.field_types || []));
 }
 
+function riskBadgeHtml(riskLevel) {
+  const level = String(riskLevel || "safe").toUpperCase();
+  const colors = { SAFE: "#22c55e", LOW: "#3b82f6", MEDIUM: "#eab308", HIGH: "#f97316", CRITICAL: "#ef4444" };
+  const color = colors[level] || "#6b7280";
+  return `<span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;background:${color};color:#fff;">${level}</span>`;
+}
+
+function renderAnalysisHistory(data) {
+  const list = byId("analysis-history");
+  const results = Array.isArray(data?.results) ? data.results : [];
+  const btnMore = byId("btn-load-more-history");
+
+  if (results.length === 0) {
+    list.innerHTML = "<li>Bu domain için geçmiş tarama yok</li>";
+    if (btnMore) btnMore.style.display = "none";
+    return;
+  }
+
+  list.innerHTML = results.map((item) => {
+    const date = item.created_at ? new Date(item.created_at).toLocaleString("tr-TR", { dateStyle: "short", timeStyle: "short" }) : "-";
+    const shortUrl = (item.url || "").length > 40 ? item.url.slice(0, 40) + "…" : item.url;
+    return `<li>${riskBadgeHtml(item.risk_level)} ${shortUrl} — ${date}</li>`;
+  }).join("");
+
+  if (btnMore && data.count > results.length) {
+    btnMore.style.display = "inline-block";
+  } else if (btnMore) {
+    btnMore.style.display = "none";
+  }
+}
+
+async function loadAnalysisHistory(limit = 5) {
+  if (!state.domain) return;
+  const stored = await chrome.storage.local.get(["api_base_url"]);
+  const base = String(stored.api_base_url || "http://127.0.0.1:8000").trim().replace(/\/+$/g, "");
+  try {
+    const response = await fetch(`${base}/api/v2/phishing/analysis-history?domain=${encodeURIComponent(state.domain)}&limit=${limit}`);
+    if (!response.ok) return;
+    const data = await response.json();
+    renderAnalysisHistory(data);
+  } catch {
+    byId("analysis-history").innerHTML = "<li>Sunucuya ulaşılamadı</li>";
+  }
+}
+
+function renderDbStats(data) {
+  if (!data) return;
+  byId("stat-phishing-count").textContent = String(data.phishing_url_count ?? "-");
+  byId("stat-phishing-online").textContent = String(data.phishing_url_online_count ?? "-");
+  byId("stat-whitelist-count").textContent = String(data.whitelist_domain_count ?? "-");
+  byId("stat-ioc-count").textContent = String(data.ioc_active_count ?? "-");
+  byId("stat-form-pending").textContent = String(data.form_pending_review_count ?? "-");
+  byId("stat-last-updated").textContent = data.last_updated ? new Date(data.last_updated).toLocaleString("tr-TR", { dateStyle: "short", timeStyle: "short" }) : "-";
+
+  const byType = data.ioc_by_type || {};
+  const typeList = byId("stat-ioc-by-type");
+  const entries = Object.entries(byType);
+  if (entries.length === 0) {
+    typeList.innerHTML = "";
+  } else {
+    typeList.innerHTML = entries.map(([type, count]) => `<li>${type}: ${count}</li>`).join("");
+  }
+}
+
+async function loadDbStats() {
+  const STATS_CACHE_KEY = "db_stats_cache";
+  const STATS_CACHE_TTL = 3600000; // 1 hour
+
+  const cached = await chrome.storage.local.get([STATS_CACHE_KEY]);
+  if (cached[STATS_CACHE_KEY]) {
+    const entry = cached[STATS_CACHE_KEY];
+    if (Date.now() - Number(entry.cachedAt || 0) < STATS_CACHE_TTL) {
+      renderDbStats(entry.data);
+      return;
+    }
+  }
+
+  const stored = await chrome.storage.local.get(["api_base_url"]);
+  const base = String(stored.api_base_url || "http://127.0.0.1:8000").trim().replace(/\/+$/g, "");
+  try {
+    const response = await fetch(`${base}/api/v2/phishing/stats-summary`);
+    if (!response.ok) return;
+    const data = await response.json();
+    renderDbStats(data);
+    await chrome.storage.local.set({ [STATS_CACHE_KEY]: { cachedAt: Date.now(), data } });
+  } catch {}
+}
+
 async function sendRuntimeMessage(message) {
   const response = await chrome.runtime.sendMessage(message);
   if (!response?.ok) throw new Error(response?.error || "Runtime message failed");
@@ -269,8 +367,7 @@ async function addToWhitelist() {
 async function reportDomain() {
   if (!state.domain || !state.url) return;
   const button = byId("btn-report");
-  const stored = await chrome.storage.local.get(["api_base_url"]);
-  const base = String(stored.api_base_url || "http://127.0.0.1:8000").trim().replace(/\/+$/g, "");
+  const base = await getApiBaseUrl();
   const response = await fetch(`${base}/api/v2/phishing/report`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -334,6 +431,13 @@ async function loadStoredSettings() {
   }
 }
 
+async function getApiBaseUrl() {
+  const stored = await chrome.storage.local.get(["api_base_url"]);
+  return String(stored.api_base_url || "http://127.0.0.1:8000").trim().replace(/\/+$/g, "");
+}
+
+
+
 async function initActiveTab() {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   const tab = tabs[0];
@@ -366,6 +470,7 @@ async function loadResult() {
   }
 
   renderFormDetection(formScan);
+  loadAnalysisHistory(5);
 }
 
 function bindActions() {
@@ -384,6 +489,9 @@ function bindActions() {
   byId("btn-save-settings").addEventListener("click", () => {
     saveSettings().catch((error) => console.warn("AegisNexus Shield: save settings failed", error));
   });
+  byId("btn-load-more-history").addEventListener("click", () => {
+    loadAnalysisHistory(20).catch((error) => console.warn("AegisNexus Shield: load more history failed", error));
+  });
 }
 
 async function init() {
@@ -392,6 +500,7 @@ async function init() {
   await initActiveTab();
   await loadStoredSettings();
   await loadResult();
+  await loadDbStats();
 }
 
 init().catch((error) => {
