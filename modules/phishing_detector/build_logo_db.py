@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import sys
+import time
 from io import BytesIO
 from pathlib import Path
 
@@ -65,28 +66,35 @@ LOGOS: dict[str, list[str]] = {
     "whatsapp": [
         "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/WhatsApp.svg/240px-WhatsApp.svg.png",
     ],
-    # Türk bankaları
+    # Türk bankaları (resmi favicon/logo endpoint'leri)
     "ziraat": [
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/7/74/Ziraat_Bankas%C4%B1_logo.svg/320px-Ziraat_Bankas%C4%B1_logo.svg.png",
+        "https://www.ziraatbank.com.tr/SiteAssets/images/logo.png",
+        "https://www.ziraatbank.com.tr/favicon.ico",
     ],
     "garanti": [
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a1/Garanti_BBVA_logo.svg/320px-Garanti_BBVA_logo.svg.png",
+        "https://www.garantibbva.com.tr/content/dam/garanti/logos/logo-garanti-bbva.png",
     ],
     "akbank": [
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/5/53/Akbank_logo.svg/320px-Akbank_logo.svg.png",
+        "https://www.akbank.com/assets/images/akbank-logo.png",
     ],
     "isbank": [
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5d/Is_Bankasi_logo.svg/320px-Is_Bankasi_logo.svg.png",
+        "https://www.isbank.com.tr/assets/images/isbank-logo.png",
     ],
     "vakifbank": [
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/2/29/VakifBank_logo.svg/320px-VakifBank_logo.svg.png",
+        "https://www.vakifbank.com.tr/assets/images/vakifbank-logo.png",
     ],
     "halkbank": [
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d7/Halkbank_logo.svg/320px-Halkbank_logo.svg.png",
+        "https://www.halkbank.com.tr/assets/images/halkbank-logo.png",
+    ],
+    "denizbank": [
+        "https://www.denizbank.com/assets/images/denizbank-logo.png",
     ],
     # Kripto
     "btcturk": [
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/BtcTurk_Logo.png/320px-BtcTurk_Logo.png",
+        "https://btcturk.com/favicon.ico",
+    ],
+    "paribu": [
+        "https://www.paribu.com/favicon.ico",
     ],
 }
 
@@ -130,6 +138,7 @@ def main():
             entry = fetch_and_hash(brand, url)
             if entry:
                 entries.append(entry)
+            time.sleep(1.0)  # rate-limit önlemi
         if entries:
             db[brand] = entries
 
