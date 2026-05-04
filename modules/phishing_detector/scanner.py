@@ -492,6 +492,109 @@ def analyze_domain_structure(domain, raw_input):
 
 
 # =========================================================
+# A2: HIZLI KATMANLAR (~200ms, ağ I/O yok)
+# =========================================================
+def run_quick_checks(input_url: str, db: Session = None) -> dict:
+    """
+    Katman 1-3 + ML: Whitelist → DB → PhishTank → ML.
+    Ağ/Playwright/Gemini çağrısı yapmaz; ~200ms içinde tamamlanır.
+    definitive=True  → kesin sonuç, Celery'ye gerek yok.
+    definitive=False → belirsiz, ağır analiz gerekli.
+    """
+    input_url = (input_url or "").strip()
+    if not input_url.startswith(("http://", "https://")):
+        input_url = "https://" + input_url
+
+    normalized = normalize_url_record(input_url)
+    check_url = normalized.get("canonical_url", input_url)
+    raw_domain = normalized.get("domain_norm", "")
+    parsed = urlparse(check_url)
+    domain = (parsed.netloc or parsed.path or "").lower().replace("www.", "").split(":")[0]
+    if not raw_domain:
+        raw_domain = domain
+
+    # ── Katman 1: Whitelist ──────────────────────────────
+    is_whitelisted = False
+    wl_info = check_whitelist(domain)
+    if wl_info.get("whitelisted"):
+        is_whitelisted = True
+    if not is_whitelisted:
+        if raw_domain in WHITELIST or domain in WHITELIST:
+            is_whitelisted = True
+        if not is_whitelisted:
+            for wl_domain in WHITELIST:
+                if domain == wl_domain or domain.endswith("." + wl_domain):
+                    is_whitelisted = True
+                    break
+        if not is_whitelisted and "." not in raw_domain and raw_domain in WHITELIST_SHORT:
+            is_whitelisted = True
+
+    if is_whitelisted:
+        return {
+            "url": input_url, "safety_score": 100, "score": 100,
+            "risk_level": "✅ Güvenli",
+            "details": ["✅ Güvenilir site listesinde mevcut."],
+            "sources": [{"name": "Whitelist", "status": "✅ Doğrulanmış"}],
+            "risks": [], "definitive": True, "is_whitelisted": True,
+        }
+
+    # ── Katman 2: Internal DB ────────────────────────────
+    if db:
+        url_hash = normalized.get("url_hash")
+        canon = normalized.get("canonical_url")
+        exact = None
+        if url_hash:
+            exact = db.query(PhishingURL).filter(PhishingURL.url_hash == url_hash).first()
+        if exact is None and canon:
+            exact = db.query(PhishingURL).filter(PhishingURL.url == canon).first()
+        if exact:
+            return {
+                "url": input_url, "safety_score": 0, "score": 0,
+                "risk_level": "🚨 ÇOK TEHLİKELİ (DB Kayıtlı)",
+                "details": [f"Tehlikeli site veritabanında tespit edildi! (ID: {exact.phish_id})"],
+                "sources": [{"name": "Internal DB", "status": "TEHDİT 🚨"}],
+                "risks": ["Tehlikeli site veritabanında kayıtlı"],
+                "definitive": True, "is_whitelisted": False,
+            }
+
+    # ── Katman 3: PhishTank ──────────────────────────────
+    if domain in PHISHTANK_DB or raw_domain in PHISHTANK_DB:
+        return {
+            "url": input_url, "safety_score": 0, "score": 0,
+            "risk_level": "🚨 ÇOK TEHLİKELİ (PhishTank)",
+            "details": ["Bu site global kara listede (PhishTank) mevcut!"],
+            "sources": [{"name": "PhishTank", "status": "TEHDİT 🚨"}],
+            "risks": ["PhishTank kara listesinde kayıtlı"],
+            "definitive": True, "is_whitelisted": False,
+        }
+
+    # ── ML sınıflandırma (ağ yok, hızlı) ────────────────
+    preliminary_score = 50
+    ml_source = []
+    try:
+        ml_result = classify_url(input_url)
+        ml_penalty = ml_result.get("ml_penalty", 0)
+        preliminary_score = max(0, min(100, 100 - ml_penalty))
+        if ml_result.get("ml_label"):
+            ml_source = [{"name": "ML Classifier", "status": ml_result["ml_label"]}]
+    except Exception:
+        pass
+
+    return {
+        "url": input_url,
+        "safety_score": preliminary_score,
+        "score": preliminary_score,
+        "risk_level": "⏳ Analiz ediliyor",
+        "details": ["Derin analiz kuyruğa alındı, lütfen bekleyin..."],
+        "sources": ml_source,
+        "risks": [],
+        "definitive": False,
+        "preliminary_score": preliminary_score,
+        "is_whitelisted": False,
+    }
+
+
+# =========================================================
 # ANA ANALİZ FONKSİYONU
 # =========================================================
 def calculate_safety_score(input_url, db: Session = None):

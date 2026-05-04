@@ -2,6 +2,8 @@
 01 - Phishing Detector Module Router
 Tehdit veritabanı, URL tarama ve analiz endpointleri
 """
+import json
+import os
 import uuid
 import logging
 from datetime import datetime, timedelta
@@ -15,7 +17,7 @@ from sqlalchemy import case, func
 from shared.utils.db import get_db
 from app.models import PhishingURL
 from app.security import require_admin_api_key
-from .scanner import calculate_safety_score
+from .scanner import calculate_safety_score, run_quick_checks
 from .url_normalize import normalize_url_record
 from .fetch_all_sources import fetch_all_sources
 from .cache_db import (
@@ -196,28 +198,60 @@ def check_url(request: URLCheckRequest, db: Session = Depends(get_db)):
                     redis_set_scan(url_hash, cached_result)
                 return cached_result
 
-        result = calculate_safety_score(requested_url, db)
-        sources = []
-        for src in result.get("sources", []):
-            if isinstance(src, dict):
-                name = src.get("name")
-                if name:
-                    sources.append(str(name))
-        write_phishing_url(
-            url=requested_url,
-            risk_score=int(result.get("safety_score", result.get("score", 0))),
-            risk_level=str(result.get("risk_level", "unknown")),
-            is_safe=bool(result.get("safety_score", result.get("score", 0)) >= 80),
-            sources=sources,
-            raw_data=result,
-            track_event=True,
-        )
-        result["module"] = "01_phishing_detector"
-        # Yeni tarama sonucunu Redis'e yaz
-        if url_hash:
-            redis_set_scan(url_hash, result)
-        logger.info(f"URL kontrol yapıldı: {requested_url} - Skor: {result.get('score')}")
-        return result
+        # ── A2: Hızlı katmanlar (~200ms) ──────────────────────────────
+        quick = run_quick_checks(requested_url, db)
+
+        if quick.get("definitive"):
+            # Kesin sonuç → direkt dön, Celery gerekmez
+            sources = [s.get("name", "") if isinstance(s, dict) else s for s in quick.get("sources", []) if s]
+            write_phishing_url(
+                url=requested_url,
+                risk_score=int(quick.get("safety_score", 0)),
+                risk_level=str(quick.get("risk_level", "unknown")),
+                is_safe=bool(quick.get("safety_score", 0) >= 80),
+                sources=sources,
+                raw_data=quick,
+                track_event=True,
+            )
+            if url_hash:
+                redis_set_scan(url_hash, quick)
+            quick["module"] = "01_phishing_detector"
+            logger.info(f"Hızlı sonuç (definitive): {requested_url}")
+            return quick
+
+        # ── A2: Belirsiz → ağır analizi Celery kuyruğuna at ─────────────
+        try:
+            from .celery_tasks import run_heavy_analysis
+            job_id = str(uuid.uuid4())
+            run_heavy_analysis.delay(requested_url, job_id)
+            logger.info(f"Celery kuyruğuna alındı: {requested_url} job={job_id}")
+            return {
+                **quick,
+                "status": "analyzing",
+                "job_id": job_id,
+                "cache": "none",
+                "module": "01_phishing_detector",
+                "message": "Derin analiz kuyruğa alındı. /result/{job_id} ile sonucu sorgulayın.",
+            }
+        except Exception as celery_err:
+            # Celery erişilemiyorsa senkron fallback
+            logger.warning(f"Celery kullanılamıyor, senkron fallback: {celery_err}")
+            result = calculate_safety_score(requested_url, db)
+            sources = [s.get("name", "") if isinstance(s, dict) else s for s in result.get("sources", []) if s]
+            write_phishing_url(
+                url=requested_url,
+                risk_score=int(result.get("safety_score", result.get("score", 0))),
+                risk_level=str(result.get("risk_level", "unknown")),
+                is_safe=bool(result.get("safety_score", result.get("score", 0)) >= 80),
+                sources=sources,
+                raw_data=result,
+                track_event=True,
+            )
+            result["module"] = "01_phishing_detector"
+            if url_hash:
+                redis_set_scan(url_hash, result)
+            logger.info(f"Senkron fallback tamamlandı: {requested_url}")
+            return result
     except Exception as e:
         logger.error(f"URL kontrol hatası: {str(e)}")
         write_phishing_url(
@@ -239,6 +273,30 @@ def check_url(request: URLCheckRequest, db: Session = Depends(get_db)):
             "sources": [],
             "module": "01_phishing_detector",
         }
+
+
+@router.get("/result/{job_id}")
+def get_job_result(job_id: str):
+    """A2: Celery job sonucunu sorgula. status='pending' ise analiz devam ediyor."""
+    try:
+        import redis as _redis
+        r = _redis.Redis(
+            host=os.getenv("REDIS_HOST", "127.0.0.1"),
+            port=int(os.getenv("REDIS_PORT", "6379")),
+            db=1,
+            decode_responses=True,
+            socket_connect_timeout=2,
+            socket_timeout=2,
+        )
+        data = r.get(f"job:{job_id}")
+        if data:
+            result = json.loads(data)
+            result.setdefault("status", "complete")
+            return result
+        return {"status": "pending", "job_id": job_id, "module": "01_phishing_detector"}
+    except Exception as e:
+        logger.warning(f"Job result sorgu hatası: {e}")
+        return {"status": "pending", "job_id": job_id, "module": "01_phishing_detector"}
 
 
 @router.get("/cache-health")
