@@ -872,7 +872,8 @@ def run_threat_intelligence(url, http_meta=None, page_text: str = "", is_whiteli
     results["virustotal"] = vt
     if vt is not None:
         if vt.get("available"):
-            results["sources"].append({"name": "VirusTotal", "status": vt["status"]})
+            vt_status_label = vt.get("status") or ("Temiz" if vt.get("malicious", 0) == 0 else f"{vt.get('malicious')} tehlikeli")
+            results["sources"].append({"name": "VirusTotal", "status": vt_status_label})
             if vt["malicious"] >= 3:
                 results["total_penalty"] += 40
                 results["findings"].append(f"🛡️ VirusTotal: {vt['malicious']} motor tehlikeli olarak işaretledi!")
@@ -892,10 +893,11 @@ def run_threat_intelligence(url, http_meta=None, page_text: str = "", is_whiteli
     results["google_safe_browsing"] = gsb
     if gsb is not None:
         if gsb.get("available"):
-            results["sources"].append({"name": "Google Safe Browsing", "status": gsb["status"]})
-            if gsb["threat"]:
+            gsb_status_label = gsb.get("status") or (f"Tehdit: {gsb.get('threat')}" if gsb.get("threat") else "Güvenli")
+            results["sources"].append({"name": "Google Safe Browsing", "status": gsb_status_label})
+            if gsb.get("threat"):
                 results["total_penalty"] += 50
-                results["findings"].append(f"🛡️ {gsb['status']}")
+                results["findings"].append(f"🛡️ Google Safe Browsing: {gsb_status_label}")
         else:
             all_available = False
     else:
