@@ -15,13 +15,13 @@
 | A2 | Celery async pipeline | ⏳ Bekliyor — RAM sabit, kuyruk patlamaz | 4-6 saat |
 | A3 | Playwright browser pool | ⏳ Bekliyor — RAM ~%70 düşer | 2-3 saat |
 | A4 | Paralel threat intel | ⏳ Bekliyor — Analiz süresi yarıya iner | 1-2 saat |
-| B1 | HTML derin analizi | ⏳ Bekliyor — AI'sız marka/credential tespiti | 2-3 saat |
+| B1 | ~~HTML derin analizi~~ | ✅ TAMAMLANDI — AI'sız marka/credential tespiti | 4 Mayıs 2026 |
 | B2 | pHash logo karşılaştırma | ⏳ Bekliyor — Gemini kotasını %40 korur | 3-4 saat |
 | B3 | EasyOCR metin okuma | ⏳ Bekliyor — Ekstra güven katmanı | 2-3 saat |
 | B4 | ~~Koşullu Gemini~~ | ✅ TAMAMLANDI — Günlük ~%80 kota tasarrufu | 3 Mayıs 2026 |
 | C1 | Frontend polling UI | UX iyileştirmesi | 2-3 saat |
 
-**Öneri uygulama sırası:** ~~A1~~ ✅ → ~~B4~~ ✅ → **B1** → A4 → A2 → A3 → B2 → B3 → C1
+**Öneri uygulama sırası:** ~~A1~~ ✅ → ~~B4~~ ✅ → ~~B1~~ ✅ → **A4** → A2 → A3 → B2 → B3 → C1
 
 ---
 
