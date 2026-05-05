@@ -25,7 +25,7 @@ SOURCE_WEIGHTS: dict[str, float] = {
     "spamhaus_zrd": 0.30,
     "screenshot_high": 0.70,
     "screenshot_suspicious": 0.35,
-    "screenshot_gemini_skip": 0.20,
+    "screenshot_ai_skip": 0.20,
     "screenshot_unavailable": 0.15,
     "ml_model": 0.40,
 }

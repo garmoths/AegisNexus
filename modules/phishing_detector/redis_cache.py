@@ -7,7 +7,7 @@ SQLite fallback (cache_db.py) devreye girer.
 TTL'ler:
   SCAN_CACHE_TTL    : 30 gün  (tarama sonuçları)
   THREAT_INTEL_TTL  :  6 saat (Spamhaus, URLhaus vb. API cevapları)
-  GEMINI_DAY_TTL    : 24 saat (günlük Gemini API sayacı)
+  AI_DAY_TTL    : 24 saat (günlük AI API sayacı)
 """
 
 import json
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 SCAN_CACHE_TTL   = 60 * 60 * 24 * 30   # 30 gün
 THREAT_INTEL_TTL = 60 * 60 * 6          # 6 saat
-GEMINI_DAILY_LIMIT = int(os.getenv("GEMINI_DAILY_LIMIT", "1400"))
+AI_DAILY_LIMIT = int(os.getenv("AI_DAILY_LIMIT", "14000"))
 
 _redis_client = None
 
@@ -126,38 +126,38 @@ def redis_get_threat(key: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-# ── Gemini günlük sayacı ──────────────────────────────────────────────────
+# ── AI günlük sayacı ──────────────────────────────────────────────────
 
-def redis_get_gemini_count() -> int:
-    """Bugünkü Gemini API çağrı sayısını döner."""
+def redis_get_ai_count() -> int:
+    """Bugünkü AI API çağrı sayısını döner."""
     r = _get_redis()
     if r is None:
         return 0
     try:
-        return int(r.get("gemini:daily_count") or 0)
+        return int(r.get("ai:daily_count") or 0)
     except Exception:
         return 0
 
 
-def redis_incr_gemini_counter() -> int:
-    """Gemini sayacını artır, 24 saat TTL uygula. Yeni değeri döner."""
+def redis_incr_ai_counter() -> int:
+    """AI sayacını artır, 24 saat TTL uygula. Yeni değeri döner."""
     r = _get_redis()
     if r is None:
         return 0
     try:
         pipe = r.pipeline()
-        pipe.incr("gemini:daily_count")
-        pipe.expire("gemini:daily_count", 86400)
+        pipe.incr("ai:daily_count")
+        pipe.expire("ai:daily_count", 86400)
         results = pipe.execute()
         return int(results[0])
     except Exception as e:
-        logger.warning(f"redis_incr_gemini_counter failed: {e}")
+        logger.warning(f"redis_incr_ai_counter failed: {e}")
         return 0
 
 
-def gemini_limit_reached() -> bool:
-    """Günlük Gemini kotası dolmuşsa True döner."""
-    return redis_get_gemini_count() >= GEMINI_DAILY_LIMIT
+def ai_limit_reached() -> bool:
+    """Günlük AI kotası dolmuşsa True döner."""
+    return redis_get_ai_count() >= AI_DAILY_LIMIT
 
 
 # ── Sağlık kontrolü ───────────────────────────────────────────────────────
@@ -173,8 +173,8 @@ def redis_health() -> Dict[str, Any]:
         return {
             "available": True,
             "used_memory_human": info.get("used_memory_human", "?"),
-            "gemini_daily_count": redis_get_gemini_count(),
-            "gemini_daily_limit": GEMINI_DAILY_LIMIT,
+            "ai_daily_count": redis_get_ai_count(),
+            "ai_daily_limit": AI_DAILY_LIMIT,
         }
     except Exception as e:
         return {"available": False, "reason": str(e)}

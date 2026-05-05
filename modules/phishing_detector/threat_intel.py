@@ -974,7 +974,7 @@ _THREAT_INTEL_WORKERS = int(os.getenv("THREAT_INTEL_WORKERS", "5"))
 
 
 def _task_screenshot(url: str, http_meta, page_text: str, pre_penalty: int):
-    """Playwright screenshot + Gemini Vision analizi (en ağır iş, B1 pre_penalty ile)."""
+    """Playwright screenshot + Groq (llama-4-scout) analizi (en ağır iş, B1 pre_penalty ile)."""
     return analyze_screenshot(url=url, http_meta=http_meta, page_text=page_text, pre_penalty=pre_penalty)
 
 
@@ -1112,11 +1112,11 @@ def run_threat_intelligence(url, http_meta=None, page_text: str = "", is_whiteli
     # --- Screenshot Analyzer ---
     shot = task_results.get("screenshot") or {}
     results["screenshot_analysis"] = shot or None
-    if shot.get("gemini_skipped"):
-        skip_reason = shot.get("gemini_skip_reason", "bilinmiyor")
+    if shot.get("ai_skipped"):
+        skip_reason = shot.get("ai_skip_reason", "bilinmiyor")
         results["total_penalty"] += 10
-        results["sources"].append({"name": "Screenshot Analyzer", "status": f"Gemini atlandı ({skip_reason})"})
-        results["findings"].append(f"📸 Screenshot Analyzer: Gemini atlandı — {skip_reason} (belirsizlik cezası +10)")
+        results["sources"].append({"name": "Screenshot Analyzer", "status": f"AI atlandı ({skip_reason})"})
+        results["findings"].append(f"📸 Screenshot Analyzer: AI atlandı — {skip_reason} (belirsizlik cezası +10)")
     elif shot.get("available", True) and shot:
         risk_score = max(0, min(100, int(shot.get("risk_score", 50))))
         risk_level_str = str(shot.get("risk_level", "UNKNOWN")).upper()
@@ -1379,8 +1379,8 @@ def run_threat_intelligence(url, http_meta=None, page_text: str = "", is_whiteli
     shot_d = results.get("screenshot_analysis")
     if shot_d is None:
         _pe.append(_ev("screenshot_unavailable", to_probability(15), "Ekran görüntüsü alınamadı", {"penalty": 15}))
-    elif shot_d.get("gemini_skipped"):
-        _pe.append(_ev("screenshot_gemini_skip", to_probability(10), f"Gemini atlandı ({shot_d.get('gemini_skip_reason', 'bilinmiyor')})", {"penalty": 10}))
+    elif shot_d.get("ai_skipped"):
+        _pe.append(_ev("screenshot_ai_skip", to_probability(10), f"AI atlandı ({shot_d.get('ai_skip_reason', 'bilinmiyor')})", {"penalty": 10}))
     else:
         rs = max(0, min(100, int(shot_d.get("risk_score", 0))))
         rl = str(shot_d.get("risk_level", "UNKNOWN")).upper()

@@ -1,5 +1,5 @@
 """
-Playwright + Gemini Vision tabanli ekran goruntusu analizi.
+Playwright + Groq (llama-4-scout) tabanli ekran goruntusu analizi.
 """
 
 from __future__ import annotations
@@ -11,18 +11,17 @@ import os
 from typing import Any, Dict, Tuple
 
 import requests
-from google import genai
-from google.genai import types
+from openai import OpenAI
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from .playwright_pool import acquire_browser_context
 
-from .redis_cache import redis_get_gemini_count, redis_incr_gemini_counter, GEMINI_DAILY_LIMIT
+from .redis_cache import redis_get_ai_count, redis_incr_ai_counter, AI_DAILY_LIMIT
 
 logger = logging.getLogger(__name__)
-_gemini_client = None
+_groq_client = None
 
-GEMINI_MODEL = "gemini-2.0-flash"
-GEMINI_SKIP_PENALTY_THRESHOLD = int(os.getenv("GEMINI_SKIP_THRESHOLD", "65"))
+AI_MODEL = os.getenv("AI_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
+AI_SKIP_PENALTY_THRESHOLD = int(os.getenv("AI_SKIP_THRESHOLD", "65"))
 MAX_PAGE_TEXT = 3000
 PLAYWRIGHT_TIMEOUT_MS = 25000
 _SCREENSHOT_SETTLE_MS = 1500
@@ -63,32 +62,32 @@ def _fallback_result() -> Dict[str, Any]:
     }
 
 
-def _gemini_skipped_result(reason: str) -> Dict[str, Any]:
-    """Gemini atlandığında dönen sonuç — screenshot alınmış ama AI analizi yapılmamış."""
+def _ai_skipped_result(reason: str) -> Dict[str, Any]:
+    """AI (Groq) atlandığında dönen sonuç — screenshot alınmış ama AI analizi yapılmamış."""
     return {
         "risk_score": 35,
         "risk_level": "UNKNOWN",
         "verdict": "AI analizi atlandı",
-        "screenshot_analysis": f"Gemini çağrısı atlandı: {reason}",
+        "screenshot_analysis": f"AI çağrısı atlandı: {reason}",
         "threat_indicators": [],
         "recommendation": "Önceki katmanlar yeterli bilgi sağladı veya günlük kota aşıldı.",
         "available": True,
-        "gemini_skipped": True,
-        "gemini_skip_reason": reason,
+        "ai_skipped": True,
+        "ai_skip_reason": reason,
     }
 
 
-def _should_skip_gemini(pre_penalty: int) -> tuple[bool, str]:
-    """Gemini çağrısının atlanıp atlanmayacağını belirler.
+def _should_skip_ai(pre_penalty: int) -> tuple[bool, str]:
+    """AI (Groq) çağrısının atlanıp atlanmayacağını belirler.
     
     Returns:
         (skip: bool, reason: str)
     """
-    if pre_penalty >= GEMINI_SKIP_PENALTY_THRESHOLD:
-        return True, f"önceki katmanlar yeterli (pre_penalty={pre_penalty}>={GEMINI_SKIP_PENALTY_THRESHOLD})"
-    daily_count = redis_get_gemini_count()
-    if daily_count >= GEMINI_DAILY_LIMIT:
-        return True, f"günlük kota aşıldı ({daily_count}/{GEMINI_DAILY_LIMIT})"
+    if pre_penalty >= AI_SKIP_PENALTY_THRESHOLD:
+        return True, f"önceki katmanlar yeterli (pre_penalty={pre_penalty}>={AI_SKIP_PENALTY_THRESHOLD})"
+    daily_count = redis_get_ai_count()
+    if daily_count >= AI_DAILY_LIMIT:
+        return True, f"günlük kota aşıldı ({daily_count}/{AI_DAILY_LIMIT})"
     return False, ""
 
 
@@ -184,7 +183,7 @@ def _extract_json(text: str) -> Dict[str, Any]:
 
     data = json.loads(raw)
     if not isinstance(data, dict):
-        raise ValueError("Gemini response is not JSON object")
+        raise ValueError("AI response is not JSON object")
     return data
 
 
@@ -214,19 +213,25 @@ def _normalize_result(data: Dict[str, Any]) -> Dict[str, Any]:
     return result
 
 
-def _get_gemini_client(api_key: str):
-    global _gemini_client
-    if _gemini_client is None:
-        _gemini_client = genai.Client(api_key=api_key)
-    return _gemini_client
+def _get_groq_client() -> OpenAI:
+    global _groq_client
+    if _groq_client is None:
+        api_key = os.getenv("GROQ_API_KEY", "").strip()
+        if not api_key:
+            raise RuntimeError("GROQ_API_KEY not configured")
+        _groq_client = OpenAI(
+            api_key=api_key,
+            base_url="https://api.groq.com/openai/v1",
+        )
+    return _groq_client
 
 
-def _call_gemini(url: str, screenshot_b64: str, http_meta: Dict[str, Any], page_text: str) -> Dict[str, Any]:
-    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+def _call_groq(url: str, screenshot_b64: str, http_meta: Dict[str, Any], page_text: str) -> Dict[str, Any]:
+    api_key = os.getenv("GROQ_API_KEY", "").strip()
     if not api_key:
-        raise RuntimeError("GEMINI_API_KEY not configured")
+        raise RuntimeError("GROQ_API_KEY not configured")
 
-    client = _get_gemini_client(api_key)
+    client = _get_groq_client()
 
     user_payload = {
         "url": url,
@@ -234,30 +239,41 @@ def _call_gemini(url: str, screenshot_b64: str, http_meta: Dict[str, Any], page_
         "page_text": _clean_page_text(page_text),
     }
 
-    image_part = types.Part.from_bytes(
-        data=base64.b64decode(screenshot_b64),
-        mime_type="image/png",
+    base64_image = screenshot_b64
+    data_url = f"data:image/png;base64,{base64_image}"
+
+    response = client.chat.completions.create(
+        model=AI_MODEL,
+        messages=[
+            {
+                "role": "system",
+                "content": SYSTEM_PROMPT,
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": data_url},
+                    },
+                    {
+                        "type": "text",
+                        "text": (
+                            "Phishing risk analizi yap. Asagidaki baglamsal veriyi kullan:\n"
+                            f"{json.dumps(user_payload, ensure_ascii=False)}"
+                        ),
+                    },
+                ],
+            },
+        ],
+        temperature=0,
+        max_tokens=1200,
+        response_format={"type": "json_object"},
     )
 
-    text_part = (
-        "Phishing risk analizi yap. Asagidaki baglamsal veriyi kullan:\n"
-        f"{json.dumps(user_payload, ensure_ascii=False)}"
-    )
-
-    response = client.models.generate_content(
-        model=GEMINI_MODEL,
-        contents=[text_part, image_part],
-        config=types.GenerateContentConfig(
-            system_instruction=SYSTEM_PROMPT,
-            temperature=0,
-            max_output_tokens=1200,
-            response_mime_type="application/json",
-        ),
-    )
-
-    text = response.text if response.text else ""
+    text = response.choices[0].message.content if response.choices else ""
     if not text:
-        raise ValueError("Gemini response has no text content")
+        raise ValueError("Groq response has no text content")
     return _extract_json(text)
 
 
@@ -268,12 +284,12 @@ def analyze(
     pre_penalty: int = 0,
 ) -> Dict[str, Any]:
     """
-    URL ekran goruntusunu alip Gemini vision ile phishing analizi yapar.
+    URL ekran goruntusunu alip Groq (llama-4-scout) ile phishing analizi yapar.
     Hata durumunda exception firlatmaz, fallback dondurur.
 
     Args:
         pre_penalty: B1/B2/B3 katmanlarından gelen toplam ceza.
-                     >= GEMINI_SKIP_PENALTY_THRESHOLD ise Gemini atlanır.
+                     >= AI_SKIP_PENALTY_THRESHOLD ise AI atlanır.
     """
     normalized_url = (url or "").strip()
     if not normalized_url:
@@ -296,15 +312,15 @@ def analyze(
         logger.warning(f"Screenshot capture failed for {normalized_url}: {exc}")
         return _fallback_result()
 
-    # B2: pHash logo karşılaştırma — Gemini'den önce çalışır
+    # B2: pHash logo karşılaştırma — AI'dan önce çalışır
     try:
         from .visual_analyzer import check_logo_phash
         import base64 as _b64
         phash_result = check_logo_phash(_b64.b64decode(screenshot_b64), url=normalized_url)
         if phash_result.get("definitive") and phash_result.get("penalty", 0) >= 60:
             brand = phash_result.get("brand", "bilinmeyen")
-            logger.info(f"[pHash] Marka logosu tespit edildi ({brand}), Gemini atlanıyor: {normalized_url}")
-            result = _gemini_skipped_result(f"pHash logo eşleşti: {brand}")
+            logger.info(f"[pHash] Marka logosu tespit edildi ({brand}), AI atlanıyor: {normalized_url}")
+            result = _ai_skipped_result(f"pHash logo eşleşti: {brand}")
             result.update({
                 "risk_score": 85,
                 "risk_level": "HIGH",
@@ -312,14 +328,14 @@ def analyze(
                 "screenshot_b64": screenshot_b64,
                 "phash_logo": phash_result,
                 "available": True,
-                "gemini_skipped": True,
-                "gemini_skip_reason": f"pHash logo eşleşti: {brand}",
+                "ai_skipped": True,
+                "ai_skip_reason": f"pHash logo eşleşti: {brand}",
             })
             return result
     except Exception as exc:
         logger.debug(f"[pHash] Kontrol atlandı: {exc}")
 
-    # B3: OCR metin analizi — pHash'ten sonra, Gemini'den önce
+    # B3: OCR metin analizi — pHash'ten sonra, Groq'dan önce
     ocr_result = None
     try:
         from .visual_analyzer import analyze_with_ocr
@@ -328,8 +344,8 @@ def analyze(
         _domain = _urlparse(normalized_url).netloc or normalized_url
         ocr_result = analyze_with_ocr(_b64.b64decode(screenshot_b64), domain=_domain)
         if ocr_result.get("definitive") and ocr_result.get("penalty", 0) >= 65:
-            logger.info(f"[OCR] Kesin sonuç, Gemini atlanıyor: {normalized_url}")
-            result = _gemini_skipped_result(ocr_result.get("detail", "OCR kesin sonuç"))
+            logger.info(f"[OCR] Kesin sonuç, AI atlanıyor: {normalized_url}")
+            result = _ai_skipped_result(ocr_result.get("detail", "OCR kesin sonuç"))
             result.update({
                 "risk_score": min(95, 70 + ocr_result.get("penalty", 0) // 5),
                 "risk_level": "HIGH",
@@ -337,44 +353,44 @@ def analyze(
                 "screenshot_b64": screenshot_b64,
                 "ocr_analysis": ocr_result,
                 "available": True,
-                "gemini_skipped": True,
-                "gemini_skip_reason": "OCR kesin sonuç",
+                "ai_skipped": True,
+                "ai_skip_reason": "OCR kesin sonuç",
             })
             return result
-        # Kesin değil ama penalty varsa → Gemini skip kararına ekle
+        # Kesin değil ama penalty varsa → AI skip kararına ekle
         pre_penalty = pre_penalty + ocr_result.get("penalty", 0)
     except ImportError:
         logger.debug("[OCR] easyocr yüklü değil, atlanıyor")
     except Exception as exc:
         logger.debug(f"[OCR] Kontrol atlandı: {exc}")
 
-    # Koşullu Gemini: önceki katmanlar yeterliyse veya kota dolmuşsa atla
-    skip, skip_reason = _should_skip_gemini(pre_penalty)
+    # Koşullu Groq: önceki katmanlar yeterliyse veya kota dolmuşsa atla
+    skip, skip_reason = _should_skip_ai(pre_penalty)
     if skip:
-        logger.info(f"Gemini atlandı ({normalized_url}): {skip_reason}")
-        result = _gemini_skipped_result(skip_reason)
+        logger.info(f"Groq atlandı ({normalized_url}): {skip_reason}")
+        result = _ai_skipped_result(skip_reason)
         if screenshot_b64:
             result["screenshot_b64"] = screenshot_b64
         result["bot_detected"] = bot_detected
         return result
 
     try:
-        gemini_result = _call_gemini(
+        groq_result = _call_groq(
             url=normalized_url,
             screenshot_b64=screenshot_b64,
             http_meta=http_meta or {},
             page_text=captured_text,
         )
-        # Başarılı Gemini çağrısı → sayacı artır
-        new_count = redis_incr_gemini_counter()
-        logger.debug(f"Gemini çağrıldı ({normalized_url}), günlük toplam: {new_count}/{GEMINI_DAILY_LIMIT}")
-        result = _normalize_result(gemini_result)
+        # Başarılı Groq çağrısı → sayacı artır
+        new_count = redis_incr_ai_counter()
+        logger.debug(f"Groq çağrıldı ({normalized_url}), günlük toplam: {new_count}/{AI_DAILY_LIMIT}")
+        result = _normalize_result(groq_result)
         if screenshot_b64:
             result["screenshot_b64"] = screenshot_b64
         result["bot_detected"] = bot_detected
         return result
     except Exception as exc:
-        logger.warning(f"Gemini screenshot analysis failed for {normalized_url}: {exc}")
+        logger.warning(f"Groq screenshot analysis failed for {normalized_url}: {exc}")
         result = _fallback_result()
         if screenshot_b64:
             result["screenshot_b64"] = screenshot_b64
