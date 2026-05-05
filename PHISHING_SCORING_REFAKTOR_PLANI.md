@@ -1,4 +1,4 @@
-# Phishing Skorlama Motoru Refaktör Planı (A-B-C-D-E)
+curl -s http://127.0.0.1:8000/api/v2/phishing/stats | jq# Phishing Skorlama Motoru Refaktör Planı (A-B-C-D-E)
 
 Bu plan, mevcut doğrusal ceza toplama modelini (toplam ceza) üretim seviyesinde, olasılık tabanlı ve bağlam farkındalığı olan bir yapıya taşımak için hazırlanmıştır.
 
