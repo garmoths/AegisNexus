@@ -17,7 +17,7 @@ import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import urlparse
 from dotenv import load_dotenv
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from .cache_db import write_phishing_url, write_ioc
@@ -717,6 +717,136 @@ def _persist_screenshot_indicators(url: str, indicators: list, confidence: int =
         )
 
 
+def _extract_domain_from_url(url: str) -> str:
+    parsed_url = urlparse(url if url.startswith("http") else "https://" + url)
+    return (parsed_url.netloc or parsed_url.path or "").lower().replace("www.", "").split(":")[0]
+
+
+def _parse_iso_datetime(value: str | None):
+    if not value:
+        return None
+    try:
+        normalized = str(value).strip()
+        if normalized.endswith("Z"):
+            normalized = normalized[:-1] + "+00:00"
+        parsed = datetime.fromisoformat(normalized)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed
+    except Exception:
+        return None
+
+
+def _get_domain_age_penalty(domain: str) -> dict:
+    """
+    RDAP üzerinden domain yaşı sinyali üretir.
+    Penalty skalası:
+    - <7 gün: +65
+    - <30 gün: +40
+    - <90 gün: +20
+    - >=90 gün: +0
+    - bilgi alınamaz: +15 (belirsizlik)
+    """
+    if not domain:
+        return {
+            "available": False,
+            "domain": domain,
+            "age_days": None,
+            "penalty": 15,
+            "detail": "Domain yaşı belirlenemedi (boş domain).",
+        }
+
+    try:
+        resp = requests.get(f"https://rdap.org/domain/{domain}", timeout=8)
+        if not resp.ok:
+            return {
+                "available": False,
+                "domain": domain,
+                "age_days": None,
+                "penalty": 15,
+                "detail": f"Domain yaşı alınamadı (RDAP HTTP {resp.status_code}).",
+            }
+
+        data = resp.json() if resp.content else {}
+        events = data.get("events", []) if isinstance(data, dict) else []
+        creation_ts = None
+        for event in events:
+            if not isinstance(event, dict):
+                continue
+            action = str(event.get("eventAction", "")).lower()
+            if action in {"registration", "created"}:
+                creation_ts = _parse_iso_datetime(event.get("eventDate"))
+                if creation_ts:
+                    break
+
+        if creation_ts is None:
+            return {
+                "available": False,
+                "domain": domain,
+                "age_days": None,
+                "penalty": 15,
+                "detail": "Domain yaşı alınamadı (RDAP creation date yok).",
+            }
+
+        age_days = max(0, (datetime.now(timezone.utc) - creation_ts).days)
+        if age_days < 7:
+            return {
+                "available": True,
+                "domain": domain,
+                "age_days": age_days,
+                "penalty": 65,
+                "detail": f"Domain {age_days} günlük — çok yeni.",
+            }
+        if age_days < 30:
+            return {
+                "available": True,
+                "domain": domain,
+                "age_days": age_days,
+                "penalty": 40,
+                "detail": f"Domain {age_days} günlük — yeni.",
+            }
+        if age_days < 90:
+            return {
+                "available": True,
+                "domain": domain,
+                "age_days": age_days,
+                "penalty": 20,
+                "detail": f"Domain {age_days} günlük — görece yeni.",
+            }
+        return {
+            "available": True,
+            "domain": domain,
+            "age_days": age_days,
+            "penalty": 0,
+            "detail": f"Domain {age_days} günlük — köklü.",
+        }
+    except Exception as exc:
+        logger.warning(f"Domain age RDAP error ({domain}): {exc}")
+        return {
+            "available": False,
+            "domain": domain,
+            "age_days": None,
+            "penalty": 15,
+            "detail": "Domain yaşı alınamadı (RDAP hatası).",
+        }
+
+
+def _screenshot_failed_penalty(current_risk_score: int) -> int:
+    """
+    Screenshot alınamama cezası mevcut risk seviyesine göre değişir.
+    - risk<20: 0
+    - 20<=risk<50: 8
+    - risk>=50: 18
+    """
+    bounded = max(0, min(100, int(current_risk_score)))
+    current_risk = bounded / 100.0
+    if current_risk < 0.20:
+        return 0
+    if current_risk < 0.50:
+        return 8
+    return 18
+
+
 # =========================================================
 # 4. TOPLU TEHDİT İSTİHBARATI
 # =========================================================
@@ -803,6 +933,7 @@ def run_threat_intelligence(url, http_meta=None, page_text: str = "", is_whiteli
     """
     results = {
         "screenshot_analysis": None,
+        "domain_age": None,
         "virustotal": None,
         "google_safe_browsing": None,
         "abuseipdb": None,
@@ -812,6 +943,8 @@ def run_threat_intelligence(url, http_meta=None, page_text: str = "", is_whiteli
         "validated": False,
     }
     all_available = True
+    domain = _extract_domain_from_url(url)
+    screenshot_failed = False
 
     # ── A4: Domain / IP çözümlemesi (paralel task'lar için ön hazırlık) ──
     parsed_url = urlparse(url if url.startswith("http") else "https://" + url)
@@ -941,6 +1074,29 @@ def run_threat_intelligence(url, http_meta=None, page_text: str = "", is_whiteli
     else:
         all_available = False
 
+    # --- Domain Age (RDAP) ---
+    domain_age_signal = _get_domain_age_penalty(domain)
+    results["domain_age"] = domain_age_signal
+    if is_whitelisted and domain_age_signal.get("penalty", 0) > 0:
+        results["sources"].append({
+            "name": "Domain Age (RDAP)",
+            "status": f"{domain_age_signal.get('detail')} Ancak whitelist nedeniyle ceza uygulanmadı"
+        })
+    else:
+        age_penalty = int(domain_age_signal.get("penalty", 0) or 0)
+        if age_penalty > 0:
+            results["total_penalty"] += age_penalty
+            results["sources"].append({
+                "name": "Domain Age (RDAP)",
+                "status": domain_age_signal.get("detail", "Domain yaşı belirsiz")
+            })
+            results["findings"].append(f"🧭 Domain Yaşı: {domain_age_signal.get('detail')} (ceza +{age_penalty})")
+        else:
+            results["sources"].append({
+                "name": "Domain Age (RDAP)",
+                "status": domain_age_signal.get("detail", "Domain yaşı normal")
+            })
+
     # --- Spamhaus / URLhaus / ThreatFox ---
     sg = task_results.get("spamhaus_group") or {}
     urlhaus_result = sg.get("urlhaus")
@@ -1026,6 +1182,24 @@ def run_threat_intelligence(url, http_meta=None, page_text: str = "", is_whiteli
         results["threatfox"] = threatfox_result
     else:
         results["threatfox"] = {"found": False, "available": False, "status": "Sorgulama yapılamadı"}
+
+    # Screenshot belirsizlik cezası (bağlamsal)
+    if screenshot_failed and not is_whitelisted:
+        uncertainty_penalty = _screenshot_failed_penalty(min(100, results["total_penalty"]))
+        if uncertainty_penalty > 0:
+            results["total_penalty"] += uncertainty_penalty
+            results["sources"].append({
+                "name": "Screenshot Analyzer",
+                "status": f"Ekran görüntüsü alınamadı (belirsizlik cezası +{uncertainty_penalty})"
+            })
+            results["findings"].append(
+                f"📸 Screenshot Analyzer: Ekran görüntüsü alınamadı (belirsizlik cezası +{uncertainty_penalty})"
+            )
+        else:
+            results["sources"].append({
+                "name": "Screenshot Analyzer",
+                "status": "Ekran görüntüsü alınamadı, düşük risk nedeniyle ceza uygulanmadı"
+            })
 
     # Risk skorunu ve seviyesini hesapla
     risk_score = min(100, results["total_penalty"])
