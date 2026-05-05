@@ -22,7 +22,7 @@ from pathlib import Path
 
 from .cache_db import write_phishing_url, write_ioc
 from .screenshot_analyzer import analyze as analyze_screenshot
-from .scoring import combine_probabilities, to_probability, SCORING_MODEL_VERSION
+from .scoring import combine_probabilities, to_probability, apply_source_weight, SCORING_MODEL_VERSION
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 load_dotenv(BASE_DIR / ".env")
@@ -1071,24 +1071,29 @@ def run_threat_intelligence(url, http_meta=None, page_text: str = "", is_whiteli
     # ── Faz A: Bayesian probability kombiner ──────────────────────────────
     _pe: list = []
 
+    def _ev(source_key: str, base_prob: float, reason: str, raw_evidence: dict) -> dict:
+        wp = apply_source_weight(base_prob, source_key)
+        return {"source_key": source_key, "probability": base_prob, "weighted_probability": wp, "reason": reason, "raw_evidence": raw_evidence}
+
     # Screenshot
     shot_d = results.get("screenshot_analysis")
     if shot_d is None:
-        _pe.append({"source_key": "screenshot_unavailable", "probability": to_probability(15), "reason": "Ekran görüntüsü alınamadı", "raw_evidence": {"penalty": 15}})
+        _pe.append(_ev("screenshot_unavailable", to_probability(15), "Ekran görüntüsü alınamadı", {"penalty": 15}))
     elif shot_d.get("gemini_skipped"):
-        _pe.append({"source_key": "screenshot_gemini_skip", "probability": to_probability(10), "reason": f"Gemini atlandı ({shot_d.get('gemini_skip_reason', 'bilinmiyor')})", "raw_evidence": {"penalty": 10}})
+        _pe.append(_ev("screenshot_gemini_skip", to_probability(10), f"Gemini atlandı ({shot_d.get('gemini_skip_reason', 'bilinmiyor')})", {"penalty": 10}))
     else:
         rs = max(0, min(100, int(shot_d.get("risk_score", 0))))
         rl = str(shot_d.get("risk_level", "UNKNOWN")).upper()
-        wp = int(round(rs * 0.60))
+        wp_raw = int(round(rs * 0.60))
         if rl == "CRITICAL":
-            wp = max(wp, 70)
+            wp_raw = max(wp_raw, 70)
         elif rl == "HIGH":
-            wp = max(wp, 50)
+            wp_raw = max(wp_raw, 50)
         elif rl == "MEDIUM":
-            wp = max(wp, 25)
-        if wp > 0:
-            _pe.append({"source_key": "screenshot_analyzer", "probability": to_probability(wp), "reason": f"Screenshot {rl} ({rs}/100)", "raw_evidence": {"risk_score": rs, "risk_level": rl}})
+            wp_raw = max(wp_raw, 25)
+        if wp_raw > 0:
+            sk = "screenshot_high" if rl in ("CRITICAL", "HIGH") else "screenshot_suspicious"
+            _pe.append(_ev(sk, to_probability(wp_raw), f"Screenshot {rl} ({rs}/100)", {"risk_score": rs, "risk_level": rl}))
 
     # VirusTotal
     vt_d = results.get("virustotal") or {}
@@ -1096,56 +1101,56 @@ def run_threat_intelligence(url, http_meta=None, page_text: str = "", is_whiteli
         mal = vt_d.get("malicious", 0)
         sus = vt_d.get("suspicious", 0)
         if mal >= 3:
-            _pe.append({"source_key": "virustotal", "probability": to_probability(40), "reason": f"{mal} motor tehlikeli işaretledi", "raw_evidence": {"malicious": mal}})
+            _pe.append(_ev("virustotal_malicious", to_probability(40), f"{mal} motor tehlikeli işaretledi", {"malicious": mal}))
         elif mal >= 1:
-            _pe.append({"source_key": "virustotal", "probability": to_probability(20), "reason": f"{mal} motor şüpheli buldu", "raw_evidence": {"malicious": mal}})
+            _pe.append(_ev("virustotal_malicious", to_probability(20), f"{mal} motor şüpheli buldu", {"malicious": mal}))
         elif sus >= 1:
-            _pe.append({"source_key": "virustotal", "probability": to_probability(10), "reason": f"{sus} motor şüpheli işaretledi", "raw_evidence": {"suspicious": sus}})
+            _pe.append(_ev("virustotal_suspicious", to_probability(10), f"{sus} motor şüpheli işaretledi", {"suspicious": sus}))
 
     # Google Safe Browsing
     gsb_d = results.get("google_safe_browsing") or {}
     if gsb_d.get("available") and gsb_d.get("threat"):
-        _pe.append({"source_key": "google_safe_browsing", "probability": to_probability(50), "reason": f"Tehdit: {gsb_d.get('threat')}", "raw_evidence": {"threat": gsb_d.get("threat")}})
+        _pe.append(_ev("google_safe_browsing", to_probability(50), f"Tehdit: {gsb_d.get('threat')}", {"threat": gsb_d.get("threat")}))
 
     # AbuseIPDB
     aipdb_d = results.get("abuseipdb") or {}
     abuse = aipdb_d.get("abuse_score", 0)
     if abuse >= 70:
-        _pe.append({"source_key": "abuseipdb", "probability": to_probability(25), "reason": f"Yüksek suistimal skoru ({abuse}%)", "raw_evidence": {"abuse_score": abuse}})
+        _pe.append(_ev("abuseipdb", to_probability(25), f"Yüksek suistimal skoru ({abuse}%)", {"abuse_score": abuse}))
     elif abuse >= 30:
-        _pe.append({"source_key": "abuseipdb", "probability": to_probability(10), "reason": f"Orta suistimal skoru ({abuse}%)", "raw_evidence": {"abuse_score": abuse}})
+        _pe.append(_ev("abuseipdb", to_probability(10), f"Orta suistimal skoru ({abuse}%)", {"abuse_score": abuse}))
 
     # URLhaus
     urlhaus_d = results.get("urlhaus") or {}
     if urlhaus_d.get("listed"):
-        _pe.append({"source_key": "urlhaus", "probability": to_probability(40), "reason": f"URLhaus kara listede ({urlhaus_d.get('threat_type', 'unknown')})", "raw_evidence": {"threat_type": urlhaus_d.get("threat_type")}})
+        _pe.append(_ev("urlhaus", to_probability(40), f"URLhaus kara listede ({urlhaus_d.get('threat_type', 'unknown')})", {"threat_type": urlhaus_d.get("threat_type")}))
 
     # Spamhaus domain
     sp_dom = results.get("spamhaus_domain") or {}
     if sp_dom.get("listed"):
         dom_lists = sp_dom.get("lists", [])
         if "DBL" in dom_lists:
-            _pe.append({"source_key": "spamhaus_dbl", "probability": to_probability(35), "reason": f"Spamhaus DBL ({', '.join(dom_lists)})", "raw_evidence": {"lists": dom_lists}})
+            _pe.append(_ev("spamhaus_dbl", to_probability(35), f"Spamhaus DBL ({', '.join(dom_lists)})", {"lists": dom_lists}))
         if sp_dom.get("zrd"):
-            _pe.append({"source_key": "spamhaus_zrd", "probability": to_probability(15), "reason": "Sıfır itibar domain", "raw_evidence": {"zrd": True}})
+            _pe.append(_ev("spamhaus_zrd", to_probability(15), "Sıfır itibar domain", {"zrd": True}))
         if "DBL" not in dom_lists and not sp_dom.get("zrd"):
-            _pe.append({"source_key": "spamhaus_domain", "probability": to_probability(35), "reason": f"Spamhaus domain listed ({', '.join(dom_lists)})", "raw_evidence": {"lists": dom_lists}})
+            _pe.append(_ev("spamhaus_domain", to_probability(35), f"Spamhaus domain listed ({', '.join(dom_lists)})", {"lists": dom_lists}))
 
     # Spamhaus IP
     sp_ip = results.get("spamhaus_ip") or {}
     if sp_ip.get("listed"):
         ip_lists = sp_ip.get("lists", [])
         if any(ll in ip_lists for ll in ("XBL", "eXBL")):
-            _pe.append({"source_key": "spamhaus_xbl", "probability": to_probability(30), "reason": f"Spamhaus XBL/eXBL ({', '.join(ip_lists)})", "raw_evidence": {"lists": ip_lists}})
+            _pe.append(_ev("spamhaus_xbl", to_probability(30), f"Spamhaus XBL/eXBL ({', '.join(ip_lists)})", {"lists": ip_lists}))
         elif ip_lists:
-            _pe.append({"source_key": "spamhaus_ip", "probability": to_probability(20), "reason": f"Spamhaus IP listed ({', '.join(ip_lists)})", "raw_evidence": {"lists": ip_lists}})
+            _pe.append(_ev("spamhaus_ip", to_probability(20), f"Spamhaus IP listed ({', '.join(ip_lists)})", {"lists": ip_lists}))
 
     # ThreatFox
     tf_d = results.get("threatfox") or {}
     if tf_d.get("found"):
-        _pe.append({"source_key": "threatfox", "probability": to_probability(25), "reason": f"ThreatFox IOC ({tf_d.get('malware_family', 'unknown')})", "raw_evidence": {"malware_family": tf_d.get("malware_family"), "confidence": tf_d.get("confidence")}})
+        _pe.append(_ev("threatfox", to_probability(25), f"ThreatFox IOC ({tf_d.get('malware_family', 'unknown')})", {"malware_family": tf_d.get("malware_family"), "confidence": tf_d.get("confidence")}))
 
-    combined_probability = combine_probabilities([e["probability"] for e in _pe])
+    combined_probability = combine_probabilities([e["weighted_probability"] for e in _pe])
     results["combined_risk_probability"] = combined_probability
     results["scoring_model"] = SCORING_MODEL_VERSION
     results["scoring_details"] = {

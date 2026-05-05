@@ -10,6 +10,45 @@ from __future__ import annotations
 
 SCORING_MODEL_VERSION = "bayesian-v1"
 
+SOURCE_WEIGHTS: dict[str, float] = {
+    "virustotal_malicious": 1.00,
+    "virustotal_suspicious": 0.60,
+    "google_safe_browsing": 0.95,
+    "phishtank_verified": 0.90,
+    "urlhaus": 0.75,
+    "spamhaus_dbl": 0.70,
+    "spamhaus_domain": 0.70,
+    "threatfox": 0.65,
+    "spamhaus_xbl": 0.60,
+    "spamhaus_ip": 0.60,
+    "abuseipdb": 0.45,
+    "spamhaus_zrd": 0.30,
+    "screenshot_high": 0.70,
+    "screenshot_suspicious": 0.35,
+    "screenshot_gemini_skip": 0.20,
+    "screenshot_unavailable": 0.15,
+    "ml_model": 0.40,
+}
+
+DEFAULT_SOURCE_WEIGHT: float = 0.35
+
+
+def apply_source_weight(base_probability: float, source_key: str) -> float:
+    """
+    Kaynak güvenilirlik ağırlığını uygular: weighted = min(1.0, base * weight)
+
+    >>> apply_source_weight(0.4, "virustotal_malicious")
+    0.4
+    >>> apply_source_weight(0.4, "abuseipdb")
+    0.18
+    >>> apply_source_weight(0.4, "unknown_source")
+    0.14
+    >>> apply_source_weight(0.0, "virustotal_malicious")
+    0.0
+    """
+    weight = SOURCE_WEIGHTS.get(source_key, DEFAULT_SOURCE_WEIGHT)
+    return round(min(1.0, float(base_probability) * weight), 6)
+
 
 def combine_probabilities(probabilities: list) -> float:
     """

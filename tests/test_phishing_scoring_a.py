@@ -8,7 +8,14 @@ pytest tests/test_phishing_scoring_a.py -v
 """
 from __future__ import annotations
 import pytest
-from modules.phishing_detector.scoring import combine_probabilities, to_probability, SCORING_MODEL_VERSION
+from modules.phishing_detector.scoring import (
+    combine_probabilities,
+    to_probability,
+    apply_source_weight,
+    SOURCE_WEIGHTS,
+    DEFAULT_SOURCE_WEIGHT,
+    SCORING_MODEL_VERSION,
+)
 
 
 # ── 1. combine_probabilities ─────────────────────────────────────────────────
@@ -97,7 +104,67 @@ class TestScoringModelVersion:
         assert SCORING_MODEL_VERSION == "bayesian-v1"
 
 
-# ── 4. run_threat_intelligence entegrasyon (mock) ─────────────────────────────
+# ── 4. SOURCE_WEIGHTS ────────────────────────────────────────────────────────
+
+class TestSourceWeights:
+    def test_all_required_keys_present(self):
+        required = [
+            "virustotal_malicious", "virustotal_suspicious", "google_safe_browsing",
+            "urlhaus", "spamhaus_dbl", "spamhaus_domain", "threatfox",
+            "spamhaus_xbl", "spamhaus_ip", "abuseipdb", "spamhaus_zrd",
+            "screenshot_high", "screenshot_suspicious",
+        ]
+        for k in required:
+            assert k in SOURCE_WEIGHTS, f"Eksik kaynak ağırlığı: {k}"
+
+    def test_all_weights_in_range(self):
+        for k, w in SOURCE_WEIGHTS.items():
+            assert 0.0 <= w <= 1.0, f"{k} ağırlığı [0,1] dışında: {w}"
+
+    def test_vt_has_highest_weight(self):
+        assert SOURCE_WEIGHTS["virustotal_malicious"] == 1.0
+
+    def test_gsb_has_very_high_weight(self):
+        assert SOURCE_WEIGHTS["google_safe_browsing"] >= 0.9
+
+    def test_abuseipdb_lower_than_vt(self):
+        assert SOURCE_WEIGHTS["abuseipdb"] < SOURCE_WEIGHTS["virustotal_malicious"]
+
+    def test_spamhaus_zrd_lowest_among_spamhaus(self):
+        assert SOURCE_WEIGHTS["spamhaus_zrd"] < SOURCE_WEIGHTS["spamhaus_dbl"]
+        assert SOURCE_WEIGHTS["spamhaus_zrd"] < SOURCE_WEIGHTS["spamhaus_xbl"]
+
+    def test_default_weight_exists(self):
+        assert 0.0 < DEFAULT_SOURCE_WEIGHT < 1.0
+
+
+class TestApplySourceWeight:
+    def test_known_source_applies_weight(self):
+        base = 0.4
+        result = apply_source_weight(base, "virustotal_malicious")
+        assert result == pytest.approx(0.4 * 1.0, abs=1e-5)
+
+    def test_abuseipdb_weight_lower_than_vt(self):
+        base = 0.4
+        vt_w = apply_source_weight(base, "virustotal_malicious")
+        abuse_w = apply_source_weight(base, "abuseipdb")
+        assert abuse_w < vt_w
+
+    def test_unknown_source_uses_default(self):
+        base = 0.4
+        result = apply_source_weight(base, "totally_unknown_source")
+        expected = min(1.0, base * DEFAULT_SOURCE_WEIGHT)
+        assert result == pytest.approx(expected, abs=1e-5)
+
+    def test_clamps_at_one(self):
+        result = apply_source_weight(2.0, "virustotal_malicious")
+        assert result == 1.0
+
+    def test_zero_base_returns_zero(self):
+        assert apply_source_weight(0.0, "google_safe_browsing") == 0.0
+
+
+# ── 5. run_threat_intelligence entegrasyon (mock) ─────────────────────────────
 
 class TestThreatIntelBayesianOutput:
     def test_clean_result_has_bayesian_fields(self, monkeypatch):
@@ -158,9 +225,21 @@ class TestThreatIntelBayesianOutput:
 
         result = ti.run_threat_intelligence("https://evil.example.com")
 
-        assert result["combined_risk_probability"] == pytest.approx(0.4, abs=0.01)
         events = result["scoring_details"]["penalty_events"]
-        assert any(e["source_key"] == "virustotal" for e in events)
+        assert any(e["source_key"] == "virustotal_malicious" for e in events)
+        vt_event = next(e for e in events if e["source_key"] == "virustotal_malicious")
+        assert "weighted_probability" in vt_event
+        assert vt_event["weighted_probability"] == vt_event["probability"] * 1.0
+
+    def test_vt_stronger_than_abuseipdb_same_base(self, monkeypatch):
+        """Aynı base sinyal: VT > AbuseIPDB weighted impact (Faz B)."""
+        import modules.phishing_detector.threat_intel as ti
+        from modules.phishing_detector.scoring import apply_source_weight, to_probability
+
+        base = to_probability(25)
+        vt_w = apply_source_weight(base, "virustotal_malicious")
+        abuse_w = apply_source_weight(base, "abuseipdb")
+        assert vt_w > abuse_w
 
     def test_multiple_signals_combine_correctly(self, monkeypatch):
         """VT + GSB birlikte: combined_probability > her birinden yüksek olmalı."""
@@ -187,9 +266,10 @@ class TestThreatIntelBayesianOutput:
 
         result = ti.run_threat_intelligence("https://evil.example.com")
 
-        p_vt = 0.4
-        p_gsb = 0.5
-        expected = 1 - (1 - p_vt) * (1 - p_gsb)
+        from modules.phishing_detector.scoring import apply_source_weight, to_probability
+        w_vt = apply_source_weight(to_probability(40), "virustotal_malicious")
+        w_gsb = apply_source_weight(to_probability(50), "google_safe_browsing")
+        expected = 1 - (1 - w_vt) * (1 - w_gsb)
         assert result["combined_risk_probability"] == pytest.approx(expected, abs=0.01)
         assert result["scoring_details"]["signal_count"] == 2
 
