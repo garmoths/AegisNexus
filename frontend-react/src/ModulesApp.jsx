@@ -1327,7 +1327,9 @@ function PhishingDetector() {
     return r.json()
   }, [])
 
-  async function handleCheck(forceFresh = false) {
+  async function handleCheck(forceFreshOrEvent = false) {
+    // Event handler olarak kullanıldığında (onClick), React event object gelir - ignore et
+    const forceFresh = typeof forceFreshOrEvent === 'boolean' ? forceFreshOrEvent : false
     if(!url){showToast('Lutfen bir URL girin','error');return}
     setChecking(true);setResult(null);setJobId(null);setAnalyzing(false);setPollCount(0);setShowRetryButton(false)
     try{
