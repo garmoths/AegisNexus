@@ -331,7 +331,7 @@ def get_cache_health():
 
 @router.get("/stats")
 def get_stats(db: Session = Depends(get_db)):
-    """Toplam zararlı site sayısı"""
+    """Dashboard istatistikleri (cache + tarama metrikleri)."""
     try:
         # Try cache_db first
         cache_stats = get_phishing_stats()
@@ -341,14 +341,14 @@ def get_stats(db: Session = Depends(get_db)):
                 "module": "01_phishing_detector"
             }
         
-        # Fallback to SQLAlchemy
+        # Fallback to SQLAlchemy (yalnızca total_urls için)
         count = db.query(PhishingURL).count()
         return {
             "stats": {
                 "total_urls": count,
-                "phishing_count": count,
-                "safe_count": 0,
-                "today_scans": 0
+                "phishing_count": cache_stats.get("phishing_count", 0),
+                "safe_count": cache_stats.get("safe_count", 0),
+                "today_scans": cache_stats.get("today_scans", 0)
             },
             "module": "01_phishing_detector"
         }
