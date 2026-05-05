@@ -1345,7 +1345,10 @@ function PhishingDetector() {
         setShowRetryButton(false)
       }
       loadScanHistory(1)
-    }catch(e){showToast('URL kontrol hatasi: '+(e?.message||String(e)||'Bilinmeyen hata'),'error')}
+    }catch(e){
+      const errMsg = e?.message || (typeof e === 'string' ? e : 'Bilinmeyen hata')
+      showToast('URL kontrol hatasi: '+errMsg,'error')
+    }
     setChecking(false)
   }
 
