@@ -1238,6 +1238,7 @@ function PhishingDetector() {
   const [analyzing, setAnalyzing] = useState(false)
   const [pollCount, setPollCount] = useState(0)
   const MAX_POLLS = 70
+  const [showRetryButton, setShowRetryButton] = useState(false)
 
   function showToast(msg,t='success'){setToast({message:msg,type:t,visible:true});setTimeout(()=>setToast(t=>({...t,visible:false})),3000)}
 
@@ -1316,21 +1317,30 @@ function PhishingDetector() {
     }
   }, [url])
 
-  async function handleCheck() {
+  const submitCheckRequest = useCallback(async (normalizedInput, forceFresh = false) => {
+    const r = await fetch(`${API}/phishing/check-url`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: normalizedInput, force_fresh: forceFresh }),
+    })
+    if(!r.ok) throw new Error(`URL kontrol hatasi (${r.status})`)
+    return r.json()
+  }, [])
+
+  async function handleCheck(forceFresh = false) {
     if(!url){showToast('Lutfen bir URL girin','error');return}
-    setChecking(true);setResult(null);setJobId(null);setAnalyzing(false);setPollCount(0)
+    setChecking(true);setResult(null);setJobId(null);setAnalyzing(false);setPollCount(0);setShowRetryButton(false)
     try{
       const normalizedInput = /^https?:\/\//i.test(url) ? url : `https://${url}`
       new URL(normalizedInput)
-      const r=await fetch(`${API}/phishing/check-url`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url: normalizedInput})})
-      if(!r.ok)throw new Error(`URL kontrol hatasi (${r.status})`)
-      const d=await r.json()
+      const d = await submitCheckRequest(normalizedInput, forceFresh)
       if(d.status==='analyzing' && d.job_id){
         setResult(d)
         setJobId(d.job_id)
         setAnalyzing(true)
       } else {
         setResult(d)
+        setShowRetryButton(false)
       }
       loadScanHistory(1)
     }catch(e){showToast('URL kontrol hatasi: '+e.message,'error')}
@@ -1339,7 +1349,31 @@ function PhishingDetector() {
 
   useEffect(()=>{
     if(!jobId||!analyzing) return
-    if(pollCount>=MAX_POLLS){setAnalyzing(false);showToast('Analiz zaman asimi — lutfen tekrar deneyin','error');return}
+    if(pollCount>=MAX_POLLS){
+      const tryRecoverFromCache = async () => {
+        setAnalyzing(false)
+        setJobId(null)
+        try {
+          const normalizedInput = /^https?:\/\//i.test(url) ? url : `https://${url}`
+          const d = await submitCheckRequest(normalizedInput, false)
+          if(d.status==='complete'){
+            setResult(d)
+            setShowRetryButton(false)
+            loadScanHistory(1)
+            return
+          } else if(d.status==='analyzing') {
+            setShowRetryButton(true)
+            return
+          }
+        } catch (err) {
+          void err
+        }
+        setShowRetryButton(true)
+        showToast('Analiz zaman asimi. "Yeniden Tara" ile tekrar deneyin.','error')
+      }
+      void tryRecoverFromCache()
+      return
+    }
     const timer=setTimeout(async()=>{
       try{
         const r=await fetch(`${API}/phishing/result/${jobId}`)
@@ -1348,7 +1382,13 @@ function PhishingDetector() {
           setResult(d)
           setAnalyzing(false)
           setJobId(null)
+          setShowRetryButton(false)
           loadScanHistory(1)
+        } else if(d.status==='timeout' || d.status==='error'){
+          setResult(d)
+          setAnalyzing(false)
+          setJobId(null)
+          setShowRetryButton(true)
         } else {
           setPollCount(c=>c+1)
         }
@@ -1357,7 +1397,7 @@ function PhishingDetector() {
       }
     },3000)
     return ()=>clearTimeout(timer)
-  },[jobId,analyzing,pollCount])
+  },[jobId,analyzing,pollCount,url,loadScanHistory,submitCheckRequest])
 
   const totalUrls=stats?.stats?.total_urls||stats?.total_urls||0
   const phCount=stats?.stats?.phishing_count||stats?.phishing_count||0
@@ -1615,8 +1655,29 @@ function PhishingDetector() {
       )}
     </AnimatePresence>
 
-    {/* Result Display */}
-    {result && <PhishingResult result={result} url={url} />}
+    {showRetryButton && !analyzing && (
+      <div style={{ display:'flex', justifyContent:'center', margin:'0 auto 20px' }}>
+        <motion.button
+          onClick={() => handleCheck(true)}
+          whileHover={{ scale:1.02 }}
+          whileTap={{ scale:0.98 }}
+          style={{
+            padding:'10px 18px',
+            borderRadius:theme.radius.md,
+            border:`1px solid ${theme.warning}`,
+            background:'rgba(245,158,11,0.12)',
+            color:theme.warning,
+            fontWeight:700,
+            cursor:'pointer'
+          }}
+        >
+          Yeniden Tara
+        </motion.button>
+      </div>
+    )}
+
+    {/* Result Display — only when analysis is complete */}
+    {result && !analyzing && <PhishingResult result={result} url={url} />}
 
     {/* Stats Grid */}
     <motion.div 
