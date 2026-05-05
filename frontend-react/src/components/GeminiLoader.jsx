@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
 import { theme } from '../theme'
 
-export default function GeminiLoader({ text = 'Gemini analiz ediyor...' }) {
+export default function GeminiLoader({ text = 'AI analiz ediyor...' }) {
   return (
     <div style={{
       display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,

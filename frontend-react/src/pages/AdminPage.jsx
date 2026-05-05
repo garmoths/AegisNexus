@@ -62,10 +62,10 @@ export default function AdminPage() {
             marginBottom: 24,
           }}>
             <h2 style={{ color: theme.primary, fontSize: 18, fontWeight: 600, margin: '0 0 12px' }}>
-              🤖 Gemini Toplu Sınıflandırma
-            </h2>
-            <p style={{ color: theme.textMuted, fontSize: 14, margin: '0 0 16px' }}>
-              Yayınlanmamış vakaları Gemini ile otomatik sınıflandır.
+              🤖 AI Toplu Sınıflandırma
+    </h2>
+    <p style={{ color: theme.textMuted, fontSize: 14, margin: '0 0 16px' }}>
+              Yayınlanmamış vakaları AI ile otomatik sınıflandır.
             </p>
             <button
               onClick={handleClassify}

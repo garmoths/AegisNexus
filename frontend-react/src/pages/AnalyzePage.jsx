@@ -57,7 +57,7 @@ export default function AnalyzePage() {
           🔍 Analiz Aracı
         </h1>
         <p style={{ color: theme.textMuted, fontSize: 15, margin: 0, maxWidth: 500, marginLeft: 'auto', marginRight: 'auto' }}>
-          Yaşadığınız siber olayı anlatın, Gemini size özel korunma planı üretsin.
+          Yaşadığınız siber olayı anlatın, AI size özel korunma planı üretsin.
         </p>
       </section>
 
@@ -95,13 +95,13 @@ export default function AnalyzePage() {
                 fontSize: 14,
               }}
             >
-              {loading ? 'Analiz Ediliyor...' : '🤖 Gemini ile Analiz Et'}
+              {loading ? 'Analiz Ediliyor...' : '🤖 AI ile Analiz Et'}
             </button>
           </div>
         </div>
 
         {/* Loading */}
-        {loading && <GeminiLoader text="Gemini olayınızı analiz ediyor..." />}
+        {loading && <GeminiLoader text="AI olayınızı analiz ediyor..." />}
 
         {/* Result */}
         {result && !result.error && (
