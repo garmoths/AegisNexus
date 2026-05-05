@@ -22,7 +22,14 @@ from pathlib import Path
 
 from .cache_db import write_phishing_url, write_ioc
 from .screenshot_analyzer import analyze as analyze_screenshot
-from .scoring import combine_probabilities, to_probability, apply_source_weight, SCORING_MODEL_VERSION
+from .scoring import (
+    combine_probabilities,
+    to_probability,
+    apply_source_weight,
+    detect_signals,
+    apply_correlation_boost,
+    SCORING_MODEL_VERSION,
+)
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 load_dotenv(BASE_DIR / ".env")
@@ -1151,14 +1158,30 @@ def run_threat_intelligence(url, http_meta=None, page_text: str = "", is_whiteli
         _pe.append(_ev("threatfox", to_probability(25), f"ThreatFox IOC ({tf_d.get('malware_family', 'unknown')})", {"malware_family": tf_d.get("malware_family"), "confidence": tf_d.get("confidence")}))
 
     combined_probability = combine_probabilities([e["weighted_probability"] for e in _pe])
-    results["combined_risk_probability"] = combined_probability
+
+    # ── Faz C: Korelasyon boost ───────────────────────────────
+    _signals = detect_signals(
+        domain=domain,
+        page_text=page_text,
+        screenshot_analysis=results.get("screenshot_analysis"),
+        abuseipdb=results.get("abuseipdb"),
+        urlhaus=results.get("urlhaus"),
+        pre_penalty=pre_penalty,
+    )
+    boosted_probability, _boost_events = apply_correlation_boost(combined_probability, _signals)
+    # ── /Faz C
+
+    results["combined_risk_probability"] = boosted_probability
     results["scoring_model"] = SCORING_MODEL_VERSION
     results["scoring_details"] = {
         "penalty_events": _pe,
         "legacy_penalty": results.get("total_penalty", 0),
         "signal_count": len(_pe),
+        "signals": _signals,
+        "correlation_boosts": _boost_events,
+        "pre_boost_probability": combined_probability,
     }
-    # ── /Faz A ─────────────────────────────────────────────────────────────
+    # ── /Faz A+B+C ─────────────────────────────────────────────────────────────
 
     return results
 

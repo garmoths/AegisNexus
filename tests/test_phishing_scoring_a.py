@@ -12,9 +12,12 @@ from modules.phishing_detector.scoring import (
     combine_probabilities,
     to_probability,
     apply_source_weight,
+    detect_signals,
+    apply_correlation_boost,
     SOURCE_WEIGHTS,
     DEFAULT_SOURCE_WEIGHT,
     SCORING_MODEL_VERSION,
+    SUSPICIOUS_TLDS,
 )
 
 
@@ -273,6 +276,37 @@ class TestThreatIntelBayesianOutput:
         assert result["combined_risk_probability"] == pytest.approx(expected, abs=0.01)
         assert result["scoring_details"]["signal_count"] == 2
 
+    def test_correlation_boosts_in_scoring_details(self, monkeypatch):
+        """Faz C: scoring_details.correlation_boosts ve signals mevcut olmalı."""
+        import modules.phishing_detector.threat_intel as ti
+
+        CLEAN_SHOT = {"available": True, "gemini_skipped": False, "risk_score": 0, "risk_level": "SAFE", "threat_indicators": [], "verdict": "Temiz"}
+        CLEAN_VT = {"available": True, "malicious": 0, "suspicious": 0}
+        CLEAN_GSB = {"available": True, "threat": False}
+        CLEAN_ABUSEIPDB = {"abuse_score": 0}
+        CLEAN_SG = {
+            "urlhaus": {"listed": False, "available": True},
+            "spamhaus_domain": {"listed": False, "available": True},
+            "spamhaus_ip": {"listed": False, "available": True},
+            "threatfox": {"found": False, "available": True},
+        }
+
+        monkeypatch.setattr(ti, "_task_screenshot", lambda *a, **k: CLEAN_SHOT)
+        monkeypatch.setattr(ti, "_task_virustotal", lambda *a, **k: CLEAN_VT)
+        monkeypatch.setattr(ti, "_task_gsb", lambda *a, **k: CLEAN_GSB)
+        monkeypatch.setattr(ti, "_task_abuseipdb", lambda *a, **k: CLEAN_ABUSEIPDB)
+        monkeypatch.setattr(ti, "_task_spamhaus_group", lambda *a, **k: CLEAN_SG)
+        monkeypatch.setattr(ti, "write_phishing_url", lambda **k: None)
+        monkeypatch.setattr(ti, "write_ioc", lambda **k: None)
+
+        result = ti.run_threat_intelligence("https://google.com")
+        sd = result["scoring_details"]
+        assert "correlation_boosts" in sd
+        assert "signals" in sd
+        assert "pre_boost_probability" in sd
+        assert isinstance(sd["correlation_boosts"], list)
+        assert isinstance(sd["signals"], dict)
+
     def test_legacy_penalty_preserved(self, monkeypatch):
         """Eski total_penalty ve yeni scoring_details birlikte mevcut olmalı."""
         import modules.phishing_detector.threat_intel as ti
@@ -301,3 +335,136 @@ class TestThreatIntelBayesianOutput:
         assert "total_penalty" in result
         assert "scoring_details" in result
         assert result["scoring_details"]["legacy_penalty"] == result["total_penalty"]
+
+
+# ── 6. detect_signals (Faz C) ────────────────────────────────────────────────
+
+class TestDetectSignals:
+    def test_suspicious_tld_detected(self):
+        s = detect_signals(domain="evil.xyz")
+        assert s["suspicious_tld"] is True
+
+    def test_clean_tld_not_suspicious(self):
+        s = detect_signals(domain="google.com")
+        assert s["suspicious_tld"] is False
+
+    def test_credential_keyword_in_page_text(self):
+        s = detect_signals(page_text="Please enter your password here")
+        assert s["credential_form"] is True
+
+    def test_no_credential_keyword(self):
+        s = detect_signals(page_text="Welcome to our blog about cats")
+        assert s["credential_form"] is False
+
+    def test_abuseipdb_high_flag(self):
+        s = detect_signals(abuseipdb={"abuse_score": 85})
+        assert s["abuseipdb_high"] is True
+
+    def test_abuseipdb_low_not_flagged(self):
+        s = detect_signals(abuseipdb={"abuse_score": 30})
+        assert s["abuseipdb_high"] is False
+
+    def test_urlhaus_listed_flag(self):
+        s = detect_signals(urlhaus={"listed": True})
+        assert s["urlhaus_listed"] is True
+
+    def test_screenshot_failed_when_none(self):
+        s = detect_signals(screenshot_analysis=None)
+        assert s["screenshot_failed"] is True
+
+    def test_screenshot_not_failed_when_dict(self):
+        s = detect_signals(screenshot_analysis={"risk_score": 10})
+        assert s["screenshot_failed"] is False
+
+    def test_structural_penalty_high_threshold(self):
+        s = detect_signals(pre_penalty=20)
+        assert s["structural_penalty_high"] is True
+        s2 = detect_signals(pre_penalty=19)
+        assert s2["structural_penalty_high"] is False
+
+    def test_domain_new_with_age(self):
+        s = detect_signals(domain_age_days=15)
+        assert s["domain_new"] is True
+
+    def test_domain_not_new_without_age(self):
+        s = detect_signals(domain_age_days=None)
+        assert s["domain_new"] is False
+
+    def test_brand_mismatch_from_screenshot_indicators(self):
+        shot = {"threat_indicators": ["brand impersonation detected"]}
+        s = detect_signals(screenshot_analysis=shot)
+        assert s["brand_mismatch"] is True
+
+    def test_all_keys_present(self):
+        s = detect_signals()
+        for key in ("suspicious_tld", "credential_form", "brand_mismatch",
+                    "abuseipdb_high", "urlhaus_listed", "screenshot_failed",
+                    "structural_penalty_high", "domain_new"):
+            assert key in s
+
+
+# ── 7. apply_correlation_boost (Faz C) ───────────────────────────────────────
+
+class TestApplyCorrelationBoost:
+    def test_no_signals_no_boost(self):
+        p, evs = apply_correlation_boost(0.5, {})
+        assert p == 0.5
+        assert evs == []
+
+    def test_zero_input_stays_zero(self):
+        p, evs = apply_correlation_boost(0.0, {"suspicious_tld": True, "credential_form": True})
+        assert p == 0.0
+
+    def test_rule1_suspicious_tld_credential_form(self):
+        p, evs = apply_correlation_boost(0.5, {"suspicious_tld": True, "credential_form": True})
+        assert p == pytest.approx(0.5 * 1.4, abs=1e-5)
+        assert len(evs) == 1
+        assert evs[0]["rule"] == "suspicious_tld+credential_form"
+        assert evs[0]["factor"] == 1.4
+
+    def test_rule2_brand_mismatch(self):
+        p, evs = apply_correlation_boost(0.4, {"brand_mismatch": True})
+        assert p == pytest.approx(0.4 * 1.3, abs=1e-5)
+        assert evs[0]["rule"] == "brand_mismatch"
+
+    def test_rule4_screenshot_failed_structural(self):
+        p, evs = apply_correlation_boost(0.3, {"screenshot_failed": True, "structural_penalty_high": True})
+        assert p == pytest.approx(0.3 * 1.2, abs=1e-5)
+        assert evs[0]["rule"] == "screenshot_failed+structural_penalty_high"
+
+    def test_multiple_rules_compound(self):
+        p, evs = apply_correlation_boost(
+            0.3,
+            {"suspicious_tld": True, "credential_form": True, "brand_mismatch": True}
+        )
+        expected = min(1.0, min(1.0, 0.3 * 1.4) * 1.3)
+        assert p == pytest.approx(expected, abs=1e-5)
+        assert len(evs) == 2
+
+    def test_result_never_exceeds_one(self):
+        p, _ = apply_correlation_boost(0.9, {
+            "suspicious_tld": True, "credential_form": True,
+            "brand_mismatch": True, "screenshot_failed": True,
+            "structural_penalty_high": True,
+        })
+        assert p <= 1.0
+
+    def test_result_never_decreases(self):
+        base = 0.4
+        signals = {"suspicious_tld": True, "credential_form": True}
+        p, _ = apply_correlation_boost(base, signals)
+        assert p >= base
+
+    def test_rule3_requires_all_three_conditions(self):
+        p_only_age, _ = apply_correlation_boost(0.5, {"domain_new": True})
+        p_all, evs = apply_correlation_boost(
+            0.5,
+            {"domain_new": True, "abuseipdb_high": True, "urlhaus_listed": True}
+        )
+        assert p_all > p_only_age
+        assert any(e["rule"] == "domain_new+abuseipdb_high+urlhaus_listed" for e in evs)
+
+    def test_boost_audit_trail_before_after(self):
+        p, evs = apply_correlation_boost(0.5, {"suspicious_tld": True, "credential_form": True})
+        assert evs[0]["before"] == 0.5
+        assert evs[0]["after"] == pytest.approx(0.7, abs=1e-5)

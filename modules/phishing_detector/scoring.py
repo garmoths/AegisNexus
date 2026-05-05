@@ -50,6 +50,136 @@ def apply_source_weight(base_probability: float, source_key: str) -> float:
     return round(min(1.0, float(base_probability) * weight), 6)
 
 
+SUSPICIOUS_TLDS: frozenset = frozenset({
+    "xyz", "tk", "ml", "ga", "cf", "gq", "top", "click", "link",
+    "work", "loan", "win", "stream", "download", "online", "site",
+    "website", "tech", "space", "fun", "pw", "buzz", "icu", "fit",
+})
+
+_CREDENTIAL_KEYWORDS: frozenset = frozenset({
+    "password", "passwd", "login", "signin", "sign-in", "credential",
+    "bank", "verify", "verification", "account", "secure", "update",
+    "confirm", "paypal", "credit", "debit", "ssn", "social security",
+})
+
+
+def detect_signals(
+    *,
+    domain: str = "",
+    page_text: str = "",
+    screenshot_analysis: dict | None = None,
+    abuseipdb: dict | None = None,
+    urlhaus: dict | None = None,
+    pre_penalty: int = 0,
+    domain_age_days: int | None = None,
+) -> dict:
+    """
+    Korelasyon boost'ları için sinyal sözlüğü oluşturur.
+    Tüm alanlar boolean veya sayısal; eksik veri False/0 olarak işlenir.
+    """
+    tld = domain.rsplit(".", 1)[-1].lower() if "." in domain else ""
+    suspicious_tld = tld in SUSPICIOUS_TLDS
+
+    text_lower = page_text.lower() if page_text else ""
+    credential_form = any(kw in text_lower for kw in _CREDENTIAL_KEYWORDS)
+
+    # Screenshot'tan marka impersonation ve credential ipuçları
+    indicators: list = []
+    if isinstance(screenshot_analysis, dict):
+        indicators = screenshot_analysis.get("threat_indicators") or []
+    indicators_text = " ".join(str(i) for i in indicators).lower()
+    brand_mismatch = any(
+        kw in indicators_text
+        for kw in ("brand", "impersonat", "logo", "marka", "sahte", "fake")
+    )
+    if not credential_form:
+        credential_form = any(
+            kw in indicators_text
+            for kw in ("credential", "login form", "password", "giriş", "şifre")
+        )
+
+    abuseipdb_high = (abuseipdb or {}).get("abuse_score", 0) >= 70
+    urlhaus_listed = bool((urlhaus or {}).get("listed"))
+    screenshot_failed = screenshot_analysis is None
+    structural_penalty_high = pre_penalty >= 20
+
+    # domain_age_days: None = bilinmiyor (Faz D dolduracak), int = gerçek yaş
+    domain_new = (domain_age_days is not None and domain_age_days < 30)
+
+    return {
+        "suspicious_tld": suspicious_tld,
+        "credential_form": credential_form,
+        "brand_mismatch": brand_mismatch,
+        "abuseipdb_high": abuseipdb_high,
+        "urlhaus_listed": urlhaus_listed,
+        "screenshot_failed": screenshot_failed,
+        "structural_penalty_high": structural_penalty_high,
+        "domain_new": domain_new,
+    }
+
+
+def apply_correlation_boost(
+    combined: float, signals: dict
+) -> tuple:
+    """
+    Bağlamsal korelasyon kurallarına göre birleşik olasılığı artırır.
+
+    Kural tetikleme sırası: boost sonrası risk azalamaz, 1.0 aşamaz.
+
+    Returns: (boosted_probability: float, boost_events: list[dict])
+
+    >>> p, evs = apply_correlation_boost(0.0, {})
+    >>> p
+    0.0
+    >>> evs
+    []
+    >>> p2, evs2 = apply_correlation_boost(0.5, {"suspicious_tld": True, "credential_form": True})
+    >>> p2
+    0.7
+    >>> len(evs2)
+    1
+    """
+    boosts: list = []
+    p = float(combined)
+
+    _RULES = [
+        (
+            "suspicious_tld+credential_form",
+            lambda s: s.get("suspicious_tld") and s.get("credential_form"),
+            1.4,
+        ),
+        (
+            "brand_mismatch",
+            lambda s: s.get("brand_mismatch"),
+            1.3,
+        ),
+        (
+            "domain_new+abuseipdb_high+urlhaus_listed",
+            lambda s: s.get("domain_new") and s.get("abuseipdb_high") and s.get("urlhaus_listed"),
+            1.35,
+        ),
+        (
+            "screenshot_failed+structural_penalty_high",
+            lambda s: s.get("screenshot_failed") and s.get("structural_penalty_high"),
+            1.2,
+        ),
+    ]
+
+    for rule_name, condition, factor in _RULES:
+        if condition(signals):
+            before = round(p, 6)
+            p = min(1.0, p * factor)
+            after = round(p, 6)
+            boosts.append({
+                "rule": rule_name,
+                "factor": factor,
+                "before": before,
+                "after": after,
+            })
+
+    return round(p, 6), boosts
+
+
 def combine_probabilities(probabilities: list) -> float:
     """
     Bağımsız olayların birleşik olasılığı:  P = 1 - Π(1 - p_i)
