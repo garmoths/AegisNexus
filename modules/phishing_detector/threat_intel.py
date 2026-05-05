@@ -737,6 +737,124 @@ def _parse_iso_datetime(value: str | None):
         return None
 
 
+# =========================================================
+# FAS A: Bayesian Kombinasyon Katmanı
+# =========================================================
+
+def combine_probabilities(probabilities: list[float]) -> float:
+    """
+    Birden fazla bağımsız risk sinyalini Bayesian kombinasyon ile birleştir.
+    P(malicious) = 1 - Π(1 - p_i)
+    
+    Örnek:
+    - [0.8, 0.7] → 0.94
+    - [0.3, 0.2] → 0.44
+    - [] → 0.0
+    """
+    if not probabilities:
+        return 0.0
+    
+    prob_safe = 1.0
+    for p in probabilities:
+        bounded_p = max(0.0, min(1.0, float(p)))
+        prob_safe *= (1.0 - bounded_p)
+    
+    return max(0.0, min(1.0, 1.0 - prob_safe))
+
+
+def to_probability(raw_penalty: int | float) -> float:
+    """
+    0-100 ölçekli ceza değerini 0-1 arası olasılığa çevir.
+    """
+    bounded = max(0, min(100, int(raw_penalty)))
+    return bounded / 100.0
+
+
+# =========================================================
+# FAS B: Kaynak Ağırlıklandırması (Tiered Reliability)
+# =========================================================
+
+SOURCE_WEIGHTS = {
+    # Tier 1 — yüksek kesinlik, az false positive
+    "virustotal_malicious": 1.0,      # 50+ motor → kesin
+    "google_safe_browsing": 0.95,     # Google'ın kendi sistemi
+    "phishtank_verified": 0.90,       # İnsan doğrulamalı
+
+    # Tier 2 — güvenilir ama bazen geç güncellenir
+    "urlhaus": 0.75,
+    "spamhaus_dbl": 0.70,
+    "threatfox": 0.65,
+    "spamhaus_xbl": 0.60,
+
+    # Tier 3 — destekleyici sinyal, tek başına yetersiz
+    "abuseipdb": 0.45,
+    "spamhaus_zrd": 0.30,
+    "screenshot_suspicious": 0.35,
+    "ml_model": 0.40,
+
+    # Tier 4 — yapısal sinyaller, bağlam gerektirir
+    "suspicious_tld": 0.25,
+    "typosquatting": 0.45,
+    "no_https": 0.20,
+    "iframe_unknown": 0.15,
+}
+
+
+def get_weighted_penalty(source: str, penalty: int | float) -> float:
+    """
+    Kaynak ağırlığını, ceza değerine uygula.
+    weight=0.75, penalty=40 → 30 (etkin ceza)
+    """
+    weight = SOURCE_WEIGHTS.get(source, 0.5)
+    raw = max(0, min(100, int(penalty)))
+    weighted = (raw / 100.0) * weight
+    return weighted
+
+
+# =========================================================
+# FAS C: Korelasyon Boost Katmanı
+# =========================================================
+
+def apply_correlation_boost(signals: dict, base_risk: float) -> list[tuple[str, float]]:
+    """
+    Belirli sinyal kombinasyonları bir arada gelirse,
+    çarpanla artar (boost).
+    
+    Döner: [(boost_name, multiplier), ...]
+    """
+    boosts = []
+    
+    # Phishing trifecta: typosquatting + şüpheli TLD + login formu
+    if (signals.get("typosquatting") and
+        signals.get("suspicious_tld") and
+        signals.get("credential_form")):
+        boosts.append(("phishing_trifecta", 1.4))
+    
+    # Threat intel + görsel analiz aynı markayı işaret
+    if (signals.get("ti_brand") and
+        signals.get("visual_brand") and
+        signals.get("ti_brand") == signals.get("visual_brand")):
+        boosts.append(("brand_consensus", 1.3))
+    
+    # Yeni domain + suistimal IP + kara liste = fresh_malicious
+    if (signals.get("domain_age_days", 999) < 30 and
+        signals.get("abuseipdb_score", 0) > 50 and
+        signals.get("urlhaus_listed")):
+        boosts.append(("fresh_malicious", 1.35))
+    
+    # Screenshot alınamadı AMA diğer sinyaller şüpheli
+    if (signals.get("screenshot_failed") and
+        signals.get("structural_risk", 0) > 0.3):
+        boosts.append(("hidden_suspicious", 1.2))
+    
+    # Birden fazla VT motor + GSB'nin de bulması
+    if (signals.get("vt_malicious_count", 0) >= 3 and
+        signals.get("google_safe_browsing_threat")):
+        boosts.append(("multi_engine_consensus", 1.25))
+    
+    return boosts
+
+
 def _get_domain_age_penalty(domain: str) -> dict:
     """
     RDAP üzerinden domain yaşı sinyali üretir.
