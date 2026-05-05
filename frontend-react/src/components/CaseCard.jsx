@@ -44,7 +44,7 @@ export default function CaseCard({ case: c, onClick }) {
 
       {/* Tags */}
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-        <AttackTypeBadge type={c.attack_method} />
+        <AttackTypeBadge type={c.attack_method} label={c.attack_method_tr} />
         {c.region && (
           <span style={{
             padding: '4px 10px', fontSize: 11, fontWeight: 500,

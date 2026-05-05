@@ -188,10 +188,11 @@ class TestScreenshotAnalyzerPool:
         # screenshot_analyzer kendi namespace'inden import ettiği ismi patch ediyoruz
         monkeypatch.setattr(sa, "acquire_browser_context", fake_acquire)
 
-        screenshot_b64, text = sa._capture_screenshot_base64("https://example.com", "")
+        screenshot_b64, text, bot_detected = sa._capture_screenshot_base64("https://example.com", "")
         import base64
         raw = base64.b64decode(screenshot_b64)
         assert raw[:4] == b"\x89PNG"
+        assert bot_detected is False
 
     def test_screenshot_taken_once_per_call(self, monkeypatch):
         """Her çağrıda page.screenshot tam olarak 1 kez çağrılmalı."""

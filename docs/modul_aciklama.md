@@ -400,8 +400,11 @@ curl -X POST https://api.aegisnexus.dev/api/v2/ai-analyzer/analyze \
 - Kayıp tipi analizi (banka hesabı, kimlik, kredi kartı vb.)
 - Güvenlik skor hesaplama
 - Hot set yönetimi (kritik vakalar)
-- Otomatik veri işleme (Celery)
+- Otomatik veri işleme (Celery günlük + 6 saatlik alternatif ingest)
 - LLM tabanlı vaka çıkarımı
+- Güvenilir Türk haber RSS kaynaklarından son 1 yıl ingest filtresi
+- İl bazlı heatmap (stats/heatmap) + vaka listesinden yöntem renklendirmesi
+- Türkçe gösterim alanları (`attack_method_tr`, `loss_type_tr`, `target_platform_tr`)
 
 **API Endpoint'leri:**
 
@@ -410,9 +413,16 @@ curl -X POST https://api.aegisnexus.dev/api/v2/ai-analyzer/analyze \
 | `/api/v2/victim-atlas/cases` | GET | Vaka listesi (filtreleme ile) |
 | `/api/v2/victim-atlas/cases/{case_id}` | GET | Vaka detayları |
 | `/api/v2/victim-atlas/stats` | GET | Mağduriyet atlası istatistikleri |
+| `/api/v2/victim-atlas/stats/heatmap` | GET | İl bazlı vaka yoğunluğu (FeatureCollection) |
 | `/api/v2/victim-atlas/ingest/health` | GET | Veri işleme sağlık durumu (admin) |
 | `/api/v2/victim-atlas/ingest/run` | POST | Manuel veri işleme çalıştırma (admin) |
 | `/api/v2/victim-atlas/ingest/prune` | POST | Hot set bakımı (admin) |
+
+**Güncel Notlar:**
+- Ingest sırasında kaynak registry sync edilir; eski/legacy kaynaklar otomatik `enabled=false` yapılır.
+- Dedupe hem raw doc (`external_id/hash`) hem vaka düzeyinde (benzer başlık Jaccard merge) uygulanır.
+- Region çıkarımı başlık+özetten yapılır; bulunamazsa URL/external_id/source metadata fallback uygulanır.
+- Vaka listesinde sıralama en yeni içerik üstte olacak şekilde `last_seen DESC` önceliklidir.
 
 **Kullanım Örneği:**
 ```bash

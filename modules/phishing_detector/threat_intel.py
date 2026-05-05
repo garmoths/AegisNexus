@@ -815,7 +815,7 @@ def get_weighted_penalty(source: str, penalty: int | float) -> float:
 # FAS C: Korelasyon Boost Katmanı
 # =========================================================
 
-def apply_correlation_boost(signals: dict, base_risk: float) -> list[tuple[str, float]]:
+def _apply_legacy_boost(signals: dict, base_risk: float) -> list[tuple[str, float]]:
     """
     Belirli sinyal kombinasyonları bir arada gelirse,
     çarpanla artar (boost).
@@ -1003,9 +1003,10 @@ def _task_gsb(url: str):
 
 
 def _task_abuseipdb(url: str):
-    """AbuseIPDB yerel IP blacklist sorgusu."""
-    from .threat_intel_local import check_abuseipdb_local as check_abuseipdb, load_ip_blacklists
-    load_ip_blacklists("/opt/phishing/ip_lists")
+    """AbuseIPDB yerel IP blacklist sorgusu.
+    IP listeleri preload_models() ile startup'ta yüklenmiştir.
+    """
+    from .threat_intel_local import check_abuseipdb_local as check_abuseipdb
     return check_abuseipdb(url)
 
 

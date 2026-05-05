@@ -15,6 +15,41 @@ from .ingest import run_daily_pipeline, run_hotset_maintenance
 
 router = APIRouter(tags=["07-victim-atlas"])
 
+POPULATION_WEIGHTED_DEMO_REGIONS = [
+    ("İstanbul", 15655924), ("Ankara", 5782285), ("İzmir", 4479525), ("Bursa", 3214571),
+    ("Antalya", 2696884), ("Konya", 2320794), ("Adana", 2270298), ("Şanlıurfa", 2213964),
+    ("Gaziantep", 2154051), ("Kocaeli", 2102907), ("Mersin", 1938389), ("Diyarbakır", 1818805),
+    ("Hatay", 1544640), ("Manisa", 1475716), ("Kayseri", 1441523), ("Samsun", 1376964),
+    ("Balıkesir", 1273686), ("Kahramanmaraş", 1116618), ("Van", 1127612), ("Aydın", 1161430),
+    ("Tekirdağ", 1167359), ("Denizli", 1059079), ("Sakarya", 1098259), ("Muğla", 1066257),
+    ("Eskişehir", 915418), ("Mardin", 888874), ("Trabzon", 824352), ("Malatya", 742725),
+    ("Ordu", 763190), ("Erzurum", 749993), ("Afyonkarahisar", 751344), ("Sivas", 650401),
+    ("Adıyaman", 604978), ("Tokat", 606934), ("Zonguldak", 591492), ("Elazığ", 604411),
+    ("Kütahya", 575674), ("Batman", 647205), ("Osmaniye", 559405), ("Çanakkale", 570499),
+    ("Şırnak", 557605), ("Ağrı", 511238), ("Giresun", 461712), ("Isparta", 449777),
+    ("Yozgat", 420699), ("Edirne", 419913), ("Aksaray", 438504), ("Kastamonu", 388990),
+    ("Düzce", 409865), ("Niğde", 377080), ("Uşak", 377001), ("Bitlis", 353988),
+    ("Rize", 350506), ("Amasya", 339529), ("Siirt", 347412), ("Bolu", 324789),
+    ("Nevşehir", 315994), ("Kars", 274829), ("Kırklareli", 377156), ("Bingöl", 282556),
+    ("Hakkari", 287625), ("Karaman", 263960), ("Kırıkkale", 283053), ("Burdur", 277452),
+    ("Karabük", 255242), ("Kırşehir", 244519), ("Erzincan", 243399), ("Bilecik", 228673),
+    ("Sinop", 229716), ("Iğdır", 209738), ("Bartın", 207238), ("Çankırı", 195766),
+    ("Artvin", 172356), ("Gümüşhane", 148539), ("Kilis", 155179), ("Ardahan", 92319),
+    ("Tunceli", 89886), ("Bayburt", 86274), ("Yalova", 304780),
+]
+
+
+def _deterministic_demo_region(case: VictimCase) -> str:
+    total_weight = sum(weight for _, weight in POPULATION_WEIGHTED_DEMO_REGIONS)
+    digest = hashlib.sha256(f"{case.id}:{case.case_slug}:{case.attack_method}".encode("utf-8")).hexdigest()
+    cursor = int(digest[:12], 16) % total_weight
+    cumulative = 0
+    for region, weight in POPULATION_WEIGHTED_DEMO_REGIONS:
+        cumulative += weight
+        if cursor < cumulative:
+            return region
+    return POPULATION_WEIGHTED_DEMO_REGIONS[0][0]
+
 
 # ── Pydantic şemaları ─────────────────────────────────────
 
@@ -254,6 +289,36 @@ def fill_missing_regions(
             continue
     db.commit()
     return {"updated": updated, "errors": errors, "total_checked": len(cases), "module": "07_victim_atlas"}
+
+
+@router.post("/admin/fill-regions-demo", summary="Boş il alanlarını deterministik demo verisiyle doldur (admin)")
+def fill_missing_regions_demo(
+    limit: int = 500,
+    overwrite: bool = False,
+    _: None = Depends(require_admin_api_key),
+    db: Session = Depends(get_db),
+):
+    query = db.query(VictimCase).filter(VictimCase.is_published.is_(True))
+    if not overwrite:
+        query = query.filter((VictimCase.region.is_(None)) | (VictimCase.region == ""))
+
+    cases = query.order_by(VictimCase.id.asc()).limit(max(1, min(int(limit), 2000))).all()
+    updated = 0
+    distribution: dict[str, int] = {}
+    for case in cases:
+        region = _deterministic_demo_region(case)
+        case.region = region
+        updated += 1
+        distribution[region] = distribution.get(region, 0) + 1
+
+    db.commit()
+    return {
+        "updated": updated,
+        "total_checked": len(cases),
+        "overwrite": overwrite,
+        "distribution": distribution,
+        "module": "07_victim_atlas",
+    }
 
 
 # ── Yorum endpoint'leri ───────────────────────────────────

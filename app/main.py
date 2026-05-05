@@ -45,6 +45,15 @@ async def lifespan(_app: FastAPI):
         logger.info("Aegis Nexus - 5 Katmanlı Güvenlik Kalkanı hazır")
     except Exception as e:
         logger.warning("Veritabanı tabloları oluşturulamadı (devam ediliyor): %s", e)
+
+    # A1: Sync path için EasyOCR + IP blacklist preload (opsiyonel, hata tolere edilir)
+    try:
+        from modules.phishing_detector.threat_intel_local import preload_models
+        result = preload_models()
+        logger.info(f"[Lifespan] Preload modeller tamam: OCR={result['ocr_loaded']}, IP={result['ip_loaded']}, PW={result['playwright_loaded']}")
+    except Exception as e:
+        logger.warning(f"[Lifespan] Preload modeller başarısız (lazy init devreye girer): {e}")
+
     yield
 
 

@@ -4,8 +4,6 @@ import { BrowserRouter, Navigate, Routes, Route } from 'react-router-dom'
 import './index.css'
 import App from './App.jsx'
 import ModulesApp from './ModulesApp.jsx'
-import HaritaPage from './pages/HaritaPage.jsx'
-import AtlasPage from './pages/AtlasPage.jsx'
 import AnalyzePage from './pages/AnalyzePage.jsx'
 
 // Route based on hostname
@@ -21,9 +19,7 @@ createRoot(document.getElementById('root')).render(
         <Routes>
           {/* Original landing page — default */}
           <Route path="/" element={<App />} />
-          <Route path="/atlas" element={<AtlasPage />} />
           <Route path="/analyze" element={<AnalyzePage />} />
-          <Route path="/harita" element={<HaritaPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>

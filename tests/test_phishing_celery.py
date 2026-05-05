@@ -13,6 +13,7 @@ import uuid
 from unittest.mock import MagicMock, patch
 
 import pytest
+from billiard.exceptions import SoftTimeLimitExceeded
 
 
 # ── 1. run_quick_checks ──────────────────────────────────────────────────
@@ -178,6 +179,36 @@ class TestCeleryTask:
             stored = json.loads(written[job_key])
             assert stored["status"] == "error"
         # else: Redis write before retry also acceptable (error caught internally)
+
+    def test_soft_time_limit_writes_timeout_and_no_retry(self, monkeypatch):
+        """SoftTimeLimitExceeded durumunda job timeout yazılmalı, retry olmamalı."""
+        ct = _get_mod("modules.phishing_detector.celery_tasks")
+
+        written = {}
+        class FakeRedis:
+            def setex(self, key, ttl, val):
+                written[key] = val
+
+        monkeypatch.setattr(ct, "_get_redis", lambda: FakeRedis())
+        monkeypatch.setattr(ct, "redis_set_scan", lambda h, r: None)
+
+        mock_session = MagicMock()
+        mock_session.close = MagicMock()
+        job_id = str(uuid.uuid4())
+
+        with patch("app.database.SessionLocal", return_value=mock_session):
+            with patch(
+                "modules.phishing_detector.scanner.calculate_safety_score",
+                side_effect=SoftTimeLimitExceeded("soft limit"),
+            ):
+                retry_mock = MagicMock()
+                monkeypatch.setattr(ct.run_heavy_analysis, "retry", retry_mock)
+                result = ct.run_heavy_analysis.run("https://test.com", job_id)
+
+        assert result["status"] == "timeout"
+        retry_mock.assert_not_called()
+        stored = json.loads(written[f"job:{job_id}"])
+        assert stored["status"] == "timeout"
 
 
 # ── 3. get_job_result fonksiyonu ────────────────────────────────────────────────

@@ -162,7 +162,7 @@ class TestScreenshotAnalyzerOcrIntegration:
         png = _make_png_bytes()
         b64 = base64.b64encode(png).decode()
         monkeypatch.setattr(sa, "_capture_screenshot_base64",
-                            lambda url, text: (b64, "page text"))
+                            lambda url, text: (b64, "page text", False))
 
         mock_reader = _mock_reader(ocr_text_lines)
         monkeypatch.setattr(va, "_ocr_reader", mock_reader)

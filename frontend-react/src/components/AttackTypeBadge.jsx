@@ -12,19 +12,19 @@ const ATTACK_COLORS = {
 }
 
 const ATTACK_LABELS = {
-  phishing: 'Phishing',
-  smishing: 'Smishing',
-  vishing: 'Vishing',
-  sahte_mobil_uygulama: 'Sahte Uygulama',
+  phishing: 'Oltalama',
+  smishing: 'SMS Oltalaması',
+  vishing: 'Telefon Dolandırıcılığı',
+  sahte_mobil_uygulama: 'Sahte Mobil Uygulama',
   banka_taklit: 'Banka Taklidi',
   social_engineering: 'Sosyal Mühendislik',
-  malware_assisted: 'Malware',
+  malware_assisted: 'Zararlı Yazılım',
   other: 'Diğer',
 }
 
-export default function AttackTypeBadge({ type, size = 'sm' }) {
+export default function AttackTypeBadge({ type, label, size = 'sm' }) {
   const color = ATTACK_COLORS[type] || ATTACK_COLORS.other
-  const label = ATTACK_LABELS[type] || type
+  const text = label || ATTACK_LABELS[type] || type
 
   const sizes = {
     sm: { padding: '4px 10px', fontSize: '11px' },
@@ -52,7 +52,7 @@ export default function AttackTypeBadge({ type, size = 'sm' }) {
         background: color,
         boxShadow: `0 0 6px ${color}`,
       }} />
-      {label}
+      {text}
     </span>
   )
 }

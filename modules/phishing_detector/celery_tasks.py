@@ -20,6 +20,7 @@ import os
 
 from celery import Celery
 from celery.signals import worker_process_init, worker_process_shutdown
+from billiard.exceptions import SoftTimeLimitExceeded
 
 from .redis_cache import redis_set_scan
 from .url_normalize import normalize_url_record
@@ -40,6 +41,12 @@ app.conf.update(
     task_time_limit=270,        # 4.5 dk hard limit
     worker_max_tasks_per_child=50,  # Memory leak'e karşı
     task_acks_late=True,        # Hata durumunda yeniden kuyruğa alınır
+    # B: Throughput ayarları — concurrency=3, prefork, prefetch=1
+    worker_concurrency=int(os.getenv("PHISHING_CELERY_CONCURRENCY", "3")),
+    worker_pool=os.getenv("PHISHING_CELERY_POOL", "prefork"),
+    worker_prefetch_multiplier=int(os.getenv("PHISHING_CELERY_PREFETCH", "1")),
+    # OOM koruması
+    worker_max_memory_per_child=int(os.getenv("PHISHING_CELERY_MAX_MEMORY", "800000")),  # 800MB
 )
 
 # Job sonuçları Redis'te bu TTL ile saklanır (1 saat)
@@ -49,14 +56,27 @@ _JOB_TTL = int(os.getenv("PHISHING_JOB_TTL", "3600"))
 
 
 @worker_process_init.connect
-def _init_playwright_pool(**kwargs):
-    """Worker process başladığında Playwright browser'ı pre-warm et."""
+def _preload_worker_models(**kwargs):
+    """Worker process başladığında tüm ağır modelleri preload et.
+    
+    A1: EasyOCR (~30sn), IP blacklist (~2-3sn), Playwright pool (~5-10sn).
+    Bunlar artık her istekte değil, worker başlangıcında bir kez yüklenir.
+    """
+    # 1. Playwright pool pre-warm
     try:
         from .playwright_pool import init_pool
         init_pool()
         logger.info("[A3] Playwright pool hazır (worker process init)")
     except Exception as exc:
         logger.warning(f"[A3] Playwright pool init başarısız (lazy init devreye girer): {exc}")
+    
+    # 2. EasyOCR + IP blacklist preload
+    try:
+        from .threat_intel_local import preload_models
+        result = preload_models()
+        logger.info(f"[A1] Preload modeller tamam: OCR={result['ocr_loaded']}, IP={result['ip_loaded']}, PW={result['playwright_loaded']}")
+    except Exception as exc:
+        logger.warning(f"[A1] Preload modeller başarısız (lazy init devreye girer): {exc}")
 
 
 @worker_process_shutdown.connect
@@ -117,6 +137,22 @@ def run_heavy_analysis(self, url: str, job_id: str):
         logger.info(f"[Celery] Analiz tamamlandı: {url} (job={job_id})")
         return result
 
+    except SoftTimeLimitExceeded as exc:
+        logger.error(f"[Celery] Soft time limit aşıldı: {url} (job={job_id}) - {exc}")
+        timeout_payload = {
+            "status": "timeout",
+            "job_id": job_id,
+            "url": url,
+            "risk_level": "unknown",
+            "module": "01_phishing_detector",
+            "error": "soft_time_limit_exceeded",
+        }
+        try:
+            r = _get_redis()
+            r.setex(f"job:{job_id}", _JOB_TTL, json.dumps(timeout_payload, default=str))
+        except Exception as redis_exc:
+            logger.error(f"[Celery] Timeout sonucu Redis'e yazılamadı (job={job_id}): {redis_exc}")
+        return timeout_payload
     except Exception as exc:
         logger.error(f"[Celery] Analiz hatası {url}: {exc}")
         try:
@@ -126,8 +162,8 @@ def run_heavy_analysis(self, url: str, job_id: str):
                 _JOB_TTL,
                 json.dumps({"status": "error", "job_id": job_id, "error": str(exc)}, default=str),
             )
-        except Exception:
-            pass
+        except Exception as redis_exc:
+            logger.error(f"[Celery] Hata sonucu Redis'e yazılamadı (job={job_id}): {redis_exc}")
         raise self.retry(exc=exc, countdown=10)
     finally:
         db.close()

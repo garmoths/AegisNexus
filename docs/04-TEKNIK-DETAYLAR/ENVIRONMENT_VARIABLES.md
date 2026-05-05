@@ -61,6 +61,8 @@ If both singular and plural are present, plural key list is preferred.
 - `VICTIM_ATLAS_DB_PATH` (optional): Separate SQLite DB path. Default `data/victim_atlas.db`.
 - `VICTIM_ATLAS_HOT_SET_LIMIT` (optional): Number of hot cases kept active. Default `1000`.
 - `VICTIM_ATLAS_SOURCE_ITEM_LIMIT` (optional): Max fetched items per source run. Default `120`.
+- `VICTIM_ATLAS_LOOKBACK_DAYS` (optional): Ingest lookback window in days. Default `365`.
+- `VICTIM_ATLAS_ALLOW_UNDATED` (optional): Tarihi parse edilemeyen kayıtları ingest et (`1`) / etme (`0`). Default `0`.
 - `VICTIM_ATLAS_ENRICH_LIMIT` (optional): Enrichment pass limit. Default `500`.
 - `VICTIM_ATLAS_SIKAYETVAR_RSS_URL` (optional): ToS-uyumlu sikayet akisi (RSS/Atom) URL'i.
 - `VICTIM_ATLAS_SIKAYETVAR_TRUST_TIER` (optional): `tier1` or `tier2` (default `tier2`).
@@ -68,13 +70,14 @@ If both singular and plural are present, plural key list is preferred.
 - `VICTIM_ATLAS_TR_CERT_TRUST_TIER` (optional): `tier1` or `tier2` (default `tier1`).
 
 Source toggles (optional, `1` or `0`):
-- `VICTIM_ATLAS_SOURCE_CISA_ADVISORIES`
-- `VICTIM_ATLAS_SOURCE_KREBSONSECURITY`
-- `VICTIM_ATLAS_SOURCE_BLEEPINGCOMPUTER`
-- `VICTIM_ATLAS_SOURCE_PROOFPOINT_BLOG`
-- `VICTIM_ATLAS_SOURCE_REDDIT_SCAM`
-- `VICTIM_ATLAS_SOURCE_GOOGLE_NEWS_TR_DOLANDIRICILIK`
-- `VICTIM_ATLAS_SOURCE_GOOGLE_NEWS_TR_SAHTE_UYGULAMA`
+- `VICTIM_ATLAS_SOURCE_AA_GUNCEL`
+- `VICTIM_ATLAS_SOURCE_TRT_HABER_GUNCEL`
+- `VICTIM_ATLAS_SOURCE_NTV_GUNDEM`
+- `VICTIM_ATLAS_SOURCE_HABERTURK_GUNDEM`
+- `VICTIM_ATLAS_SOURCE_HURRIYET_GUNDEM`
+- `VICTIM_ATLAS_SOURCE_MILLIYET_GUNDEM`
+- `VICTIM_ATLAS_SOURCE_SOZCU_GUNDEM`
+- `VICTIM_ATLAS_SOURCE_CUMHURIYET_TURKIYE` (default kapalı)
 - `VICTIM_ATLAS_SOURCE_SIKAYETVAR_RSS` (env URL tanimliysa)
 - `VICTIM_ATLAS_SOURCE_TR_CERT_FEED` (env URL tanimliysa)
 
