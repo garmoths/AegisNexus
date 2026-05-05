@@ -10,6 +10,7 @@ import logging
 import os
 from typing import Any, Dict, Tuple
 
+import httpx
 import requests
 from openai import OpenAI
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
@@ -222,6 +223,7 @@ def _get_groq_client() -> OpenAI:
         _groq_client = OpenAI(
             api_key=api_key,
             base_url="https://api.groq.com/openai/v1",
+            http_client=httpx.Client(proxy=None),
         )
     return _groq_client
 
