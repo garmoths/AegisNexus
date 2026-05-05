@@ -1343,7 +1343,7 @@ function PhishingDetector() {
         setShowRetryButton(false)
       }
       loadScanHistory(1)
-    }catch(e){showToast('URL kontrol hatasi: '+e.message,'error')}
+    }catch(e){showToast('URL kontrol hatasi: '+(e?.message||String(e)||'Bilinmeyen hata'),'error')}
     setChecking(false)
   }
 
