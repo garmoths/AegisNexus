@@ -19,6 +19,7 @@ from .threat_intel import check_ioc_threatfox, run_threat_intelligence
 from .visual_analyzer import analyze_html
 
 logger = logging.getLogger(__name__)
+SCORING_MODEL = (os.getenv("PHISHING_SCORING_MODEL", "rule-based-v1") or "rule-based-v1").strip()
 
 # =========================================================
 # AYARLAR VE JSON YÜKLEME
@@ -491,6 +492,44 @@ def analyze_domain_structure(domain, raw_input):
     return findings, score_penalty
 
 
+def classify_with_confidence(score: float, signal_count: int) -> dict:
+    """
+    Skoru güven aralığı ile sınıflandır.
+    Az sinyal varsa belirsizlik aralığı daha geniş tutulur.
+    """
+    bounded_score = max(0, min(100, int(round(score))))
+    bounded_signals = max(0, int(signal_count))
+    uncertainty = max(5, 15 - bounded_signals * 2)
+    low = max(0, bounded_score - uncertainty)
+    high = min(100, bounded_score + uncertainty)
+
+    if low < 60 < high:
+        verdict = "⚠️ Belirsiz (60 sınırında)"
+    elif bounded_score >= 80:
+        verdict = "✅ Güvenli"
+    elif bounded_score >= 60:
+        verdict = "⚠️ Şüpheli"
+    elif bounded_score >= 35:
+        verdict = "🟠 Riskli"
+    else:
+        verdict = "🚨 Tehlikeli"
+
+    if uncertainty <= 5:
+        confidence = "yüksek"
+    elif uncertainty <= 10:
+        confidence = "orta"
+    else:
+        confidence = "düşük"
+
+    return {
+        "verdict": verdict,
+        "confidence": confidence,
+        "range": {"min": low, "max": high},
+        "uncertainty": uncertainty,
+        "signal_count": bounded_signals,
+    }
+
+
 # =========================================================
 # A2: HIZLI KATMANLAR (~200ms, ağ I/O yok)
 # =========================================================
@@ -831,6 +870,7 @@ def calculate_safety_score(input_url, db: Session = None):
         logger.error(f"Threat Intelligence hatası: {e}")
 
     if not site_is_up:
+        interim_classification = classify_with_confidence(score, len(sources))
         return {
             "url": input_url,
             "safety_score": max(0, min(100, score)),
@@ -843,6 +883,10 @@ def calculate_safety_score(input_url, db: Session = None):
             ] + risks,
             "sources": sources + [{"name": "HTTP Erişim", "status": "Başarısız ❌"}],
             "threat_intel": threat_result,
+            "confidence": interim_classification["confidence"],
+            "score_range": interim_classification["range"],
+            "signal_count": interim_classification["signal_count"],
+            "scoring_model": SCORING_MODEL,
         }
 
     # ---------------------------------------------------------
@@ -1058,14 +1102,8 @@ def calculate_safety_score(input_url, db: Session = None):
         final_score = max(final_score, 95)
         risks.append("✅ Whitelist eşleşmesi nedeniyle skor güvenli seviyeye yükseltildi.")
 
-    if final_score >= 80:
-        risk_level = "✅ Güvenli"
-    elif final_score >= 60:
-        risk_level = "⚠️ Şüpheli"
-    elif final_score >= 40:
-        risk_level = "🟠 Riskli"
-    else:
-        risk_level = "🚨 Tehlikeli"
+    classification = classify_with_confidence(final_score, len(sources))
+    risk_level = classification["verdict"]
 
     if not risks:
         risks.append("✅ Herhangi bir risk faktörü tespit edilmedi.")
@@ -1083,6 +1121,10 @@ def calculate_safety_score(input_url, db: Session = None):
             "definitive": html_result.get("definitive", False) if html_result else False,
             "findings_count": len(html_result.get("details", [])) if html_result else 0,
         } if html_result else None,
+        "confidence": classification["confidence"],
+        "score_range": classification["range"],
+        "signal_count": classification["signal_count"],
+        "scoring_model": SCORING_MODEL,
     }
 
     # AI ek bilgileri (frontend için)
