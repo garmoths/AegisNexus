@@ -22,6 +22,7 @@ from pathlib import Path
 
 from .cache_db import write_phishing_url, write_ioc
 from .screenshot_analyzer import analyze as analyze_screenshot
+from .scoring import combine_probabilities, to_probability, SCORING_MODEL_VERSION
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 load_dotenv(BASE_DIR / ".env")
@@ -761,19 +762,27 @@ def _task_spamhaus_group(url: str, domain: str, resolved_ip: str | None):
 
     inner_futures: dict = {}
     group: dict = {}
-    with ThreadPoolExecutor(max_workers=4) as inner_executor:
+    inner_executor = ThreadPoolExecutor(max_workers=4)
+    try:
         inner_futures[inner_executor.submit(urlhaus_query_url, url)] = "urlhaus"
         inner_futures[inner_executor.submit(spamhaus_query_domain, domain)] = "spamhaus_domain"
         if resolved_ip:
             inner_futures[inner_executor.submit(spamhaus_query_ip, resolved_ip)] = "spamhaus_ip"
         inner_futures[inner_executor.submit(threatfox_query_ioc, domain, "domain")] = "threatfox"
 
-    for future in as_completed(inner_futures, timeout=30):
-        key = inner_futures[future]
         try:
-            group[key] = future.result()
-        except Exception as exc:
-            logger.warning(f"Spamhaus grup alt-sorgu hatası [{key}]: {exc}")
+            for future in as_completed(inner_futures, timeout=30):
+                key = inner_futures[future]
+                try:
+                    group[key] = future.result()
+                except Exception as exc:
+                    logger.warning(f"Spamhaus grup alt-sorgu hatası [{key}]: {exc}")
+        except TimeoutError:
+            for future, key in inner_futures.items():
+                if key not in group:
+                    logger.warning(f"Spamhaus grup alt-sorgu timeout [{key}]")
+    finally:
+        inner_executor.shutdown(wait=False)
     return group
 
 
@@ -806,11 +815,18 @@ def run_threat_intelligence(url, http_meta=None, page_text: str = "", is_whiteli
     except Exception:
         pass
 
-    # ── A4: 5 kontrolü paralel çalıştır ───────────────────────────────────
+    # Screenshot Analyzer Playwright/greenlet nedeniyle ana thread'de çalışmalı.
     task_results: dict = {}
+    try:
+        task_results["screenshot"] = _task_screenshot(url, http_meta, page_text, pre_penalty)
+    except Exception as exc:
+        logger.error(f"Screenshot task hatası [screenshot]: {exc}")
+        task_results["screenshot"] = None
+        all_available = False
+
+    # ── A4: Kalan 4 kontrolü paralel çalıştır ─────────────────────────────
     futures_map: dict = {}
-    with ThreadPoolExecutor(max_workers=_THREAT_INTEL_WORKERS) as executor:
-        futures_map[executor.submit(_task_screenshot, url, http_meta, page_text, pre_penalty)] = "screenshot"
+    with ThreadPoolExecutor(max_workers=max(1, _THREAT_INTEL_WORKERS - 1)) as executor:
         futures_map[executor.submit(_task_virustotal, url)] = "virustotal"
         futures_map[executor.submit(_task_gsb, url)] = "gsb"
         futures_map[executor.submit(_task_abuseipdb, url)] = "abuseipdb"
@@ -1052,6 +1068,93 @@ def run_threat_intelligence(url, http_meta=None, page_text: str = "", is_whiteli
     except Exception as e:
         logger.error(f"Failed to cache URL to DB: {e}")
     
+    # ── Faz A: Bayesian probability kombiner ──────────────────────────────
+    _pe: list = []
+
+    # Screenshot
+    shot_d = results.get("screenshot_analysis")
+    if shot_d is None:
+        _pe.append({"source_key": "screenshot_unavailable", "probability": to_probability(15), "reason": "Ekran görüntüsü alınamadı", "raw_evidence": {"penalty": 15}})
+    elif shot_d.get("gemini_skipped"):
+        _pe.append({"source_key": "screenshot_gemini_skip", "probability": to_probability(10), "reason": f"Gemini atlandı ({shot_d.get('gemini_skip_reason', 'bilinmiyor')})", "raw_evidence": {"penalty": 10}})
+    else:
+        rs = max(0, min(100, int(shot_d.get("risk_score", 0))))
+        rl = str(shot_d.get("risk_level", "UNKNOWN")).upper()
+        wp = int(round(rs * 0.60))
+        if rl == "CRITICAL":
+            wp = max(wp, 70)
+        elif rl == "HIGH":
+            wp = max(wp, 50)
+        elif rl == "MEDIUM":
+            wp = max(wp, 25)
+        if wp > 0:
+            _pe.append({"source_key": "screenshot_analyzer", "probability": to_probability(wp), "reason": f"Screenshot {rl} ({rs}/100)", "raw_evidence": {"risk_score": rs, "risk_level": rl}})
+
+    # VirusTotal
+    vt_d = results.get("virustotal") or {}
+    if vt_d.get("available"):
+        mal = vt_d.get("malicious", 0)
+        sus = vt_d.get("suspicious", 0)
+        if mal >= 3:
+            _pe.append({"source_key": "virustotal", "probability": to_probability(40), "reason": f"{mal} motor tehlikeli işaretledi", "raw_evidence": {"malicious": mal}})
+        elif mal >= 1:
+            _pe.append({"source_key": "virustotal", "probability": to_probability(20), "reason": f"{mal} motor şüpheli buldu", "raw_evidence": {"malicious": mal}})
+        elif sus >= 1:
+            _pe.append({"source_key": "virustotal", "probability": to_probability(10), "reason": f"{sus} motor şüpheli işaretledi", "raw_evidence": {"suspicious": sus}})
+
+    # Google Safe Browsing
+    gsb_d = results.get("google_safe_browsing") or {}
+    if gsb_d.get("available") and gsb_d.get("threat"):
+        _pe.append({"source_key": "google_safe_browsing", "probability": to_probability(50), "reason": f"Tehdit: {gsb_d.get('threat')}", "raw_evidence": {"threat": gsb_d.get("threat")}})
+
+    # AbuseIPDB
+    aipdb_d = results.get("abuseipdb") or {}
+    abuse = aipdb_d.get("abuse_score", 0)
+    if abuse >= 70:
+        _pe.append({"source_key": "abuseipdb", "probability": to_probability(25), "reason": f"Yüksek suistimal skoru ({abuse}%)", "raw_evidence": {"abuse_score": abuse}})
+    elif abuse >= 30:
+        _pe.append({"source_key": "abuseipdb", "probability": to_probability(10), "reason": f"Orta suistimal skoru ({abuse}%)", "raw_evidence": {"abuse_score": abuse}})
+
+    # URLhaus
+    urlhaus_d = results.get("urlhaus") or {}
+    if urlhaus_d.get("listed"):
+        _pe.append({"source_key": "urlhaus", "probability": to_probability(40), "reason": f"URLhaus kara listede ({urlhaus_d.get('threat_type', 'unknown')})", "raw_evidence": {"threat_type": urlhaus_d.get("threat_type")}})
+
+    # Spamhaus domain
+    sp_dom = results.get("spamhaus_domain") or {}
+    if sp_dom.get("listed"):
+        dom_lists = sp_dom.get("lists", [])
+        if "DBL" in dom_lists:
+            _pe.append({"source_key": "spamhaus_dbl", "probability": to_probability(35), "reason": f"Spamhaus DBL ({', '.join(dom_lists)})", "raw_evidence": {"lists": dom_lists}})
+        if sp_dom.get("zrd"):
+            _pe.append({"source_key": "spamhaus_zrd", "probability": to_probability(15), "reason": "Sıfır itibar domain", "raw_evidence": {"zrd": True}})
+        if "DBL" not in dom_lists and not sp_dom.get("zrd"):
+            _pe.append({"source_key": "spamhaus_domain", "probability": to_probability(35), "reason": f"Spamhaus domain listed ({', '.join(dom_lists)})", "raw_evidence": {"lists": dom_lists}})
+
+    # Spamhaus IP
+    sp_ip = results.get("spamhaus_ip") or {}
+    if sp_ip.get("listed"):
+        ip_lists = sp_ip.get("lists", [])
+        if any(ll in ip_lists for ll in ("XBL", "eXBL")):
+            _pe.append({"source_key": "spamhaus_xbl", "probability": to_probability(30), "reason": f"Spamhaus XBL/eXBL ({', '.join(ip_lists)})", "raw_evidence": {"lists": ip_lists}})
+        elif ip_lists:
+            _pe.append({"source_key": "spamhaus_ip", "probability": to_probability(20), "reason": f"Spamhaus IP listed ({', '.join(ip_lists)})", "raw_evidence": {"lists": ip_lists}})
+
+    # ThreatFox
+    tf_d = results.get("threatfox") or {}
+    if tf_d.get("found"):
+        _pe.append({"source_key": "threatfox", "probability": to_probability(25), "reason": f"ThreatFox IOC ({tf_d.get('malware_family', 'unknown')})", "raw_evidence": {"malware_family": tf_d.get("malware_family"), "confidence": tf_d.get("confidence")}})
+
+    combined_probability = combine_probabilities([e["probability"] for e in _pe])
+    results["combined_risk_probability"] = combined_probability
+    results["scoring_model"] = SCORING_MODEL_VERSION
+    results["scoring_details"] = {
+        "penalty_events": _pe,
+        "legacy_penalty": results.get("total_penalty", 0),
+        "signal_count": len(_pe),
+    }
+    # ── /Faz A ─────────────────────────────────────────────────────────────
+
     return results
 
 
