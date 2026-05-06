@@ -1681,8 +1681,8 @@ function PhishingDetector() {
       </div>
     )}
 
-    {/* Result Display — only when analysis is complete */}
-    {result && !analyzing && <PhishingResult result={result} url={url} />}
+    {/* Result Display — show immediately even during deep analysis */}
+    {result && <PhishingResult result={result} url={url} />}
 
     {/* Stats Grid */}
     <motion.div 
