@@ -7,11 +7,12 @@ IOC API Endpoints
 from __future__ import annotations
 
 import ipaddress
-from datetime import datetime, timedelta
-from typing import Dict, List, Set
-from urllib.parse import urlparse
+import uuid
+from datetime import datetime, timedelta, timezone
+from typing import Dict, List, Optional, Set
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy import Date, cast, desc, func, or_
 from sqlalchemy.orm import Session
@@ -27,6 +28,53 @@ from shared.utils.db import get_db
 router = APIRouter(tags=["IOC"])
 
 
+# ── STIX 2.1 helpers ─────────────────────────────────────
+
+_STIX_TYPE_MAP = {
+    "ip": "ipv4-addr:value",
+    "domain": "domain-name:value",
+    "url": "url:value",
+    "hash": "file:hashes.'SHA-256'",
+    "email": "email-addr:value",
+}
+
+_TLP_MAP = {
+    "white": "marking-definition--613f2e26-407d-48c7-9eca-b8e91ba519f9",
+    "green": "marking-definition--34098fce-860f-48ae-8e10-7be814e5c36a",
+    "amber": "marking-definition--f88d31f6-486f-44da-b317-01333bde0b82",
+    "red":   "marking-definition--5e57c739-391a-4eb3-b6be-7d15ca92d5ed",
+}
+
+
+def _ioc_to_stix_indicator(row: IndicatorOfCompromise) -> Dict:
+    stix_attr = _STIX_TYPE_MAP.get(row.ioc_type or "url", "url:value")
+    pattern = f"[{stix_attr} = '{row.ioc_value}']"
+    tlp = "white" if (row.risk_score or 0) < 50 else "amber" if (row.risk_score or 0) < 80 else "red"
+    valid_from = (row.first_seen or row.created_at or datetime.now(timezone.utc)).isoformat()
+    valid_until = (row.last_seen or datetime.now(timezone.utc)).isoformat()
+    return {
+        "type": "indicator",
+        "spec_version": "2.1",
+        "id": f"indicator--{uuid.uuid5(uuid.NAMESPACE_URL, row.ioc_value)}",
+        "created": row.created_at.isoformat() if row.created_at else valid_from,
+        "modified": row.updated_at.isoformat() if row.updated_at else valid_from,
+        "name": f"{row.threat_type or 'unknown'} — {row.ioc_value[:60]}",
+        "description": f"Source: {row.source} | Risk: {row.risk_score}/100 | Detections: {row.detection_count}",
+        "indicator_types": [row.threat_type or "unknown"],
+        "pattern": pattern,
+        "pattern_type": "stix",
+        "valid_from": valid_from,
+        "valid_until": valid_until,
+        "confidence": int((row.confidence or 0.5) * 100),
+        "labels": [row.threat_type or "unknown", f"risk-{row.risk_score or 0}"],
+        "object_marking_refs": [_TLP_MAP[tlp]],
+        "external_references": (
+            [{"source_name": row.source, "url": row.source_reference}]
+            if row.source_reference else []
+        ),
+    }
+
+
 class HashCheckRequest(BaseModel):
     hash: str
 
@@ -37,16 +85,6 @@ def _is_valid_ip(value: str) -> bool:
         return True
     except ValueError:
         return False
-
-
-def _normalize_domain(value: str) -> str:
-    raw = (value or "").strip().lower()
-    if not raw:
-        return ""
-
-    parsed = urlparse(raw if "://" in raw else f"//{raw}")
-    host = (parsed.hostname or parsed.path or "").strip().lower().rstrip(".")
-    return host
 
 
 def _lookup_local_ioc(db: Session, value: str) -> Dict:
@@ -69,66 +107,6 @@ def _lookup_local_ioc(db: Session, value: str) -> Dict:
         "type": row.threat_type,
         "risk_score": row.risk_score,
         "source": row.source,
-    }
-
-
-@router.get("/check-domain")
-async def check_domain_reputation(domain: str, db: Session = Depends(get_db)):
-    normalized_domain = _normalize_domain(domain)
-    if not normalized_domain or "." not in normalized_domain:
-        raise HTTPException(status_code=400, detail="Geçersiz domain")
-
-    active_filter = or_(
-        IndicatorOfCompromise.status == "active",
-        IndicatorOfCompromise.status.is_(None),
-    )
-
-    domain_rows = (
-        db.query(IndicatorOfCompromise)
-        .filter(
-            IndicatorOfCompromise.ioc_type == "domain",
-            IndicatorOfCompromise.ioc_value == normalized_domain,
-            active_filter,
-        )
-        .all()
-    )
-
-    url_rows = (
-        db.query(IndicatorOfCompromise)
-        .filter(
-            IndicatorOfCompromise.ioc_type == "url",
-            active_filter,
-            or_(
-                IndicatorOfCompromise.ioc_value.ilike(f"http://{normalized_domain}%"),
-                IndicatorOfCompromise.ioc_value.ilike(f"https://{normalized_domain}%"),
-                IndicatorOfCompromise.ioc_value.ilike(f"ftp://{normalized_domain}%"),
-                IndicatorOfCompromise.ioc_value.ilike(f"{normalized_domain}%"),
-            ),
-        )
-        .all()
-    )
-
-    matched_rows = domain_rows + url_rows
-    if not matched_rows:
-        return {
-            "found": False,
-            "malicious": False,
-            "risk_score": 0,
-            "threat_types": [],
-            "confidence": 0.0,
-            "sources": [],
-        }
-
-    risk_score = max(int(r.risk_score or 0) for r in matched_rows)
-    confidence = max(float(r.confidence or 0.0) for r in matched_rows)
-
-    return {
-        "found": True,
-        "malicious": risk_score >= 40 or confidence >= 0.4,
-        "risk_score": risk_score,
-        "threat_types": sorted({str(r.threat_type) for r in matched_rows if r.threat_type}),
-        "confidence": confidence,
-        "sources": sorted({str(r.source) for r in matched_rows if r.source}),
     }
 
 
@@ -298,3 +276,61 @@ def get_phishing_data(limit: int = 100, db: Session = Depends(get_db)):
         "top_domains": [{"domain": d[0], "count": d[1]} for d in top_domains],
         "recent_urls": recent_list,
     }
+
+
+@router.get(
+    "/export/stix",
+    summary="STIX 2.1 Bundle export",
+    description=(
+        "IOC veritabanını STIX 2.1 formatında dışa aktarır. "
+        "USOM, MISP ve tüm CTI platformları bu formatı destekler. "
+        "TLP renklendirmesi otomatik uygulanır (risk<50→WHITE, <80→AMBER, ≥80→RED)."
+    ),
+    response_class=JSONResponse,
+)
+def export_stix_bundle(
+    threat_type: Optional[str] = Query(None, description="Filtre: phishing, malware, botnet, c2, spam"),
+    min_risk_score: int = Query(0, ge=0, le=100, description="Minimum risk skoru"),
+    limit: int = Query(1000, ge=1, le=5000, description="Maksimum kayıt sayısı"),
+    db: Session = Depends(get_db),
+):
+    q = db.query(IndicatorOfCompromise).filter(
+        IndicatorOfCompromise.status == "active",
+        IndicatorOfCompromise.risk_score >= min_risk_score,
+    )
+    if threat_type:
+        q = q.filter(IndicatorOfCompromise.threat_type == threat_type)
+    rows = q.order_by(IndicatorOfCompromise.risk_score.desc()).limit(limit).all()
+
+    identity_id = "identity--aegisnexus-threat-intelligence"
+    indicators = [_ioc_to_stix_indicator(r) for r in rows]
+
+    bundle = {
+        "type": "bundle",
+        "id": f"bundle--{uuid.uuid4()}",
+        "spec_version": "2.1",
+        "objects": [
+            {
+                "type": "identity",
+                "spec_version": "2.1",
+                "id": identity_id,
+                "name": "AegisNexus Threat Intelligence",
+                "identity_class": "system",
+                "description": "Türkiye merkezli açık kaynak siber tehdit istihbaratı platformu.",
+                "created": "2024-01-01T00:00:00Z",
+                "modified": datetime.now(timezone.utc).isoformat(),
+            },
+            *indicators,
+        ],
+        "_meta": {
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "indicator_count": len(indicators),
+            "filters": {"threat_type": threat_type, "min_risk_score": min_risk_score},
+            "source": "AegisNexus / modules.aegisnexus.dev",
+        },
+    }
+    return JSONResponse(
+        content=bundle,
+        media_type="application/stix+json",
+        headers={"Content-Disposition": f'attachment; filename="aegisnexus-ioc-stix-{datetime.utcnow().strftime("%Y%m%d")}.json"'},
+    )

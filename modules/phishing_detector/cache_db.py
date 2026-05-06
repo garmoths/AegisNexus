@@ -369,24 +369,38 @@ def get_phishing_stats() -> Dict[str, Any]:
         _ensure_initialized()
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            
-            # Toplam URL sayısı
+
+            # Toplam URL (cache havuzu): tüm bilinen URL sayısı
             cursor.execute("SELECT COUNT(*) as total FROM phishing_urls")
-            total_urls = cursor.fetchone()['total']
-            
-            # Phishing sayısı
-            cursor.execute("SELECT COUNT(*) as count FROM phishing_urls WHERE is_safe = 0")
-            phishing_count = cursor.fetchone()['count']
-            
-            # Güvenli sayısı  
-            cursor.execute("SELECT COUNT(*) as count FROM phishing_urls WHERE is_safe = 1")
-            safe_count = cursor.fetchone()['count']
-            
-            # Bugünkü taramalar
-            today = datetime.now().date().isoformat()
-            cursor.execute("SELECT COUNT(*) as count FROM phishing_urls WHERE date(checked_at) = ?", (today,))
-            today_scans = cursor.fetchone()['count']
-            
+            total_urls = int(cursor.fetchone()['total'] or 0)
+
+            # Dashboard metrikleri scan-event tabanlı olmalı (yanıltıcı olmasın):
+            # phishing_count + safe_count + today_scans => kullanıcı tarama geçmişinden.
+            cursor.execute("SELECT COUNT(*) as total FROM url_scan_events")
+            event_total = int(cursor.fetchone()['total'] or 0)
+
+            if event_total > 0:
+                cursor.execute("SELECT COUNT(*) as count FROM url_scan_events WHERE is_safe = 0")
+                phishing_count = int(cursor.fetchone()['count'] or 0)
+
+                cursor.execute("SELECT COUNT(*) as count FROM url_scan_events WHERE is_safe = 1")
+                safe_count = int(cursor.fetchone()['count'] or 0)
+
+                today = datetime.now().date().isoformat()
+                cursor.execute("SELECT COUNT(*) as count FROM url_scan_events WHERE date(checked_at) = ?", (today,))
+                today_scans = int(cursor.fetchone()['count'] or 0)
+            else:
+                # Event hiç yoksa legacy cache tablosuna fallback
+                cursor.execute("SELECT COUNT(*) as count FROM phishing_urls WHERE is_safe = 0")
+                phishing_count = int(cursor.fetchone()['count'] or 0)
+
+                cursor.execute("SELECT COUNT(*) as count FROM phishing_urls WHERE is_safe = 1")
+                safe_count = int(cursor.fetchone()['count'] or 0)
+
+                today = datetime.now().date().isoformat()
+                cursor.execute("SELECT COUNT(*) as count FROM phishing_urls WHERE date(checked_at) = ?", (today,))
+                today_scans = int(cursor.fetchone()['count'] or 0)
+
             return {
                 'total_urls': total_urls,
                 'phishing_count': phishing_count,

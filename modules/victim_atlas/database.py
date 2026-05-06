@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -16,6 +17,49 @@ from app.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+ATTACK_METHOD_TR = {
+    "phishing": "Oltalama",
+    "smishing": "SMS Oltalaması",
+    "vishing": "Telefon Dolandırıcılığı",
+    "social_engineering": "Sosyal Mühendislik",
+    "malware_assisted": "Zararlı Yazılım Destekli Saldırı",
+    "sahte_mobil_uygulama": "Sahte Mobil Uygulama Tuzağı",
+    "banka_taklit": "Banka Taklidi Senaryosu",
+}
+
+LOSS_TYPE_TR = {
+    "bank_account": "Banka Hesabı Mağduriyeti",
+    "social_media": "Sosyal Medya Hesap Mağduriyeti",
+    "ecommerce": "E-Ticaret Mağduriyeti",
+    "corporate_account": "Kurumsal Hesap Mağduriyeti",
+    "crypto_wallet": "Kripto Cüzdan Mağduriyeti",
+    "device_compromise": "Cihaz Ele Geçirme Mağduriyeti",
+}
+
+PLATFORM_TR = {
+    "banking": "Bankacılık",
+    "instagram": "Instagram",
+    "whatsapp": "WhatsApp",
+    "telegram": "Telegram",
+    "microsoft365": "Microsoft 365",
+    "ecommerce": "E-Ticaret",
+    "crypto": "Kripto",
+    "sikayet_platformu": "Şikayet Platformu",
+    "general": "Genel",
+}
+
+
+def _attack_method_tr(value: Optional[str]) -> str:
+    return ATTACK_METHOD_TR.get(value or "", value or "Bilinmiyor")
+
+
+def _loss_type_tr(value: Optional[str]) -> str:
+    return LOSS_TYPE_TR.get(value or "", value or "Bilinmiyor")
+
+
+def _platform_tr(value: Optional[str]) -> str:
+    return PLATFORM_TR.get(value or "", value or "Genel")
 
 
 def _session() -> Session:
@@ -41,6 +85,45 @@ def upsert_source(name: str, base_url: str, trust_tier: str, enabled: bool = Tru
             db.add(src)
         db.commit()
         return src.id
+
+
+def sync_source_registry(sources: List[Dict[str, Any]]) -> Dict[str, int]:
+    ensure_initialized()
+    with _session() as db:
+        existing = {row.name: row for row in db.query(SourceRegistry).all()}
+        configured_names = {str(item.get("name") or "") for item in sources if item.get("name")}
+
+        upserted = 0
+        disabled = 0
+
+        for item in sources:
+            name = str(item.get("name") or "").strip()
+            if not name:
+                continue
+            row = existing.get(name)
+            if row:
+                row.base_url = str(item.get("base_url") or row.base_url)
+                row.trust_tier = str(item.get("trust_tier") or row.trust_tier)
+                row.enabled = bool(item.get("enabled", True))
+                row.updated_at = datetime.now(timezone.utc)
+            else:
+                row = SourceRegistry(
+                    name=name,
+                    base_url=str(item.get("base_url") or ""),
+                    trust_tier=str(item.get("trust_tier") or "tier2"),
+                    enabled=bool(item.get("enabled", True)),
+                )
+                db.add(row)
+            upserted += 1
+
+        for name, row in existing.items():
+            if name not in configured_names and row.enabled:
+                row.enabled = False
+                row.updated_at = datetime.now(timezone.utc)
+                disabled += 1
+
+        db.commit()
+        return {"upserted": upserted, "disabled": disabled}
 
 
 def mark_source_success(source_id: int) -> None:
@@ -150,6 +233,8 @@ def upsert_case(case: Dict[str, Any]) -> Tuple[int, bool]:
             existing.defense_steps_json = case["defense_steps"]
             existing.confidence_score = int(case["confidence_score"])
             existing.severity_score = int(case["severity_score"])
+            if case.get("region"):
+                existing.region = case.get("region")
             existing.last_seen = _parse_dt(case["last_seen"]) or datetime.now(timezone.utc)
             existing.updated_at = datetime.now(timezone.utc)
             db.commit()
@@ -168,6 +253,7 @@ def upsert_case(case: Dict[str, Any]) -> Tuple[int, bool]:
             defense_steps_json=case["defense_steps"],
             confidence_score=int(case["confidence_score"]),
             severity_score=int(case["severity_score"]),
+            region=case.get("region"),
             first_seen=_parse_dt(case["first_seen"]) or datetime.now(timezone.utc),
             last_seen=_parse_dt(case["last_seen"]) or datetime.now(timezone.utc),
             is_hot=True,
@@ -175,6 +261,48 @@ def upsert_case(case: Dict[str, Any]) -> Tuple[int, bool]:
         db.add(new_case)
         db.commit()
         return new_case.id, True
+
+
+def _case_tokens(value: str) -> set[str]:
+    normalized = (value or "").lower()
+    normalized = normalized.translate(str.maketrans("çğıöşü", "cgiosu"))
+    tokens = set(re.findall(r"[a-z0-9]{4,}", normalized))
+    return tokens - {"haber", "son", "dakika", "turkiye", "dolandiricilik", "dolandirici", "magduriyet"}
+
+
+def find_similar_case_id(case: Dict[str, Any], threshold: float = 0.72) -> Optional[int]:
+    tokens = _case_tokens(case.get("case_title", ""))
+    if len(tokens) < 3:
+        return None
+    with _session() as db:
+        rows = (
+            db.query(VictimCase)
+            .filter(
+                VictimCase.attack_method == case.get("attack_method"),
+                VictimCase.loss_type == case.get("loss_type"),
+            )
+            .order_by(VictimCase.last_seen.desc())
+            .limit(300)
+            .all()
+        )
+        for row in rows:
+            other = _case_tokens(row.case_title)
+            if len(other) < 3:
+                continue
+            union = tokens | other
+            if not union:
+                continue
+            score = len(tokens & other) / len(union)
+            if score >= threshold:
+                row.last_seen = _parse_dt(case.get("last_seen")) or datetime.now(timezone.utc)
+                row.updated_at = datetime.now(timezone.utc)
+                row.confidence_score = max(int(row.confidence_score or 0), int(case.get("confidence_score") or 0))
+                row.severity_score = max(int(row.severity_score or 0), int(case.get("severity_score") or 0))
+                if case.get("region") and not row.region:
+                    row.region = case.get("region")
+                db.commit()
+                return row.id
+    return None
 
 
 def add_case_evidence(case_id: int, raw_document_id: int, snippet: str, evidence_weight: float = 1.0) -> None:
@@ -253,9 +381,9 @@ def get_cases(
         total = query.count()
         rows = (
             query.order_by(
+                VictimCase.last_seen.desc(),
                 VictimCase.confidence_score.desc(),
                 VictimCase.severity_score.desc(),
-                VictimCase.last_seen.desc(),
             )
             .offset(offset)
             .limit(limit)
@@ -271,11 +399,15 @@ def get_cases(
             "incident_period_start": row.incident_period_start.isoformat() if row.incident_period_start else None,
             "incident_period_end": row.incident_period_end.isoformat() if row.incident_period_end else None,
             "attack_method": row.attack_method,
+            "attack_method_tr": _attack_method_tr(row.attack_method),
             "loss_type": row.loss_type,
+            "loss_type_tr": _loss_type_tr(row.loss_type),
             "target_platform": row.target_platform,
+            "target_platform_tr": _platform_tr(row.target_platform),
             "critical_warning": row.critical_warning,
             "confidence_score": row.confidence_score,
             "severity_score": row.severity_score,
+            "region": row.region,
             "first_seen": row.first_seen.isoformat() if row.first_seen else None,
             "last_seen": row.last_seen.isoformat() if row.last_seen else None,
         })
@@ -312,13 +444,17 @@ def get_case(case_id: int) -> Optional[Dict[str, Any]]:
             "incident_period_start": case.incident_period_start.isoformat() if case.incident_period_start else None,
             "incident_period_end": case.incident_period_end.isoformat() if case.incident_period_end else None,
             "attack_method": case.attack_method,
+            "attack_method_tr": _attack_method_tr(case.attack_method),
             "loss_type": case.loss_type,
+            "loss_type_tr": _loss_type_tr(case.loss_type),
             "target_platform": case.target_platform,
+            "target_platform_tr": _platform_tr(case.target_platform),
             "critical_warning": case.critical_warning,
             "narrative_summary": case.narrative_summary,
             "defense_steps": case.defense_steps_json if isinstance(case.defense_steps_json, list) else json.loads(case.defense_steps_json or "[]"),
             "confidence_score": case.confidence_score,
             "severity_score": case.severity_score,
+            "region": case.region,
             "first_seen": case.first_seen.isoformat() if case.first_seen else None,
             "last_seen": case.last_seen.isoformat() if case.last_seen else None,
         }
@@ -372,6 +508,8 @@ def get_ingest_health() -> Dict[str, Any]:
 
     run_payload = None
     if last_run:
+        raw_errors = dict(last_run.errors_json or {})
+        filter_stats = raw_errors.pop("__filter_stats__", None)
         run_payload = {
             "id": last_run.id,
             "started_at": last_run.started_at.isoformat() if last_run.started_at else None,
@@ -380,7 +518,8 @@ def get_ingest_health() -> Dict[str, Any]:
             "documents_fetched": last_run.documents_fetched,
             "cases_created": last_run.cases_created,
             "cases_updated": last_run.cases_updated,
-            "errors": last_run.errors_json or {},
+            "errors": raw_errors,
+            "filter_stats": filter_stats or {},
         }
     return {
         "last_run": run_payload,

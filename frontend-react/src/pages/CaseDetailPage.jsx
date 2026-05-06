@@ -20,7 +20,7 @@ export default function CaseDetailPage() {
   useEffect(() => {
     casesAPI.get(id).then(r => {
       setCaseData(r.data?.data)
-    }).catch(() => {})
+    }).catch(() => { void 0 })
   }, [id])
 
   const loadProtectionCard = async () => {
@@ -28,8 +28,11 @@ export default function CaseDetailPage() {
     try {
       const res = await casesAPI.protectionCard(id)
       setCard(res.data?.data)
-    } catch {}
-    setCardLoading(false)
+    } catch {
+      void 0
+    } finally {
+      setCardLoading(false)
+    }
   }
 
   if (!caseData) return (
@@ -65,7 +68,7 @@ export default function CaseDetailPage() {
           {/* Left */}
           <div style={{ flex: '1 1 500px' }}>
             <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-              <AttackTypeBadge type={c.attack_method} size="md" />
+              <AttackTypeBadge type={c.attack_method} label={c.attack_method_tr} size="md" />
               {c.region && (
                 <span style={{
                   padding: '6px 14px', fontSize: 13, color: theme.primary,
@@ -163,8 +166,8 @@ export default function CaseDetailPage() {
       }}>
         {c.first_seen && <span>İlk görülme: {new Date(c.first_seen).toLocaleDateString('tr-TR')}</span>}
         {c.last_seen && <span>Son görülme: {new Date(c.last_seen).toLocaleDateString('tr-TR')}</span>}
-        {c.loss_type && <span>Kayıp türü: {c.loss_type}</span>}
-        {c.target_platform && <span>Platform: {c.target_platform}</span>}
+        {c.loss_type && <span>Kayıp türü: {c.loss_type_tr || c.loss_type}</span>}
+        {c.target_platform && <span>Platform: {c.target_platform_tr || c.target_platform}</span>}
       </section>
     </div>
   )

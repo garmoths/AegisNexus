@@ -5,10 +5,12 @@
 - Local: `http://127.0.0.1:8000/api/v2`
 
 ## Core Endpoints
-- `POST /phishing/check-url`
+- `POST /phishing/check-url` — Hızlı kontrol; belirsizse `{status:"analyzing", job_id}` döner (A2)
+- `GET /phishing/result/{job_id}` — Async job sonucu sorgulama (A2/C1)
 - `GET /phishing/stats`
 - `GET /phishing/latest-paged?limit=20&page=1`
 - `GET /phishing/history?limit=50&days=30`
+- `GET /phishing/cache-health` — Redis + SQLite + Playwright pool sağlık durumu (A1/A3)
 
 ## Minimal Request/Response
 ### `POST /phishing/check-url`
@@ -16,18 +18,73 @@
 {"url":"https://example.com"}
 ```
 
-Success or degraded response shape:
+**Request:**
+```json
+{"url": "https://example.com", "force_fresh": false}
+```
+
+`force_fresh: true` → Redis + SQLite cache bypass eder, taze tarama yapar.
+
+**Success response:**
 ```json
 {
-  "status": "ok",
   "url": "https://example.com",
-  "score": 42,
-  "risk_level": "medium",
+  "safety_score": 85,
+  "score": 85,
+  "risk_level": "✅ Güvenli",
   "details": [],
   "sources": [],
+  "cache": "redis-hit",
   "module": "01_phishing_detector"
 }
 ```
+
+`cache` alanı değerleri: `"redis-hit"` | `"sqlite-hit"` | `"none"` (yeni tarama)
+
+**Async yanıt (ağır analiz kuyruğa alındıysa — A2):**
+```json
+{
+  "status": "analyzing",
+  "job_id": "3f7a21b0-...",
+  "safety_score": 45,
+  "risk_level": "⚠️ Şüpheli",
+  "cache": "none",
+  "module": "01_phishing_detector"
+}
+```
+
+### `GET /phishing/result/{job_id}` (A2/C1)
+
+**Bekliyor:**
+```json
+{"status": "pending"}
+```
+
+**Tamamlandı:**
+```json
+{
+  "status": "complete",
+  "url": "https://example.com",
+  "safety_score": 12,
+  "risk_level": "🚨 Tehlikeli",
+  "threat_intel": { ... },
+  "gemini_skipped": false
+}
+```
+
+**Polling Örüntüsü (JavaScript):**
+```javascript
+async function pollResult(jobId, interval = 3000, maxTries = 30) {
+  for (let i = 0; i < maxTries; i++) {
+    await new Promise(r => setTimeout(r, interval))
+    const d = await fetch(`/api/v2/phishing/result/${jobId}`).then(r => r.json())
+    if (d.status === 'complete') return d
+  }
+  throw new Error('Analiz zaman aşımına uğradı')
+}
+```
+
+**Önemli:** `score` alanı `safety_score` ile eşanlamlıdır; ikisi de aynı değeri döner. Frontend `safety_score` kullanmalıdır.
 
 `check-url` cevabında `threat_intel` altında görsel analiz sonucu da dönebilir:
 ```json
@@ -121,6 +178,7 @@ Success or degraded response shape:
 | `victim_atlas_ingest_daily` | Günde 1 kez (03:30 UTC) | Victim Atlas günlük veri çekme |
 | `victim_atlas_enrich_cases` | Günde 1 kez (03:50 UTC) | Victim Atlas case zenginleştirme |
 | `victim_atlas_prune_hotset` | Günde 1 kez (04:10 UTC) | Victim Atlas hotset temizleme |
+| `modules.victim_atlas.celery_tasks.ingest_6h` | Her 6 saat (varsayılan 21600 sn) | Victim Atlas için alternatif sık ingest schedule |
 
 ### Orchestrator Task
 `run_ioc_fetch` — Tüm IOC task'larını paralel kuyruğa alır:
@@ -129,33 +187,147 @@ Success or degraded response shape:
 - `fetch_threatfox_iocs`
 - `fetch_spamhaus_iocs`
 
-## Screenshot Analyzer (Gemini Vision)
+## Victim Atlas (Güncel Entegrasyon Notları)
+
+### Kaynak Politikası
+- Varsayılan ingest yalnız güvenilir Türk haber RSS kaynaklarına odaklıdır.
+- Runtime source registry her ingest başında sync edilir; konfigürde olmayan legacy kaynaklar `enabled=false` yapılır.
+
+### Ingest Filtreleri
+- Son 1 yıl filtresi: RSS yayın tarihi `now - 365 gün` altında ise kayıt alınmaz.
+- Tarihi parse edilemeyen kayıtlar, `VICTIM_ATLAS_ALLOW_UNDATED=false` iken ingest edilmez.
+- Fraud relevance filtresi + kaynak bazlı hint seti uygulanır.
+- URL canonicalization uygulanır (`utm_*`, `fbclid`, `gclid`, `yclid` temizlenir).
+
+### Dedupe ve Vaka Birleştirme
+- Raw doc düzeyinde: `source_id + external_id` ve `hash` dedupe.
+- Vaka düzeyinde: benzer başlık/token eşleşmesinde (Jaccard) mevcut vakaya merge + evidence bağlama.
+- Vaka listesi sıralaması en güncel içerik üstte olacak şekilde `last_seen DESC` önceliklidir.
+
+### Region (İl) Çıkarma
+- İl çıkarımı başlık + özet metinden yapılır.
+- Türkçe normalize (`İ/ı`, aksanlar, ekli yazımlar: `istanbulda`, `ankaraya` vb.) desteklenir.
+- Metinden il bulunamazsa URL/external_id/source_name metadata fallback devreye girer.
+
+### API Çıktı Alanları (Victim Atlas Cases)
+`GET /victim-atlas/cases` ve `GET /victim-atlas/cases/{id}` dönüşlerine eklenen alanlar:
+- `attack_method_tr`
+- `loss_type_tr`
+- `target_platform_tr`
+
+### Ingest Health Gözlemlenebilirlik
+`GET /victim-atlas/ingest/health` → `last_run.filter_stats` içerir:
+- `entries_seen`
+- `skipped_lookback`
+- `skipped_relevance`
+- `accepted`
+- `by_source` (kaynak kırılımı)
+
+### Heatmap Entegrasyonu
+- `GET /victim-atlas/stats/heatmap` il bazlı `FeatureCollection` döner.
+- Frontend harita katmanı, il yoğunluğunu bu endpoint'ten; yöntem rengini vaka listesinden birleştirir.
+- Böylece bazı vakalarda `region` boş olsa bile il bazlı görünüm korunur.
+
+## Screenshot Analyzer (Gemini Vision + Koşullu Çağrı)
 - **Model:** `gemini-2.0-flash`
-- **Akış:** Playwright screenshot → base64 PNG → Gemini Vision API → JSON verdict
-- **Env:** `GEMINI_API_KEY`
-- **Çıktı:** `{risk_score, risk_level, verdict, threat_indicators, recommendation}`
+- **Akış:** Playwright screenshot → base64 PNG → _Koşullu kontrol_ → Gemini Vision API → JSON verdict
+- **Env:** `GEMINI_API_KEY`, `GEMINI_DAILY_LIMIT` (varsayılan: `1400`), `GEMINI_SKIP_THRESHOLD` (varsayılan: `65`)
+- **Çıktı (normal):** `{risk_score, risk_level, verdict, threat_indicators, recommendation}`
+- **Çıktı (Gemini atlandı):** `{risk_score: 35, risk_level: "UNKNOWN", gemini_skipped: true, gemini_skip_reason: "...", available: true}`
+
+### Koşullu Gemini Mantığı (B4)
+Gemini, aşağıdaki koşullarda **atlanır**:
+1. **`pre_penalty >= GEMINI_SKIP_THRESHOLD` (65):** B1/B2/B3 katmanları zaten yeterli penaltı ürettiyse (B1/B2/B3 uygulandığında aktif).
+2. **Günlük kota aşıldıysa:** Redis `gemini:daily_count` sayıcısı `GEMINI_DAILY_LIMIT`'e ulaştıysa.
+
+Gemini atlandığında `threat_intel`'de `+10` belirsizlik cezası uygulanır (ekran görüntüsü yoksa `+15`).
+
+**Gemini günlük sayıcı izleme:**
+```
+GET /phishing/cache-health
+→ redis.gemini_daily_count  # bugün kaç kez Gemini çağrıldı
+→ redis.gemini_daily_limit  # 1400 (default)
+```
 
 ## Threat Intel Cache
+
+### Katmanlı Cache Mimarisi (A1)
+| Katman | Backend | TTL | Amacı |
+|--------|---------|-----|--------|
+| 1. Sıcak cache | **Redis** | 30 gün | ~0.3ms hit, RAM-based |
+| 2. Soğuk cache | **SQLite** (`threat_intel_cache.db`) | 30 gün | Kalıcı geçmiş |
+| 3. API | Spamhaus / URLhaus / ThreatFox | — | Cache miss durumunda |
+
+**Çalışma akışı:**
+1. Redis'te var → dön (~0.3ms)
+2. SQLite'ta var → Redis'e de yaz, dön
+3. İkisi de yok → API çağr, her ikisine yaz
+
+**Redis yoksa:** Sessizce SQLite fallback (hata fırlatmaz).
+
+### Threat Intel API Cache
 - **Backend:** SQLite (`threat_intel_cache` tablosu)
 - **TTL:** 12 saat (Spamhaus, URLhaus, ThreatFox sorgu sonuçları)
 - **Fonksiyonlar:** `write_threat_cache(key, data, ttl_seconds)`, `read_threat_cache(key)`
 - **Otomatik:** Cache hit → API çağrısı atlanır, cache miss → API sorgulanıp cache'e yazılır
 
+### Cache Health Endpoint
+```
+GET /api/v2/phishing/cache-health
+```
+```json
+{
+  "redis": {
+    "available": true,
+    "used_memory_human": "1.60M",
+    "gemini_daily_count": 42,
+    "gemini_daily_limit": 1400
+  },
+  "sqlite": {
+    "available": true,
+    "total_urls": 1823,
+    "today_scans": 14
+  },
+  "playwright_pool": {
+    "browser_alive": true
+  },
+  "module": "01_phishing_detector"
+}
+```
+
 ## Frontend Integration
 
-### API Fetch
+### API Fetch — Async Polling Örüntüsü (C1)
+
+`check-url` anında sync veya async yanıt dönebilir. Frontend her iki durumu da işlemelidir:
+
 ```javascript
 const API = import.meta.env.VITE_API_BASE_URL || "/api/v2";
 
-export async function checkUrl(url) {
-  const normalized = /^https?:\/\//i.test(url) ? url : `https://${url}`;
-  const res = await fetch(`${API}/phishing/check-url`, {
+async function handleCheck(url) {
+  const normalized = /^https?:\/\//i.test(url) ? url : `https://${url}`
+  const d = await fetch(`${API}/phishing/check-url`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ url: normalized }),
-  });
-  if (!res.ok) throw new Error(`API error ${res.status}`);
-  return await res.json();
+  }).then(r => r.json())
+
+  if (d.status === "analyzing" && d.job_id) {
+    // Hızlı sonucu göster, polling başlat
+    showQuickResult(d)
+    return pollUntilComplete(d.job_id)
+  }
+  // Kesin sonuç — direkt göster
+  return d
+}
+
+async function pollUntilComplete(jobId, maxPolls = 30) {
+  for (let i = 0; i < maxPolls; i++) {
+    await new Promise(r => setTimeout(r, 3000))
+    const d = await fetch(`${API}/phishing/result/${jobId}`).then(r => r.json())
+    if (d.status === "complete") return d
+  }
+  throw new Error("Analiz zaman aşımına uğradı (90s)")
 }
 ```
 

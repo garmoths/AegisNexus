@@ -18,7 +18,8 @@ import os
 import time
 from typing import Any, Dict, List, Optional
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 from .prompts.analyze_report import ANALYZE_REPORT_SYSTEM, ANALYZE_REPORT_USER
 from .prompts.classify_case import CLASSIFY_CASE_SYSTEM, CLASSIFY_CASE_USER
@@ -36,32 +37,25 @@ RETRY_BASE_DELAY = 2  # saniye
 MAX_OUTPUT_TOKENS = 2048
 MAX_INPUT_CHARS = 30000  # ~8K tokens
 
-_model = None
+_client = None
 
 
-def _get_model():
-    """Lazy model init."""
-    global _model
-    if _model is not None:
-        return _model
+def _get_client():
+    """Lazy client init."""
+    global _client
+    if _client is not None:
+        return _client
     if not GEMINI_API_KEY:
         raise RuntimeError("GEMINI_API_KEY ortam değişkeni ayarlanmamış.")
-    genai.configure(api_key=GEMINI_API_KEY)
-    _model = genai.GenerativeModel(
-        GEMINI_MODEL,
-        generation_config=genai.types.GenerationConfig(
-            max_output_tokens=MAX_OUTPUT_TOKENS,
-            temperature=0.3,
-        ),
-    )
-    return _model
+    _client = genai.Client(api_key=GEMINI_API_KEY)
+    return _client
 
 
 # ── Retry wrapper ─────────────────────────────────────────
 
 def _call_gemini(system: str, user: str) -> str:
     """Gemini'yi çağır, retry ile."""
-    model = _get_model()
+    client = _get_client()
 
     # Input truncate
     if len(user) > MAX_INPUT_CHARS:
@@ -69,9 +63,14 @@ def _call_gemini(system: str, user: str) -> str:
 
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            response = model.generate_content(
-                [system, user],
-                request_options={"timeout": 60},
+            response = client.models.generate_content(
+                model=GEMINI_MODEL,
+                contents=user,
+                config=types.GenerateContentConfig(
+                    system_instruction=system,
+                    max_output_tokens=MAX_OUTPUT_TOKENS,
+                    temperature=0.3,
+                ),
             )
             if response.text:
                 return response.text

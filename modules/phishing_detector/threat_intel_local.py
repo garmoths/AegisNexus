@@ -185,6 +185,58 @@ def _calculate_url_suspicion(url: str, domain: str) -> int:
 _IP_BLACKLIST: set = set()
 _IP_NETWORKS: list = []
 
+# EasyOCR reader'ı için global referans (preload_models ile başlatılır)
+_EASYOCR_READER = None
+
+
+def preload_models(ip_lists_dir: str = "/opt/phishing/ip_lists") -> dict:
+    """
+    Worker/API başlangıcında bir kez çağrılır.
+    - EasyOCR reader'ını singleton olarak başlatır.
+    - IP blacklist'leri memory'e yükler.
+    - Playwright browser pool'u pre-warm eder.
+
+    Böylece her istekte ~30sn OCR yükleme + ~2-3sn IP blacklist yükleme
+    overhead'i ortadan kalkar.
+    
+    Returns:
+        {"ocr_loaded": bool, "ip_loaded": int, "playwright_loaded": bool}
+    """
+    global _EASYOCR_READER, _IP_BLACKLIST, _IP_NETWORKS
+    
+    result = {"ocr_loaded": False, "ip_loaded": 0, "playwright_loaded": False}
+    
+    # 1. EasyOCR preload
+    try:
+        from modules.phishing_detector.visual_analyzer import get_ocr_reader
+        _EASYOCR_READER = get_ocr_reader()
+        result["ocr_loaded"] = True
+        logger.info("[Preload] EasyOCR Reader hazır")
+    except ImportError:
+        logger.warning("[Preload] easyocr yüklü değil, atlanıyor")
+    except Exception as exc:
+        logger.warning(f"[Preload] EasyOCR yüklenemedi: {exc}")
+    
+    # 2. IP blacklist preload
+    try:
+        count = load_ip_blacklists(ip_lists_dir)
+        result["ip_loaded"] = count
+        logger.info(f"[Preload] IP blacklist yüklendi: {count} giriş")
+    except Exception as exc:
+        logger.warning(f"[Preload] IP blacklist yüklenemedi: {exc}")
+    
+    # 3. Playwright pool pre-warm (opsiyonel)
+    try:
+        from modules.phishing_detector.playwright_pool import init_pool
+        init_pool()
+        result["playwright_loaded"] = True
+        logger.info("[Preload] Playwright pool pre-warm tamam")
+    except Exception as exc:
+        logger.warning(f"[Preload] Playwright pool pre-warm başarısız: {exc}")
+    
+    return result
+
+
 def load_ip_blacklists(filepath_dir: str = "/opt/phishing/ip_lists"):
     """
     Firehol + Spamhaus listelerini memory'e yükler.

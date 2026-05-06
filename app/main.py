@@ -30,6 +30,7 @@ from modules import (
     password_shield_router,      # 04 - Kriptografik Kalkan
     ai_analyzer_router,          # 05 - AI Güvenlik Asistanı
     victim_atlas_router,         # 06 - Magduriyet Atlasi
+    sms_guard_router,            # 07 - SMS Guard
 )
 from modules.honeypot.ioc_api import router as honeypot_ioc_router
 from modules.phishing_detector.router import whitelist_router
@@ -45,6 +46,15 @@ async def lifespan(_app: FastAPI):
         logger.info("Aegis Nexus - 5 Katmanlı Güvenlik Kalkanı hazır")
     except Exception as e:
         logger.warning("Veritabanı tabloları oluşturulamadı (devam ediliyor): %s", e)
+
+    # A1: Sync path için EasyOCR + IP blacklist preload (opsiyonel, hata tolere edilir)
+    try:
+        from modules.phishing_detector.threat_intel_local import preload_models
+        result = preload_models()
+        logger.info(f"[Lifespan] Preload modeller tamam: OCR={result['ocr_loaded']}, IP={result['ip_loaded']}, PW={result['playwright_loaded']}")
+    except Exception as e:
+        logger.warning(f"[Lifespan] Preload modeller başarısız (lazy init devreye girer): {e}")
+
     yield
 
 
@@ -119,6 +129,7 @@ app.include_router(reports_router, prefix="/api/v2/reports")
 app.include_router(subscription_router, prefix="/api/v2/subscription")
 app.include_router(corporate_router, prefix="/api/v2/corporate")
 app.include_router(admin_router, prefix="/api/v2/admin")
+app.include_router(sms_guard_router, prefix="/api/v2/sms")
 app.include_router(contact_router)
 
 

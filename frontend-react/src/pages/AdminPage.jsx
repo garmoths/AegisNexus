@@ -12,7 +12,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (isAdmin()) {
-      adminAPI.users().then(r => setUsers(r.data?.data || [])).catch(() => {})
+      adminAPI.users().then(r => setUsers(r.data?.data || [])).catch(() => { void 0 })
     }
   }, [isAdmin])
 
@@ -21,15 +21,20 @@ export default function AdminPage() {
     try {
       const res = await adminAPI.classify()
       setClassifyResult(res.data)
-    } catch {}
-    setClassifyLoading(false)
+    } catch {
+      void 0
+    } finally {
+      setClassifyLoading(false)
+    }
   }
 
   const handleRoleChange = async (userId, newRole) => {
     try {
       await adminAPI.changeRole(userId, newRole)
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u))
-    } catch {}
+    } catch {
+      void 0
+    }
   }
 
   return (
@@ -57,10 +62,10 @@ export default function AdminPage() {
             marginBottom: 24,
           }}>
             <h2 style={{ color: theme.primary, fontSize: 18, fontWeight: 600, margin: '0 0 12px' }}>
-              🤖 Gemini Toplu Sınıflandırma
-            </h2>
-            <p style={{ color: theme.textMuted, fontSize: 14, margin: '0 0 16px' }}>
-              Yayınlanmamış vakaları Gemini ile otomatik sınıflandır.
+              🤖 AI Toplu Sınıflandırma
+    </h2>
+    <p style={{ color: theme.textMuted, fontSize: 14, margin: '0 0 16px' }}>
+              Yayınlanmamış vakaları AI ile otomatik sınıflandır.
             </p>
             <button
               onClick={handleClassify}

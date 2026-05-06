@@ -95,7 +95,7 @@ export default function HomePage() {
       }}>
         {[
           { to: '/atlas', icon: '🗺️', title: 'Vaka Atlası', desc: 'Tüm siber dolandırıcılık vakalarını keşfedin' },
-          { to: '/analyze', icon: '🔍', title: 'Analiz Aracı', desc: 'Yaşadığınız olayı Gemini ile analiz edin' },
+          { to: '/analyze', icon: '🔍', title: 'Analiz Aracı', desc: 'Yaşadığınız olayı AI ile analiz edin' },
           { to: '/harita', icon: '🌍', title: 'Tehdit Haritası', desc: 'İl bazlı vaka yoğunluğunu görün' },
         ].map((card, i) => (
           <motion.div

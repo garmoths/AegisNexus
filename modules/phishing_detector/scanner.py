@@ -16,8 +16,10 @@ from .url_normalize import normalize_url_record
 from .ai_analyzer import analyze_page_content
 from .ml_classifier import classify_url
 from .threat_intel import check_ioc_threatfox, run_threat_intelligence
+from .visual_analyzer import analyze_html
 
 logger = logging.getLogger(__name__)
+SCORING_MODEL = (os.getenv("PHISHING_SCORING_MODEL", "rule-based-v1") or "rule-based-v1").strip()
 
 # =========================================================
 # AYARLAR VE JSON YÜKLEME
@@ -490,6 +492,147 @@ def analyze_domain_structure(domain, raw_input):
     return findings, score_penalty
 
 
+def classify_with_confidence(score: float, signal_count: int) -> dict:
+    """
+    Skoru güven aralığı ile sınıflandır.
+    Az sinyal varsa belirsizlik aralığı daha geniş tutulur.
+    """
+    bounded_score = max(0, min(100, int(round(score))))
+    bounded_signals = max(0, int(signal_count))
+    uncertainty = max(5, 15 - bounded_signals * 2)
+    low = max(0, bounded_score - uncertainty)
+    high = min(100, bounded_score + uncertainty)
+
+    if low < 60 < high:
+        verdict = "⚠️ Belirsiz (60 sınırında)"
+    elif bounded_score >= 80:
+        verdict = "✅ Güvenli"
+    elif bounded_score >= 60:
+        verdict = "⚠️ Şüpheli"
+    elif bounded_score >= 35:
+        verdict = "🟠 Riskli"
+    else:
+        verdict = "🚨 Tehlikeli"
+
+    if uncertainty <= 5:
+        confidence = "yüksek"
+    elif uncertainty <= 10:
+        confidence = "orta"
+    else:
+        confidence = "düşük"
+
+    return {
+        "verdict": verdict,
+        "confidence": confidence,
+        "range": {"min": low, "max": high},
+        "uncertainty": uncertainty,
+        "signal_count": bounded_signals,
+    }
+
+
+# =========================================================
+# A2: HIZLI KATMANLAR (~200ms, ağ I/O yok)
+# =========================================================
+def run_quick_checks(input_url: str, db: Session = None) -> dict:
+    """
+    Katman 1-3 + ML: Whitelist → DB → PhishTank → ML.
+    Ağ/Playwright/Gemini çağrısı yapmaz; ~200ms içinde tamamlanır.
+    definitive=True  → kesin sonuç, Celery'ye gerek yok.
+    definitive=False → belirsiz, ağır analiz gerekli.
+    """
+    input_url = (input_url or "").strip()
+    if not input_url.startswith(("http://", "https://")):
+        input_url = "https://" + input_url
+
+    normalized = normalize_url_record(input_url)
+    check_url = normalized.get("canonical_url", input_url)
+    raw_domain = normalized.get("domain_norm", "")
+    parsed = urlparse(check_url)
+    domain = (parsed.netloc or parsed.path or "").lower().replace("www.", "").split(":")[0]
+    if not raw_domain:
+        raw_domain = domain
+
+    # ── Katman 1: Whitelist ──────────────────────────────
+    is_whitelisted = False
+    wl_info = check_whitelist(domain)
+    if wl_info.get("whitelisted"):
+        is_whitelisted = True
+    if not is_whitelisted:
+        if raw_domain in WHITELIST or domain in WHITELIST:
+            is_whitelisted = True
+        if not is_whitelisted:
+            for wl_domain in WHITELIST:
+                if domain == wl_domain or domain.endswith("." + wl_domain):
+                    is_whitelisted = True
+                    break
+        if not is_whitelisted and "." not in raw_domain and raw_domain in WHITELIST_SHORT:
+            is_whitelisted = True
+
+    if is_whitelisted:
+        return {
+            "url": input_url, "safety_score": 100, "score": 100,
+            "risk_level": "✅ Güvenli",
+            "details": ["✅ Güvenilir site listesinde mevcut."],
+            "sources": [{"name": "Whitelist", "status": "✅ Doğrulanmış"}],
+            "risks": [], "definitive": True, "is_whitelisted": True,
+        }
+
+    # ── Katman 2: Internal DB ────────────────────────────
+    if db:
+        url_hash = normalized.get("url_hash")
+        canon = normalized.get("canonical_url")
+        exact = None
+        if url_hash:
+            exact = db.query(PhishingURL).filter(PhishingURL.url_hash == url_hash).first()
+        if exact is None and canon:
+            exact = db.query(PhishingURL).filter(PhishingURL.url == canon).first()
+        if exact:
+            return {
+                "url": input_url, "safety_score": 0, "score": 0,
+                "risk_level": "🚨 ÇOK TEHLİKELİ (DB Kayıtlı)",
+                "details": [f"Tehlikeli site veritabanında tespit edildi! (ID: {exact.phish_id})"],
+                "sources": [{"name": "Internal DB", "status": "TEHDİT 🚨"}],
+                "risks": ["Tehlikeli site veritabanında kayıtlı"],
+                "definitive": True, "is_whitelisted": False,
+            }
+
+    # ── Katman 3: PhishTank ──────────────────────────────
+    if domain in PHISHTANK_DB or raw_domain in PHISHTANK_DB:
+        return {
+            "url": input_url, "safety_score": 0, "score": 0,
+            "risk_level": "🚨 ÇOK TEHLİKELİ (PhishTank)",
+            "details": ["Bu site global kara listede (PhishTank) mevcut!"],
+            "sources": [{"name": "PhishTank", "status": "TEHDİT 🚨"}],
+            "risks": ["PhishTank kara listesinde kayıtlı"],
+            "definitive": True, "is_whitelisted": False,
+        }
+
+    # ── ML sınıflandırma (ağ yok, hızlı) ────────────────
+    preliminary_score = 50
+    ml_source = []
+    try:
+        ml_result = classify_url(input_url)
+        ml_penalty = ml_result.get("ml_penalty", 0)
+        preliminary_score = max(0, min(100, 100 - ml_penalty))
+        if ml_result.get("ml_label"):
+            ml_source = [{"name": "ML Classifier", "status": ml_result["ml_label"]}]
+    except Exception:
+        pass
+
+    return {
+        "url": input_url,
+        "safety_score": preliminary_score,
+        "score": preliminary_score,
+        "risk_level": "⏳ Analiz ediliyor",
+        "details": ["Derin analiz kuyruğa alındı, lütfen bekleyin..."],
+        "sources": ml_source,
+        "risks": [],
+        "definitive": False,
+        "preliminary_score": preliminary_score,
+        "is_whitelisted": False,
+    }
+
+
 # =========================================================
 # ANA ANALİZ FONKSİYONU
 # =========================================================
@@ -578,7 +721,9 @@ def calculate_safety_score(input_url, db: Session = None):
 
         if exact_match:
             return {
-                "url": input_url, "score": 0,
+                "url": input_url,
+                "safety_score": 0,
+                "score": 0,
                 "risk_level": "🚨 ÇOK TEHLİKELİ (DB Kayıtlı)",
                 "details": [
                     f"Tehlikeli site veritabanında tespit edildi! (ID: {exact_match.phish_id})",
@@ -593,7 +738,9 @@ def calculate_safety_score(input_url, db: Session = None):
     # ---------------------------------------------------------
     if domain in PHISHTANK_DB or raw_domain in PHISHTANK_DB:
         return {
-            "url": input_url, "score": 0,
+            "url": input_url,
+            "safety_score": 0,
+            "score": 0,
             "risk_level": "🚨 ÇOK TEHLİKELİ (PhishTank)",
             "details": [
                 "Bu site global kara listede (PhishTank) mevcut!",
@@ -645,6 +792,25 @@ def calculate_safety_score(input_url, db: Session = None):
                 page_content = None
 
     # ---------------------------------------------------------
+    # B1. KATMAN: HTML DERİN ANALİZİ (BeautifulSoup DOM)
+    # ---------------------------------------------------------
+    html_pre_penalty = 0
+    html_result = None
+    if page_content:
+        try:
+            html_result = analyze_html(page_content, check_url)
+            html_pre_penalty = html_result.get("penalty", 0)
+            if html_pre_penalty > 0 and not is_whitelisted:
+                score -= html_pre_penalty
+                risks.extend(html_result.get("details", []))
+                sources.append({
+                    "name": "HTML Analyzer",
+                    "status": f"penalty={html_pre_penalty} {'🚨 KESİN' if html_result.get('definitive') else '⚠️'}",
+                })
+        except Exception as e:
+            logger.error(f"HTML Analyzer hatası: {e}")
+
+    # ---------------------------------------------------------
 # 8. KATMAN: HARİCİ TEHDİT İSTİHBARATI (Local - site reachability'den önce)
 # ---------------------------------------------------------
     threat_result = None
@@ -677,14 +843,24 @@ def calculate_safety_score(input_url, db: Session = None):
             http_meta=http_meta,
             page_text=(page_content or "")[:3000],
             is_whitelisted=is_whitelisted,
+            pre_penalty=html_pre_penalty,
         )
         if threat_result["total_penalty"] > 0:
             score -= threat_result["total_penalty"]
             risks.extend(threat_result["findings"])
         else:
             # VirusTotal temiz (penalty 0) + SSL geçerli = BONUS +25
+            # Ancak HTML/AI phishing sinyali varsa bonus uygulanmaz
+            _has_phishing_signal = html_pre_penalty > 10 or (
+                html_result is not None and html_result.get("definitive")
+            )
             vt_status = threat_result.get("virustotal") or {}
-            if vt_status.get("available") and vt_status.get("malicious", 0) == 0 and vt_status.get("suspicious", 0) == 0:
+            if (
+                not _has_phishing_signal
+                and vt_status.get("available")
+                and vt_status.get("malicious", 0) == 0
+                and vt_status.get("suspicious", 0) == 0
+            ):
                 ssl_status = check_ssl_certificate(domain.split(":")[0])
                 if ssl_status["valid"] and not ssl_status["expired"]:
                     score += 25  # VirusTotal + SSL bonus
@@ -694,8 +870,11 @@ def calculate_safety_score(input_url, db: Session = None):
         logger.error(f"Threat Intelligence hatası: {e}")
 
     if not site_is_up:
+        interim_classification = classify_with_confidence(score, len(sources))
         return {
-            "url": input_url, "score": score,
+            "url": input_url,
+            "safety_score": max(0, min(100, score)),
+            "score": max(0, min(100, score)),
             "risk_level": "❌ Siteye Ulaşılamıyor",
             "details": [
                 "Böyle bir site bulunamadı veya sunucusu kapalı.",
@@ -704,6 +883,10 @@ def calculate_safety_score(input_url, db: Session = None):
             ] + risks,
             "sources": sources + [{"name": "HTTP Erişim", "status": "Başarısız ❌"}],
             "threat_intel": threat_result,
+            "confidence": interim_classification["confidence"],
+            "score_range": interim_classification["range"],
+            "signal_count": interim_classification["signal_count"],
+            "scoring_model": SCORING_MODEL,
         }
 
     # ---------------------------------------------------------
@@ -900,6 +1083,8 @@ def calculate_safety_score(input_url, db: Session = None):
             if ai_result.get("brand_impersonation") and not is_whitelisted:
                 sources.append({"name": "Marka Taklidi", "status": f"⚠️ {ai_result['brand_impersonation'].upper()}"})
             if ai_result.get("credential_harvesting") and not is_whitelisted:
+                score -= 35
+                risks.append("🚨 Credential harvesting tespit edildi (form/veri toplama)")
                 sources.append({"name": "Credential Harvesting", "status": "🚨 Tespit Edildi"})
     except Exception as e:
         logger.error(f"AI Analyzer hatası: {e}")
@@ -917,25 +1102,29 @@ def calculate_safety_score(input_url, db: Session = None):
         final_score = max(final_score, 95)
         risks.append("✅ Whitelist eşleşmesi nedeniyle skor güvenli seviyeye yükseltildi.")
 
-    if final_score >= 80:
-        risk_level = "✅ Güvenli"
-    elif final_score >= 60:
-        risk_level = "⚠️ Şüpheli"
-    elif final_score >= 40:
-        risk_level = "🟠 Riskli"
-    else:
-        risk_level = "🚨 Tehlikeli"
+    classification = classify_with_confidence(final_score, len(sources))
+    risk_level = classification["verdict"]
 
     if not risks:
         risks.append("✅ Herhangi bir risk faktörü tespit edilmedi.")
 
     result = {
         "url": input_url,
+        "safety_score": final_score,
         "score": final_score,
         "risk_level": risk_level,
         "details": risks,
         "sources": sources,
         "threat_intel": threat_result,
+        "html_analysis": {
+            "penalty": html_result.get("penalty", 0) if html_result else 0,
+            "definitive": html_result.get("definitive", False) if html_result else False,
+            "findings_count": len(html_result.get("details", [])) if html_result else 0,
+        } if html_result else None,
+        "confidence": classification["confidence"],
+        "score_range": classification["range"],
+        "signal_count": classification["signal_count"],
+        "scoring_model": SCORING_MODEL,
     }
 
     # AI ek bilgileri (frontend için)

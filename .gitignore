@@ -24,5 +24,11 @@ frontend-react/dist/
 .DS_Store
 Thumbs.db
 
+# Cache DB
+threat_intel_cache.db
+
+# Test artifacts
+tests/phishtank_results_*.json
+
 # Plans (local)
 .windsurf/

@@ -1,12 +1,42 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { Component, useState, useEffect, useRef, useCallback } from 'react'
 import { motion, useReducedMotion, AnimatePresence } from 'framer-motion'
-import { Shield, AlertTriangle, Activity, Globe, Search, Copy, Check, Wifi, Database, TrendingUp, Zap, Bug, Mail, Server, Hash, Radio, Eye, ChevronRight, BarChart3, Lock } from 'lucide-react'
+import { Shield, ShieldAlert, AlertTriangle, Activity, Globe, Search, Copy, Check, Wifi, Database, TrendingUp, Zap, Bug, Mail, Server, Hash, Radio, Eye, ChevronRight, BarChart3, Lock, Download } from 'lucide-react'
+import TurkeyHeatmapSection from './components/TurkeyHeatmapSection.jsx'
+import ScoringPipelineDiagram from './components/ScoringPipelineDiagram.jsx'
 
 const API = import.meta.env.VITE_API_BASE_URL || '/api/v2'
 
 function normalizeStatus(status) {
   const s = String(status || '').toLowerCase()
   return s === 'active' || s === 'online'
+}
+
+class ModuleErrorBoundary extends Component {
+  constructor(props) {
+    super(props)
+    this.state = { hasError: false }
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding:'96px 24px', maxWidth:900, margin:'0 auto' }}>
+          <div style={{ padding:32, borderRadius:theme.radiusMd, background:theme.surface, border:`1px solid ${theme.border}`, boxShadow:theme.cardShadow }}>
+            <p style={{ fontSize:12, fontWeight:800, color:theme.warning, textTransform:'uppercase', letterSpacing:'1.5px', marginBottom:12 }}>IOC Modülü Hatası</p>
+            <h2 style={{ fontSize:28, fontWeight:800, color:'#fff', marginBottom:12 }}>Bu sekme geçici olarak yüklenemedi.</h2>
+            <p style={{ color:theme.textMuted, fontSize:15, lineHeight:1.7, marginBottom:20 }}>IOC ekranında beklenmeyen bir render hatası oluştu. Sayfayı yenileyerek tekrar deneyebilirsin.</p>
+            <button onClick={() => window.location.reload()} style={{ padding:'12px 18px', borderRadius:theme.radiusSm, border:'none', background:theme.gradientPrimary, color:'#000', fontWeight:700, cursor:'pointer' }}>Yeniden Yükle</button>
+          </div>
+        </div>
+      )
+    }
+
+    return this.props.children
+  }
 }
 
 const theme = {
@@ -195,7 +225,7 @@ export default function ModulesApp() {
       {page==='ai-analyzer' && <AIAnalyzer onGoVictimAtlas={()=>setPage('victim-atlas')} />}
       {page==='phishing-detector' && <PhishingDetector />}
       {page==='victim-atlas' && <VictimAtlas onOpenAIAnalyzer={()=>setPage('ai-analyzer')} />}
-      {page==='honeypot' && <HoneypotIOC />}
+      {page==='honeypot' && <ModuleErrorBoundary><HoneypotIOC /></ModuleErrorBoundary>}
       {page==='breach-intel' && <BreachIntel />}
     </motion.main>
     <footer style={{ borderTop:`1px solid ${theme.border}`, padding:'24px', textAlign:'center', color:theme.textMuted, fontSize:13, marginTop:80 }}>
@@ -567,13 +597,6 @@ function ResultContent({ score, threatLevel, isPhishing, isScam, sa, da, recs, b
   const confidencePercentage = Math.round(confidence * 100)
   const confidenceColor = confidence > 0.75 ? theme.danger : confidence > 0.50 ? theme.warning : confidence > 0.25 ? theme.primary : theme.success
   
-  // Get advanced breakdown data
-  const breakdown = da?.advanced_breakdown || {}
-  const sUrl = breakdown.s_url || 0
-  const sText = breakdown.s_text || 0
-  const sLlm = breakdown.s_llm || 0
-  const sUrgency = breakdown.s_urgency || 0
-  const sEmotion = breakdown.s_emotion || 0
   const hardOverride = da?.hard_override || false
 
   return <motion.div 
@@ -987,7 +1010,7 @@ function ResultContent({ score, threatLevel, isPhishing, isScam, sa, da, recs, b
   </motion.div>
 }
 
-function RiskGauge({ score, label, showPercentage = false, size = 'md' }) {
+function RiskGauge({ score, label, showPercentage = false, size = 'md', safetyMode = false }) {
   const sizeMap = {
     sm: { width: 80, height: 80, radius: 32, stroke: 6, fontSize: 16 },
     md: { width: 120, height: 120, radius: 40, stroke: 8, fontSize: 22 },
@@ -997,7 +1020,9 @@ function RiskGauge({ score, label, showPercentage = false, size = 'md' }) {
   
   const c = 2 * Math.PI * radius
   const o = c - (Math.min(score, 100) / 100) * c
-  const color = score > 75 ? theme.danger : score > 50 ? theme.warning : score > 25 ? theme.primary : theme.success
+  const color = safetyMode
+    ? (score > 75 ? theme.success : score > 50 ? theme.primary : score > 25 ? theme.warning : theme.danger)
+    : (score > 75 ? theme.danger : score > 50 ? theme.warning : score > 25 ? theme.primary : theme.success)
   const percentage = Math.round(score)
   const center = width / 2
   
@@ -1072,7 +1097,7 @@ function PhishingResult({ result, url }) {
     { key:'virustotal', icon:'🛡️', name:'VirusTotal', data:vt, isBad:(vt.malicious||0)>=1, isClean:vt.available&&(vt.malicious||0)===0, badLabel:`${vt.malicious||0} MAL`, cleanLabel:'CLEAN', detail:vt.available?(vt.source==='whitelist'?'Whitelist domain (güvenilir)':`${vt.malicious||0} motor tehlikeli`):'Sonuç yok', penalty:40 },
     { key:'gsb', icon:'🔍', name:'Google Safe Browsing', data:gsb, isBad:gsb.threat===true, isClean:gsb.available&&!gsb.threat, badLabel:'THREAT', cleanLabel:'SAFE', detail:gsb.threat?gsb.threat_type||'Tehdit':'Güvenli', penalty:50 },
     { key:'abuseipdb', icon:'📊', name:'AbuseIPDB (Local)', data:aipdb, isBad:(aipdb.abuse_score||0)>=30, isClean:aipdb.available&&(aipdb.abuse_score||0)<30, badLabel:`${aipdb.abuse_score||0}%`, cleanLabel:'CLEAN', detail:aipdb.available?`Suistimal: %${aipdb.abuse_score||0}`:'Sonuç yok', penalty:25 },
-    { key:'screenshot', icon:'📸', name:'Screenshot Analyzer', data:sa, isBad:(sa.risk_score||0)>50, isClean:sa.available&&(sa.risk_score||0)<=30, badLabel:sa.risk_level||'HIGH', cleanLabel:'SAFE', detail:(!sa.available&&screenshotB64)?'Screenshot alındı (AI analizi devre dışı)':(sa.verdict||'Analiz yok'), penalty:sa.available?Math.round((sa.risk_score||50)*0.4):0, hasDataOverride: !!screenshotB64 || !!sa.verdict, badgeOverride: (!sa.available&&screenshotB64)?'CAPTURED':null },
+    { key:'screenshot', icon:'📸', name:'Screenshot Analyzer', data:sa, isBad:(sa.risk_score||0)>50, isClean:sa.available&&(sa.risk_score||0)<=30, badLabel:sa.risk_level||'HIGH', cleanLabel:'SAFE', detail:(!sa.available&&screenshotB64)?'Screenshot alındı (AI analizi devre dışı)':(sa.verdict||'Analiz yok'), penalty:sa.available?Math.round((sa.risk_score||50)*0.6):0, hasDataOverride: !!screenshotB64 || !!sa.verdict, badgeOverride: (!sa.available&&screenshotB64)?'CAPTURED':null },
   ]
 
   const openScreenshot = () => {
@@ -1084,12 +1109,13 @@ function PhishingResult({ result, url }) {
   return (
   <motion.div initial={{opacity:0,y:30}} animate={{opacity:1,y:0}} transition={{duration:0.6,ease:theme.ease.out}} style={{marginBottom:48}}>
     {/* Hero Result Card */}
-    <Card style={{background:'rgba(255,255,255,0.03)',backdropFilter:'blur(10px)',WebkitBackdropFilter:'blur(10px)',border:`1px solid ${result.score>50?theme.accent+'40':theme.primary+'40'}`,marginBottom:24}}>
+    {(() => { const safetyScore = result.safety_score ?? result.score ?? 0; return (
+    <Card style={{background:'rgba(255,255,255,0.03)',backdropFilter:'blur(10px)',WebkitBackdropFilter:'blur(10px)',border:`1px solid ${safetyScore<50?theme.accent+'40':theme.primary+'40'}`,marginBottom:24}}>
       <div style={{display:'flex',gap:32,alignItems:'flex-start',flexWrap:'wrap'}}>
         {/* Left: Gauge + Screenshot */}
         <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:16,minWidth:200}}>
-          <RiskGauge score={result.score||0} label="Risk Skoru" size="lg"/>
-          <span style={{padding:'8px 20px',borderRadius:'24px',fontSize:14,fontWeight:700,background:result.score>50?theme.accentDim:theme.primaryDim,color:result.score>50?theme.accent:theme.primary}}>{result.risk_level||'Bilinmiyor'}</span>
+          <RiskGauge score={safetyScore} label="Güvenilirlik Skoru" size="lg" safetyMode={true}/>
+          <span style={{padding:'8px 20px',borderRadius:'24px',fontSize:14,fontWeight:700,background:safetyScore<50?theme.accentDim:theme.primaryDim,color:safetyScore<50?theme.accent:theme.primary}}>{result.risk_level||'Bilinmiyor'}</span>
           {screenshotB64&&(
             <motion.div initial={{opacity:0,scale:0.9}} animate={{opacity:1,scale:1}} transition={{delay:0.3,duration:0.4}} style={{position:'relative',cursor:'pointer'}} onClick={openScreenshot}>
               <img src={`data:image/png;base64,${screenshotB64}`} alt="Site screenshot" style={{width:200,height:'auto',maxHeight:150,objectFit:'cover',borderRadius:theme.radius.md,border:`1px solid ${theme.border}`,boxShadow:'0 4px 20px rgba(0,0,0,0.4)',opacity:0.9,transition:'opacity 0.3s ease'}} onMouseEnter={e=>e.target.style.opacity=1} onMouseLeave={e=>e.target.style.opacity=0.9}/>
@@ -1115,6 +1141,7 @@ function PhishingResult({ result, url }) {
         </div>
       </div>
     </Card>
+    )})()}
 
     {/* Threat Intel Source Cards */}
     <motion.div initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} transition={{delay:0.2,duration:0.5}} style={{marginBottom:24}}>
@@ -1208,6 +1235,12 @@ function PhishingDetector() {
   const [searchResults, setSearchResults] = useState([])
   const [showDropdown, setShowDropdown] = useState(false)
   const searchTimeoutRef = useRef(null)
+  const [jobId, setJobId] = useState(null)
+  const [analyzing, setAnalyzing] = useState(false)
+  const [pollCount, setPollCount] = useState(0)
+  const MAX_POLLS = 120
+  const [showRetryButton, setShowRetryButton] = useState(false)
+  const [showScoringDiagram, setShowScoringDiagram] = useState(false)
 
   function showToast(msg,t='success'){setToast({message:msg,type:t,visible:true});setTimeout(()=>setToast(t=>({...t,visible:false})),3000)}
 
@@ -1256,11 +1289,7 @@ function PhishingDetector() {
 
   // Real-time autocomplete with debouncing
   useEffect(() => {
-    if (url.length < 1) {
-      setSearchResults([])
-      setShowDropdown(false)
-      return
-    }
+    if (url.length < 1) return
     
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current)
@@ -1277,7 +1306,7 @@ function PhishingDetector() {
           setSearchResults([])
           setShowDropdown(false)
         }
-      } catch (e) {
+      } catch {
         setSearchResults([])
         setShowDropdown(false)
       }
@@ -1290,19 +1319,92 @@ function PhishingDetector() {
     }
   }, [url])
 
-  async function handleCheck() {
+  const submitCheckRequest = useCallback(async (normalizedInput, forceFresh = false) => {
+    const r = await fetch(`${API}/phishing/check-url`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: normalizedInput, force_fresh: forceFresh }),
+    })
+    if(!r.ok) throw new Error(`URL kontrol hatasi (${r.status})`)
+    return r.json()
+  }, [])
+
+  async function handleCheck(forceFreshOrEvent = false) {
+    // Event handler olarak kullanıldığında (onClick), React event object gelir - ignore et
+    const forceFresh = typeof forceFreshOrEvent === 'boolean' ? forceFreshOrEvent : false
     if(!url){showToast('Lutfen bir URL girin','error');return}
-    setChecking(true);setResult(null)
+    setChecking(true);setResult(null);setJobId(null);setAnalyzing(false);setPollCount(0);setShowRetryButton(false)
     try{
       const normalizedInput = /^https?:\/\//i.test(url) ? url : `https://${url}`
       new URL(normalizedInput)
-      const r=await fetch(`${API}/phishing/check-url`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url: normalizedInput})})
-      if(!r.ok)throw new Error(`URL kontrol hatasi (${r.status})`)
-      const d=await r.json();setResult(d)
+      const d = await submitCheckRequest(normalizedInput, forceFresh)
+      if(d.status==='analyzing' && d.job_id){
+        setResult(d)
+        setJobId(d.job_id)
+        setAnalyzing(true)
+      } else {
+        setResult(d)
+        setShowRetryButton(false)
+      }
       loadScanHistory(1)
-    }catch(e){showToast('URL kontrol hatasi: '+e.message,'error')}
+    }catch(e){
+      const errMsg = e?.message || (typeof e === 'string' ? e : 'Bilinmeyen hata')
+      showToast('URL kontrol hatasi: '+errMsg,'error')
+    }
     setChecking(false)
   }
+
+  useEffect(()=>{
+    if(!jobId||!analyzing) return
+    if(pollCount>=MAX_POLLS){
+      const tryRecoverFromCache = async () => {
+        setAnalyzing(false)
+        setJobId(null)
+        try {
+          const normalizedInput = /^https?:\/\//i.test(url) ? url : `https://${url}`
+          const d = await submitCheckRequest(normalizedInput, false)
+          if(d.status==='complete'){
+            setResult(d)
+            setShowRetryButton(false)
+            loadScanHistory(1)
+            return
+          } else if(d.status==='analyzing') {
+            setShowRetryButton(true)
+            return
+          }
+        } catch (err) {
+          void err
+        }
+        setShowRetryButton(true)
+        showToast('Analiz zaman asimi. "Yeniden Tara" ile tekrar deneyin.','error')
+      }
+      void tryRecoverFromCache()
+      return
+    }
+    const timer=setTimeout(async()=>{
+      try{
+        const r=await fetch(`${API}/phishing/result/${jobId}`)
+        const d=await r.json()
+        if(d.status==='complete'){
+          setResult(d)
+          setAnalyzing(false)
+          setJobId(null)
+          setShowRetryButton(false)
+          loadScanHistory(1)
+        } else if(d.status==='timeout' || d.status==='error'){
+          setResult(d)
+          setAnalyzing(false)
+          setJobId(null)
+          setShowRetryButton(true)
+        } else {
+          setPollCount(c=>c+1)
+        }
+      }catch{
+        setPollCount(c=>c+1)
+      }
+    },3000)
+    return ()=>clearTimeout(timer)
+  },[jobId,analyzing,pollCount,url,loadScanHistory,submitCheckRequest])
 
   const totalUrls=stats?.stats?.total_urls||stats?.total_urls||0
   const phCount=stats?.stats?.phishing_count||stats?.phishing_count||0
@@ -1448,10 +1550,10 @@ function PhishingDetector() {
                   >
                     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
                       <span style={{ color:theme.primary, fontFamily:theme.mono, fontSize:12, wordBreak:'break-all', flex:1, marginRight:12 }}>{item.url||'-'}</span>
-                      <span style={{ padding:'3px 10px', borderRadius:10, fontSize:10, flexShrink:0, background:(item.risk_score||0)>50?theme.accentDim:theme.primaryDim, color:(item.risk_score||0)>50?theme.accent:theme.primary }}>{item.risk_level||'Bilinmiyor'}</span>
+                      <span style={{ padding:'3px 10px', borderRadius:10, fontSize:10, flexShrink:0, background:(item.risk_score||0)<50?theme.accentDim:theme.primaryDim, color:(item.risk_score||0)<50?theme.accent:theme.primary }}>{item.risk_level||'Bilinmiyor'}</span>
                     </div>
                     <div style={{ display:'flex', gap:16, fontSize:11, color:theme.textMuted }}>
-                      <span>Risk: <b style={{ color:(item.risk_score||0)>50?theme.accent:(item.risk_score||0)>20?theme.warning:theme.success }}>{item.risk_score??'-'}</b></span>
+                      <span>Güvenilirlik: <b style={{ color:(item.risk_score||0)<50?theme.accent:(item.risk_score||0)<80?theme.warning:theme.success }}>{item.risk_score??'-'}</b></span>
                       <span>Domain: {item.domain||'-'}</span>
                     </div>
                   </div>
@@ -1516,7 +1618,72 @@ function PhishingDetector() {
       </div>
     </motion.div>
 
-    {/* Result Display */}
+    {/* C1: Derin Analiz Progress Bar */}
+    <AnimatePresence>
+      {analyzing && (
+        <motion.div
+          initial={{ opacity:0, y:-10 }}
+          animate={{ opacity:1, y:0 }}
+          exit={{ opacity:0, y:-10 }}
+          transition={{ duration:0.3, ease:theme.ease.out }}
+          style={{
+            maxWidth:900,
+            margin:'0 auto 24px',
+            padding:'16px 24px',
+            background:'rgba(0,212,255,0.06)',
+            border:`1px solid ${theme.primary}40`,
+            borderRadius:theme.radius.md,
+            display:'flex',
+            alignItems:'center',
+            gap:16
+          }}
+        >
+          <motion.span
+            animate={{ rotate:360 }}
+            transition={{ repeat:Infinity, duration:1.5, ease:'linear' }}
+            style={{ fontSize:22, flexShrink:0 }}
+          >🔍</motion.span>
+          <div style={{ flex:1, minWidth:0 }}>
+            <p style={{ margin:'0 0 4px', fontSize:14, fontWeight:700, color:theme.primary }}>
+              Derin Analiz Devam Ediyor...
+            </p>
+            <p style={{ margin:'0 0 10px', fontSize:12, color:theme.textMuted }}>
+              Playwright screenshot + AI analizi ({Math.round(pollCount * 3)}s)
+            </p>
+            <div style={{ height:4, background:theme.border, borderRadius:2, overflow:'hidden' }}>
+              <motion.div
+                animate={{ width:`${Math.min((pollCount/MAX_POLLS)*100, 95)}%` }}
+                transition={{ duration:0.5 }}
+                style={{ height:'100%', background:theme.gradientPrimary, borderRadius:2 }}
+              />
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+
+    {showRetryButton && !analyzing && (
+      <div style={{ display:'flex', justifyContent:'center', margin:'0 auto 20px' }}>
+        <motion.button
+          onClick={() => handleCheck(true)}
+          whileHover={{ scale:1.02 }}
+          whileTap={{ scale:0.98 }}
+          style={{
+            padding:'10px 18px',
+            borderRadius:theme.radius.md,
+            border:`1px solid ${theme.warning}`,
+            background:'rgba(245,158,11,0.12)',
+            color:theme.warning,
+            fontWeight:700,
+            cursor:'pointer'
+          }}
+        >
+          Yeniden Tara
+        </motion.button>
+      </div>
+    )}
+
+    {/* Result Display — show immediately even during deep analysis */}
     {result && <PhishingResult result={result} url={url} />}
 
     {/* Stats Grid */}
@@ -1551,6 +1718,41 @@ function PhishingDetector() {
           </Card>
         </motion.div>
       ))}
+    </motion.div>
+    {/* Scoring Pipeline Diagram */}
+    <motion.div
+      initial={{ opacity:0, y:16 }}
+      animate={{ opacity:1, y:0 }}
+      transition={{ delay:0.65, duration:0.5 }}
+      style={{ marginBottom:32 }}
+    >
+      <button
+        onClick={() => setShowScoringDiagram(v => !v)}
+        style={{
+          width:'100%', padding:'12px 20px',
+          background: showScoringDiagram ? theme.primaryDim : theme.surface,
+          border:`1px solid ${showScoringDiagram ? theme.primary+'55' : theme.border}`,
+          borderRadius:12, cursor:'pointer', display:'flex', alignItems:'center', gap:12,
+          transition:'all 0.2s', marginBottom: showScoringDiagram ? 12 : 0,
+        }}
+      >
+        <Activity size={16} color={theme.primary} />
+        <span style={{ fontSize:13, fontWeight:700, color: showScoringDiagram ? theme.primary : theme.textMuted }}>Puanlama Motoru — Nasıl Çalışır?</span>
+        <span style={{ marginLeft:'auto', fontSize:11, color:theme.textMuted }}>{showScoringDiagram ? '▲ Kapat' : '▼ Göster'}</span>
+      </button>
+      <AnimatePresence>
+        {showScoringDiagram && (
+          <motion.div
+            initial={{ opacity:0, height:0 }}
+            animate={{ opacity:1, height:'auto' }}
+            exit={{ opacity:0, height:0 }}
+            transition={{ duration:0.3 }}
+            style={{ overflow:'hidden' }}
+          >
+            <ScoringPipelineDiagram />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
     {/* Latest Phishing Data Table */}
     <motion.div
@@ -1715,10 +1917,25 @@ function CaseModal({ c, onClose }) {
 
   useEffect(() => {
     if (tab !== 'yorumlar') return
-    setCommentsLoading(true)
-    fetch(`${API}/victim-atlas/cases/${c.id}/comments`)
-      .then(r=>r.json()).then(d=>setComments(d.data||[])).catch(()=>setComments([]))
-      .finally(()=>setCommentsLoading(false))
+
+    let cancelled = false
+
+    void (async () => {
+      setCommentsLoading(true)
+      try {
+        const response = await fetch(`${API}/victim-atlas/cases/${c.id}/comments`)
+        const data = await response.json()
+        if (!cancelled) setComments(data.data || [])
+      } catch {
+        if (!cancelled) setComments([])
+      } finally {
+        if (!cancelled) setCommentsLoading(false)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
   }, [tab, c.id])
 
   async function submitComment() {
@@ -1732,8 +1949,11 @@ function CaseModal({ c, onClose }) {
       setNewComment('')
       const r = await fetch(`${API}/victim-atlas/cases/${c.id}/comments`)
       const d = await r.json(); setComments(d.data||[])
-    } catch {}
-    setSubmitting(false)
+    } catch {
+      void 0
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   async function handleUpvote(commentId) {
@@ -1745,7 +1965,9 @@ function CaseModal({ c, onClose }) {
       setComments(prev => prev.map(cm => cm.id===commentId ? {...cm, upvotes: d.upvotes} : cm))
       const next = {...upvoted, [key]: true}
       setUpvoted(next); localStorage.setItem('upvoted', JSON.stringify(next))
-    } catch {}
+    } catch {
+      void 0
+    }
   }
 
   const acColor = ATTACK_COLORS[c.attack_method] || theme.primary
@@ -1773,9 +1995,9 @@ function CaseModal({ c, onClose }) {
             <div style={{ flex:1, paddingRight:12 }}>
               <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:8, flexWrap:'wrap' }}>
                 <span style={{ fontSize:12, fontWeight:700, padding:'3px 10px', borderRadius:20, background:`${acColor}22`, color:acColor }}>
-                  {ATTACK_ICONS[c.attack_method]} {methodLabel(c.attack_method)}
+                  {ATTACK_ICONS[c.attack_method]} {displayMethod(c)}
                 </span>
-                <span style={{ fontSize:12, color:theme.textMuted }}>{LOSS_ICONS[c.loss_type]} {lossTypeLabel(c.loss_type)}</span>
+                <span style={{ fontSize:12, color:theme.textMuted }}>{LOSS_ICONS[c.loss_type]} {displayLossType(c)}</span>
                 <span style={{ fontSize:12, padding:'3px 10px', borderRadius:20, background: c.severity_score>=75?'rgba(239,68,68,0.15)':c.severity_score>=55?'rgba(245,158,11,0.15)':'rgba(34,197,94,0.15)', color: c.severity_score>=75?theme.danger:c.severity_score>=55?theme.warning:theme.success, fontWeight:700 }}>Risk {c.severity_score}/100</span>
               </div>
               <h2 style={{ fontSize:18, fontWeight:800, color:'#fff', lineHeight:1.3, margin:0 }}>{c.case_title}</h2>
@@ -1805,8 +2027,8 @@ function CaseModal({ c, onClose }) {
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12, marginBottom:20 }}>
                 {[
                   { label:'Güven Skoru', value:`${c.confidence_score}%`, color:theme.primary },
-                  { label:'Platform', value:platformLabel(c.target_platform), color:theme.text },
-                  { label:'Kayıp Tipi', value:lossTypeLabel(c.loss_type), color:theme.text },
+                  { label:'Platform', value:displayPlatform(c), color:theme.text },
+                  { label:'Kayıp Tipi', value:displayLossType(c), color:theme.text },
                 ].map(item => (
                   <div key={item.label} style={{ padding:'12px 14px', background:theme.surface2, borderRadius:theme.radiusSm, border:`1px solid ${theme.border}` }}>
                     <p style={{ fontSize:11, color:theme.textMuted, marginBottom:4, textTransform:'uppercase', letterSpacing:'0.5px' }}>{item.label}</p>
@@ -1820,8 +2042,8 @@ function CaseModal({ c, onClose }) {
                 {[
                   'İlk Temas',
                   'Güven Kazanma',
-                  methodLabel(c.attack_method),
-                  lossTypeLabel(c.loss_type),
+                  displayMethod(c),
+                  displayLossType(c),
                   'Mağduriyet',
                 ].map((step, i, arr) => (
                   <div key={i} style={{ display:'flex', alignItems:'center', gap:4 }}>
@@ -1931,7 +2153,7 @@ function SimilarCases({ attackMethod, excludeId }) {
       {cases.map(c=>(
         <div key={c.id} style={{ padding:'12px 16px', background:theme.surface2, borderRadius:theme.radiusSm, border:`1px solid ${theme.border}` }}>
           <div style={{ display:'flex', gap:8, marginBottom:4 }}>
-            <span style={{ fontSize:11, padding:'2px 8px', borderRadius:12, background:`${ATTACK_COLORS[c.attack_method]||theme.primary}22`, color:ATTACK_COLORS[c.attack_method]||theme.primary, fontWeight:700 }}>{methodLabel(c.attack_method)}</span>
+            <span style={{ fontSize:11, padding:'2px 8px', borderRadius:12, background:`${ATTACK_COLORS[c.attack_method]||theme.primary}22`, color:ATTACK_COLORS[c.attack_method]||theme.primary, fontWeight:700 }}>{displayMethod(c)}</span>
             <span style={{ fontSize:11, color:theme.textMuted }}>Risk {c.severity_score}/100</span>
           </div>
           <p style={{ fontSize:13, color:'#fff', fontWeight:600, margin:0 }}>{c.case_title}</p>
@@ -1979,6 +2201,18 @@ function platformLabel(value='') {
     crypto: 'Kripto',
   }
   return labels[value] || value || 'Genel'
+}
+
+function displayMethod(c = {}) {
+  return c.attack_method_tr || methodLabel(c.attack_method)
+}
+
+function displayLossType(c = {}) {
+  return c.loss_type_tr || lossTypeLabel(c.loss_type)
+}
+
+function displayPlatform(c = {}) {
+  return c.target_platform_tr || platformLabel(c.target_platform)
 }
 
 function VictimAtlas() {
@@ -2074,6 +2308,10 @@ function VictimAtlas() {
       </div>
     </div>
 
+    <ModuleErrorBoundary>
+      <TurkeyHeatmapSection compact={false} />
+    </ModuleErrorBoundary>
+
     {/* Trend bar */}
     {topMethods.length>0 && (
       <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', padding:'10px 0', marginBottom:20, borderTop:`1px solid ${theme.border}`, borderBottom:`1px solid ${theme.border}` }}>
@@ -2143,9 +2381,9 @@ function VictimAtlas() {
               <div style={{ fontSize:28, lineHeight:1 }}>{ATTACK_ICONS[c.attack_method] || '⚠️'}</div>
               <div style={{ flex:1, minWidth:200 }}>
                 <div style={{ display:'flex', gap:6, alignItems:'center', marginBottom:5, flexWrap:'wrap' }}>
-                  <span style={{ fontSize:11, fontWeight:700, padding:'2px 8px', borderRadius:12, background:`${ac}20`, color:ac }}>{methodLabel(c.attack_method)}</span>
-                  <span style={{ fontSize:11, color:theme.textMuted }}>{LOSS_ICONS[c.loss_type]} {lossTypeLabel(c.loss_type)}</span>
-                  <span style={{ fontSize:11, color:theme.textMuted }}>• {platformLabel(c.target_platform)}</span>
+                  <span style={{ fontSize:11, fontWeight:700, padding:'2px 8px', borderRadius:12, background:`${ac}20`, color:ac }}>{displayMethod(c)}</span>
+                  <span style={{ fontSize:11, color:theme.textMuted }}>{LOSS_ICONS[c.loss_type]} {displayLossType(c)}</span>
+                  <span style={{ fontSize:11, color:theme.textMuted }}>• {displayPlatform(c)}</span>
                 </div>
                 <p style={{ fontSize:15, fontWeight:700, color:'#fff', margin:'0 0 4px', lineHeight:1.3 }}>{c.case_title}</p>
                 <p style={{ fontSize:12, color:theme.textMuted, margin:0, lineHeight:1.5 }}>{c.critical_warning?.slice(0,100)}{c.critical_warning?.length>100?'...':''}</p>
@@ -2214,61 +2452,39 @@ function HoneypotIOC() {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState([])
   const [searching, setSearching] = useState(false)
-  const [activeTab, setActiveTab] = useState('dashboard')
   const [toast, setToast] = useState({ message:'', type:'success', visible:false })
-  const [currentSlide, setCurrentSlide] = useState(0)
   const [showDropdown, setShowDropdown] = useState(false)
+  const [exportingSTIX, setExportingSTIX] = useState(false)
   const searchTimeoutRef = useRef(null)
 
-  async function loadIoCStats(){
-    try{
-      const r=await fetch(`${API}/honeypot/ioc/stats`);
-      const d=await r.json();
-      setIocStats(d)
-    }catch{
-      try{
-        const r=await fetch(`${API}/honeypot/ioc/stats`);
-        const d=await r.json();
-        setIocStats(d)
-      }catch{
-        setIocStats(null)
-      }
+  async function exportSTIX(minRisk = 0) {
+    setExportingSTIX(true)
+    try {
+      const url = `${API}/ioc/export/stix?min_risk_score=${minRisk}&limit=1000`
+      const res = await fetch(url)
+      if (!res.ok) throw new Error('Export başarısız')
+      const blob = await res.blob()
+      const downloadUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = downloadUrl
+      a.download = `aegisnexus-ioc-stix-${new Date().toISOString().split('T')[0]}.json`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(downloadUrl)
+      showToast('STIX 2.1 dosyası indirildi')
+    } catch (e) {
+      showToast('STIX export hatası: ' + e.message, 'error')
     }
+    setExportingSTIX(false)
   }
-  async function loadIoCList(){
-    try{
-      const levels=['critical','high','medium','low'];
-      let allIocs=[];
-      for(const level of levels){
-        try{
-          const r=await fetch(`${API}/honeypot/ioc/by-risk-score?level=${level}&limit=8`);
-          const d=await r.json();
-          if(d.iocs) allIocs=[...allIocs,...d.iocs];
-        }catch{
-          continue
-        }
-      }
-      setIocList(allIocs)
-    }catch{
-      try{
-        const r=await fetch(`${API}/honeypot/ioc/list?limit=25`);
-        const d=await r.json();
-        setIocList(d.data||d.iocs||[])
-      }catch{
-        setIocList([])
-      }
-    }
-  }
-  async function handleSearch(){if(!searchQuery)return;setSearching(true);try{const r=await fetch(`${API}/honeypot/ioc/search?q=${encodeURIComponent(searchQuery)}`);const d=await r.json();if(d.status==='success'||d.results){setSearchResults(d.results||d.data||d.iocs||[]);setActiveTab('search-results')}else{showToast('Arama sonucu bulunamadi veya hata: '+d.message,'error')}}catch(e){showToast('Arama hatasi: '+e.message,'error')};setSearching(false)}
+
+  async function handleSearch(){if(!searchQuery)return;setSearching(true);try{const r=await fetch(`${API}/honeypot/ioc/search?q=${encodeURIComponent(searchQuery)}`);const d=await r.json();if(d.status==='success'||d.results){setSearchResults(d.results||d.data||d.iocs||[]);setShowDropdown(true)}else{showToast('Arama sonucu bulunamadi veya hata: '+d.message,'error')}}catch(e){showToast('Arama hatasi: '+e.message,'error')};setSearching(false)}
   function showToast(msg,t='success'){setToast({message:msg,type:t,visible:true});setTimeout(()=>setToast(v=>({...v,visible:false})),3000)}
   
   // Real-time autocomplete with debouncing
   useEffect(() => {
-    if (searchQuery.length < 2) {
-      setSearchResults([])
-      setShowDropdown(false)
-      return
-    }
+    if (searchQuery.length < 2) return
     
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current)
@@ -2286,7 +2502,7 @@ function HoneypotIOC() {
           setSearchResults([])
           setShowDropdown(false)
         }
-      } catch (e) {
+      } catch {
         setSearchResults([])
         setShowDropdown(false)
       }
@@ -2300,29 +2516,56 @@ function HoneypotIOC() {
     }
   }, [searchQuery])
   
-  // Auto slide for latest IOCs
   useEffect(() => {
-    if (iocList.length > 0) {
-      const interval = setInterval(() => {
-        setCurrentSlide(prev => (prev + 1) % Math.min(iocList.length, 5))
-      }, 4000)
-      return () => clearInterval(interval)
+    let cancelled = false
+
+    void (async () => {
+      try {
+        const statsResponse = await fetch(`${API}/honeypot/ioc/stats`)
+        const statsData = await statsResponse.json()
+        if (!cancelled) setIocStats(statsData)
+      } catch {
+        if (!cancelled) setIocStats(null)
+      }
+
+      try {
+        const levels = ['critical', 'high', 'medium', 'low']
+        const allIocs = []
+        for (const level of levels) {
+          try {
+            const response = await fetch(`${API}/honeypot/ioc/by-risk-score?level=${level}&limit=8`)
+            const data = await response.json()
+            if (data.iocs) allIocs.push(...data.iocs)
+          } catch {
+            continue
+          }
+        }
+        if (!cancelled) setIocList(allIocs)
+      } catch {
+        if (cancelled) return
+        try {
+          const response = await fetch(`${API}/honeypot/ioc/list?limit=25`)
+          const data = await response.json()
+          setIocList(data.data || data.iocs || [])
+        } catch {
+          setIocList([])
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
     }
-  }, [iocList])
-  
-  useEffect(()=>{loadIoCStats();loadIoCList()},[])
+  }, [])
 
   const statsData=iocStats?.stats||iocStats||{}
   const riskDist=statsData?.risk_distribution||iocStats?.risk_distribution||[]
-  const weeklyGrowth=statsData?.weekly_growth||iocStats?.weekly_growth||[]
   const topThreats=statsData?.top_threats||iocStats?.top_threats||[]
   const sourceBreakdown=statsData?.source_breakdown||iocStats?.source_breakdown||[]
   const totalIocs=statsData?.total_iocs||iocStats?.total_iocs||iocStats?.total_records||0
   const highRisk=statsData?.high_risk_count||iocStats?.high_risk_count||0
   const mediumRisk=statsData?.medium_risk_count||iocStats?.medium_risk_count||0
-  const lowRisk=statsData?.low_risk_count||iocStats?.low_risk_count||0
 
-  const maxSource = Math.max(...(sourceBreakdown.map(s=>s.count||0)), 1)
   const maxThreat = Math.max(...(topThreats.map(t=>t.count||0)), 1)
   const highRiskPct = totalIocs>0 ? ((highRisk/totalIocs)*100).toFixed(1) : 0
 
@@ -2358,7 +2601,7 @@ function HoneypotIOC() {
       <div style={{ maxWidth:680, margin:'0 auto', position:'relative' }}>
         <div style={{ display:'flex', gap:10, background:theme.surface, padding:8, borderRadius:theme.radiusLg, border:`1px solid ${theme.border}` }}>
           <div style={{ display:'flex', alignItems:'center', paddingLeft:12, color:theme.textMuted }}><Search size={16}/></div>
-          <input value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} onKeyDown={e=>e.key==='Enter'&&handleSearch()}
+          <input value={searchQuery} onChange={e=>{const value=e.target.value;setSearchQuery(value);if(value.length<2)setShowDropdown(false)}} onKeyDown={e=>e.key==='Enter'&&handleSearch()}
             placeholder="IP adresi, domain, URL veya hash girin..."
             style={{ flex:1, padding:'14px 8px', background:'transparent', border:'none', color:'#fff', fontSize:15, outline:'none', fontFamily:theme.mono }}/>
           <button onClick={handleSearch} disabled={searching}
@@ -2388,6 +2631,20 @@ function HoneypotIOC() {
             </motion.div>
           )}
         </AnimatePresence>
+      </div>
+
+      {/* STIX Export Button */}
+      <div style={{ display:'flex', justifyContent:'center', gap:12, marginTop:20 }}>
+        <button onClick={()=>exportSTIX(0)} disabled={exportingSTIX}
+          style={{ padding:'10px 20px', borderRadius:theme.radiusSm, background:exportingSTIX?'#333':theme.surface, border:`1px solid ${theme.border}`, color:theme.text, cursor:exportingSTIX?'not-allowed':'pointer', fontSize:13, fontWeight:600, display:'flex', alignItems:'center', gap:8 }}>
+          <Download size={14}/>
+          {exportingSTIX ? 'İndiriliyor...' : 'STIX 2.1 İndir'}
+        </button>
+        <button onClick={()=>exportSTIX(50)} disabled={exportingSTIX}
+          style={{ padding:'10px 20px', borderRadius:theme.radiusSm, background:exportingSTIX?'#333':'rgba(239,68,68,0.1)', border:`1px solid rgba(239,68,68,0.3)`, color:'#ef4444', cursor:exportingSTIX?'not-allowed':'pointer', fontSize:13, fontWeight:600, display:'flex', alignItems:'center', gap:8 }}>
+          <ShieldAlert size={14}/>
+          {exportingSTIX ? 'İndiriliyor...' : 'Yüksek Risk (50+)'}
+        </button>
       </div>
     </div>
 
@@ -2443,7 +2700,7 @@ function HoneypotIOC() {
           const top5 = topThreats.slice(0,5)
           // CSS conic-gradient donut
           let deg = 0
-          const segments = top5.map((t,i)=>{
+          const segments = top5.map((t)=>{
             const typeName=(t.type||t.threat_type||t.name||'').toUpperCase()
             const meta=THREAT_META[typeName]||{color:theme.primary}
             const pct=((t.count||0)/total)*100
@@ -2463,8 +2720,8 @@ function HoneypotIOC() {
               </div>
               {/* Legend */}
               <div style={{ flex:1, display:'flex', flexDirection:'column', gap:8 }}>
-                {segments.map((s,i)=>(
-                  <div key={i} style={{ display:'flex', alignItems:'center', gap:8 }}>
+                {segments.map((s)=>(
+                  <div key={s.typeName} style={{ display:'flex', alignItems:'center', gap:8 }}>
                     <div style={{ width:10,height:10,borderRadius:3,background:s.meta.color,flexShrink:0 }}/>
                     <span style={{ fontSize:12, color:theme.text, flex:1 }}>{s.typeName}</span>
                     <span style={{ fontSize:11, fontWeight:700, color:s.meta.color }}>{s.pct.toFixed(1)}%</span>
@@ -2615,20 +2872,23 @@ function HoneypotIOC() {
     {/* ── Proje açıklama kartı (yarışma için) ── */}
     <div style={{ padding:24, background:theme.surface, border:`1px solid ${theme.border}`, borderRadius:theme.radiusMd, display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:20 }}>
       {[
-        { Icon:Shield, color:theme.primary, title:'IOC Nedir?', desc:'Indicator of Compromise — bir sistemin tehlikeye girdiğine işaret eden zararlı IP, domain, URL veya dosya hash değerleridir.' },
-        { Icon:Hash, color:theme.warning, title:'Nasıl Kullanılır?', desc:'Bir IP veya domain şüpheli geliyorsa arama kutusuna girerek veritabanımızda tehdit kaydı olup olmadığını anlık sorgulayabilirsiniz.' },
-        { Icon:Lock, color:theme.success, title:'Neden Önemli?', desc:'AegisNexus, açık tehdit istihbaratı kaynaklarını birleştirerek kişisel ve kurumsal kullanıcıları siber saldırılara karşı önceden uyarır.' },
-      ].map(({Icon,color,title,desc},i)=>(
-        <div key={i} style={{ display:'flex', gap:14 }}>
+        { icon:Shield, color:theme.primary, title:'IOC Nedir?', desc:'Indicator of Compromise — bir sistemin tehlikeye girdiğine işaret eden zararlı IP, domain, URL veya dosya hash değerleridir.' },
+        { icon:Hash, color:theme.warning, title:'Nasıl Kullanılır?', desc:'Bir IP veya domain şüpheli geliyorsa arama kutusuna girerek veritabanımızda tehdit kaydı olup olmadığını anlık sorgulayabilirsiniz.' },
+        { icon:Lock, color:theme.success, title:'Neden Önemli?', desc:'AegisNexus, açık tehdit istihbaratı kaynaklarını birleştirerek kişisel ve kurumsal kullanıcıları siber saldırılara karşı önceden uyarır.' },
+      ].map(({icon, color, title, desc})=>{
+        const SectionIcon = icon
+        return (
+        <div key={title} style={{ display:'flex', gap:14 }}>
           <div style={{ width:36,height:36,borderRadius:10,background:`${color}18`,border:`1px solid ${color}33`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}>
-            <Icon size={18} color={color}/>
+            <SectionIcon size={18} color={color}/>
           </div>
           <div>
             <p style={{ fontSize:13, fontWeight:700, color:'#fff', marginBottom:4 }}>{title}</p>
             <p style={{ fontSize:12, color:theme.textMuted, lineHeight:1.6, margin:0 }}>{desc}</p>
           </div>
         </div>
-      ))}
+        )
+      })}
     </div>
   </div>
 }

@@ -1,10 +1,11 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { theme } from '../theme'
 import { casesAPI } from '../lib/endpoints'
 import CaseCard from '../components/CaseCard'
 import AttackTypeBadge from '../components/AttackTypeBadge'
+import TurkeyHeatmapSection from '../components/TurkeyHeatmapSection.jsx'
 
 const ATTACK_METHODS = ['phishing', 'smishing', 'vishing', 'sahte_mobil_uygulama', 'banka_taklit', 'social_engineering', 'malware_assisted']
 
@@ -20,26 +21,39 @@ export default function AtlasPage() {
   const [severityMin, setSeverityMin] = useState(0)
   const [search, setSearch] = useState('')
 
-  const fetchCases = useCallback(async () => {
-    setLoading(true)
-    try {
-      const params = {
-        page,
-        limit: 20,
-        severity_min: severityMin,
-        hot_set_only: false,
+  useEffect(() => {
+    let cancelled = false
+
+    void (async () => {
+      setLoading(true)
+      try {
+        const params = {
+          page,
+          limit: 20,
+          severity_min: severityMin,
+          hot_set_only: false,
+        }
+        if (attackMethod) params.attack_method = attackMethod
+        if (search) params.q = search
+
+        const res = await casesAPI.list(params)
+        if (cancelled) return
+        setCases(res.data?.data || [])
+        setTotal(res.data?.total || 0)
+      } catch {
+        if (!cancelled) {
+          setCases([])
+          setTotal(0)
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
       }
-      if (attackMethod) params.attack_method = attackMethod
-      if (search) params.q = search
+    })()
 
-      const res = await casesAPI.list(params)
-      setCases(res.data?.data || [])
-      setTotal(res.data?.total || 0)
-    } catch {}
-    setLoading(false)
+    return () => {
+      cancelled = true
+    }
   }, [page, attackMethod, severityMin, search])
-
-  useEffect(() => { fetchCases() }, [fetchCases])
 
   const totalPages = Math.max(1, Math.ceil(total / 20))
 
@@ -57,6 +71,10 @@ export default function AtlasPage() {
         <p style={{ color: theme.textMuted, fontSize: 15, margin: 0 }}>
           {total} vaka kayıtlı
         </p>
+      </section>
+
+      <section style={{ padding: '18px 24px 8px' }}>
+        <TurkeyHeatmapSection compact />
       </section>
 
       {/* Filters */}
