@@ -195,7 +195,7 @@ def _is_valid_ip(value: str) -> bool:
 # 1. VIRUSTOTAL API
 # =========================================================
 
-def check_virustotal(url, timeout=8):
+def check_virustotal(url, timeout=5):
     """
     VirusTotal API v3 ile URL taraması (key rotation + cached).
     Sadece 200 = başarı, başka her şey = sonraki key'e geç.
@@ -326,7 +326,7 @@ def check_virustotal(url, timeout=8):
 # 2. GOOGLE SAFE BROWSING API
 # =========================================================
 
-def check_google_safe_browsing(url, timeout=8):
+def check_google_safe_browsing(url, timeout=5):
     """
     Google Safe Browsing API v4 ile kontrol (key rotation + cached).
     Sadece 200 = başarı, başka her şey = sonraki key'e geç.
@@ -436,7 +436,7 @@ def check_google_safe_browsing(url, timeout=8):
 # 4. ABUSEIPDB API
 # =========================================================
 
-def check_abuseipdb(url, timeout=8):
+def check_abuseipdb(url, timeout=5):
     """
     AbuseIPDB ile domain/IP itibar kontrolü (key rotation + cached).
     Sadece 200 = başarı, başka her şey = sonraki key'e geç.
@@ -1027,7 +1027,7 @@ def _task_spamhaus_group(url: str, domain: str, resolved_ip: str | None):
         inner_futures[inner_executor.submit(threatfox_query_ioc, domain, "domain")] = "threatfox"
 
         try:
-            for future in as_completed(inner_futures, timeout=30):
+            for future in as_completed(inner_futures, timeout=15):
                 key = inner_futures[future]
                 try:
                     group[key] = future.result()
@@ -1037,6 +1037,7 @@ def _task_spamhaus_group(url: str, domain: str, resolved_ip: str | None):
             for future, key in inner_futures.items():
                 if key not in group:
                     logger.warning(f"Spamhaus grup alt-sorgu timeout [{key}]")
+
     finally:
         inner_executor.shutdown(wait=False)
     return group
@@ -1091,7 +1092,7 @@ def run_threat_intelligence(url, http_meta=None, page_text: str = "", is_whiteli
         futures_map[executor.submit(_task_abuseipdb, url)] = "abuseipdb"
         futures_map[executor.submit(_task_spamhaus_group, url, domain, resolved_ip)] = "spamhaus_group"
         try:
-            for future in as_completed(futures_map, timeout=85):
+            for future in as_completed(futures_map, timeout=40):
                 name = futures_map[future]
                 try:
                     task_results[name] = future.result()

@@ -139,10 +139,10 @@ def _capture_screenshot_base64(url: str, page_text: str) -> Tuple[str, str, bool
                 except Exception:
                     pass
 
-                # Lazy-load içerikleri tetikle
+                # Lazy-load içerikleri tetikle (kısa scroll)
                 try:
-                    page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                    page.wait_for_timeout(800)
+                    page.evaluate("window.scrollTo(0, Math.min(document.body.scrollHeight, 2000))")
+                    page.wait_for_timeout(400)
                     page.evaluate("window.scrollTo(0, 0)")
                 except Exception:
                     pass
@@ -155,7 +155,8 @@ def _capture_screenshot_base64(url: str, page_text: str) -> Tuple[str, str, bool
                     except Exception:
                         captured_text = ""
 
-                screenshot_bytes = page.screenshot(type="png", full_page=True)
+                # full_page=True çok büyük PNG üretir (yavaş OCR + Groq upload)
+                screenshot_bytes = page.screenshot(type="png", full_page=False)
 
             return base64.b64encode(screenshot_bytes).decode("utf-8"), captured_text, bot_detected
 
