@@ -242,12 +242,21 @@ def analyze_page_content(html_content, url):
     # 5. İçerik Anomalileri
     anomaly_result = _detect_content_anomalies(html_content, html_lower, domain)
 
+    # İçerik sayfası tespiti (blog/haber/makale) — NLP false positive azaltıcı
+    _content_path_markers = ("/blog/", "/haber/", "/makale/", "/article/", "/articles/",
+                              "/news/", "/post/", "/posts/", "/yazi/", "/icerik/",
+                              "/dergi/", "/yazarlar/", "/kose-yazisi/", "/gundem/")
+    _is_content_page = any(m in parsed.path.lower() for m in _content_path_markers)
+
     # --- Toplam skor cezası hesapla ---
     total_penalty = 0
     all_findings = []
 
     # NLP
-    total_penalty += nlp_result["penalty"]
+    _nlp_penalty = nlp_result["penalty"]
+    if _is_content_page and _nlp_penalty > 0:
+        _nlp_penalty = _nlp_penalty // 2  # Editöryel metin false positive’a karflı %50 indirim
+    total_penalty += _nlp_penalty
     all_findings.extend(nlp_result["findings"])
 
     # Brand

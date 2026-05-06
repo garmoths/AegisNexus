@@ -877,11 +877,20 @@ def _get_domain_age_penalty(domain: str) -> dict:
     try:
         resp = requests.get(f"https://rdap.org/domain/{domain}", timeout=8)
         if not resp.ok:
+            # 403/404/429 = registrar RDAP sorgusu kapalı — köklü domainlerde yaygın, ceza yok
+            if resp.status_code in (403, 404, 429):
+                return {
+                    "available": False,
+                    "domain": domain,
+                    "age_days": None,
+                    "penalty": 0,
+                    "detail": f"Domain yaşı alınamadı (RDAP erişim kısıtlı — HTTP {resp.status_code}).",
+                }
             return {
                 "available": False,
                 "domain": domain,
                 "age_days": None,
-                "penalty": 15,
+                "penalty": 10,
                 "detail": f"Domain yaşı alınamadı (RDAP HTTP {resp.status_code}).",
             }
 
@@ -1139,8 +1148,9 @@ def run_threat_intelligence(url, http_meta=None, page_text: str = "", is_whiteli
             _persist_screenshot_indicators(url, indicators, confidence=risk_score)
     elif shot is not None:
         all_available = False
-        results["total_penalty"] += 15
-        results["findings"].append("📸 Screenshot Analyzer: Ekran görüntüsü alınamadı (belirsizlik cezası uygulandı)")
+        # Cloudflare/bot koruma meşru sitelerde de görülür — ceza yok
+        results["sources"].append({"name": "Screenshot Analyzer", "status": "Ekran görüntüsü alınamadı"})
+        results["findings"].append("📸 Screenshot Analyzer: Ekran görüntüsü alınamadı")
 
     # --- VirusTotal LOCAL ---
     vt = task_results.get("virustotal")
@@ -1320,6 +1330,19 @@ def run_threat_intelligence(url, http_meta=None, page_text: str = "", is_whiteli
                 "status": "Ekran görüntüsü alınamadı, düşük risk nedeniyle ceza uygulanmadı"
             })
 
+    # --- Güvenilir TLD Bonusu (ceza azaltma) ---
+    _TRUSTED_OFFICIAL_TLDS = (".edu.tr", ".gov.tr", ".mil.tr", ".k12.tr", ".bel.tr", ".pol.tr", ".dr.tr", ".edu", ".gov", ".mil")
+    _TRUSTED_REGISTERED_TLDS = (".com.tr", ".net.tr", ".org.tr", ".av.tr")
+    _domain_lc = domain.lower()
+    if any(_domain_lc.endswith(t) for t in _TRUSTED_OFFICIAL_TLDS):
+        _tld_bonus = 20
+        results["total_penalty"] = max(0, results["total_penalty"] - _tld_bonus)
+        results["sources"].append({"name": "TLD Güveni", "status": f"Resmi/kurumsal TLD (BTK denetimli) — bonus -{_tld_bonus}"})
+    elif any(_domain_lc.endswith(t) for t in _TRUSTED_REGISTERED_TLDS):
+        _tld_bonus = 10
+        results["total_penalty"] = max(0, results["total_penalty"] - _tld_bonus)
+        results["sources"].append({"name": "TLD Güveni", "status": f"Türkiye kayıtlı TLD — bonus -{_tld_bonus}"})
+
     # Risk skorunu ve seviyesini hesapla
     risk_score = min(100, results["total_penalty"])
     
@@ -1378,9 +1401,9 @@ def run_threat_intelligence(url, http_meta=None, page_text: str = "", is_whiteli
     # Screenshot
     shot_d = results.get("screenshot_analysis")
     if shot_d is None:
-        _pe.append(_ev("screenshot_unavailable", to_probability(15), "Ekran görüntüsü alınamadı", {"penalty": 15}))
+        pass  # screenshot alınamama phishing kanıtı değil — Bayesian'a ekleme
     elif shot_d.get("ai_skipped"):
-        _pe.append(_ev("screenshot_ai_skip", to_probability(10), f"AI atlandı ({shot_d.get('ai_skip_reason', 'bilinmiyor')})", {"penalty": 10}))
+        pass  # AI atlandı = önceki katmanlar zaten değerlendirildi, çift sayma yapma
     else:
         rs = max(0, min(100, int(shot_d.get("risk_score", 0))))
         rl = str(shot_d.get("risk_level", "UNKNOWN")).upper()
