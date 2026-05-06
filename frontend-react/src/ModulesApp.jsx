@@ -2,6 +2,7 @@ import { Component, useState, useEffect, useRef, useCallback } from 'react'
 import { motion, useReducedMotion, AnimatePresence } from 'framer-motion'
 import { Shield, ShieldAlert, AlertTriangle, Activity, Globe, Search, Copy, Check, Wifi, Database, TrendingUp, Zap, Bug, Mail, Server, Hash, Radio, Eye, ChevronRight, BarChart3, Lock, Download } from 'lucide-react'
 import TurkeyHeatmapSection from './components/TurkeyHeatmapSection.jsx'
+import ScoringPipelineDiagram from './components/ScoringPipelineDiagram.jsx'
 
 const API = import.meta.env.VITE_API_BASE_URL || '/api/v2'
 
@@ -1239,6 +1240,7 @@ function PhishingDetector() {
   const [pollCount, setPollCount] = useState(0)
   const MAX_POLLS = 120
   const [showRetryButton, setShowRetryButton] = useState(false)
+  const [showScoringDiagram, setShowScoringDiagram] = useState(false)
 
   function showToast(msg,t='success'){setToast({message:msg,type:t,visible:true});setTimeout(()=>setToast(t=>({...t,visible:false})),3000)}
 
@@ -1716,6 +1718,41 @@ function PhishingDetector() {
           </Card>
         </motion.div>
       ))}
+    </motion.div>
+    {/* Scoring Pipeline Diagram */}
+    <motion.div
+      initial={{ opacity:0, y:16 }}
+      animate={{ opacity:1, y:0 }}
+      transition={{ delay:0.65, duration:0.5 }}
+      style={{ marginBottom:32 }}
+    >
+      <button
+        onClick={() => setShowScoringDiagram(v => !v)}
+        style={{
+          width:'100%', padding:'12px 20px',
+          background: showScoringDiagram ? theme.primaryDim : theme.surface,
+          border:`1px solid ${showScoringDiagram ? theme.primary+'55' : theme.border}`,
+          borderRadius:12, cursor:'pointer', display:'flex', alignItems:'center', gap:12,
+          transition:'all 0.2s', marginBottom: showScoringDiagram ? 12 : 0,
+        }}
+      >
+        <Activity size={16} color={theme.primary} />
+        <span style={{ fontSize:13, fontWeight:700, color: showScoringDiagram ? theme.primary : theme.textMuted }}>Puanlama Motoru — Nasıl Çalışır?</span>
+        <span style={{ marginLeft:'auto', fontSize:11, color:theme.textMuted }}>{showScoringDiagram ? '▲ Kapat' : '▼ Göster'}</span>
+      </button>
+      <AnimatePresence>
+        {showScoringDiagram && (
+          <motion.div
+            initial={{ opacity:0, height:0 }}
+            animate={{ opacity:1, height:'auto' }}
+            exit={{ opacity:0, height:0 }}
+            transition={{ duration:0.3 }}
+            style={{ overflow:'hidden' }}
+          >
+            <ScoringPipelineDiagram />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
     {/* Latest Phishing Data Table */}
     <motion.div
