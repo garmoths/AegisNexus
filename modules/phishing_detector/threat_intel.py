@@ -1043,6 +1043,11 @@ def _task_spamhaus_group(url: str, domain: str, resolved_ip: str | None):
     return group
 
 
+def _task_domain_age(domain: str):
+    """RDAP domain yaşı kontrolü — paralel TI bloğunda çalışır."""
+    return _get_domain_age_penalty(domain)
+
+
 def run_threat_intelligence(url, http_meta=None, page_text: str = "", is_whitelisted: bool = False, pre_penalty: int = 0):
     """
     Tüm tehdit istihbaratı kontrollerini PARALEL çalıştırır (A4).
@@ -1075,22 +1080,16 @@ def run_threat_intelligence(url, http_meta=None, page_text: str = "", is_whiteli
     except Exception:
         pass
 
-    # Screenshot Analyzer Playwright/greenlet nedeniyle ana thread'de çalışmalı.
+    # ── A4: TÜM kontroller paralel çalıştır (screenshot + RDAP dahil) ─────
     task_results: dict = {}
-    try:
-        task_results["screenshot"] = _task_screenshot(url, http_meta, page_text, pre_penalty)
-    except Exception as exc:
-        logger.error(f"Screenshot task hatası [screenshot]: {exc}")
-        task_results["screenshot"] = None
-        all_available = False
-
-    # ── A4: Kalan 4 kontrolü paralel çalıştır ─────────────────────────────
     futures_map: dict = {}
-    with ThreadPoolExecutor(max_workers=max(1, _THREAT_INTEL_WORKERS - 1)) as executor:
+    with ThreadPoolExecutor(max_workers=max(6, _THREAT_INTEL_WORKERS + 1)) as executor:
+        futures_map[executor.submit(_task_screenshot, url, http_meta, page_text, pre_penalty)] = "screenshot"
         futures_map[executor.submit(_task_virustotal, url)] = "virustotal"
         futures_map[executor.submit(_task_gsb, url)] = "gsb"
         futures_map[executor.submit(_task_abuseipdb, url)] = "abuseipdb"
         futures_map[executor.submit(_task_spamhaus_group, url, domain, resolved_ip)] = "spamhaus_group"
+        futures_map[executor.submit(_task_domain_age, domain)] = "domain_age"
         try:
             for future in as_completed(futures_map, timeout=40):
                 name = futures_map[future]
@@ -1195,7 +1194,7 @@ def run_threat_intelligence(url, http_meta=None, page_text: str = "", is_whiteli
         all_available = False
 
     # --- Domain Age (RDAP) ---
-    domain_age_signal = _get_domain_age_penalty(domain)
+    domain_age_signal = task_results.get("domain_age") or {"available": False, "penalty": 0, "detail": "Domain yaşı alınamadı (timeout)."}
     results["domain_age"] = domain_age_signal
     if is_whitelisted and domain_age_signal.get("penalty", 0) > 0:
         results["sources"].append({

@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 _groq_client = None
 
 AI_MODEL = os.getenv("AI_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
-AI_SKIP_PENALTY_THRESHOLD = int(os.getenv("AI_SKIP_THRESHOLD", "65"))
+AI_SKIP_PENALTY_THRESHOLD = int(os.getenv("AI_SKIP_THRESHOLD", "50"))
 MAX_PAGE_TEXT = 3000
 PLAYWRIGHT_TIMEOUT_MS = 12000
 _SCREENSHOT_SETTLE_MS = 800
@@ -346,7 +346,7 @@ def analyze(
         from urllib.parse import urlparse as _urlparse
         _domain = _urlparse(normalized_url).netloc or normalized_url
         ocr_result = analyze_with_ocr(_b64.b64decode(screenshot_b64), domain=_domain)
-        if ocr_result.get("definitive") and ocr_result.get("penalty", 0) >= 65:
+        if ocr_result.get("definitive") and ocr_result.get("penalty", 0) >= 50:
             logger.info(f"[OCR] Kesin sonuç, AI atlanıyor: {normalized_url}")
             result = _ai_skipped_result(ocr_result.get("detail", "OCR kesin sonuç"))
             result.update({

@@ -37,8 +37,8 @@ app.conf.update(
     task_serializer="json",
     result_serializer="json",
     accept_content=["json"],
-    task_soft_time_limit=105,   # 105s soft limit (Playwright ~15s + TI ~60s + marj)
-    task_time_limit=150,        # 2.5 dk hard limit
+    task_soft_time_limit=75,    # 75s soft limit (paralel: max(screenshot, TI) ~40s + marj)
+    task_time_limit=100,        # 100s hard limit
     worker_max_tasks_per_child=20,  # Memory leak'e karşı
     task_acks_late=False,       # OOM kill'de yeniden kuyruğa alınmasın
     # Playwright ile tek process yeterli — prefork RAM patlatır
