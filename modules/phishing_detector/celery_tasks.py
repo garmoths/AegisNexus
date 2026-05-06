@@ -37,16 +37,21 @@ app.conf.update(
     task_serializer="json",
     result_serializer="json",
     accept_content=["json"],
-    task_soft_time_limit=240,   # 4 dk soft limit
-    task_time_limit=270,        # 4.5 dk hard limit
-    worker_max_tasks_per_child=50,  # Memory leak'e karşı
-    task_acks_late=True,        # Hata durumunda yeniden kuyruğa alınır
-    # B: Throughput ayarları — concurrency=3, prefork, prefetch=1
-    worker_concurrency=int(os.getenv("PHISHING_CELERY_CONCURRENCY", "3")),
-    worker_pool=os.getenv("PHISHING_CELERY_POOL", "prefork"),
-    worker_prefetch_multiplier=int(os.getenv("PHISHING_CELERY_PREFETCH", "1")),
+    task_soft_time_limit=90,    # 90s soft limit (Playwright max ~15s + TI ~60s)
+    task_time_limit=120,        # 2 dk hard limit
+    worker_max_tasks_per_child=20,  # Memory leak'e karşı
+    task_acks_late=False,       # OOM kill'de yeniden kuyruğa alınmasın
+    # Playwright ile tek process yeterli — prefork RAM patlatır
+    worker_concurrency=int(os.getenv("PHISHING_CELERY_CONCURRENCY", "1")),
+    worker_pool=os.getenv("PHISHING_CELERY_POOL", "solo"),
+    worker_prefetch_multiplier=1,
     # OOM koruması
-    worker_max_memory_per_child=int(os.getenv("PHISHING_CELERY_MAX_MEMORY", "800000")),  # 800MB
+    worker_max_memory_per_child=int(os.getenv("PHISHING_CELERY_MAX_MEMORY", "600000")),  # 600MB
+    # Tüm phishing task'ları 'phishing' kuyruğuna yönlendir
+    task_routes={
+        "modules.phishing_detector.celery_tasks.run_heavy_analysis": {"queue": "phishing"},
+    },
+    task_default_queue="phishing",
 )
 
 # Job sonuçları Redis'te bu TTL ile saklanır (1 saat)

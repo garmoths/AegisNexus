@@ -232,8 +232,17 @@ def check_url(request: URLCheckRequest, db: Session = Depends(get_db)):
         # ── A2: Belirsiz → ağır analizi Celery kuyruğuna at ─────────────
         try:
             from .celery_tasks import run_heavy_analysis
+            import redis as _redis_dedup
+            _r = _redis_dedup.Redis(host=os.getenv("REDIS_HOST", "127.0.0.1"), port=int(os.getenv("REDIS_PORT", "6379")), db=1, decode_responses=True, socket_connect_timeout=2, socket_timeout=2)
+            _lock_key = f"analyzing:{url_hash}" if url_hash else None
+            _existing_job = _r.get(_lock_key) if _lock_key else None
+            if _existing_job:
+                logger.info(f"Dedup: {requested_url} zaten analiz ediliyor (job={_existing_job})")
+                return {**quick, "status": "analyzing", "job_id": _existing_job, "cache": "dedup", "module": "01_phishing_detector", "message": "Analiz zaten devam ediyor."}
             job_id = str(uuid.uuid4())
-            run_heavy_analysis.delay(requested_url, job_id)
+            if _lock_key:
+                _r.setex(_lock_key, 180, job_id)
+            run_heavy_analysis.apply_async((requested_url, job_id), queue="phishing")
             logger.info(f"Celery kuyruğuna alındı: {requested_url} job={job_id}")
             return {
                 **quick,
@@ -241,7 +250,7 @@ def check_url(request: URLCheckRequest, db: Session = Depends(get_db)):
                 "job_id": job_id,
                 "cache": "none",
                 "module": "01_phishing_detector",
-                "message": "Derin analiz kuyruğa alındı. /result/{job_id} ile sonucu sorgulayın.",
+                "message": "Derin analiz kuyruğa alındı. /result/{job_id} ile sonucu sorgulayabilirsiniz.",
             }
         except Exception as celery_err:
             # Celery erişilemiyorsa senkron fallback

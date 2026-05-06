@@ -24,8 +24,8 @@ _groq_client = None
 AI_MODEL = os.getenv("AI_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
 AI_SKIP_PENALTY_THRESHOLD = int(os.getenv("AI_SKIP_THRESHOLD", "65"))
 MAX_PAGE_TEXT = 3000
-PLAYWRIGHT_TIMEOUT_MS = 25000
-_SCREENSHOT_SETTLE_MS = 1500
+PLAYWRIGHT_TIMEOUT_MS = 12000
+_SCREENSHOT_SETTLE_MS = 800
 _SCREENSHOT_MAX_RETRIES = 1
 
 SYSTEM_PROMPT = """
@@ -124,8 +124,8 @@ def _capture_screenshot_base64(url: str, page_text: str) -> Tuple[str, str, bool
                 except PlaywrightTimeoutError:
                     logger.debug(f"domcontentloaded timeout, devam ediliyor: {url}")
 
-                # Cloudflare 5s challenge ve diğer JS korumaları için bekle
-                page.wait_for_timeout(6000)
+                # Cloudflare challenge ve JS korumaları için bekle
+                page.wait_for_timeout(2000)
 
                 # Bot / challenge sayfası tespiti
                 bot_detected = False
