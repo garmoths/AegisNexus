@@ -1237,7 +1237,7 @@ function PhishingDetector() {
   const [jobId, setJobId] = useState(null)
   const [analyzing, setAnalyzing] = useState(false)
   const [pollCount, setPollCount] = useState(0)
-  const MAX_POLLS = 30
+  const MAX_POLLS = 90
   const [showRetryButton, setShowRetryButton] = useState(false)
 
   function showToast(msg,t='success'){setToast({message:msg,type:t,visible:true});setTimeout(()=>setToast(t=>({...t,visible:false})),3000)}
@@ -1400,7 +1400,7 @@ function PhishingDetector() {
       }catch{
         setPollCount(c=>c+1)
       }
-    },2000)
+    },3000)
     return ()=>clearTimeout(timer)
   },[jobId,analyzing,pollCount,url,loadScanHistory,submitCheckRequest])
 
@@ -1646,7 +1646,7 @@ function PhishingDetector() {
               Derin Analiz Devam Ediyor...
             </p>
             <p style={{ margin:'0 0 10px', fontSize:12, color:theme.textMuted }}>
-              Playwright screenshot + AI analizi ({Math.round(pollCount * 1.5)}s)
+              Playwright screenshot + AI analizi ({Math.round(pollCount * 3)}s)
             </p>
             <div style={{ height:4, background:theme.border, borderRadius:2, overflow:'hidden' }}>
               <motion.div
