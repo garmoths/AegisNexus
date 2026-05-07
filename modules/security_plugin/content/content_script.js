@@ -8,9 +8,11 @@ const fieldClassifierPromise = import(chrome.runtime.getURL("utils/field_classif
 let lastFormScanResult = null;
 
 function getBannerColor(riskLevel) {
-  if (riskLevel === "CRITICAL") return "#dc2626";
-  if (riskLevel === "HIGH") return "#ea580c";
-  return "#ca8a04";
+  const lvl = String(riskLevel || "").toLowerCase();
+  if (lvl === "kri̇ti̇k" || lvl === "kritik" || lvl === "critical") return "#ef4444";
+  if (lvl === "yüksek" || lvl === "yuksek" || lvl === "high") return "#f97316";
+  if (lvl === "orta" || lvl === "medium") return "#eab308";
+  return "#eab308";
 }
 
 function buildFlagsText(flags) {
@@ -48,9 +50,9 @@ function renderBanner({ risk_level, score, flags }, domain) {
   mount.appendChild(host);
 
   const shadow = host.attachShadow({ mode: "closed" });
-  const background = getBannerColor(String(risk_level || "MEDIUM").toUpperCase());
+  const background = getBannerColor(String(risk_level || "ORTA"));
   const safeScore = Number(score || 0);
-  const safeRisk = String(risk_level || "MEDIUM").toUpperCase();
+  const safeRisk = String(risk_level || "ORTA");
 
   const wrapper = document.createElement("div");
   wrapper.innerHTML = `
@@ -63,7 +65,7 @@ function renderBanner({ risk_level, score, flags }, domain) {
         z-index: 2147483647;
         background: ${background};
         color: #ffffff;
-        font-family: Arial, sans-serif;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
         font-weight: 700;
         padding: 12px 14px;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
@@ -105,7 +107,7 @@ function renderBanner({ risk_level, score, flags }, domain) {
     </style>
     <div class="aegis-banner">
       <div class="aegis-row">
-        <div class="aegis-message">⚠️ Bu site tehlikeli olabilir! Risk: ${safeRisk} | Skor: ${safeScore}</div>
+        <div class="aegis-message">⚠️ Bu site tehlikeli olabilir! Risk: ${safeRisk} | Risk Skoru: ${safeScore}/100</div>
         <div class="aegis-actions">
           <button class="aegis-btn" id="aegis-continue">Yine de Devam Et</button>
           <button class="aegis-btn" id="aegis-back">Geri Dön</button>
@@ -167,7 +169,10 @@ function showFormWarnings(targetFormIndices = null) {
   const indexFilter = Array.isArray(targetFormIndices) ? new Set(targetFormIndices) : null;
 
   for (const suspicious of lastFormScanResult.suspicious_forms || []) {
-    if (suspicious.risk_level !== "HIGH" && suspicious.risk_level !== "CRITICAL") continue;
+    const suspLvl = String(suspicious.risk_level || "").toLowerCase();
+    const isHighRisk = suspLvl === "yuksek" || suspLvl === "yüksek" || suspLvl === "high" ||
+                      suspLvl === "kritik" || suspLvl === "kri̇ti̇k" || suspLvl === "critical";
+    if (!isHighRisk) continue;
     if (indexFilter && !indexFilter.has(suspicious.form_index)) continue;
     const form = forms[suspicious.form_index];
     if (!form) continue;
@@ -205,7 +210,13 @@ async function scanForms() {
     }
 
     clearFormWarnings();
-    // Form uyarıları yalnızca service worker üzerinden (domain skoru kontrol edilerek) gösterilir
+    const formLvl = String(lastFormScanResult.risk_level || "").toLowerCase();
+    const formHighRisk = formLvl === "high" || formLvl === "critical" ||
+                        formLvl === "yüksek" || formLvl === "yuksek" ||
+                        formLvl === "kritik" || formLvl === "kri̇ti̇k";
+    if (formHighRisk) {
+      showFormWarnings();
+    }
   } catch (error) {
     console.warn("AegisNexus Shield: form detector could not be loaded", error);
   }

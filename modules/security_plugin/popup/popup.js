@@ -39,6 +39,11 @@ const FLAG_ICONS = {
 };
 
 const RISK_BADGE_EMOJI = {
+  "KRİTİK": "🔴",
+  "YÜKSEK": "🟠",
+  "ORTA": "🟡",
+  "DÜŞÜK": "🟢",
+  "GÜVENLİ": "✅",
   "CRITICAL": "🔴",
   "HIGH": "🟠",
   "MEDIUM": "🟡",
@@ -90,13 +95,24 @@ function clampScore(value) {
   return Math.max(0, Math.min(100, n));
 }
 
-function badgeClass(riskLevel) {
-  const level = String(riskLevel || "SAFE").toUpperCase();
-  if (level === "CRITICAL") return "risk-critical";
-  if (level === "HIGH") return "risk-high";
-  if (level === "MEDIUM") return "risk-medium";
-  if (level === "LOW") return "risk-low";
-  return "risk-safe";
+function getSafetyLabel(score) {
+  const safeScore = clampScore(score);
+  // Yeni skor bandları: 0-20 kritik, 20-40 riskli, 40-60 orta, 60-80 iyi, 80-100 güvenilir
+  if (safeScore >= 80) return "GÜVENLİ";
+  if (safeScore >= 60) return "İYİ";
+  if (safeScore >= 40) return "ORTA";
+  if (safeScore >= 20) return "RİSKLİ";
+  return "KRİTİK";
+}
+
+function badgeClass(score) {
+  const safeScore = clampScore(score);
+  // Renkler: KRİTİK=kırmızı, RİSKLİ=turuncu, ORTA=sarı, İYİ=yeşil açık, GÜVENLİ=yeşil
+  if (safeScore >= 80) return "risk-safe";
+  if (safeScore >= 60) return "risk-good";
+  if (safeScore >= 40) return "risk-medium";
+  if (safeScore >= 20) return "risk-high";
+  return "risk-critical";
 }
 
 function setRiskCircle(score) {
@@ -106,17 +122,29 @@ function setRiskCircle(score) {
   const duration = 500;
   const start = performance.now();
 
+  function riskColor(val) {
+    // 0-20: kırmızı (kritik), 20-40: turuncu (riskli), 40-60: sarı (orta), 60-80: açık yeşil (iyi), 80-100: yeşil (güvenilir)
+    if (val <= 20) return "#ef4444";     // KRİTİK - Kırmızı
+    if (val <= 40) return "#ff6b35";     // RİSKLİ - Turuncu
+    if (val <= 60) return "#f59e0b";     // ORTA - Sarı
+    if (val <= 80) return "#84cc16";     // İYİ - Açık Yeşil (Lime)
+    return "#22c55e";                     // GÜVENLİ - Yeşil
+  }
+
   function frame(now) {
     const t = Math.min((now - start) / duration, 1);
     const eased = 1 - Math.pow(1 - t, 3);
     const current = Math.round(target * eased);
     const deg = current * 3.6;
-    ring.style.background = `conic-gradient(#38bdf8 ${deg}deg, #1e293b 0deg)`;
+    const color = riskColor(current);
+    ring.style.setProperty("--fill-color", color);
+    ring.style.background = `conic-gradient(${color} ${deg}deg, #0d1929 0deg)`;
     scoreValue.textContent = String(current);
     if (t < 1) requestAnimationFrame(frame);
   }
 
-  ring.style.background = "conic-gradient(#38bdf8 0deg, #1e293b 0deg)";
+  ring.style.setProperty("--fill-color", "#22c55e");
+  ring.style.background = "conic-gradient(#22c55e 0deg, #0d1929 0deg)";
   scoreValue.textContent = "0";
   requestAnimationFrame(frame);
 }
@@ -125,8 +153,10 @@ function renderHeuristic(result) {
   const flags = Array.isArray(result?.flags) ? result.flags : [];
   const list = byId("heuristic-flags");
   const breakdown = byId("heuristic-score-breakdown");
+  const analysisSource = String(result?.source || "").toLowerCase();
+  const analysisTitle = analysisSource.startsWith("server") ? "Sunucu Analizi" : "Yerel Analiz";
 
-  breakdown.textContent = `Toplam skor: ${clampScore(result?.score)} | Risk: ${result?.risk_level || "SAFE"}`;
+  breakdown.textContent = `${analysisTitle} | Güvenilirlik skoru: ${clampScore(result?.score)}/100 | Seviye: ${result?.risk_level || "GÜVENLİ"}`;
 
   if (flags.length === 0) {
     list.innerHTML = "<li>Şüpheli flag yok</li>";
@@ -144,15 +174,21 @@ function renderHeuristic(result) {
 
 function renderDns(result) {
   const dns = result?.dns || {};
+  const dnsSourceRaw = String(dns.source || "").toLowerCase();
+  const dnsSourceLabel = dnsSourceRaw.includes("server") || dnsSourceRaw.includes("external")
+    ? "Sunucu DNS"
+    : dnsSourceRaw
+      ? dns.source
+      : "Bilinmeyen DNS";
   byId("dns-cloudflare").textContent = dns.cloudflare_blocked ? "❌ Blocked" : "✅ Clean";
   byId("dns-quad9").textContent = dns.quad9_blocked ? "❌ Blocked" : "✅ Clean";
-  byId("dns-consensus").textContent = dns.consensus_blocked ? "❌ Blocked" : "✅ Clear";
+  byId("dns-consensus").textContent = `${dns.consensus_blocked ? "❌ Blocked" : "✅ Clear"} • ${dnsSourceLabel}`;
 }
 
 function renderGsb(result) {
   const gsb = result?.gsb || {};
-  if (gsb.skipped) {
-    byId("gsb-status").textContent = "API Key girilmedi";
+  if (!gsb.available) {
+    byId("gsb-status").textContent = "Kullanılamıyor";
     byId("gsb-type").textContent = "-";
     return;
   }
@@ -178,6 +214,9 @@ function ensureLayer3Bar() {
 
 function renderLayer3(result) {
   const layer3 = result?.layer3 || { requested: false };
+  const layer3Payload = layer3?.data && typeof layer3.data === "object"
+    ? (layer3.data?.data && typeof layer3.data.data === "object" ? layer3.data.data : layer3.data)
+    : {};
   const confidenceEl = byId("layer3-confidence");
   const statusEl = byId("layer3-status");
   const progress = ensureLayer3Bar();
@@ -189,29 +228,135 @@ function renderLayer3(result) {
     return;
   }
 
-  statusEl.textContent = layer3.ok ? "Tamamlandı" : "Hata";
+  const layer3Source = String(layer3Payload?.source || result?.source || "").toLowerCase();
+  const sourceLabel = layer3Source.startsWith("server") ? "Sunucu" : "Katman 3";
+  statusEl.textContent = layer3.ok
+    ? `${sourceLabel} (${Number(layer3.status) || 200})`
+    : `Hata (${Number(layer3.status) || "-"})`;
   const confidence =
-    Number(layer3?.data?.confidence_score ?? layer3?.data?.confidence ?? (layer3.ok ? 70 : 20)) || 0;
+    Number(
+      layer3Payload?.confidence_score
+      ?? layer3Payload?.confidence
+      ?? layer3Payload?.score
+      ?? result?.score
+      ?? (layer3.ok ? 70 : 20)
+    ) || 0;
   const safe = clampScore(confidence);
   confidenceEl.textContent = `${safe}%`;
   if (progress) progress.style.width = `${safe}%`;
 }
 
+async function sendNotification(score, domain) {
+  // Skor 60'nin altında ise (RİSKLİ ve KRİTİK) bildirim gönder
+  if (score >= 60) return;
+  
+  // Notification permission talep et
+  try {
+    if (Notification.permission === 'denied') {
+      console.warn("Notifications are disabled");
+      return;
+    }
+    
+    if (Notification.permission === 'default') {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') return;
+    }
+  } catch (err) {
+    console.warn("Notification permission error:", err);
+  }
+  
+  const safeScore = clampScore(score);
+  let title = "⚠️ Güvenlik Uyarısı";
+  let message = `${domain} — Güvenilirlik: ${safeScore}/100`;
+  let priority = 1;
+  
+  // Yeni skor bandlarına göre bildirim seviyesi
+  if (safeScore < 20) {
+    title = "🔴 KRİTİK UYARI";
+    message = `KRİTİK SEVIYE RİSK TESPIT EDİLDİ: ${domain} — Güvenilirlik: ${safeScore}/100`;
+    priority = 2;
+  } else if (safeScore < 40) {
+    title = "🟠 RİSKLİ UYARI";
+    message = `RİSKLİ: ${domain} — Güvenilirlik: ${safeScore}/100`;
+    priority = 2;
+  } else if (safeScore < 60) {
+    title = "🟡 ORTA RİSK";
+    message = `ORTA RİSK: ${domain} — Güvenilirlik: ${safeScore}/100`;
+    priority = 1;
+  } else if (safeScore < 70) {
+    title = "🟢 İYİ (SINIRLAYAN)";
+    message = `İYİ (sınır): ${domain} — Güvenilirlik: ${safeScore}/100`;
+    priority = 0;
+  }
+  
+  try {
+    // Chrome Notifications API
+    if (chrome?.notifications) {
+      await chrome.notifications.create({
+        type: "basic",
+        iconUrl: chrome.runtime.getURL("icons/icon128.png"),
+        title: title,
+        message: message,
+        priority: priority,
+      });
+    } else {
+      // Fallback: Web Notification API (Manifest V3 popup'ta)
+      new Notification(title, {
+        body: message,
+        icon: chrome.runtime.getURL("icons/icon128.png"),
+      });
+    }
+  } catch (err) {
+    console.warn("Notification error:", err);
+  }
+}
+
 function renderResult(result) {
   state.result = result || {};
   const score = clampScore(result?.score);
-  const risk = String(result?.risk_level || "SAFE").toUpperCase();
+  const risk = String(getSafetyLabel(score)).toUpperCase();
+
+  // Skor 70'nin altında bildirim gönder
+  if (score < 70) {
+    sendNotification(score, state.domain).catch(console.warn);
+  }
 
   setRiskCircle(score);
 
   const badge = byId("risk-badge");
-  badge.className = `risk-badge ${badgeClass(risk)}`;
+  badge.className = `risk-badge ${badgeClass(score)}`;
   badge.textContent = risk;
 
   renderHeuristic(result);
   renderDns(result);
   renderGsb(result);
   renderLayer3(result);
+  renderDbRecord(result);
+
+  const sourceEl = byId("deep-scan-source");
+  if (sourceEl) {
+    const src = result?.deep_scan_source;
+    const srcMap = { cache: "✅ Cache", db: "🗄️ Veritabanı", api: "🔎 API", api_celery: "🔎 Derin API", api_celery_timeout: "⚠️ Zaman Aşımı" };
+    const srcLabel = result?.source === "server" ? "🌐 Sunucu" : result?.source === "local" ? "💻 Yerel Analiz" : "💻 Yerel Analiz";
+    sourceEl.textContent = srcMap[src] || srcLabel;
+  }
+}
+
+function renderDbRecord(result) {
+  const match = result?.db_match;
+  byId("db-match-status").textContent = match ? "✅ Kayıtlı" : "❌ Kayıt yok";
+  if (!match) {
+    byId("db-risk-score").textContent = "-";
+    byId("db-risk-level").textContent = "-";
+    byId("db-is-safe").textContent = "-";
+    byId("db-last-updated").textContent = "-";
+    return;
+  }
+  const dbSafetyScore = clampScore(result.db_risk_score);
+  byId("db-risk-score").textContent = String(dbSafetyScore);
+  byId("db-risk-level").textContent = result.db_risk_level || "-";
+  byId("db-is-safe").textContent = result.db_is_safe ? "✅ Evet" : "❌ Hayır";
+  byId("db-last-updated").textContent = result.db_last_updated || "-";
 }
 
 function renderFormList(targetId, values) {
@@ -341,12 +486,165 @@ function setDeepScanLoading(loading) {
   }
 }
 
+function setDeepScanProgress(text) {
+  const button = byId("btn-deep-scan");
+  if (button && text) button.textContent = text;
+}
+
+function setSourceLabel(src) {
+  const sourceEl = byId("deep-scan-source");
+  if (!sourceEl) return;
+  const sourceMap = {
+    cache:              "✅ Cache",
+    db:                 "🗄️ Veritabanı",
+    api:                "🔎 API",
+    api_celery:         "🔎 Derin API",
+    api_celery_timeout: "⚠️ Zaman Aşımı",
+    local:              "💻 Yerel Analiz",
+  };
+  sourceEl.textContent = sourceMap[src] || src || "—";
+}
+
+async function deepScanFetch(url, options = {}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), options.timeoutMs || 10000);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    return res;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function pollJobResult(base, jobId, onProgress) {
+  const MAX_POLLS = 90;
+  const INTERVAL = 3000;
+  for (let i = 0; i < MAX_POLLS; i++) {
+    await new Promise((r) => setTimeout(r, INTERVAL));
+    try {
+      const res = await deepScanFetch(`${base}/api/v2/phishing/result/${jobId}`, { timeoutMs: 8000 });
+      if (!res.ok) continue;
+      const data = await res.json();
+      if (data.status === "done" || data.status === "completed") return { done: true, data };
+      const pct = data.progress ?? Math.round((i / MAX_POLLS) * 100);
+      onProgress(`⏳ Derin analiz: %${pct}`);
+    } catch { /* devam et */ }
+  }
+  return { done: false, data: null };
+}
+
 async function runDeepScan() {
   if (!state.domain || !state.url) return;
   setDeepScanLoading(true);
+  const base = await getApiBaseUrl();
+
   try {
-    const result = await sendRuntimeMessage({ type: "force_scan", domain: state.domain, url: state.url });
+    // Adım 1 — DB Lookup (<5ms)
+    setDeepScanProgress("🗄️ Veritabanı kontrol ediliyor...");
+    try {
+      const dbRes = await deepScanFetch(
+        `${base}/api/v2/phishing/db-lookup?url=${encodeURIComponent(state.url)}`,
+        { timeoutMs: 5000 }
+      );
+      if (dbRes.ok) {
+        const dbData = await dbRes.json();
+        if (dbData.found === true) {
+          const safetyScore = clampScore(dbData.risk_score);
+          const riskLevel = String(dbData.risk_level || "GÜVENLİ");
+          const result = {
+            score: safetyScore,
+            risk_level: riskLevel,
+            is_phishing: safetyScore < 40,
+            is_safe: Boolean(dbData.is_safe),
+            flags: [],
+            sources: Array.isArray(dbData.sources) ? dbData.sources : [],
+            source: "db",
+            deep_scan_source: "db",
+            domain: state.domain,
+            url: state.url,
+          };
+          renderResult(result);
+          setSourceLabel("db");
+          showPopupMessage(`🗄️ Veritabanı — Güvenilirlik: ${safetyScore}/100`, safetyScore < 40 ? "error" : "success");
+          return;
+        }
+      }
+    } catch { /* DB erişilemez, devam et */ }
+
+    // Adım 2 — POST /check-url
+    setDeepScanProgress("🔎 Sunucuya gönderiliyor...");
+    let checkRes;
+    try {
+      checkRes = await deepScanFetch(`${base}/api/v2/phishing/check-url`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: state.url }),
+        timeoutMs: 15000,
+      });
+    } catch {
+      showPopupMessage("⚠️ Sunucuya ulaşılamadı — yerel analiz gösteriliyor", "error");
+      setSourceLabel("local");
+      return;
+    }
+
+    if (!checkRes.ok) {
+      showPopupMessage(`Sunucu hatası: ${checkRes.status}`, "error");
+      setSourceLabel("local");
+      return;
+    }
+
+    const checkData = await checkRes.json();
+
+    // Adım 3 — Celery polling (status: analyzing)
+    if (checkData.status === "analyzing" && checkData.job_id) {
+      setDeepScanProgress("⏳ Derin analiz başlatıldı...");
+      const poll = await pollJobResult(base, checkData.job_id, setDeepScanProgress);
+
+      if (!poll.done) {
+        showPopupMessage("⚠️ Analiz zaman aşımına uğradı — lokal sonuç gösteriliyor", "error");
+        setSourceLabel("api_celery_timeout");
+        return;
+      }
+
+      const finalData = poll.data?.data ?? poll.data;
+      const safetyScore = clampScore(finalData?.score);
+      const riskLevel = String(finalData?.risk_level || "GÜVENLİ");
+      const result = {
+        ...finalData,
+        score: safetyScore,
+        risk_level: riskLevel,
+        is_phishing: safetyScore < 40,
+        deep_scan_source: "api_celery",
+        source: "server",
+        domain: state.domain,
+        url: state.url,
+      };
+      renderResult(result);
+      setSourceLabel("api_celery");
+      showPopupMessage(`🔎 Derin Analiz Tamamlandı — Güvenilirlik: ${safetyScore}/100`, safetyScore < 40 ? "error" : "success");
+      return;
+    }
+
+    // Adım 4 — Direkt sonuç (hızlı yanıt)
+    const rawScore = checkData?.score ?? checkData?.data?.score ?? 0;
+    const safetyScore = clampScore(rawScore);
+    const riskLevel = String(checkData?.risk_level ?? checkData?.data?.risk_level ?? "GÜVENLİ");
+    const result = {
+      ...(checkData?.data ?? checkData),
+      score: safetyScore,
+      risk_level: riskLevel,
+      is_phishing: safetyScore < 40,
+      deep_scan_source: "api",
+      source: "server",
+      domain: state.domain,
+      url: state.url,
+    };
     renderResult(result);
+    setSourceLabel("api");
+    showPopupMessage(`🔎 API Analizi — Güvenilirlik: ${safetyScore}/100`, safetyScore < 40 ? "error" : "success");
+
+  } catch (err) {
+    showPopupMessage(`Derin tarama hatası: ${err.message}`, "error");
   } finally {
     setDeepScanLoading(false);
   }

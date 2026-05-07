@@ -8,25 +8,27 @@
   </head>
   <body>
     <main class="popup-root">
-      <header class="popup-header">
+      <header class="popup-header grid-bg">
         <div class="brand">
           <img class="brand-icon" src="../icons/icon48.png" alt="AegisNexus Logo" />
           <div class="brand-text">
-            <h1>AegisNexus Shield</h1>
+            <h1 class="glow">AegisNexus Shield</h1>
           </div>
         </div>
-        <span class="version-tag">v1.0.0</span>
+        <span class="version-tag" style="color:#00d4ff;border-color:rgba(0,212,255,0.25);">v1.0.0</span>
       </header>
 
-      <section class="card status-card">
+      <section class="card status-card glass">
         <div class="risk-ring" id="risk-ring" style="--risk-score: 0;">
           <div class="risk-ring-inner">
-            <span class="score-label">Skor</span>
+            <span class="score-label">Güvenilirlik</span>
             <span id="score-value" class="score-value">0</span>
           </div>
         </div>
-        <div id="risk-badge" class="risk-badge risk-safe">SAFE</div>
+        <div id="risk-badge" class="risk-badge risk-safe">GÜVENLİ</div>
         <p id="active-domain" class="active-domain">domain.yok</p>
+        <p style="font-size:10px;opacity:0.5;margin-top:2px;">Kaynak: <span id="deep-scan-source">Yerel Analiz</span></p>
+        <p style="font-size:9px;opacity:0.4;margin-top:4px;font-style:italic;">ℹ️ Skor < 60: Bildirim gönderilir</p>
       </section>
 
       <section class="accordion-list">
@@ -66,34 +68,24 @@
         </details>
 
         <details class="accordion">
-          <summary>📋 Geçmiş Taramalar</summary>
+          <summary>🗄️ Veritabanı Kaydı</summary>
           <div class="accordion-content">
-            <div id="analysis-history-list" style="max-height: 200px; overflow-y: auto; font-size: 12px;">
-              <p style="text-align: center; color: #94a3b8;">Yükleniyor...</p>
-            </div>
-            <button id="btn-show-all-history" class="action-btn action-accent" style="margin-top: 8px; font-size: 12px;">
-              📖 Tümünü Göster
-            </button>
-          </div>
-        </details>
-
-        <details class="accordion">
-          <summary>📊 Veritabanı İstatistikleri</summary>
-          <div class="accordion-content">
-            <p>Phishing URL: <strong id="db-phishing-urls">-</strong></p>
-            <p>Whitelist domain: <strong id="db-whitelist-count">-</strong></p>
-            <p>Aktif IOC: <strong id="db-ioc-active">-</strong></p>
-            <p>İnceleme bekleyen form: <strong id="db-form-pending">-</strong></p>
+            <p>Durum: <strong id="db-match-status">-</strong></p>
+            <p>DB Risk Skoru: <strong id="db-risk-score">-</strong></p>
+            <p>DB Risk Seviyesi: <strong id="db-risk-level">-</strong></p>
+            <p>Güvenli mi: <strong id="db-is-safe">-</strong></p>
             <p>Son güncelleme: <strong id="db-last-updated">-</strong></p>
           </div>
         </details>
+
+
 
         <details class="accordion">
           <summary>🧾 Form Tespiti</summary>
           <div class="accordion-content">
             <p>Form sayısı: <strong id="form-count">0</strong></p>
             <p>En yüksek form riski: <strong id="form-highest-score">0</strong></p>
-            <p>Risk seviyesi: <strong id="form-risk-level">SAFE</strong></p>
+            <p>Risk seviyesi: <strong id="form-risk-level">GÜVENLİ</strong></p>
             <p>Flag'ler:</p>
             <ul id="form-flags" class="flag-list">
               <li>Henüz veri yok</li>
@@ -143,9 +135,9 @@
           </label>
 
           <label class="field">
-            <span>GSB API Key</span>
+            <span>GSB API Key <em>(Yedek (sunucu yoksa))</em></span>
             <div class="password-row">
-              <input id="gsb-api-key" type="password" placeholder="AIza..." />
+              <input id="gsb-api-key" type="password" placeholder="AIza... (artık sunucuda işleniyor)" />
               <button id="toggle-gsb-key" class="mini-btn" type="button">Göster</button>
             </div>
           </label>

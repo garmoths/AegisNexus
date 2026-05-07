@@ -1,5 +1,7 @@
 const WHITELIST_REFRESH_ALARM = "whitelist_refresh";
-const WHITELIST_REFRESH_MINUTES = 43200; // monthly
+const WHITELIST_REFRESH_MINUTES = 60; // hourly
+const WHITELIST_VERIFY_CACHE_KEY = "whitelist_verify_cache";
+const WHITELIST_VERIFY_CACHE_TTL_MS = 60 * 60 * 1000; // 60m
 const API_BASE_URL_DEFAULT = "http://127.0.0.1:8000";
 
 let alarmListenerBound = false;
@@ -24,6 +26,14 @@ async function getApiBaseUrl() {
   return (configured || API_BASE_URL_DEFAULT).replace(/\/+$/g, "");
 }
 
+async function getServerRequestHeaders() {
+  const stored = await chrome.storage.local.get(["aegis_key"]);
+  const headers = { "Content-Type": "application/json" };
+  const aegisKey = String(stored.aegis_key || "").trim();
+  if (aegisKey) headers["X-AegisNexus-Key"] = aegisKey;
+  return headers;
+}
+
 async function getPersonalWhitelist() {
   const stored = await chrome.storage.local.get(["whitelist"]);
   return uniqueDomains(stored.whitelist);
@@ -34,6 +44,118 @@ async function getGlobalWhitelist() {
   return uniqueDomains(stored.global_whitelist);
 }
 
+async function readWhitelistVerifyCache() {
+  const stored = await chrome.storage.local.get([WHITELIST_VERIFY_CACHE_KEY]);
+  const cache = stored[WHITELIST_VERIFY_CACHE_KEY];
+  return cache && typeof cache === "object" ? cache : {};
+}
+
+async function writeWhitelistVerifyCache(cache) {
+  await chrome.storage.local.set({ [WHITELIST_VERIFY_CACHE_KEY]: cache });
+}
+
+async function getCachedWhitelistDecision(domain) {
+  const normalized = normalizeDomain(domain);
+  if (!normalized) return null;
+
+  const cache = await readWhitelistVerifyCache();
+  const now = Date.now();
+  let dirty = false;
+
+  for (const [key, entry] of Object.entries(cache)) {
+    const checkedAt = Number(entry?.checkedAt || 0);
+    if (!checkedAt || now - checkedAt > WHITELIST_VERIFY_CACHE_TTL_MS) {
+      delete cache[key];
+      dirty = true;
+    }
+  }
+
+  if (dirty) await writeWhitelistVerifyCache(cache);
+
+  const hit = cache[normalized];
+  if (!hit || typeof hit.is_safe !== "boolean") return null;
+  return hit.is_safe;
+}
+
+async function setCachedWhitelistDecision(domain, isSafe, reason = "", source = "server_verify_user") {
+  const normalized = normalizeDomain(domain);
+  if (!normalized) return;
+
+  const cache = await readWhitelistVerifyCache();
+  cache[normalized] = {
+    is_safe: Boolean(isSafe),
+    reason: String(reason || ""),
+    source: String(source || "server_verify_user"),
+    checkedAt: Date.now(),
+  };
+  await writeWhitelistVerifyCache(cache);
+}
+
+function parseVerifyUserResult(payload, domain) {
+  const normalized = normalizeDomain(domain);
+  const results = Array.isArray(payload?.results) ? payload.results : [];
+  const match = results.find((item) => normalizeDomain(item?.domain) === normalized);
+  if (match && typeof match.is_safe === "boolean") {
+    return {
+      found: true,
+      is_safe: Boolean(match.is_safe),
+      reason: String(match.reason || ""),
+      source: "server_verify_user",
+    };
+  }
+
+  if (payload && typeof payload.is_safe === "boolean") {
+    return {
+      found: true,
+      is_safe: Boolean(payload.is_safe),
+      reason: String(payload.reason || ""),
+      source: "server_verify_user",
+    };
+  }
+
+  return { found: false, is_safe: false, reason: "unknown", source: "server_verify_user" };
+}
+
+async function verifyDomainWithServer(domain) {
+  const normalized = normalizeDomain(domain);
+  if (!normalized) return { resolved: false, is_safe: false };
+
+  const apiBaseUrl = await getApiBaseUrl();
+  const headers = await getServerRequestHeaders();
+
+  // Prefer GET for single-domain checks. Fallback to POST for backward compatibility.
+  try {
+    const getUrl = `${apiBaseUrl}/api/v2/whitelist/verify-user?domain=${encodeURIComponent(normalized)}`;
+    const response = await fetch(getUrl, { method: "GET", headers });
+    if (response.ok) {
+      const payload = await response.json();
+      const parsed = parseVerifyUserResult(payload, normalized);
+      if (parsed.found) {
+        await setCachedWhitelistDecision(normalized, parsed.is_safe, parsed.reason, parsed.source);
+        return { resolved: true, is_safe: parsed.is_safe };
+      }
+    }
+  } catch {}
+
+  try {
+    const response = await fetch(`${apiBaseUrl}/api/v2/whitelist/verify-user`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ domains: [normalized] }),
+    });
+    if (!response.ok) return { resolved: false, is_safe: false };
+
+    const payload = await response.json();
+    const parsed = parseVerifyUserResult(payload, normalized);
+    if (!parsed.found) return { resolved: false, is_safe: false };
+
+    await setCachedWhitelistDecision(normalized, parsed.is_safe, parsed.reason, parsed.source);
+    return { resolved: true, is_safe: parsed.is_safe };
+  } catch {
+    return { resolved: false, is_safe: false };
+  }
+}
+
 async function isWhitelisted(domain) {
   const normalized = normalizeDomain(domain);
   if (!normalized) return false;
@@ -41,8 +163,18 @@ async function isWhitelisted(domain) {
   const personal = await getPersonalWhitelist();
   if (matchesWhitelist(normalized, personal)) return true;
 
+  const cachedDecision = await getCachedWhitelistDecision(normalized);
+  if (typeof cachedDecision === "boolean") return cachedDecision;
+
+  const serverDecision = await verifyDomainWithServer(normalized);
+  if (serverDecision.resolved) return Boolean(serverDecision.is_safe);
+
   const global = await getGlobalWhitelist();
-  return matchesWhitelist(normalized, global);
+  const fallbackGlobalMatch = matchesWhitelist(normalized, global);
+  if (fallbackGlobalMatch) {
+    await setCachedWhitelistDecision(normalized, true, "global_whitelist_fallback", "local_global_whitelist");
+  }
+  return fallbackGlobalMatch;
 }
 
 async function addToPersonalWhitelist(domain) {

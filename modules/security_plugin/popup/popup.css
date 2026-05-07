@@ -1,13 +1,29 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800&family=JetBrains+Mono:wght@400;700&display=swap');
+
 :root {
-  --bg: #0f172a;
-  --bg-soft: #111c33;
-  --bg-soft-2: #152543;
+  /* Frontend theme'den aynısı */
+  --bg: #080c14;
+  --bg-deep: #05080f;
+  --surface: #0f1629;
+  --surface2: #1a2342;
+  --surface3: #0c1322;
+  --border: #1e2a4a;
+  --border-soft: #162038;
+  --accent: #00d4ff;
+  --accent-glow: rgba(0, 212, 255, 0.35);
+  --accent-dim: rgba(0, 212, 255, 0.1);
+  --accent-soft: rgba(0, 212, 255, 0.18);
   --text: #e2e8f0;
-  --text-muted: #94a3b8;
-  --accent: #38bdf8;
-  --border: #24344f;
-  --shadow: 0 8px 24px rgba(2, 6, 23, 0.35);
+  --text-muted: #64748b;
+  --text-subtle: #475569;
+  /* Renk paletine yeni renkler ekle */
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+  --color-accent: #ff6b35;
+  --color-info: #84cc16;
   --risk-score: 0;
+  --fill-color: #22c55e;
 }
 
 * {
@@ -28,25 +44,39 @@ body {
   overflow-y: auto;
   background: var(--bg);
   color: var(--text);
-  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 body::-webkit-scrollbar {
-  width: 10px;
+  width: 8px;
 }
 
 body::-webkit-scrollbar-track {
-  background: #0b1324;
+  background: #050810;
 }
 
 body::-webkit-scrollbar-thumb {
-  background: #233655;
+  background: #1a2a42;
   border-radius: 12px;
-  border: 2px solid #0b1324;
+  border: 2px solid #050810;
 }
 
 body::-webkit-scrollbar-thumb:hover {
-  background: #2f4a75;
+  background: #233655;
+}
+
+::selection {
+  background: rgba(0, 212, 255, 0.35);
+  color: #fff;
+}
+
+:focus-visible {
+  outline: 2px solid #00d4ff;
+  outline-offset: 3px;
+  border-radius: 6px;
 }
 
 .popup-root {
@@ -54,10 +84,32 @@ body::-webkit-scrollbar-thumb:hover {
 }
 
 .popup-header {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(30, 42, 74, 0.5);
+  border-radius: 12px;
+  padding: 8px 10px;
+  background: rgba(15, 22, 41, 0.45);
+}
+
+.grid-bg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0, 212, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 212, 255, 0.04) 1px, transparent 1px);
+  background-size: 16px 16px;
+  pointer-events: none;
+}
+
+.popup-header > * {
+  position: relative;
+  z-index: 1;
 }
 
 .brand {
@@ -70,13 +122,22 @@ body::-webkit-scrollbar-thumb:hover {
   width: 22px;
   height: 22px;
   fill: var(--accent);
-  filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.35));
+  filter: drop-shadow(0 0 8px rgba(0, 212, 255, 0.5));
+  transition: filter 200ms ease;
+}
+
+.brand-icon:hover {
+  filter: drop-shadow(0 0 14px rgba(0, 212, 255, 0.75));
 }
 
 .brand-text h1 {
   margin: 0;
   font-size: 15px;
   letter-spacing: 0.2px;
+}
+
+.glow {
+  text-shadow: 0 0 18px rgba(0, 212, 255, 0.45);
 }
 
 .version-tag {
@@ -88,10 +149,15 @@ body::-webkit-scrollbar-thumb:hover {
 }
 
 .card {
-  background: linear-gradient(180deg, var(--bg-soft), var(--bg-soft-2));
+  background: linear-gradient(145deg, var(--surface) 0%, var(--surface2) 100%);
   border: 1px solid var(--border);
   border-radius: 14px;
-  box-shadow: var(--shadow);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(0, 212, 255, 0.04);
+}
+
+.glass {
+  background-color: rgba(15, 22, 41, 0.6);
+  backdrop-filter: blur(20px);
 }
 
 .status-card {
@@ -100,22 +166,22 @@ body::-webkit-scrollbar-thumb:hover {
 }
 
 .risk-ring {
-  --fill-color: var(--accent);
   width: 132px;
   height: 132px;
   margin: 0 auto 12px;
   border-radius: 50%;
-  background: conic-gradient(var(--fill-color) calc(var(--risk-score) * 1%), #22324e 0);
+  background: conic-gradient(var(--fill-color) calc(var(--risk-score) * 1%), #0d1929 0);
   display: grid;
   place-items: center;
-  transition: background 220ms ease;
+  transition: background 300ms ease;
+  filter: drop-shadow(0 0 10px rgba(0, 0, 0, 0.5));
 }
 
 .risk-ring-inner {
   width: 102px;
   height: 102px;
   border-radius: 50%;
-  background: #0d162a;
+  background: #080c14;
   border: 1px solid var(--border);
   display: grid;
   place-items: center;
@@ -131,6 +197,8 @@ body::-webkit-scrollbar-thumb:hover {
   font-size: 36px;
   line-height: 1;
   font-weight: 800;
+  font-family: 'JetBrains Mono', 'Consolas', monospace;
+  letter-spacing: -1px;
 }
 
 .risk-badge {
@@ -141,26 +209,43 @@ body::-webkit-scrollbar-thumb:hover {
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.3px;
+  border: 1px solid transparent;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.08);
 }
 
 .risk-critical {
-  background: #dc2626;
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.28);
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.24);
 }
 
 .risk-high {
-  background: #ea580c;
+  color: #ff6b35;
+  background: rgba(255, 107, 53, 0.12);
+  border-color: rgba(255, 107, 53, 0.28);
+  box-shadow: 0 0 12px rgba(255, 107, 53, 0.22);
 }
 
 .risk-medium {
-  background: #ca8a04;
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.28);
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.2);
 }
 
-.risk-low {
-  background: #16a34a;
+.risk-good {
+  color: #84cc16;
+  background: rgba(132, 204, 22, 0.12);
+  border-color: rgba(132, 204, 22, 0.28);
+  box-shadow: 0 0 12px rgba(132, 204, 22, 0.2);
 }
 
 .risk-safe {
-  background: #15803d;
+  color: #22c55e;
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.28);
+  box-shadow: 0 0 12px rgba(34, 197, 94, 0.24);
 }
 
 .active-domain {
@@ -179,8 +264,13 @@ body::-webkit-scrollbar-thumb:hover {
 .accordion {
   border: 1px solid var(--border);
   border-radius: 12px;
-  background: #101c33;
+  background: var(--surface3);
   overflow: hidden;
+  transition: border-color 180ms ease;
+}
+
+.accordion[open] {
+  border-color: rgba(0, 212, 255, 0.2);
 }
 
 .accordion summary {
@@ -198,7 +288,7 @@ body::-webkit-scrollbar-thumb:hover {
 }
 
 .accordion summary:hover {
-  background: #162746;
+  background: #0f2040;
 }
 
 .accordion-content {
@@ -238,6 +328,7 @@ body::-webkit-scrollbar-thumb:hover {
 
 .flag-list li {
   font-size: 12px;
+  font-family: 'JetBrains Mono', 'Consolas', monospace;
   margin: 3px 0;
   color: var(--text-muted);
 }
@@ -270,22 +361,29 @@ body::-webkit-scrollbar-thumb:hover {
 
 .action-accent {
   background: var(--accent);
-  color: #05293a;
+  color: var(--bg);
+  box-shadow: 0 0 12px rgba(0, 212, 255, 0.25);
+}
+
+.action-accent:hover {
+  box-shadow: 0 0 18px rgba(0, 212, 255, 0.45);
 }
 
 .action-safe {
-  background: #16a34a;
+  background: var(--color-success);
+  color: var(--bg);
 }
 
 .action-danger {
-  background: #dc2626;
+  background: var(--color-danger);
+  color: white;
 }
 
 .settings {
   margin-top: 12px;
   border: 1px solid var(--border);
   border-radius: 12px;
-  background: #101c33;
+  background: var(--surface3);
   overflow: hidden;
 }
 
@@ -320,19 +418,20 @@ body::-webkit-scrollbar-thumb:hover {
 
 .field input {
   width: 100%;
-  border: 1px solid #2b3e5f;
+  border: 1px solid var(--border-soft);
   border-radius: 8px;
   padding: 8px 10px;
   font-size: 12px;
   color: var(--text);
-  background: #0d162a;
+  background: var(--bg-deep);
   transition: border-color 150ms ease, box-shadow 150ms ease;
+  font-family: 'JetBrains Mono', 'Consolas', monospace;
 }
 
 .field input:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.18);
+  box-shadow: 0 0 0 2px var(--accent-soft);
 }
 
 .password-row {
@@ -342,10 +441,10 @@ body::-webkit-scrollbar-thumb:hover {
 }
 
 .mini-btn {
-  border: 1px solid #39537d;
+  border: 1px solid var(--border-soft);
   border-radius: 8px;
-  background: #13233f;
-  color: #dbeafe;
+  background: linear-gradient(135deg, #0d1e36 0%, #0a1629 100%);
+  color: var(--accent);
   font-size: 12px;
   font-weight: 700;
   padding: 0 10px;
@@ -354,5 +453,5 @@ body::-webkit-scrollbar-thumb:hover {
 }
 
 .mini-btn:hover {
-  background: #1a3055;
+  background: linear-gradient(135deg, #142a4d 0%, #0f1f38 100%);
 }

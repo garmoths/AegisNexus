@@ -577,24 +577,27 @@ def run_quick_checks(input_url: str, db: Session = None) -> dict:
             "risks": [], "definitive": True, "is_whitelisted": True,
         }
 
-    # ── Katman 2: Internal DB ────────────────────────────
+    # ── Katman 2: Internal DB ────────────────────
     if db:
-        url_hash = normalized.get("url_hash")
-        canon = normalized.get("canonical_url")
-        exact = None
-        if url_hash:
-            exact = db.query(PhishingURL).filter(PhishingURL.url_hash == url_hash).first()
-        if exact is None and canon:
-            exact = db.query(PhishingURL).filter(PhishingURL.url == canon).first()
-        if exact:
-            return {
-                "url": input_url, "safety_score": 0, "score": 0,
-                "risk_level": "🚨 ÇOK TEHLİKELİ (DB Kayıtlı)",
-                "details": [f"Tehlikeli site veritabanında tespit edildi! (ID: {exact.phish_id})"],
-                "sources": [{"name": "Internal DB", "status": "TEHDİT 🚨"}],
-                "risks": ["Tehlikeli site veritabanında kayıtlı"],
-                "definitive": True, "is_whitelisted": False,
-            }
+        try:
+            url_hash = normalized.get("url_hash")
+            canon = normalized.get("canonical_url")
+            exact = None
+            if url_hash:
+                exact = db.query(PhishingURL).filter(PhishingURL.url_hash == url_hash).first()
+            if exact is None and canon:
+                exact = db.query(PhishingURL).filter(PhishingURL.url == canon).first()
+            if exact:
+                return {
+                    "url": input_url, "safety_score": 0, "score": 0,
+                    "risk_level": "🚨 ÇOK TEHLIKELİ (DB Kayıtlı)",
+                    "details": [f"Tehlikeli site veritabanında tespit edildi! (ID: {exact.phish_id})"],
+                    "sources": [{"name": "Internal DB", "status": "TEHDİT 🚨"}],
+                    "risks": ["Tehlikeli site veritabanında kayıtlı"],
+                    "definitive": True, "is_whitelisted": False,
+                }
+        except Exception:
+            pass  # DB erişilemiyorsa (PostgreSQL down) atla, diğer katmanlarla devam et
 
     # ── Katman 3: PhishTank ──────────────────────────────
     if domain in PHISHTANK_DB or raw_domain in PHISHTANK_DB:
@@ -607,8 +610,16 @@ def run_quick_checks(input_url: str, db: Session = None) -> dict:
             "definitive": True, "is_whitelisted": False,
         }
 
-    # ── ML sınıflandırma (ağ yok, hızlı) ────────────────
-    preliminary_score = 50
+    # ── ML sınıflandırma (ağ yok, hızlı) ────────────────────
+    # Heuristic ile başlangıç skoru hesapla (ML yedeklemesi)
+    heuristic_preliminary = 50
+    try:
+        from .heuristic import score_url_heuristic
+        h_result = score_url_heuristic(input_url)
+        heuristic_preliminary = max(0, min(100, int(h_result.get("score", 50))))
+    except Exception:
+        pass
+    preliminary_score = heuristic_preliminary
     ml_source = []
     try:
         ml_result = classify_url(input_url)
@@ -699,39 +710,42 @@ def calculate_safety_score(input_url, db: Session = None):
     
     domain_match = None
     if db:
-        exact_match = None
-        normalized_lookup = normalize_url_record(check_url)
-        canon = normalized_lookup.get("canonical_url")
-        url_hash = normalized_lookup.get("url_hash")
-        domain_norm = normalized_lookup.get("domain_norm")
-        if url_hash:
-            exact_match = db.query(PhishingURL).filter(PhishingURL.url_hash == url_hash).first()
-        if exact_match is None and canon:
-            exact_match = db.query(PhishingURL).filter(PhishingURL.url == canon).first()
-        if exact_match is None:
-            exact_match = db.query(PhishingURL).filter(PhishingURL.url == check_url).first()
-        if exact_match is None:
-            exact_match = db.query(PhishingURL).filter(PhishingURL.url == input_url).first()
-        if exact_match is None and domain_norm and len(domain_norm) > 3:
-            domain_match = (
-                db.query(PhishingURL)
-                .filter(PhishingURL.domain_norm == domain_norm)
-                .first()
-            )
+        try:
+            exact_match = None
+            normalized_lookup = normalize_url_record(check_url)
+            canon = normalized_lookup.get("canonical_url")
+            url_hash = normalized_lookup.get("url_hash")
+            domain_norm = normalized_lookup.get("domain_norm")
+            if url_hash:
+                exact_match = db.query(PhishingURL).filter(PhishingURL.url_hash == url_hash).first()
+            if exact_match is None and canon:
+                exact_match = db.query(PhishingURL).filter(PhishingURL.url == canon).first()
+            if exact_match is None:
+                exact_match = db.query(PhishingURL).filter(PhishingURL.url == check_url).first()
+            if exact_match is None:
+                exact_match = db.query(PhishingURL).filter(PhishingURL.url == input_url).first()
+            if exact_match is None and domain_norm and len(domain_norm) > 3:
+                domain_match = (
+                    db.query(PhishingURL)
+                    .filter(PhishingURL.domain_norm == domain_norm)
+                    .first()
+                )
 
-        if exact_match:
-            return {
-                "url": input_url,
-                "safety_score": 0,
-                "score": 0,
-                "risk_level": "🚨 ÇOK TEHLİKELİ (DB Kayıtlı)",
-                "details": [
-                    f"Tehlikeli site veritabanında tespit edildi! (ID: {exact_match.phish_id})",
-                    f"Hedef: {exact_match.target}",
-                    "Bu siteye kesinlikle bilgi girmeyin!"
-                ],
-                "sources": [{"name": "Internal DB", "status": "TEHDİT 🚨"}]
-            }
+            if exact_match:
+                return {
+                    "url": input_url,
+                    "safety_score": 0,
+                    "score": 0,
+                    "risk_level": "🚨 ÇOK TEHLİKELİ (DB Kayıtlı)",
+                    "details": [
+                        f"Tehlikeli site veritabanında tespit edildi! (ID: {exact_match.phish_id})",
+                        f"Hedef: {exact_match.target}",
+                        "Bu siteye kesinlikle bilgi girmeyin!"
+                    ],
+                    "sources": [{"name": "Internal DB", "status": "TEHDİT 🚨"}]
+                }
+        except Exception:
+            pass  # PostgreSQL erişilemiyorsa atla
 
     # ---------------------------------------------------------
     # 3. KATMAN: PHISHTANK (JSON)
