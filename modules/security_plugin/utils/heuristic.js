@@ -1,4 +1,42 @@
 const SUSPICIOUS_TLDS = new Set(["xyz", "top", "tk", "ml", "ga", "cf", "gq", "pw", "cc", "vip", "icu", "cyou", "bond", "cfd", "monster", "quest"]);
+
+const SAFE_DOMAINS = new Set([
+  "aegisnexus.dev",
+  "youtube.com", "youtu.be",
+  "google.com", "google.com.tr",
+  "instagram.com",
+  "whatsapp.com",
+  "telegram.org", "t.me",
+  "facebook.com", "fb.com",
+  "twitter.com", "x.com",
+  "linkedin.com",
+  "github.com",
+  "microsoft.com",
+  "apple.com",
+  "amazon.com",
+  "netflix.com",
+  "spotify.com",
+  "wikipedia.org",
+  "reddit.com",
+  "discord.com",
+  "twitch.tv",
+  "tiktok.com",
+  "pinterest.com",
+  "snapchat.com",
+  "zoom.us",
+  "slack.com",
+  "notion.so",
+  "canva.com",
+  "dropbox.com",
+  "adobe.com",
+  "cloudflare.com",
+  "stackoverflow.com",
+  "medium.com",
+  "quora.com",
+  "bbc.com", "cnn.com", "reuters.com",
+  "nytimes.com", "theguardian.com",
+  "gsm.org.tr", "btk.gov.tr", "tcmb.gov.tr", "turkiye.gov.tr",
+]);
 const BRAND_KEYWORDS = [
   "paypal",
   "google",
@@ -99,6 +137,17 @@ function analyzeURL(rawUrl, options = {}) {
   const fullLower = `${hostname}${pathname}${search}`.toLowerCase();
   const parts = hostname.split(".").filter(Boolean);
   const tld = parts.length ? parts[parts.length - 1] : "";
+
+  // Güvenli domain kontrolü: aegisnexus.dev, youtube, google vb. → 100 güvenli
+  if (SAFE_DOMAINS.has(hostname)) {
+    return { score: 0, flags: ["trusted-domain"], risk_level: "SAFE" };
+  }
+  for (let i = 1; i < parts.length; i++) {
+    const parent = parts.slice(i).join(".");
+    if (SAFE_DOMAINS.has(parent)) {
+      return { score: 0, flags: ["trusted-domain"], risk_level: "SAFE" };
+    }
+  }
   const subdomainCount = Math.max(parts.length - 2, 0);
   const dotCount = (raw.match(/\./g) || []).length;
   const port = parsed.port ? Number(parsed.port) : null;

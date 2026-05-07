@@ -317,21 +317,6 @@ async function checkDomain(domain, url, options = {}) {
     };
   }
 
-  if (await isWhitelisted(normalizedDomain)) {
-    return {
-      safe: true,
-      source: "whitelist",
-      domain: normalizedDomain,
-      host: normalizedDomain,
-      url,
-      score: 0,
-      flags: ["whitelisted-domain"],
-      risk_level: "SAFE",
-      decision: "safe",
-      cache_hit: false,
-    };
-  }
-
   let parsedUrl;
   try {
     parsedUrl = new URL(url);
@@ -345,34 +330,9 @@ async function checkDomain(domain, url, options = {}) {
     return { ...cached, cache_hit: true };
   }
 
+  // HIZLI HEURISTIK: Sadece bloom ile anında çalışır, DNS/GSB beklemez (~0ms)
   const bloomMatched = isBloomMatch(normalizedDomain);
-  const [dnsSettled, gsbSettled] = await Promise.allSettled([
-    checkDomainViaDNS(normalizedDomain),
-    checkGoogleSafeBrowsing(url),
-  ]);
-  const dnsResult = dnsSettled.status === "fulfilled" && dnsSettled.value && typeof dnsSettled.value === "object"
-    ? {
-      cloudflare_blocked: Boolean(dnsSettled.value.cloudflare_blocked),
-      quad9_blocked: Boolean(dnsSettled.value.quad9_blocked),
-      consensus_blocked: Boolean(dnsSettled.value.consensus_blocked),
-      source: String(dnsSettled.value.source || "dns"),
-    }
-    : getSafeDnsResult();
-  const gsbResult = gsbSettled.status === "fulfilled" && gsbSettled.value && typeof gsbSettled.value === "object"
-    ? {
-      threat_found: Boolean(gsbSettled.value.threat_found),
-      threat_type: gsbSettled.value.threat_type || null,
-      available: !Boolean(gsbSettled.value.skipped),
-      skipped: Boolean(gsbSettled.value.skipped),
-      source: String(gsbSettled.value.source || "gsb"),
-    }
-    : getSafeGsbResult();
-
-  const heuristicResult = analyzeURL(url, {
-    bloomMatched,
-    dnsResult,
-    gsbResult,
-  });
+  const heuristicResult = analyzeURL(url, { bloomMatched });
   const localScore = Number.isFinite(Number(heuristicResult.score)) ? Math.max(0, Math.min(100, Number(heuristicResult.score))) : 0;
   const localFlags = Array.isArray(heuristicResult.flags) ? heuristicResult.flags.map((f) => String(f)) : [];
   const localRiskLevel = String(heuristicResult.risk_level || getRiskLevel(localScore)).toUpperCase();
@@ -395,58 +355,89 @@ async function checkDomain(domain, url, options = {}) {
       details: localFlags,
     },
     bloom: { matched: bloomMatched, source: "bloom" },
-    dns: dnsResult,
-    gsb: gsbResult,
+    dns: getSafeDnsResult(),
+    gsb: getSafeGsbResult(),
   };
 
-  const fullScan = await runServerUrlCheck(url, normalizedDomain, {
-    dbOnly: false,
-    forceFresh: forceScan,
-    localPayload: {
-      local_score: localScore,
-      risk_level: localRiskLevel,
-      flags: localFlags,
-      dns: dnsResult,
-      gsb: gsbResult,
-      bloom: { matched: bloomMatched, source: "bloom" },
-    },
-  });
-
-  if (!fullScan.ok || !fullScan.data || typeof fullScan.data !== "object") {
+  // NORMAL TARAMA: hemen dön, DNS/GSB arka planda
+  if (!forceScan) {
     await setCachedDomainResult(normalizedDomain, url, localResult);
+    Promise.allSettled([checkDomainViaDNS(normalizedDomain), checkGoogleSafeBrowsing(url)])
+      .then(async ([dnsS, gsbS]) => {
+        const dnsR = dnsS.status === "fulfilled" && dnsS.value ? dnsS.value : getSafeDnsResult();
+        const gsbR = gsbS.status === "fulfilled" && gsbS.value ? gsbS.value : getSafeGsbResult();
+        runServerUrlCheck(url, normalizedDomain, {
+          dbOnly: false, forceFresh: false,
+          localPayload: { local_score: localScore, risk_level: localRiskLevel, flags: localFlags, dns: dnsR, gsb: gsbR, bloom: { matched: bloomMatched, source: "bloom" } },
+        }).catch(() => {});
+      }).catch(() => {});
     return localResult;
   }
 
-  const serverData = fullScan.data?.data && typeof fullScan.data.data === "object" ? fullScan.data.data : fullScan.data;
-  let serverScore = Number(serverData.score ?? localScore);
-  if (!Number.isFinite(serverScore)) serverScore = localScore;
-  serverScore = Math.max(0, Math.min(100, serverScore));
+  // DERIN TARAMA: önce DB kontrolü
+  const dbCheck = await runServerUrlCheck(url, normalizedDomain, { dbOnly: true, forceFresh: false, localPayload: {} });
+  if (dbCheck.ok && dbCheck.data && typeof dbCheck.data === "object") {
+    const dbData = dbCheck.data?.data || dbCheck.data;
+    if (dbData.score !== undefined || dbData.risk_level) {
+      const cr = { ...localResult,
+        score: Number(dbData.score ?? localScore),
+        risk_level: normalizeServerRiskLevel(dbData.risk_level, dbData.score ?? localScore),
+        flags: uniqueFlags([...localFlags, ...(Array.isArray(dbData.flags) ? dbData.flags : [])]),
+        decision: "db_cached", source: "database", is_phishing: Boolean(dbData.is_phishing), db_fast_path: true };
+      await setCachedDomainResult(normalizedDomain, url, cr);
+      return cr;
+    }
+  }
 
-  const serverFlags = Array.isArray(serverData.flags) ? serverData.flags.map((item) => String(item)) : localFlags;
-  const serverRiskLevel = normalizeServerRiskLevel(serverData.risk_level, serverScore);
+  // DB'de yok → DNS + GSB + curl
+  const [dnsSettled, gsbSettled] = await Promise.allSettled([
+    checkDomainViaDNS(normalizedDomain), checkGoogleSafeBrowsing(url)]);
+  const dnsResult = dnsSettled.status === "fulfilled" && dnsSettled.value ? {
+    cloudflare_blocked: !!dnsSettled.value.cloudflare_blocked, quad9_blocked: !!dnsSettled.value.quad9_blocked,
+    consensus_blocked: !!dnsSettled.value.consensus_blocked, source: String(dnsSettled.value.source || "dns") } : getSafeDnsResult();
+  const gsbResult = gsbSettled.status === "fulfilled" && gsbSettled.value ? {
+    threat_found: !!gsbSettled.value.threat_found, threat_type: gsbSettled.value.threat_type || null,
+    available: !gsbSettled.value.skipped, skipped: !!gsbSettled.value.skipped, source: String(gsbSettled.value.source || "gsb") } : getSafeGsbResult();
+
+  const fullHeuristic = analyzeURL(url, { bloomMatched, dnsResult, gsbResult });
+  const fullScore = Number.isFinite(Number(fullHeuristic.score)) ? Math.max(0, Math.min(100, Number(fullHeuristic.score))) : localScore;
+
+  const fullScan = await runServerUrlCheck(url, normalizedDomain, {
+    dbOnly: false, forceFresh: true,
+    localPayload: { local_score: fullScore, risk_level: String(fullHeuristic.risk_level || getRiskLevel(fullScore)).toUpperCase(),
+      flags: uniqueFlags([...localFlags, ...(Array.isArray(fullHeuristic.flags) ? fullHeuristic.flags : [])]),
+      dns: dnsResult, gsb: gsbResult, bloom: { matched: bloomMatched, source: "bloom" } },
+  });
+
+  if (!fullScan.ok || !fullScan.data || typeof fullScan.data !== "object") {
+    const fallback = { ...localResult, score: fullScore, dns: dnsResult, gsb: gsbResult,
+      flags: uniqueFlags([...localFlags, ...(Array.isArray(fullHeuristic.flags) ? fullHeuristic.flags : [])]),
+      risk_level: String(fullHeuristic.risk_level || getRiskLevel(fullScore)).toUpperCase() };
+    await setCachedDomainResult(normalizedDomain, url, fallback);
+    return fallback;
+  }
+
+  const serverData = fullScan.data?.data || fullScan.data;
+  let serverScore = Number(serverData.score ?? fullScore);
+  if (!Number.isFinite(serverScore)) serverScore = fullScore;
+  serverScore = Math.max(0, Math.min(100, serverScore));
+  const serverFlags = Array.isArray(serverData.flags) ? serverData.flags.map(String) : [];
   const mergedResult = {
-    domain: normalizedDomain,
-    host: normalizedDomain,
-    url,
+    domain: normalizedDomain, host: normalizedDomain, url,
     https: parsedUrl?.protocol === "https:",
     score: serverScore,
-    flags: uniqueFlags(serverFlags),
-    risk_level: serverRiskLevel,
+    flags: uniqueFlags([...serverFlags, ...(Array.isArray(fullHeuristic.flags) ? fullHeuristic.flags : [])]),
+    risk_level: normalizeServerRiskLevel(serverData.risk_level, serverScore),
     cache_hit: false,
     decision: String(serverData.decision || "server_merged"),
     source: String(serverData.source || "server"),
     is_phishing: Boolean(serverData.is_phishing),
-    heuristic: {
-      source: "local",
-      risk_level_raw: localRiskLevel,
-      details: localFlags,
-    },
-    bloom: serverData.bloom && typeof serverData.bloom === "object" ? serverData.bloom : { matched: bloomMatched, source: "bloom" },
-    dns: serverData.dns && typeof serverData.dns === "object" ? serverData.dns : dnsResult,
-    gsb: serverData.gsb && typeof serverData.gsb === "object" ? serverData.gsb : gsbResult,
+    heuristic: { source: "local", risk_level_raw: localRiskLevel, details: localFlags },
+    bloom: serverData.bloom || { matched: bloomMatched, source: "bloom" },
+    dns: serverData.dns || dnsResult,
+    gsb: serverData.gsb || gsbResult,
     layer3: fullScan,
   };
-
   await setCachedDomainResult(normalizedDomain, url, mergedResult);
   return mergedResult;
 }
@@ -641,7 +632,15 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
     const processFormDetection = async () => {
       const domainResult = domain && sourceUrl ? await checkDomain(domain, sourceUrl) : { score: 0, flags: [] };
-      const combinedRiskScore = combineRiskScores(domainResult.score, formData.highest_risk_score);
+      const domainScore = Number(domainResult.score || 0);
+
+      // Güvenilirlik skoru > 80 (risk skoru ≤ 20) → ödeme tehlike çerçevesi OLUŞMASIN
+      if (domainScore <= 20) {
+        sendResponse({ ok: true, skipped: true, reason: "trusted_domain" });
+        return;
+      }
+
+      const combinedRiskScore = combineRiskScores(domainScore, formData.highest_risk_score);
       const combinedRiskLevel = getRiskLevel(combinedRiskScore);
       const mergedFlags = uniqueFlags([...(domainResult.flags || []), ...(formData.flags || [])]);
 

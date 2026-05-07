@@ -205,9 +205,7 @@ async function scanForms() {
     }
 
     clearFormWarnings();
-    if (lastFormScanResult.risk_level === "HIGH" || lastFormScanResult.risk_level === "CRITICAL") {
-      showFormWarnings();
-    }
+    // Form uyarıları yalnızca service worker üzerinden (domain skoru kontrol edilerek) gösterilir
   } catch (error) {
     console.warn("AegisNexus Shield: form detector could not be loaded", error);
   }
