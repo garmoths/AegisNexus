@@ -1,0 +1,70 @@
+# Python
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+*.egg-info/
+
+# Node — build artefactları image'a gerekmez (host dışında npm run build → mount)
+frontend-react/node_modules/
+frontend-react/src/
+frontend-react/public/
+frontend-react/index.html
+frontend-react/package*.json
+frontend-react/vite.config.js
+frontend-react/eslint.config.js
+frontend-react/README.md
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Git
+.git/
+.gitignore
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+*.swp
+.continue/
+
+# Local DB / cache / büyük binary dosyalar
+threat_intel_cache.db
+*.db
+celerybeat-schedule
+data/
+
+# Arşivler (gereksiz)
+*.tar.gz
+*.zip
+react-build.tar.gz
+
+# Docker / deployCI/brain dump — gerek yok
+nginx-modules.conf
+
+# Docs (not needed in image)
+docs/
+
+# Plans / IDE plugins
+.windsurf/
+
+# Logs
+*.log
+*.log.*
+
+# Yanlışlıkla repo köküne girmiş dizinler
+AegisNexus_Backups/
+Users/
+
+# Test dosyaları (image'a gerek yok)
+tests/
+
+# Pre-commit / secrets scan
+.pre-commit-config.yaml
+.secrets.baseline

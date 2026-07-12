@@ -1,0 +1,93 @@
+{
+  "timestamp": "2026-05-05T14:42:01.272813",
+  "results": [
+    {
+      "url": "https://assu-carsat-cnav.com/",
+      "combined_risk_probability": 0.105,
+      "pre_boost_probability": 0.10499999999999998,
+      "risk_level": "medium",
+      "legacy_penalty": 30,
+      "boost_rules": [],
+      "event_sources": [
+        "screenshot_suspicious"
+      ]
+    },
+    {
+      "url": "https://assu-carsat-cnav.com/captcha.php",
+      "combined_risk_probability": 0.105,
+      "pre_boost_probability": 0.10499999999999998,
+      "risk_level": "medium",
+      "legacy_penalty": 30,
+      "boost_rules": [],
+      "event_sources": [
+        "screenshot_suspicious"
+      ]
+    },
+    {
+      "url": "https://legacynewcz.weebly.com/",
+      "combined_risk_probability": 0.105,
+      "pre_boost_probability": 0.10499999999999998,
+      "risk_level": "medium",
+      "legacy_penalty": 30,
+      "boost_rules": [],
+      "event_sources": [
+        "screenshot_suspicious"
+      ]
+    },
+    {
+      "url": "https://assu-carsat-retraite.com/",
+      "combined_risk_probability": 0.105,
+      "pre_boost_probability": 0.10499999999999998,
+      "risk_level": "medium",
+      "legacy_penalty": 30,
+      "boost_rules": [],
+      "event_sources": [
+        "screenshot_suspicious"
+      ]
+    },
+    {
+      "url": "https://assu-carsat-retraite.com/captcha.php",
+      "combined_risk_probability": 0.105,
+      "pre_boost_probability": 0.10499999999999998,
+      "risk_level": "medium",
+      "legacy_penalty": 30,
+      "boost_rules": [],
+      "event_sources": [
+        "screenshot_suspicious"
+      ]
+    },
+    {
+      "url": "https://assu-retraite.com/",
+      "combined_risk_probability": 0.105,
+      "pre_boost_probability": 0.10499999999999998,
+      "risk_level": "medium",
+      "legacy_penalty": 30,
+      "boost_rules": [],
+      "event_sources": [
+        "screenshot_suspicious"
+      ]
+    },
+    {
+      "url": "https://assu-retraite.com/captcha.php",
+      "combined_risk_probability": 0.105,
+      "pre_boost_probability": 0.10499999999999998,
+      "risk_level": "medium",
+      "legacy_penalty": 30,
+      "boost_rules": [],
+      "event_sources": [
+        "screenshot_suspicious"
+      ]
+    },
+    {
+      "url": "https://matvibresz.com/",
+      "combined_risk_probability": 0.105,
+      "pre_boost_probability": 0.10499999999999998,
+      "risk_level": "medium",
+      "legacy_penalty": 30,
+      "boost_rules": [],
+      "event_sources": [
+        "screenshot_suspicious"
+      ]
+    }
+  ]
+}

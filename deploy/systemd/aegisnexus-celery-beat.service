@@ -1,0 +1,36 @@
+# AegisNexus — Celery Beat Scheduler
+# /etc/systemd/system/aegisnexus-celery-beat.service
+#
+# Tüm zamanlı görevleri tetikler (IOC refresh, ingest, Gemini sınıflandırma vb.)
+# Beat schedule app/celery_app.py içinde tek noktada tanımlıdır.
+# SADECE BİR tane beat servisi çalışmalıdır.
+#
+# Kurulum:
+#   sudo cp deploy/systemd/aegisnexus-celery-beat.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now aegisnexus-celery-beat
+
+[Unit]
+Description=AegisNexus Celery Beat Scheduler
+After=network.target rabbitmq-server.service
+Wants=rabbitmq-server.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/var/www/aegis_nexus
+EnvironmentFile=/var/www/aegis_nexus/.env
+ExecStart=/var/www/aegis_nexus/venv/bin/celery \
+    -A app.celery_app:celery_app beat \
+    --loglevel=info \
+    --logfile=/var/log/aegis_celery_beat.log \
+    --pidfile=/var/run/aegis_celery_beat.pid
+Restart=on-failure
+RestartSec=15
+KillSignal=SIGTERM
+TimeoutStopSec=30
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

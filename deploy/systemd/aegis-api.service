@@ -1,0 +1,26 @@
+# AegisNexus — FastAPI systemd service
+# /etc/systemd/system/aegisnexus-api.service
+#
+# Kurulum:
+#   sudo cp deploy/systemd/aegisnexus-api.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now aegisnexus-api
+
+[Unit]
+Description=AegisNexus FastAPI Backend
+After=network.target postgresql.service rabbitmq-server.service
+Requires=postgresql.service rabbitmq-server.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/var/www/aegis_nexus
+EnvironmentFile=/var/www/aegis_nexus/.env
+ExecStart=/var/www/aegis_nexus/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

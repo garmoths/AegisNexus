@@ -1,0 +1,38 @@
+# AegisNexus — Celery Default Worker
+# /etc/systemd/system/aegisnexus-celery-default.service
+#
+# Arka plan görevleri: IOC feed refresh, Victim Atlas ingest/classify/PDF.
+# prefork pool, 2 worker (1GB RAM sunucu için optimize).
+#
+# Kurulum:
+#   sudo cp deploy/systemd/aegisnexus-celery-default.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now aegisnexus-celery-default
+
+[Unit]
+Description=AegisNexus Celery Worker — Default Queue (Honeypot + Victim Atlas)
+After=network.target rabbitmq-server.service
+Wants=rabbitmq-server.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/var/www/aegis_nexus
+EnvironmentFile=/var/www/aegis_nexus/.env
+ExecStart=/var/www/aegis_nexus/venv/bin/celery \
+    -A app.celery_app:celery_app worker \
+    -Q default \
+    -P prefork \
+    -c 2 \
+    -n default@%%h \
+    --loglevel=info \
+    --logfile=/var/log/aegis_celery_default.log
+Restart=on-failure
+RestartSec=15
+KillSignal=SIGTERM
+TimeoutStopSec=60
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

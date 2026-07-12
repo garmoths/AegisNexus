@@ -1,0 +1,20 @@
+[Unit]
+Description=AegisNexus Daily Phishing Feed Fetch
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+WorkingDirectory=/var/www/aegis_nexus
+EnvironmentFile=-/var/www/aegis_nexus/.env
+Environment=PROJECT_DIR=/var/www/aegis_nexus
+ExecStart=/var/www/aegis_nexus/scripts/fetch_phishing_daily.sh
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=false
+ReadWritePaths=/var/www/aegis_nexus/logs /tmp

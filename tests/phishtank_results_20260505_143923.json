@@ -1,0 +1,77 @@
+{
+  "timestamp": "2026-05-05T14:39:23.330011",
+  "results": [
+    {
+      "url": "https://assu-carsat-cnav.com/",
+      "combined_risk_probability": 0.0,
+      "pre_boost_probability": 0.0,
+      "risk_level": "ERROR",
+      "legacy_penalty": 0,
+      "boost_rules": [],
+      "event_sources": []
+    },
+    {
+      "url": "https://assu-carsat-cnav.com/captcha.php",
+      "combined_risk_probability": 0.0,
+      "pre_boost_probability": 0.0,
+      "risk_level": "ERROR",
+      "legacy_penalty": 0,
+      "boost_rules": [],
+      "event_sources": []
+    },
+    {
+      "url": "https://legacynewcz.weebly.com/",
+      "combined_risk_probability": 0.0,
+      "pre_boost_probability": 0.0,
+      "risk_level": "ERROR",
+      "legacy_penalty": 0,
+      "boost_rules": [],
+      "event_sources": []
+    },
+    {
+      "url": "https://assu-carsat-retraite.com/",
+      "combined_risk_probability": 0.0,
+      "pre_boost_probability": 0.0,
+      "risk_level": "ERROR",
+      "legacy_penalty": 0,
+      "boost_rules": [],
+      "event_sources": []
+    },
+    {
+      "url": "https://assu-carsat-retraite.com/captcha.php",
+      "combined_risk_probability": 0.0,
+      "pre_boost_probability": 0.0,
+      "risk_level": "ERROR",
+      "legacy_penalty": 0,
+      "boost_rules": [],
+      "event_sources": []
+    },
+    {
+      "url": "https://assu-retraite.com/",
+      "combined_risk_probability": 0.0,
+      "pre_boost_probability": 0.0,
+      "risk_level": "ERROR",
+      "legacy_penalty": 0,
+      "boost_rules": [],
+      "event_sources": []
+    },
+    {
+      "url": "https://assu-retraite.com/captcha.php",
+      "combined_risk_probability": 0.0,
+      "pre_boost_probability": 0.0,
+      "risk_level": "ERROR",
+      "legacy_penalty": 0,
+      "boost_rules": [],
+      "event_sources": []
+    },
+    {
+      "url": "https://matvibresz.com/",
+      "combined_risk_probability": 0.0,
+      "pre_boost_probability": 0.0,
+      "risk_level": "ERROR",
+      "legacy_penalty": 0,
+      "boost_rules": [],
+      "event_sources": []
+    }
+  ]
+}

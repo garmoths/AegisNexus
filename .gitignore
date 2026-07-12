@@ -1,0 +1,63 @@
+# ── Python ──────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+build/
+.eggs/
+venv/
+.venv/
+.pytest_cache/
+
+# ── Node ────────────────────────────────────────────────────────
+node_modules/
+frontend-react/dist/
+
+# ── Secrets / Çevre ─────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+.secrets.baseline
+
+# ── Çalışma-zamanı veri/cache dosyaları ──────────────────────────
+*.db
+*.db-journal
+*.sqlite
+*.sqlite-journal
+data/
+threat_intel_cache.db
+celerybeat-schedule
+celerybeat-schedule.*
+*.log
+*.log.*
+
+# ── Docker ──────────────────────────────────────────────────────
+docker-compose.override.yml
+
+# ── IDE / OS ────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ── Kişisel / lokal ─────────────────────────────────────────────
+.continue/
+.windsurf/
+.windsurfrules
+dockerkaldırma.md
+AegisNexus_Backups/
+Users/
+
+# ── Pre-commit / secrets scan ──────────────────────────────────
+.pre-commit-config.yaml
+.secrets.baseline
+
+# ── Binary arşivler / geçici ────────────────────────────────────
+*.tar.gz
+*.zip
+*.dump
+*.sql.bak

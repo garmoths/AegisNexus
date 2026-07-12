@@ -1,0 +1,35 @@
+# AegisNexus — Phishing Detector Celery Worker
+# Kopyalanacak yer: /etc/systemd/system/aegisnexus-celery.service
+#
+# Kurulum:
+#   sudo cp /var/www/aegis_nexus/deploy/systemd/aegisnexus-celery.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable aegisnexus-celery
+#   sudo systemctl start aegisnexus-celery
+
+[Unit]
+Description=AegisNexus Phishing Detector Celery Worker
+After=network.target redis.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/var/www/aegis_nexus
+EnvironmentFile=/var/www/aegis_nexus/.env
+ExecStart=/var/www/aegis_nexus/venv/bin/celery \
+    -A modules.phishing_detector.celery_tasks.app worker \
+    -Q phishing \
+    -c 1 \
+    -P solo \
+    --loglevel=info \
+    --logfile=/var/log/aegis_celery.log
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

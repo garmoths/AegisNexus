@@ -1,0 +1,76 @@
+services:
+  # ── Message Broker ──────────────────────────────────────────────
+  # Postgres + Redis kaldırıldı → SQLite (./data/aegis.db) + in-memory cache.
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: aegis
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-changeme}
+      RABBITMQ_DEFAULT_VHOST: aegis
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"   # RabbitMQ Management UI → http://localhost:15672
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  # ── FastAPI Backend ─────────────────────────────────────────────
+  # Tüm servisler aynı image'ı kullanır → tek build.
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: aegisnexus:latest   # ← Shared image tag (celery de bunu kullanır)
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: sqlite:///./data/aegis.db
+      RABBITMQ_URL: amqp://aegis:${RABBITMQ_PASSWORD:-changeme}@rabbitmq:5672/aegis
+      CELERY_WORKER_TYPE: default   # api Playwright başlatmasın
+    ports:
+      - "8000:8000"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - ./data:/app/data
+      - ./frontend-react/dist:/app/frontend-react/dist:ro
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v2/phishing/stats"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ── Celery (tek worker + beat embedded) ─────────────────────────
+  # queued: default (IOC/Atlas periyodik) + phishing (on-demand ağır analiz)
+  # solo pool: Playwright thread safety. -B: beat embed (kişisel proje).
+  celery:
+    image: aegisnexus:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: sqlite:///./data/aegis.db
+      RABBITMQ_URL: amqp://aegis:${RABBITMQ_PASSWORD:-changeme}@rabbitmq:5672/aegis
+      CELERY_WORKER_TYPE: phishing   # Playwright pool bu worker'da preload
+    depends_on:
+      api:
+        condition: service_healthy
+    volumes:
+      - ./data:/app/data
+    command: >
+      celery -A app.celery_app:celery_app worker
+      -B -Q default,phishing -P solo -c 1 --loglevel=info
+      --schedule=/tmp/celerybeat-schedule
+      -n aegis@%%h
+
+volumes:
+  rabbitmq_data:

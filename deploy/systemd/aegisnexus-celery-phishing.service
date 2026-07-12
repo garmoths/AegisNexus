@@ -1,0 +1,38 @@
+# AegisNexus — Celery Phishing Worker
+# /etc/systemd/system/aegisnexus-celery-phishing.service
+#
+# Playwright gerektiren ağır URL analizi görevleri (solo pool, tek process).
+#
+# Kurulum:
+#   sudo cp deploy/systemd/aegisnexus-celery-phishing.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now aegisnexus-celery-phishing
+
+[Unit]
+Description=AegisNexus Celery Worker — Phishing Queue (Playwright solo)
+After=network.target rabbitmq-server.service
+Wants=rabbitmq-server.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/var/www/aegis_nexus
+EnvironmentFile=/var/www/aegis_nexus/.env
+Environment=CELERY_WORKER_TYPE=phishing
+ExecStart=/var/www/aegis_nexus/venv/bin/celery \
+    -A app.celery_app:celery_app worker \
+    -Q phishing \
+    -P solo \
+    -c 1 \
+    -n phishing@%%h \
+    --loglevel=info \
+    --logfile=/var/log/aegis_celery_phishing.log
+Restart=on-failure
+RestartSec=15
+KillSignal=SIGTERM
+TimeoutStopSec=60
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
