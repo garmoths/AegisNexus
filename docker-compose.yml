@@ -42,7 +42,7 @@ services:
       - ./frontend-react/dist:/app/frontend-react/dist:ro
     command: >
       sh -c "alembic upgrade head &&
-             uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2"
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/v2/phishing/stats"]
       interval: 30s
