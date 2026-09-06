@@ -672,80 +672,22 @@ def analyze_hacker_psychology(
 @router.get("/catcher-stats")
 def get_catcher_statistics():
     """
-    Telegram'dan toplanan breach istatistikleri
+    Telegram'dan toplanan breach istatistikleri (henüz aktif değil)
     """
-    try:
-        from catcher import get_statistics
-        stats = get_statistics()
-        return {
-            "status": "success",
-            "catcher_data": stats,
-            "module": "03_breach_intel_catcher",
-            "info": "Telegram kanallarından otomatik olarak toplanan verilerin özeti"
-        }
-    except ImportError:
-        return {
-            "status": "error",
-            "message": "Catcher henüz aktif değil",
-            "module": "03_breach_intel_catcher"
-        }
+    return {
+        "status": "not_implemented",
+        "message": "Telegram Breach Catcher modülü henüz bu sürümde aktif değil.",
+        "module": "03_breach_intel_catcher",
+    }
 
 
 @router.get("/catcher-breaches")
 def get_catcher_breaches(domain: str = None, limit: int = 50):
     """
-    Telegram'dan toplanan breach'leri listele
-    
-    Query params:
-    - domain: ".türkiye", ".edu" gibi domain filter
-    - limit: Maksimum sonuç sayısı
+    Telegram'dan toplanan breach'ler (henüz aktif değil)
     """
-    try:
-        from catcher import TelegramBreachCatcher
-        from sqlalchemy import create_engine
-        from sqlalchemy.orm import sessionmaker
-        import os
-        
-        db_url = os.getenv("DATABASE_URL")
-        engine = create_engine(db_url)
-        SessionLocal = sessionmaker(bind=engine)
-        db = SessionLocal()
-        
-        from catcher import TelegramBreach
-        query = db.query(TelegramBreach)
-        
-        if domain:
-            query = query.filter(TelegramBreach.domain.ilike(f"%{domain}%"))
-        
-        breaches = query.order_by(TelegramBreach.created_at.desc()).limit(limit).all()
-        
-        results = []
-        for b in breaches:
-            results.append({
-                "id": b.id,
-                "company": b.company_name,
-                "domain": b.domain,
-                "records": b.email_count,
-                "emails_found": len(b.extracted_emails or []),
-                "data_types": b.data_types,
-                "risk_score": b.risk_score,
-                "source_channel": b.source_channel,
-                "discovered": b.discovered_date.isoformat() if b.discovered_date else None,
-                "link": b.message_link
-            })
-        
-        db.close()
-        
-        return {
-            "status": "success",
-            "breaches": results,
-            "total": len(results),
-            "module": "03_breach_intel_catcher"
-        }
-    except Exception as e:
-        logger.error(f"Catcher breaches hatası: {e}")
-        return {
-            "status": "error",
-            "message": str(e),
-            "module": "03_breach_intel_catcher"
-        }
+    return {
+        "status": "not_implemented",
+        "message": "Telegram Breach Catcher modülü henüz bu sürümde aktif değil.",
+        "module": "03_breach_intel_catcher",
+    }

@@ -56,8 +56,12 @@ Users/
 .pre-commit-config.yaml
 .secrets.baseline
 
-# ── Binary arşivler / geçici ────────────────────────────────────
+# ── Binary arşivler / geçici ────────────────────────────────────────────────
 *.tar.gz
 *.zip
 *.dump
 *.sql.bak
+backup*.sql*
+*.part.*
+*.sql.gz*
+hibp_cache.db

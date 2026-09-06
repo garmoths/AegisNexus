@@ -42,7 +42,7 @@ logger = logging.getLogger("aegis")
 async def lifespan(_app: FastAPI):
     try:
         Base.metadata.create_all(bind=engine)
-        logger.info("Aegis Nexus - 5 Katmanlı Güvenlik Kalkanı hazır")
+        logger.info("Aegis Nexus - 8 Modüllü Güvenlik Platformu hazır")
     except Exception as e:
         logger.warning("Veritabanı tabloları oluşturulamadı (devam ediliyor): %s", e)
 
@@ -76,17 +76,20 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(
-    title="Aegis Nexus - 5 Katmanlı Güvenlik Kalkanı",
-    description="""
-    Bireylerin ve KOBİ'lerin dijital dünyadaki tehlikelere karşı 
-    'reaktif' değil 'proaktif' korunmasını sağlayan yapay zeka ve istihbarat kalkanı.
-    
-    5 Modül:
-    01. Phishing Detector - Tehdit veritabanı, URL tarama ve SSL/domain analizi
-    02. Honeypot (IP Avcısı) - Dolandırıcıları tersine mühendislik ile avlama
-    03. Breach Intel (Veri Radarı) - Deep Web sızıntı takibi
-    04. Password Shield (Kriptografik Kalkan) - Yüz yıllar süren şifreler
-    05. Threat Responder (Tehdit Yanıtlayıcı) - IOC'leri operatörlere uyarı
+    title="Aegis Nexus — Modüler Siber Güvenlik Platformu",
+    description="""\
+    Bireylerin dijital tehlikelere karşı proaktif korunmasını sağlayan
+    yapay zeka ve istihbarat destekli güvenlik platformu.
+
+    8 Modül:
+    01. Phishing Detector  — URL tarama, tehdit veritabanı, SSL/domain analizi
+    02. Honeypot (IP Avcısı) — Dolandırıcıları tersine mühendislik ile avlama
+    03. Breach Intel        — Veri sızıntısı istihbaratı (bakımda)
+    04. Password Shield     — Kriptografik güçlü şifre üretimi
+    05. AI Analyzer         — Yapay zeka destekli güvenlik asistanı
+    06. Victim Atlas        — Siber mağduriyet vakalarının analizi
+    07. SMS Guard           — Türkçe SMS smishing/phishing tespiti
+    08. Risk Dashboard      — Birleşik dijital risk skoru
     """,
     lifespan=lifespan,
     version="2.0.0",
@@ -121,7 +124,7 @@ if REACT_BUILD_DIR.exists():
 else:
     logger.warning("React build klasörü yok: %s", REACT_BUILD_DIR)
 
-# 6 Modüler Router
+# 8 Modüler Router
 app.include_router(phishing_detector_router, prefix="/api/v2/phishing")
 app.include_router(honeypot_router, prefix="/api/v2/honeypot")
 app.include_router(honeypot_ioc_router, prefix="/api/v2/ioc")
