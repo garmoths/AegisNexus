@@ -81,7 +81,7 @@ function PhishingResult({ result, url }) {
                   const techNote=techMatch?techMatch[2]:null
                   return (
                     <motion.div key={i} initial={{opacity:0,x:-10}} animate={{opacity:1,x:0}} transition={{delay:0.08+i*0.03,duration:0.28}}
-                      style={{padding:'9px 12px',background:isDanger?'rgba(255,0,64,0.08)':isWarn?'rgba(255,193,7,0.06)':isSafe?'rgba(34,197,94,0.05)':theme.primaryDim,borderRadius:8,borderLeft:isDanger?`3px solid ${theme.accent}`:isWarn?`3px solid ${theme.warning}`:isSafe?`3px solid ${theme.success}`:`3px solid ${theme.primary}`,display:'flex',alignItems:'flex-start',gap:9}}
+                      style={{padding:'9px 12px',background:isDanger?'rgba(255,0,64,0.08)':isWarn?'rgba(255,193,7,0.06)':isSafe?'rgba(34,197,94,0.05)':theme.primaryDim,borderRadius:8,border:`1px solid ${isDanger?theme.accent+'33':isWarn?theme.warning+'2e':isSafe?theme.success+'26':theme.border}`,display:'flex',alignItems:'flex-start',gap:9}}
                     >
                       <span style={{flexShrink:0,marginTop:2}}><DetailIcon size={13} color={iconColor}/></span>
                       <span style={{flex:1,minWidth:0}}>
@@ -136,7 +136,7 @@ function PhishingResult({ result, url }) {
             const t=ind.type||'visual'
             const IcComp=t==='url'?IkLink2:t==='domain'?IkGlobe2:t==='ip'?IkMonitor:IkScope
             return (
-              <motion.div key={j} initial={{opacity:0,x:-10}} animate={{opacity:1,x:0}} transition={{delay:0.3+j*0.04,duration:0.25}} style={{padding:'12px 16px',background:'rgba(239,68,68,0.06)',border:`1px solid ${theme.accent}30`,borderRadius:theme.radius.md,borderLeft:`3px solid ${theme.accent}`}}>
+              <motion.div key={j} initial={{opacity:0,x:-10}} animate={{opacity:1,x:0}} transition={{delay:0.3+j*0.04,duration:0.25}} style={{padding:'12px 16px',background:'rgba(239,68,68,0.06)',border:`1px solid ${theme.accent}30`,borderRadius:theme.radius.md}}>
                 <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6}}>
                   <IcComp size={14} color={theme.accent}/>
                   <span style={{fontSize:12,fontWeight:600,color:theme.accent}}>{t}</span>
@@ -159,7 +159,7 @@ function PhishingResult({ result, url }) {
             const isFail=typeof s.status==='string'&&(s.status.includes('Başarısız')||s.status.includes('timeout')||s.status.includes('error'))
             const isOk=typeof s.status==='string'&&(s.status.includes('CLEAN')||s.status.includes('SAFE')||s.status.includes('Tamamlandı')||s.status.includes('Ulaşılabilir')||s.status.includes('temiz'))
             return (
-              <motion.div key={i} initial={{opacity:0,x:-10}} animate={{opacity:1,x:0}} transition={{delay:0.3+i*0.03,duration:0.25}} style={{padding:'10px 16px',background:isFail?'rgba(255,0,64,0.06)':isOk?'rgba(34,197,94,0.04)':'rgba(255,255,255,0.03)',borderRadius:10,fontSize:13,display:'flex',gap:10,alignItems:'center',borderLeft:isFail?`3px solid ${theme.accent}`:isOk?`3px solid ${theme.success}`:`3px solid ${theme.border}`}}>
+              <motion.div key={i} initial={{opacity:0,x:-10}} animate={{opacity:1,x:0}} transition={{delay:0.3+i*0.03,duration:0.25}} style={{padding:'10px 16px',background:isFail?'rgba(255,0,64,0.06)':isOk?'rgba(34,197,94,0.04)':'rgba(255,255,255,0.03)',borderRadius:10,fontSize:13,display:'flex',gap:10,alignItems:'center',border:`1px solid ${isFail?theme.accent+'33':isOk?theme.success+'26':theme.border}`}}>
                 <span style={{color:theme.textMuted}}>Kaynak:</span>
                 <span style={{color:'#fff',fontWeight:600}}>{s.name}</span>
                 <span style={{marginLeft:'auto',color:isFail?theme.danger:isOk?theme.success:theme.textMuted,fontSize:12}}>{s.status}</span>

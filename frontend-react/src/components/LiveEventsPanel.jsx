@@ -67,9 +67,8 @@ export default function LiveEventsPanel({ className, onJump }) {
                   <button
                     type="button"
                     onClick={() => onJump?.(e.module, e)}
-                    className="group press relative w-full overflow-hidden rounded-lg border border-transparent p-2.5 pl-3.5 text-left transition-colors hover:border-border hover:bg-muted/50"
+                    className="group press relative w-full overflow-hidden rounded-lg border border-transparent p-2.5 text-left transition-colors hover:border-border hover:bg-muted/50"
                   >
-                    <span className={cn('absolute inset-y-2 left-0 w-[2px] rounded-full', severityDot[e.severity] || severityDot.info)} />
                     <div className="flex items-center gap-2">
                       <span className={cn('size-2 shrink-0 rounded-full', severityDot[e.severity] || severityDot.info)} />
                       <Badge variant={severityVariant[e.severity] || 'muted'} className="px-1.5 py-0 text-[10px]">{meta.short}</Badge>

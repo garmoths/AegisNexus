@@ -68,8 +68,7 @@ function Toast({ message, type='success', visible }) {
           transition={{ type:'spring', stiffness:460, damping:34 }}
           className="panel"
           style={{ position:'fixed', bottom:24, right:24, zIndex:9999, padding:'12px 16px 12px 14px', color:theme.text, fontWeight:500, fontSize:14,
-            boxShadow:'0 24px 60px -24px rgba(0,0,0,0.9)', display:'flex', alignItems:'center', gap:10, maxWidth:420,
-            borderLeft:`2px solid ${ok ? theme.success : theme.danger}` }}>
+            boxShadow:'0 24px 60px -24px rgba(0,0,0,0.9)', display:'flex', alignItems:'center', gap:10, maxWidth:420 }}>
           {ok?<CheckCircle size={16} color={theme.success}/>:<XCircle size={16} color={theme.danger}/>}{message}
         </motion.div>
       )}
