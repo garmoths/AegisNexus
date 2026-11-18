@@ -135,3 +135,23 @@ def test_stix_bundle_filter_by_threat_type():
     export_stix_bundle(threat_type="phishing", min_risk_score=50, db=mock_db)
     # Verify filter was called twice (status + risk_score, then threat_type)
     assert mock_db.query.called
+
+
+def test_stix_pattern_escapes_quotes_and_backslashes():
+    from modules.honeypot.ioc_api import _ioc_to_stix_indicator
+    obj = _ioc_to_stix_indicator(_make_ioc(ioc_type="url", ioc_value="http://evil.example/a'b\\c"))
+    assert obj["pattern"] == "[url:value = 'http://evil.example/a\\'b\\\\c']"
+
+
+def test_stix_bundle_identity_is_valid_and_referenced():
+    import re
+    import uuid as _uuid
+
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+    bundle = TestClient(app).get("/api/v2/ioc/export/stix").json()
+    identity = bundle["objects"][0]
+    assert identity["type"] == "identity"
+    assert re.fullmatch(r"identity--[0-9a-f-]{36}", identity["id"]) and _uuid.UUID(identity["id"].split("--")[1])
+    assert all(o.get("created_by_ref") == identity["id"] for o in bundle["objects"][1:])

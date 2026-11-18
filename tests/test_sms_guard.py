@@ -11,7 +11,7 @@ def _mock_db_no_hit():
 
 
 def _analyze(text, sender=None, db=None):
-    from modules.sms_guard.router import _analyze_sms
+    from modules.sms_guard.service import _analyze_sms
     return _analyze_sms(text, sender, db or _mock_db_no_hit())
 
 

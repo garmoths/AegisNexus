@@ -1,30 +1,29 @@
-"""
-AI Analyzer API Router
-07 - AI Security Assistant Endpoints
-"""
-import re
-from datetime import UTC
-from typing import Literal
+"""AI analyzer endpoints (``/api/v2/ai-analyzer``).
 
-from fastapi import APIRouter, Body, Depends, HTTPException
+Message/e-mail analysis with the hybrid detector, URL checks and the caller's
+private URL-analysis history. Logic lives in :mod:`modules.ai_analyzer.service`.
+"""
+from __future__ import annotations
+
+from typing import Any, Literal
+
+from fastapi import APIRouter, Body, Depends, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.auth import resolve_api_key, resolve_optional_api_key
-from app.models import APIKey, URLAnalizHistory
+from app.models import APIKey
 from shared.utils.db import get_db
 
-from .advanced_phishing_detector import detect_phishing
-from .email_parser import parse_email
+from . import service
 from .engine import AIAnalyzerEngine
 from .llm_client import llm_client
+from .url_checker import URLSecurityChecker
 
-router = APIRouter(
-    tags=["07-ai-analyzer"],
-    responses={404: {"description": "Not found"}}
-)
+router = APIRouter(tags=["ai-analyzer"])
+MODULE = service.MODULE
 
-# Request/Response Models
+
 class MessageAnalysisRequest(BaseModel):
     message: str = Field(..., description="Analiz edilecek mesaj/metin", min_length=10, max_length=20000)
     message_type: Literal["text", "email"] = Field("text", description="Mesaj tipi: text veya email")
@@ -51,259 +50,68 @@ class AnalysisResponse(BaseModel):
     parsed_email: dict | None = None
     email_signals: dict | None = None
 
-# Initialize engine
-def get_analyzer(db: Session = Depends(get_db)):
+
+
+class ExtractedURLs(BaseModel):
+    status: Literal['success'] = 'success'
+    urls_found: int
+    urls: list[str]
+    module: str = MODULE
+
+
+class HistoryRow(BaseModel):
+    id: int
+    url: str
+    domain: str
+    risk_level: str
+    is_phishing: bool | None
+    confidence: float | None
+    created_at: str | None
+
+
+class HistoryPage(BaseModel):
+    data: list[HistoryRow]
+    total: int
+    module: str = MODULE
+
+
+def get_analyzer(db: Session = Depends(get_db)) -> AIAnalyzerEngine:
     return AIAnalyzerEngine(db)
 
-@router.post("/analyze", response_model=AnalysisResponse)
-def analyze_message(
-    request: MessageAnalysisRequest,
-    analyzer: AIAnalyzerEngine = Depends(get_analyzer),
-    api_key: APIKey | None = Depends(resolve_optional_api_key),
-):
+
+@router.post("/analyze", response_model=AnalysisResponse, summary="Hybrid phishing / scam analysis of a message")
+def analyze_message(request: MessageAnalysisRequest, analyzer: AIAnalyzerEngine = Depends(get_analyzer),
+                    db: Session = Depends(get_db), api_key: APIKey | None = Depends(resolve_optional_api_key)):
     """
-    🔍 **Tam AI Analizi** (Advanced Hybrid Algorithm)
+    Three-part hybrid score: URL module (40%: DB similarity, SSL), text + emotion
+    module (35%: LLM, urgency, VAD) and a reliability term (25%):
 
-    3 modüllü hibrit skorlama sistemi ile phishing tespiti:
-    - URL Modülü (40%): DB benzerlik + SSL kontrol
-    - Metin+Duygu Modülü (35%): Groq LLM + aciliyet + VAD duygu analizi
-    - Güvenilirlik Skoru (25%): Veri kalitesi değerlendirmesi
+    `S* = Amplify(C × (0.4·s_url + 0.35·s_text) + (1−C)·0.5)`
 
-    **Matematiksel Formül:**
-    S* = Amplify(C × (0.4×s_url + 0.35×s_text) + (1-C)×0.5)
-
-    **Kullanım:**
-    ```json
-    {
-      "message": "Banka hesabınız askıya alındı! Hemen tıklayın...",
-      "context": "email",
-      "sender": "fake-banka@example.com",
-      "subject": "Acil: Hesap Durumu"
-    }
-    ```
+    `message_type: "email"` parses headers, links and attachments from a raw e-mail first.
     """
-    import logging
-    logger = logging.getLogger(__name__)
+    return service.analyze_with_fallback(analyzer, message=request.message, message_type=request.message_type,
+                                         context=request.context, sender=request.sender, subject=request.subject)
 
-    try:
-        logger.info("Analyzing message (%d characters, type=%s)", len(request.message), request.message_type)
 
-        analysis_mode = request.message_type
-        parsed_email = None
-        analysis_message = request.message
-        email_signals = None
+@router.post("/quick-scan", summary="Fast rule-based scan")
+def quick_scan(request: QuickScanRequest, analyzer: AIAnalyzerEngine = Depends(get_analyzer)) -> dict[str, Any]:
+    return {"status": "success", "scan_result": analyzer.quick_scan(request.message), "module": MODULE}
 
-        if request.message_type == "email":
-            parsed_email = parse_email(request.message)
-            analysis_message = parsed_email.body_text or request.message
-            email_signals = parsed_email.email_signals
 
-        analyzer.url_checker.user_id = api_key.user_id if api_key else None
-        # Extract URL from message if any
-        url = None
-        urls = re.findall(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', analysis_message)
-        if urls:
-            url = urls[0]
+@router.post("/check-url", summary="Local URL heuristics and phishing-DB lookup")
+def check_url_security(request: URLCheckRequest, db: Session = Depends(get_db),
+                       api_key: APIKey | None = Depends(resolve_optional_api_key)) -> dict[str, Any]:
+    result = URLSecurityChecker(db).check_url(request.url)
+    service.record_url_analysis(db, api_key, result)
+    return {"status": "success", "url_check": result, "module": MODULE}
 
-        # Use new advanced detector (PRIMARY)
-        advanced_result = detect_phishing(analysis_message, url, email_signals=email_signals)
 
-        # Get legacy analyzer data for additional context (but NOT for score)
-        legacy_result = analyzer.analyze_message(
-            message=analysis_message,
-            context=request.context or request.message_type,
-            sender=(parsed_email.display_name or parsed_email.from_address) if parsed_email else request.sender,
-            subject=parsed_email.subject if parsed_email else request.subject
-        )
+@router.post("/extract-urls", response_model=ExtractedURLs, summary="Find URLs in text")
+def extract_urls_from_text(text: str = Body(..., embed=True, max_length=200_000)):
+    urls = URLSecurityChecker().extract_urls(text)
+    return ExtractedURLs(urls_found=len(urls), urls=urls)
 
-        # Use NEW algorithm's score directly (no override)
-        final_score = advanced_result["score"] * 100  # Scale 0-100
-        final_verdict = advanced_result["verdict"]
-        final_confidence = advanced_result["confidence"]  # Already 0-1 range
-        verdict_risk_level = {
-            "PHİSHİNG": "critical",
-            "ŞÜPHELİ": "high",
-            "DÜŞÜK RİSK": "medium",
-            "TEMİZ": "low",
-        }.get(final_verdict, "medium")
-
-        # Update legacy result with new algorithm's scores
-        legacy_result["security_assessment"]["risk_level"] = verdict_risk_level
-        legacy_result["security_assessment"]["score"] = round(final_score, 2)
-
-        # Fix: is_phishing should be based on new algorithm's verdict
-        is_phishing = final_verdict == "PHİSHİNG"
-        legacy_result["security_assessment"]["is_phishing"] = is_phishing
-        legacy_result["security_assessment"]["is_scam"] = is_phishing
-
-        # Fix: Use new algorithm's confidence (0-1 range)
-        legacy_result["security_assessment"]["confidence"] = round(final_confidence, 2)
-
-        # Fix: Override safety_status based on new verdict
-        if final_verdict == "PHİSHİNG":
-            legacy_result["security_assessment"]["safety_status"] = "TEHLİKELİ"
-            legacy_result["security_assessment"]["action_required"] = "ACİL"
-            legacy_result["security_assessment"]["threat_level"] = "critical"
-        elif final_verdict == "ŞÜPHELİ":
-            legacy_result["security_assessment"]["safety_status"] = "ŞÜPHELİ"
-            legacy_result["security_assessment"]["action_required"] = "DİKKAT"
-            legacy_result["security_assessment"]["threat_level"] = "high"
-        elif final_verdict == "DÜŞÜK RİSK":
-            legacy_result["security_assessment"]["safety_status"] = "ŞÜPHELİ"
-            legacy_result["security_assessment"]["action_required"] = "DİKKAT"
-            legacy_result["security_assessment"]["threat_level"] = "medium"
-        else:  # TEMİZ
-            legacy_result["security_assessment"]["safety_status"] = "GÜVENLİ"
-            legacy_result["security_assessment"]["action_required"] = "YOK"
-            legacy_result["security_assessment"]["threat_level"] = "low"
-
-        legacy_result["detailed_analysis"]["advanced_breakdown"] = advanced_result["breakdown"]
-        legacy_result["detailed_analysis"]["hard_override"] = advanced_result["hard_override"]
-        legacy_result["detailed_analysis"]["matched_categories"] = advanced_result.get("matched_categories", [])
-        legacy_result["detailed_analysis"]["signal_evidence"] = advanced_result.get("evidence", [])
-
-        if parsed_email:
-            parsed_email_payload = {
-                "from_address": parsed_email.from_address,
-                "from_domain": parsed_email.from_domain,
-                "display_name": parsed_email.display_name,
-                "to": parsed_email.to,
-                "reply_to": parsed_email.reply_to,
-                "cc": parsed_email.cc,
-                "subject": parsed_email.subject,
-                "date": parsed_email.date,
-                "urls": parsed_email.urls,
-                "attachments": parsed_email.attachments,
-                "email_signals": parsed_email.email_signals,
-                "email_evidence": parsed_email.email_evidence,
-            }
-            legacy_result["parsed_email"] = parsed_email_payload
-            legacy_result["detailed_analysis"]["parsed_email"] = parsed_email_payload
-            legacy_result["email_signals"] = parsed_email.email_signals
-            legacy_result["detailed_analysis"]["email_signals"] = parsed_email.email_signals
-
-        combined_evidence = list(advanced_result.get("evidence", []))
-        if parsed_email:
-            combined_evidence.extend(parsed_email.email_evidence)
-        legacy_result["evidence"] = combined_evidence
-        legacy_result["matched_categories"] = advanced_result.get("matched_categories", [])
-        legacy_result["analysis_mode"] = analysis_mode
-
-        # Clear old ML analysis data that conflicts with new algorithm
-        legacy_result["detailed_analysis"]["ai_analysis"]["is_phishing"] = is_phishing
-        legacy_result["detailed_analysis"]["ai_analysis"]["is_scam"] = is_phishing
-        legacy_result["detailed_analysis"]["ai_analysis"]["threat_level"] = legacy_result["security_assessment"]["threat_level"]
-        legacy_result["detailed_analysis"]["ai_analysis"]["confidence_score"] = int(round(final_confidence * 100))
-        legacy_result["detailed_analysis"]["ai_analysis"]["analysis_method"] = "groq_hybrid"
-
-        legacy_result["summary"] = f"[{final_verdict}] {advanced_result['reason']} (Skor: {advanced_result['score']:.2f}, Güven: {advanced_result['confidence']:.2f})"
-
-        # Event Bus: URL phishing ise Phishing Detector'a bildir
-        if is_phishing and url:
-            try:
-                from datetime import datetime
-
-                from modules.shared.events import publish
-                publish("url.phishing_confirmed", {
-                    "url": url,
-                    "score": round(final_score, 2),
-                    "source": "ai_analyzer",
-                    "created_at": datetime.now(UTC).isoformat(),
-                }, durable=True)
-            except Exception as _ev_err:
-                logger.warning(f"Event publish failed (non-critical): {_ev_err}")
-
-        logger.info(f"Advanced analysis completed: {final_verdict} (score: {final_score:.1f})")
-        return legacy_result
-    except Exception as e:
-        logger.error(f"Analysis error: {str(e)}", exc_info=True)
-        # Fallback to legacy analyzer only if new one fails completely
-        try:
-            result = analyzer.analyze_message(
-                message=request.message,
-                context=request.context,
-                sender=request.sender,
-                subject=request.subject
-            )
-            # Remove hardcoded 75 override in fallback too
-            return result
-        except Exception as fallback_error:
-            logger.error("Fallback analysis failed", exc_info=True)
-            raise HTTPException(status_code=500, detail="Analiz sırasında bir hata oluştu.") from fallback_error
-
-@router.post("/quick-scan")
-def quick_scan(
-    request: QuickScanRequest,
-    analyzer: AIAnalyzerEngine = Depends(get_analyzer)
-):
-    """
-    ⚡ **Hızlı Tarama**
-
-    Saniyeler içinde kritik riskleri tespit eder.
-
-    **Dönüş:**
-    - `is_safe`: true/false
-    - `threat_level`: low/medium/high/critical
-    - `malicious_urls`: [şüpheli URL'ler]
-    """
-    try:
-        result = analyzer.quick_scan(request.message)
-        return {
-            "status": "success",
-            "scan_result": result,
-            "module": "07_ai_analyzer"
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Tarama hatası: {str(e)}") from e
-
-@router.post("/check-url")
-def check_url_security(
-    request: URLCheckRequest,
-    db: Session = Depends(get_db)
-):
-    """
-    🔗 **URL Güvenlik Kontrolü**
-
-    URL'nin güvenliğini kontrol eder:
-    - Phishing veritabanında ara
-    - TLD kontrolü
-    - IP tabanlı URL kontrolü
-    """
-    from .url_checker import URLSecurityChecker
-
-    try:
-        checker = URLSecurityChecker(db)
-        result = checker.check_url(request.url)
-        return {
-            "status": "success",
-            "url_check": result,
-            "module": "07_ai_analyzer"
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"URL kontrol hatası: {str(e)}") from e
-
-@router.post("/extract-urls")
-def extract_urls_from_text(
-    text: str = Body(..., embed=True)
-):
-    """
-    🔍 **Metinden URL Çıkar**
-
-    Metin içindeki tüm URL'leri bulur ve listeler.
-    """
-    from .url_checker import URLSecurityChecker
-
-    try:
-        checker = URLSecurityChecker()
-        urls = checker.extract_urls(text)
-        return {
-            "status": "success",
-            "urls_found": len(urls),
-            "urls": urls,
-            "module": "07_ai_analyzer"
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"URL çıkarma hatası: {str(e)}") from e
 
 @router.get("/health")
 def health_check():
@@ -360,72 +168,14 @@ def get_analysis_examples():
     }
 
 
-@router.get("/history")
-async def get_analiz_history(
-    limit: int = 10,
-    db: Session = Depends(get_db),
-    api_key: APIKey = Depends(resolve_api_key),
-):
-    """
-    Son URL analizlerini getir.
-    """
-    try:
-        history = db.query(URLAnalizHistory).filter(URLAnalizHistory.user_id == api_key.user_id).order_by(
-            URLAnalizHistory.created_at.desc()
-        ).limit(limit).all()
 
-        return {
-            "data": [
-                {
-                    "id": h.id,
-                    "url": h.url,
-                    "domain": h.domain,
-                    "risk_level": h.risk_level,
-                    "is_phishing": h.is_phishing,
-                    "confidence": h.confidence,
-                    "created_at": h.created_at.isoformat() if h.created_at else None
-                }
-                for h in history
-            ],
-            "total": len(history),
-            "module": "07_ai_analyzer"
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
+@router.get("/history", response_model=HistoryPage, summary="Your URL analysis history")
+def get_analiz_history(limit: int = Query(10, ge=1, le=100), db: Session = Depends(get_db),
+                       api_key: APIKey = Depends(resolve_api_key)):
+    return service.history(db, api_key, limit)
 
 
-@router.get("/history/{history_id}")
-async def get_analiz_detail(
-    history_id: int,
-    db: Session = Depends(get_db),
-    api_key: APIKey = Depends(resolve_api_key),
-):
-    """
-    Analiz detaylarını getir.
-    """
-    try:
-        history = db.query(URLAnalizHistory).filter(
-            URLAnalizHistory.id == history_id,
-            URLAnalizHistory.user_id == api_key.user_id,
-        ).first()
-
-        if not history:
-            raise HTTPException(status_code=404, detail="Analiz bulunamadı")
-
-        return {
-            "id": history.id,
-            "url": history.url,
-            "domain": history.domain,
-            "risk_level": history.risk_level,
-            "is_phishing": history.is_phishing,
-            "confidence": history.confidence,
-            "analysis_result": history.analysis_result,
-            "llm_analysis": history.llm_analysis,
-            "url_checks": history.url_checks,
-            "created_at": history.created_at.isoformat() if history.created_at else None,
-            "module": "07_ai_analyzer"
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
+@router.get("/history/{history_id}", summary="One URL analysis from your history")
+def get_analiz_detail(history_id: int, db: Session = Depends(get_db),
+                      api_key: APIKey = Depends(resolve_api_key)) -> dict[str, Any]:
+    return service.history_detail(db, api_key, history_id)

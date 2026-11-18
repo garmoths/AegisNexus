@@ -198,11 +198,11 @@ def ioc_statistics(db: Session) -> dict[str, Any]:
     }
 
 
-def phishing_statistics(db: Session) -> dict[str, Any]:
+def phishing_statistics(db: Session, *, recent_limit: int = 20, url_chars: int = 80) -> dict[str, Any]:
     total = db.query(func.count(PhishingURL.id)).scalar() or 0
     today = _utcnow().date().isoformat()
     daily_new = _daily_counts(db, PhishingURL.submission_time, 0).get(today, 0)
-    recent = db.query(PhishingURL).order_by(desc(PhishingURL.submission_time)).limit(20).all()
+    recent = db.query(PhishingURL).order_by(desc(PhishingURL.submission_time)).limit(recent_limit).all()
     now = _utcnow().isoformat()
     return {
         'stats': {'total_urls': total, 'daily_new': daily_new, 'last_update': now},
@@ -210,7 +210,7 @@ def phishing_statistics(db: Session) -> dict[str, Any]:
         'daily_new': daily_new,
         'top_domains': [{'domain': d, 'count': c} for d, c in _top(db, PhishingURL.domain_norm, 20)],
         'recent_urls': [{
-            'url': (r.url[:80] + '...') if r.url and len(r.url) > 80 else r.url,
+            'url': (r.url[:url_chars] + '...') if r.url and len(r.url) > url_chars else r.url,
             'domain': r.domain_norm, 'target': r.target, 'status': r.status, 'time': _iso(r.submission_time),
         } for r in recent],
         'threat_categories': [{'category': t, 'count': c} for t, c in _top(db, PhishingURL.target, 15)],

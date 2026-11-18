@@ -91,3 +91,22 @@ def test_persist_external_iocs_upserts_duplicates():
         assert persist_external_iocs(db, engine, [record]) == 0
         row = db.query(IndicatorOfCompromise).filter_by(ioc_value='dup.example').one()
         assert row.risk_score == 80 and row.detection_count == 2
+
+
+def test_ioc_api_stats_and_hash_validation(client):
+    with SessionLocal() as db:
+        add_ioc(db, 'today.example', 70)
+        db.commit()
+    body = client.get('/api/v2/ioc/stats').json()
+    assert body['total_records'] == 1 and body['today_added'] == 1
+    assert body['top_threats'] == [{'threat_type': 'phishing', 'count': 1}]
+    assert client.post('/api/v2/ioc/check-hash', json={'hash': 'not-a-hash'}).status_code == 422
+    assert client.get('/api/v2/ioc/check-ip', params={'ip': '999.1.1.1'}).status_code == 400
+
+
+def test_ioc_lookup_handlers_are_sync_so_blocking_http_runs_in_threadpool():
+    import inspect
+
+    from modules.honeypot import ioc_api
+    assert not inspect.iscoroutinefunction(ioc_api.check_ip_reputation)
+    assert not inspect.iscoroutinefunction(ioc_api.check_hash_reputation)

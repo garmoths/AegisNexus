@@ -1,22 +1,26 @@
-"""
-IOC API Endpoints
-- /api/v2/ioc/check-ip
-- /api/v2/ioc/check-hash
+"""IOC lookup and export endpoints (``/api/v2/ioc``).
+
+- ``GET  /check-ip``     reputation from the local IOC DB, ThreatFox and Shodan
+- ``POST /check-hash``   MalwareBazaar + ThreatFox lookup for a file hash
+- ``GET  /export/stix``  STIX 2.1 bundle of active indicators (TLP by risk)
+
+Lookups call external services with blocking HTTP clients, so the handlers are
+plain ``def`` (run in the threadpool) rather than ``async def``.
 """
 
 from __future__ import annotations
 
 import ipaddress
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
-from sqlalchemy import Date, cast, desc, func, or_
+from pydantic import BaseModel, Field
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from app.models import IndicatorOfCompromise, PhishingURL
+from app.models import IndicatorOfCompromise
 from modules.phishing_detector.threat_intel import (
     check_hash_malwarebazaar,
     check_ioc_threatfox,
@@ -24,7 +28,12 @@ from modules.phishing_detector.threat_intel import (
 )
 from shared.utils.db import get_db
 
-router = APIRouter(tags=["IOC"])
+from . import service
+
+router = APIRouter(tags=["ioc"])
+
+# Deterministic, spec-valid (UUID-based) STIX identity for this platform.
+STIX_IDENTITY_ID = f"identity--{uuid.uuid5(uuid.NAMESPACE_DNS, 'aegisnexus.threat-intelligence')}"
 
 
 # ── STIX 2.1 helpers ─────────────────────────────────────
@@ -47,7 +56,9 @@ _TLP_MAP = {
 
 def _ioc_to_stix_indicator(row: IndicatorOfCompromise) -> dict:
     stix_attr = _STIX_TYPE_MAP.get(row.ioc_type or "url", "url:value")
-    pattern = f"[{stix_attr} = '{row.ioc_value}']"
+    # STIX patterning string literals escape backslash and single quote.
+    literal = row.ioc_value.replace('\\', '\\\\').replace("'", "\\'")
+    pattern = f"[{stix_attr} = '{literal}']"
     tlp = "white" if (row.risk_score or 0) < 50 else "amber" if (row.risk_score or 0) < 80 else "red"
     valid_from = (row.first_seen or row.created_at or datetime.now(UTC)).isoformat()
     valid_until = (row.last_seen or datetime.now(UTC)).isoformat()
@@ -59,6 +70,7 @@ def _ioc_to_stix_indicator(row: IndicatorOfCompromise) -> dict:
         "modified": row.updated_at.isoformat() if row.updated_at else valid_from,
         "name": f"{row.threat_type or 'unknown'} — {row.ioc_value[:60]}",
         "description": f"Source: {row.source} | Risk: {row.risk_score}/100 | Detections: {row.detection_count}",
+        "created_by_ref": STIX_IDENTITY_ID,
         "indicator_types": [row.threat_type or "unknown"],
         "pattern": pattern,
         "pattern_type": "stix",
@@ -75,7 +87,7 @@ def _ioc_to_stix_indicator(row: IndicatorOfCompromise) -> dict:
 
 
 class HashCheckRequest(BaseModel):
-    hash: str
+    hash: str = Field(min_length=32, max_length=128, pattern=r'^\s*[A-Fa-f0-9]+\s*$', description='MD5, SHA-1 or SHA-256')
 
 
 def _is_valid_ip(value: str) -> bool:
@@ -109,8 +121,8 @@ def _lookup_local_ioc(db: Session, value: str) -> dict:
     }
 
 
-@router.get("/check-ip")
-async def check_ip_reputation(ip: str, db: Session = Depends(get_db)):
+@router.get("/check-ip", summary="IP reputation (local DB, ThreatFox, Shodan)")
+def check_ip_reputation(ip: str = Query(max_length=45), db: Session = Depends(get_db)):
     if not _is_valid_ip(ip):
         raise HTTPException(status_code=400, detail="Geçersiz IP adresi")
 
@@ -164,11 +176,9 @@ async def check_ip_reputation(ip: str, db: Session = Depends(get_db)):
     }
 
 
-@router.post("/check-hash")
-async def check_hash_reputation(payload: HashCheckRequest):
-    file_hash = payload.hash.strip()
-    if not file_hash:
-        raise HTTPException(status_code=400, detail="Hash boş olamaz")
+@router.post("/check-hash", summary="File hash reputation (MalwareBazaar, ThreatFox)")
+def check_hash_reputation(payload: HashCheckRequest):
+    file_hash = payload.hash.strip().lower()
 
     mb_result = check_hash_malwarebazaar(file_hash, timeout=10)
     tf_result = check_ioc_threatfox(file_hash, timeout=10)
@@ -194,86 +204,26 @@ async def check_hash_reputation(payload: HashCheckRequest):
     }
 
 
-@router.get("/stats")
+@router.get("/stats", summary="IOC counters and weekly growth")
 def get_ioc_statistics(db: Session = Depends(get_db)):
-    total = db.query(func.count(IndicatorOfCompromise.id)).scalar() or 0
-    today = datetime.now(UTC).replace(tzinfo=None).date()
-    today_added = (
-        db.query(func.count(IndicatorOfCompromise.id))
-        .filter(cast(IndicatorOfCompromise.created_at, Date) == today)
-        .scalar()
-        or 0
-    )
-
-    weekly_growth = []
-    for i in range(7, -1, -1):
-        date = datetime.now(UTC).replace(tzinfo=None).date() - timedelta(days=i)
-        count = (
-            db.query(func.count(IndicatorOfCompromise.id))
-            .filter(cast(IndicatorOfCompromise.created_at, Date) == date)
-            .scalar()
-            or 0
-        )
-        weekly_growth.append({"date": date.isoformat(), "count": count})
-
-    top_threats = (
-        db.query(
-            IndicatorOfCompromise.threat_type,
-            func.count(IndicatorOfCompromise.id).label("count"),
-        )
-        .filter(IndicatorOfCompromise.threat_type.isnot(None))
-        .group_by(IndicatorOfCompromise.threat_type)
-        .order_by(desc("count"))
-        .limit(10)
-        .all()
-    )
-
+    stats = service.ioc_statistics(db)
     return {
-        "total_records": total,
-        "today_added": today_added,
-        "weekly_growth": weekly_growth,
-        "top_threats": [{"threat_type": t[0], "count": t[1]} for t in top_threats],
-        "last_updated": datetime.now(UTC).replace(tzinfo=None),
+        "total_records": stats["total_records"],
+        "today_added": stats["today_added"],
+        "weekly_growth": stats["weekly_growth"],
+        "top_threats": [{"threat_type": t["type"], "count": t["count"]} for t in stats["top_threats"]],
+        "last_updated": stats["last_updated"],
     }
 
 
-@router.get("/phishing/data")
-def get_phishing_data(limit: int = 100, db: Session = Depends(get_db)):
-    total = db.query(func.count(PhishingURL.id)).scalar() or 0
-    today = datetime.now(UTC).replace(tzinfo=None).date()
-    daily_new = (
-        db.query(func.count(PhishingURL.id))
-        .filter(cast(PhishingURL.submission_time, Date) == today)
-        .scalar()
-        or 0
-    )
-
-    top_domains = (
-        db.query(PhishingURL.domain_norm, func.count(PhishingURL.id).label("count"))
-        .filter(PhishingURL.domain_norm.isnot(None))
-        .group_by(PhishingURL.domain_norm)
-        .order_by(desc("count"))
-        .limit(20)
-        .all()
-    )
-
-    recent = db.query(PhishingURL).order_by(desc(PhishingURL.submission_time)).limit(limit).all()
-    recent_list = [
-        {
-            "url": r.url[:100] + "..." if len(r.url) > 100 else r.url,
-            "domain": r.domain_norm,
-            "target": r.target,
-            "status": r.status,
-            "submission_time": r.submission_time.isoformat() if r.submission_time else None,
-        }
-        for r in recent
-    ]
-
+@router.get("/phishing/data", summary="Phishing URL counters and recent URLs")
+def get_phishing_data(limit: int = Query(100, ge=1, le=1000), db: Session = Depends(get_db)):
+    stats = service.phishing_statistics(db, recent_limit=limit, url_chars=100)
     return {
-        "total_urls": total,
-        "daily_new": daily_new,
-        "top_domains": [{"domain": d[0], "count": d[1]} for d in top_domains],
-        "recent_urls": recent_list,
+        "total_urls": stats["total_urls"],
+        "daily_new": stats["daily_new"],
+        "top_domains": stats["top_domains"],
+        "recent_urls": [{**{k: v for k, v in r.items() if k != "time"}, "submission_time": r["time"]} for r in stats["recent_urls"]],
     }
 
 
@@ -301,7 +251,7 @@ def export_stix_bundle(
         q = q.filter(IndicatorOfCompromise.threat_type == threat_type)
     rows = q.order_by(IndicatorOfCompromise.risk_score.desc()).limit(limit).all()
 
-    identity_id = "identity--aegisnexus-threat-intelligence"
+    identity_id = STIX_IDENTITY_ID
     indicators = [_ioc_to_stix_indicator(r) for r in rows]
 
     bundle = {
@@ -331,5 +281,5 @@ def export_stix_bundle(
     return JSONResponse(
         content=bundle,
         media_type="application/stix+json",
-        headers={"Content-Disposition": f'attachment; filename="aegisnexus-ioc-stix-{datetime.now(UTC).replace(tzinfo=None).strftime("%Y%m%d")}.json"'},
+        headers={"Content-Disposition": f'attachment; filename="aegisnexus-ioc-stix-{datetime.now(UTC).strftime("%Y%m%d")}.json"'},
     )

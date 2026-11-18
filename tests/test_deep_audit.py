@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 
 def test_malformed_sms_url_is_an_indicator_not_a_crash():
-    from modules.sms_guard.router import _analyze_sms
+    from modules.sms_guard.service import _analyze_sms
     db = MagicMock()
     db.query.return_value.filter.return_value.order_by.return_value.first.return_value = None
     report = _analyze_sms('Mesajınız: https://[invalid', None, db)
