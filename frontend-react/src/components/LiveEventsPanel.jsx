@@ -35,7 +35,7 @@ export default function LiveEventsPanel({ className, onJump }) {
           </div>
         </div>
         {events.length > 0 && (
-          <Button variant="ghost" size="icon" className="size-8 text-muted-foreground" onClick={clear} title="Temizle">
+          <Button variant="ghost" size="icon" className="size-8 text-muted-foreground" onClick={clear} title="Temizle" aria-label="Olayları temizle">
             <Trash2 className="size-4" />
           </Button>
         )}

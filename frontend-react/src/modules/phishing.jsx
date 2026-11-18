@@ -55,10 +55,10 @@ function PhishingResult({ result, url }) {
           <RiskGauge score={safetyScore} label="Güvenilirlik Skoru" size="lg" safetyMode={true}/>
           <span style={{padding:'8px 20px',borderRadius:'24px',fontSize:14,fontWeight:600,background:safetyScore<50?theme.accentDim:theme.primaryDim,color:safetyScore<50?theme.accent:theme.primary}}>{result.risk_level||'Bilinmiyor'}</span>
           {screenshotB64&&(
-            <motion.div initial={{opacity:0,scale:0.9}} animate={{opacity:1,scale:1}} transition={{delay:0.3,duration:0.4}} style={{position:'relative',cursor:'pointer'}} onClick={openScreenshot}>
-              <img src={`data:image/png;base64,${screenshotB64}`} alt="Site screenshot" style={{width:200,height:'auto',maxHeight:150,objectFit:'cover',borderRadius:theme.radius.md,border:`1px solid ${theme.border}`,boxShadow:'0 1px 2px rgba(0,0,0,0.3)',opacity:0.9,transition:'opacity 0.3s ease'}} onMouseEnter={e=>e.target.style.opacity=1} onMouseLeave={e=>e.target.style.opacity=0.9}/>
+            <motion.button type="button" aria-label="Ekran görüntüsünü büyüt" initial={{opacity:0,scale:0.9}} animate={{opacity:1,scale:1}} transition={{delay:0.3,duration:0.4}} style={{position:'relative',cursor:'zoom-in',padding:0,border:0,background:'none'}} onClick={openScreenshot}>
+              <img src={`data:image/png;base64,${screenshotB64}`} alt="Taranan sitenin ekran görüntüsü" style={{width:200,height:'auto',maxHeight:150,objectFit:'cover',borderRadius:theme.radius.md,border:`1px solid ${theme.border}`,boxShadow:'0 1px 2px rgba(0,0,0,0.3)',opacity:0.9,transition:'opacity 0.3s ease'}} onMouseEnter={e=>e.target.style.opacity=1} onMouseLeave={e=>e.target.style.opacity=0.9}/>
               <span style={{position:'absolute',bottom:6,right:6,padding:'3px 8px',borderRadius:6,fontSize:9,fontWeight:600,background:'rgba(0,0,0,0.7)',color:theme.primary,display:'flex',alignItems:'center',gap:4}}><IkSearch size={9} color={theme.primary}/> BÜYÜT</span>
-            </motion.div>
+            </motion.button>
           )}
         </div>
         {/* Right: Details */}
@@ -434,10 +434,10 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
           <div className="panel" style={{ 
             borderRadius:theme.radius.lg,
             padding:8,
-            boxShadow:'0 0 0 1px rgba(92,225,230,0.06), 0 30px 80px -40px rgba(92,225,230,0.35)',
+            boxShadow:'0 0 0 1px rgba(242,106,46,0.06), 0 30px 80px -40px rgba(242,106,46,0.35)',
             position:'relative'
           }}>
-            <BorderBeam size={120} duration={8} colorFrom="#5ce1e6" colorTo="#2563eb" borderWidth={1.5} />
+            <BorderBeam size={120} duration={8} colorFrom="#f26a2e" colorTo="#ffb15c" borderWidth={1.5} />
             <div style={{ display:'flex', gap:12, flexDirection: isMobile ? 'column' : 'row' }}>
               <input 
                 value={url} 
@@ -448,7 +448,7 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
                   minWidth:0,
                   padding:'18px 22px', 
                   borderRadius:theme.radius.md,
-                  background:'rgba(5,7,10,0.6)',
+                  background:'rgba(9,8,7,0.6)',
                   border:`1px solid ${theme.borderSoft}`,
                   color:theme.text, 
                   fontSize:16, 
@@ -471,14 +471,14 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
                   cursor:checking?'not-allowed':'pointer',
                   fontSize:16,
                   fontWeight:600,
-                  background:checking?'#1c2230':theme.gradientPrimary,
-                  color:checking?theme.textMuted:'#04161a',
+                  background:checking?'#2b2622':theme.gradientPrimary,
+                  color:checking?theme.textMuted:'#1a0e07',
                   border:'none',
                   display:'inline-flex',
                   alignItems:'center',
                   gap:10,
                   opacity:checking?0.5:1,
-                  boxShadow:checking?'none':'0 0 30px -8px rgba(92,225,230,0.65)',
+                  boxShadow:checking?'none':'0 0 30px -8px rgba(242,106,46,0.65)',
                   transition:'all 0.3s ease'
                 }}
               >
@@ -504,7 +504,7 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
                   top:'calc(100% + 8px)',
                   left:0,
                   right:0,
-                  background:'rgba(8,12,20,0.98)',
+                  background:'rgba(13,11,10,0.98)',
                   borderRadius:theme.radius.md,
                   border:`1px solid ${theme.border}`,
                   maxHeight:320,
@@ -516,6 +516,7 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
                 {searchResults.slice(0, 10).map((item, i) => (
                   <div
                     key={i}
+                    role="button" tabIndex={0} className="row-action" onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.currentTarget.click()}}}
                     onClick={() => {
                       setUrl(item.url || '')
                       setShowDropdown(false)
@@ -574,6 +575,8 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
                 return (
                   <div
                     key={i}
+                    role="button" tabIndex={0} className="row-action" onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.currentTarget.click()}}}
+                    title={'Yeniden tara: ' + item.url}
                     onClick={() => { setUrl(item.url); handleCheck(false, item.url) }}
                     style={{ 
                       display:'flex', 
@@ -699,7 +702,7 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
             padding:'10px 18px',
             borderRadius:theme.radius.md,
             border:`1px solid ${theme.warning}`,
-            background:'rgba(245,158,11,0.12)',
+            background:'rgba(234,179,8,0.12)',
             color:theme.warning,
             fontWeight:600,
             cursor:'pointer'
@@ -734,7 +737,7 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
         >
           <SpotlightCard spotlightColor={stat.color} intensity={0.22} spotlightSize={220} borderGlow={0.5}
             className="!rounded-2xl !p-5 border border-[color:var(--border)]"
-            style={{ '--spotlight-card-surface':'rgba(11,14,20,0.82)', backdropFilter:'blur(12px)' }}>
+            style={{ '--spotlight-card-surface':'rgba(21,18,16,0.82)', backdropFilter:'blur(12px)' }}>
             <p className="mono-label" style={{ marginBottom:14 }}>{stat.label}</p>
             <p style={{ fontSize:32, fontWeight:600, color:stat.color, fontFamily:theme.display, letterSpacing:'-0.02em', lineHeight:1 }}><CountUp end={stat.value}/></p>
             <span aria-hidden="true" style={{ display:'block', height:2, marginTop:16, borderRadius:2, background:`linear-gradient(90deg, ${stat.color}, transparent)`, opacity:0.6 }} />
@@ -771,8 +774,12 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
                   key={item.id||i}
                   initial={{ opacity:0, y:10 }}
                   animate={{ opacity:1, y:0 }}
-                  transition={{ delay:0.8 + i * 0.02, duration:0.3, ease:theme.ease.out }}
+                  transition={{ delay:0.1 + i * 0.02, duration:0.25, ease:theme.ease.out }}
+                  className="row-hover"
                   style={{ borderBottom:`1px solid ${theme.border}`, cursor:'pointer' }}
+                  tabIndex={0}
+                  aria-label={'Bu adresi tara: ' + (item.url||'')}
+                  onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setUrl(item.url);handleCheck(false, item.url)}}}
                   onClick={()=>{setUrl(item.url);handleCheck(false, item.url)}}
                 >
                   <td style={{ padding:'10px 8px', maxWidth:300, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}><span style={{ color:theme.text, fontSize:12, fontFamily:theme.mono }}>{item.url}</span></td>

@@ -73,10 +73,10 @@ export default function LoginPage() {
           width: '100%', maxWidth: 440,
           borderRadius: theme.radius.lg,
           padding: 36,
-          boxShadow: '0 40px 120px -50px rgba(92,225,230,0.45)',
+          boxShadow: '0 40px 120px -50px rgba(242,106,46,0.45)',
         }}
       >
-        <BorderBeam size={140} duration={10} colorFrom="#5ce1e6" colorTo="#2563eb" />
+        <BorderBeam size={140} duration={10} colorFrom="#f26a2e" colorTo="#ffb15c" />
         <div style={{ display: 'grid', placeItems: 'center', width: 52, height: 52, margin: '0 auto 18px', borderRadius: 14,
           border: `1px solid ${theme.primary}55`, background: theme.primaryDim, boxShadow: theme.glow }}>
           <ShieldCheck size={24} color={theme.primary} />
@@ -143,7 +143,7 @@ export default function LoginPage() {
                 placeholder="ornek@email.com"
                 style={{
                   width: '100%', padding: '10px 14px', marginTop: 6,
-                  background: 'rgba(5,7,10,0.6)', border: `1px solid ${theme.border}`,
+                  background: 'rgba(9,8,7,0.6)', border: `1px solid ${theme.border}`,
                   borderRadius: theme.radius.sm, color: theme.text, fontSize: 14, outline: 'none',
                 }}
               />
@@ -155,7 +155,7 @@ export default function LoginPage() {
                 placeholder="Ad Soyad"
                 style={{
                   width: '100%', padding: '10px 14px', marginTop: 6,
-                  background: 'rgba(5,7,10,0.6)', border: `1px solid ${theme.border}`,
+                  background: 'rgba(9,8,7,0.6)', border: `1px solid ${theme.border}`,
                   borderRadius: theme.radius.sm, color: theme.text, fontSize: 14, outline: 'none',
                 }}
               />
@@ -178,7 +178,7 @@ export default function LoginPage() {
                 placeholder="ornek@email.com"
                 style={{
                   width: '100%', padding: '10px 14px', marginTop: 6,
-                  background: 'rgba(5,7,10,0.6)', border: `1px solid ${theme.border}`,
+                  background: 'rgba(9,8,7,0.6)', border: `1px solid ${theme.border}`,
                   borderRadius: theme.radius.sm, color: theme.text, fontSize: 14, outline: 'none',
                 }}
               />
@@ -190,7 +190,7 @@ export default function LoginPage() {
                 placeholder="aeg_..."
                 style={{
                   width: '100%', padding: '10px 14px', marginTop: 6,
-                  background: 'rgba(5,7,10,0.6)', border: `1px solid ${theme.border}`,
+                  background: 'rgba(9,8,7,0.6)', border: `1px solid ${theme.border}`,
                   borderRadius: theme.radius.sm, color: theme.text, fontSize: 14, outline: 'none',
                   fontFamily: 'monospace',
                 }}

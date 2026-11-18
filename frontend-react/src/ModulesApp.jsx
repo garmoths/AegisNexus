@@ -91,7 +91,7 @@ export default function ModulesApp() {
         <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Modül menüsü" aria-expanded={menuOpen} onClick={()=>setMenuOpen(v=>!v)}>{menuOpen?<X/>:<Menu/>}</Button>
         <Link to="/" className="group flex items-center gap-2.5 text-foreground no-underline">
           <span className="relative grid size-9 place-items-center rounded-xl border border-primary/30 bg-primary/[0.06] shadow-[0_0_20px_-8px_var(--signal)] transition-shadow group-hover:shadow-[0_0_28px_-6px_var(--signal)]">
-            <img src={logo} alt="" width="22" height="22"/>
+            <img src={logo} alt="" width="22" height="22" style={{ filter:"grayscale(1) brightness(1.4)" }}/>
           </span>
           <span className="flex flex-col leading-none">
             <span className="font-display text-[15px] font-semibold tracking-tight">AegisNexus</span>
@@ -153,7 +153,7 @@ export default function ModulesApp() {
     <AnimatePresence>
       {eventsOpen && (
         <div key="events-drawer" className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-label="Canlı olaylar">
-          <motion.div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={()=>setEventsOpen(false)}
+          <motion.button type="button" aria-label="Olayları kapat" className="absolute inset-0 cursor-default bg-black/70 backdrop-blur-sm" onClick={()=>setEventsOpen(false)}
             initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} transition={{duration:0.2}}/>
           <motion.div className="absolute inset-y-0 right-0 w-[min(92vw,360px)] p-3"
             initial={{x:'100%'}} animate={{x:0}} exit={{x:'100%'}} transition={{type:'spring',stiffness:420,damping:42}}>

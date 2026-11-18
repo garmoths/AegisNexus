@@ -8,12 +8,12 @@ import { emitEvent } from '../stores/eventBus'
 const THREAT_META = {
   BOTNET:              { color:'#ef4444', icon: Bug },
   MALWARE:             { color:'#ef4444', icon: AlertTriangle },
-  PAYLOAD_DELIVERY:    { color:'#f59e0b', icon: Zap },
+  PAYLOAD_DELIVERY:    { color:'#eab308', icon: Zap },
   PHISHING:            { color:'#eab308', icon: Mail },
   'BOTNET.CC':         { color:'#ec4899', icon: Radio },
   SPAM:                { color:'#8b5cf6', icon: Mail },
   'SPAM SOURCE':       { color:'#a855f7', icon: Server },
-  'CREDENTIAL HARVESTING': { color:'#06b6d4', icon: Lock },
+  'CREDENTIAL HARVESTING': { color:'#f97316', icon: Lock },
 }
 
 function ThreatIcon({ type, size=14 }) {
@@ -86,7 +86,7 @@ function HoneypotIOC({ initialIocQuery = '', onClearPrefill }) {
     setExportingSTIX(false)
   }
 
-  async function handleSearch(){if(!searchQuery)return;setSearching(true);try{const r=await fetch(`${API}/honeypot/ioc/search?q=${encodeURIComponent(searchQuery)}`);const d=await r.json();if(d.status==='success'||d.results){const list=d.results||d.data||d.iocs||[];setSearchResults(list);setShowDropdown(true);emitEvent({module:'ioc',type:'ioc.search',severity:list.length?'medium':'info',title:list.length?`${list.length} IOC eşleşti: ${searchQuery}`:`IOC bulunamadı: ${searchQuery}`,detail:'Tuzak / IOC veritabanı arandı.',payload:{query:searchQuery,count:list.length}})}else{showToast('Arama sonucu bulunamadi veya hata: '+d.message,'error')}}catch(e){showToast('Arama hatasi: '+e.message,'error')};setSearching(false)}
+  async function handleSearch(override){const q=typeof override==='string'?override:searchQuery;if(!q)return;setSearching(true);try{const r=await fetch(`${API}/honeypot/ioc/search?q=${encodeURIComponent(q)}`);const d=await r.json();if(d.status==='success'||d.results){const list=d.results||d.data||d.iocs||[];setSearchResults(list);setShowDropdown(true);emitEvent({module:'ioc',type:'ioc.search',severity:list.length?'medium':'info',title:list.length?`${list.length} IOC eşleşti: ${q}`:`IOC bulunamadı: ${q}`,detail:'Tuzak / IOC veritabanı arandı.',payload:{query:q,count:list.length}})}else{showToast('Arama sonucu bulunamadi veya hata: '+d.message,'error')}}catch(e){showToast('Arama hatasi: '+e.message,'error')};setSearching(false)}
   function showToast(msg,t='success'){setToast({message:msg,type:t,visible:true});setTimeout(()=>setToast(v=>({...v,visible:false})),3000)}
   
   // Real-time autocomplete with debouncing
@@ -208,7 +208,7 @@ function HoneypotIOC({ initialIocQuery = '', onClearPrefill }) {
             placeholder="IP adresi, domain, URL veya hash girin..."
             style={{ flex:1, padding:'14px 8px', background:'transparent', border:'none', color:'#fff', fontSize:15, outline:'none', fontFamily:theme.font }}/>
           <button onClick={handleSearch} disabled={searching}
-            style={{ padding:'14px 28px', borderRadius:theme.radiusMd, background:searching?'#1c2230':theme.gradientPrimary, color:searching?'#666':'#000', border:'none', cursor:searching?'not-allowed':'pointer', fontWeight:600, fontSize:14, display:'flex', alignItems:'center', gap:8 }}>
+            style={{ padding:'14px 28px', borderRadius:theme.radiusMd, background:searching?'#2b2622':theme.gradientPrimary, color:searching?'#666':'#000', border:'none', cursor:searching?'not-allowed':'pointer', fontWeight:600, fontSize:14, display:'flex', alignItems:'center', gap:8 }}>
             {searching ? <><span style={{ width:14,height:14,border:'2px solid #666',borderTopColor:'transparent',borderRadius:'50%',display:'inline-block',animation:'spin 0.8s linear infinite'}}/> Aranıyor</> : <><Search size={14}/> Sorgula</>}
           </button>
         </div>
@@ -217,7 +217,7 @@ function HoneypotIOC({ initialIocQuery = '', onClearPrefill }) {
             <motion.div initial={{opacity:0,y:-8}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-8}}
               style={{ position:'absolute', top:'calc(100% + 8px)', left:0, right:0, background:theme.surface, border:`1px solid ${theme.border}`, borderRadius:theme.radiusMd, maxHeight:280, overflowY:'auto', zIndex:100, boxShadow:'0 1px 2px rgba(0,0,0,0.3)' }}>
               {searchResults.slice(0,10).map((item,i)=>(
-                <div key={i} onClick={()=>{setSearchQuery(item.value||item.ioc_value||item.ioc||'');setShowDropdown(false);handleSearch()}}
+                <div key={i} role="button" tabIndex={0} className="row-action" onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.currentTarget.click()}}} onClick={()=>{const v=item.value||item.ioc_value||item.ioc||'';setSearchQuery(v);setShowDropdown(false);handleSearch(v)}}
                   style={{ padding:'12px 16px', borderBottom:`1px solid ${theme.border}`, cursor:'pointer', transition:'background 0.15s' }}
                   onMouseEnter={e=>e.currentTarget.style.background=theme.surface2}
                   onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
@@ -239,12 +239,12 @@ function HoneypotIOC({ initialIocQuery = '', onClearPrefill }) {
       {/* STIX Export Button */}
       <div style={{ display:'flex', justifyContent:'center', gap:12, marginTop:20 }}>
         <button onClick={()=>exportSTIX(0)} disabled={exportingSTIX}
-          style={{ padding:'10px 20px', borderRadius:theme.radiusSm, background:exportingSTIX?'#1c2230':theme.surface, border:`1px solid ${theme.border}`, color:theme.text, cursor:exportingSTIX?'not-allowed':'pointer', fontSize:13, fontWeight:600, display:'flex', alignItems:'center', gap:8 }}>
+          style={{ padding:'10px 20px', borderRadius:theme.radiusSm, background:exportingSTIX?'#2b2622':theme.surface, border:`1px solid ${theme.border}`, color:theme.text, cursor:exportingSTIX?'not-allowed':'pointer', fontSize:13, fontWeight:600, display:'flex', alignItems:'center', gap:8 }}>
           <Download size={14}/>
           {exportingSTIX ? 'İndiriliyor...' : 'STIX 2.1 İndir'}
         </button>
         <button onClick={()=>exportSTIX(50)} disabled={exportingSTIX}
-          style={{ padding:'10px 20px', borderRadius:theme.radiusSm, background:exportingSTIX?'#1c2230':'rgba(239,68,68,0.1)', border:`1px solid rgba(239,68,68,0.3)`, color:'#ef4444', cursor:exportingSTIX?'not-allowed':'pointer', fontSize:13, fontWeight:600, display:'flex', alignItems:'center', gap:8 }}>
+          style={{ padding:'10px 20px', borderRadius:theme.radiusSm, background:exportingSTIX?'#2b2622':'rgba(239,68,68,0.1)', border:`1px solid rgba(239,68,68,0.3)`, color:'#ef4444', cursor:exportingSTIX?'not-allowed':'pointer', fontSize:13, fontWeight:600, display:'flex', alignItems:'center', gap:8 }}>
           <ShieldAlert size={14}/>
           {exportingSTIX ? 'İndiriliyor...' : 'Yüksek Risk (50+)'}
         </button>
@@ -270,7 +270,7 @@ function HoneypotIOC({ initialIocQuery = '', onClearPrefill }) {
         {riskDist.length>0 ? (
           <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
             {riskDist.map((item,i)=>{
-              const rColors=['#22c55e','#84cc16','#f59e0b','#ef4444','#ef4444']
+              const rColors=['#22c55e','#84cc16','#eab308','#ef4444','#ef4444']
               const c = rColors[i]||theme.primary
               return (
                 <div key={i}>

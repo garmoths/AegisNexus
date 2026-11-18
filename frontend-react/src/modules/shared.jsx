@@ -55,7 +55,7 @@ function HeroBackdrop() {
   return null
 }
 function Spinner({ size = 20 }) {
-  return <span aria-hidden="true" style={{ display:'inline-block', width:size, height:size, border:'2px solid rgba(92,225,230,0.2)', borderTop:`2px solid ${theme.primary}`, borderRadius:'50%', animation:'spin 0.8s linear infinite' }} />
+  return <span aria-hidden="true" style={{ display:'inline-block', width:size, height:size, border:'2px solid rgba(242,106,46,0.2)', borderTop:`2px solid ${theme.primary}`, borderRadius:'50%', animation:'spin 0.8s linear infinite' }} />
 }
 
 function Toast({ message, type='success', visible }) {
@@ -77,8 +77,8 @@ function Toast({ message, type='success', visible }) {
   )
 }
 function RiskBadge({ level, size='sm' }) {
-  const colors = { critical:{bg:'rgba(239,68,68,0.12)',text:'#f87171',bd:'rgba(239,68,68,0.3)'}, high:{bg:'rgba(239,68,68,0.12)',text:'#f87171',bd:'rgba(239,68,68,0.3)'}, medium:{bg:'rgba(245,158,11,0.12)',text:'#fbbf24',bd:'rgba(245,158,11,0.3)'}, low:{bg:'rgba(34,197,94,0.12)',text:'#4ade80',bd:'rgba(34,197,94,0.3)'}, safe:{bg:'rgba(34,197,94,0.12)',text:'#4ade80',bd:'rgba(34,197,94,0.3)'} }
-  const c = colors[level] || {bg:'#10141c',text:'#8b96a8',bd:'#1c2230'}
+  const colors = { critical:{bg:'rgba(239,68,68,0.12)',text:'#f87171',bd:'rgba(239,68,68,0.3)'}, high:{bg:'rgba(239,68,68,0.12)',text:'#f87171',bd:'rgba(239,68,68,0.3)'}, medium:{bg:'rgba(234,179,8,0.12)',text:'#facc15',bd:'rgba(234,179,8,0.3)'}, low:{bg:'rgba(34,197,94,0.12)',text:'#4ade80',bd:'rgba(34,197,94,0.3)'}, safe:{bg:'rgba(34,197,94,0.12)',text:'#4ade80',bd:'rgba(34,197,94,0.3)'} }
+  const c = colors[level] || {bg:'#1c1916',text:'#a39a8f',bd:'#2b2622'}
   const labels = { critical:'Kritik', high:'Yüksek', medium:'Orta', low:'Düşük', safe:'Güvenli' }
   return <span style={{ display:'inline-flex', alignItems:'center', padding:size==='sm'?'2px 8px':'4px 12px', background:c.bg, color:c.text, border:`1px solid ${c.bd}`, borderRadius:6, fontSize:size==='sm'?12:13, fontWeight:500 }}>{labels[level]||level}</span>
 }
@@ -93,11 +93,11 @@ function GlowButton({ children, onClick, disabled, loading, variant='primary', s
   const isPrimary = variant === 'primary'
   const off = disabled || loading
   return <motion.button onClick={onClick} disabled={off}
-    whileHover={off ? undefined : { y:-1, boxShadow: isPrimary ? '0 0 28px -6px rgba(92,225,230,0.7)' : '0 0 0 1px rgba(92,225,230,0.35)' }}
+    whileHover={off ? undefined : { y:-1, boxShadow: isPrimary ? '0 0 28px -6px rgba(242,106,46,0.7)' : '0 0 0 1px rgba(242,106,46,0.35)' }}
     whileTap={off ? undefined : { scale:0.97 }}
     transition={{ type:'spring', stiffness:500, damping:30 }}
     style={{ height:40, padding:'0 16px', borderRadius:10, cursor:off?'not-allowed':'pointer', fontSize:14, fontWeight:600, fontFamily:theme.font,
-      background:isPrimary?theme.primary:'rgba(16,20,28,0.6)', color:isPrimary?'#04161a':theme.text,
+      background:isPrimary?theme.primary:'rgba(28,25,22,0.6)', color:isPrimary?'#1a0e07':theme.text,
       border:isPrimary?'1px solid transparent':`1px solid ${theme.border}`, opacity:off?0.5:1,
       display:'inline-flex', alignItems:'center', justifyContent:'center', gap:8, whiteSpace:'nowrap', ...style }} {...props}>{loading&&<Spinner size={16}/>}{children}</motion.button>
 }
