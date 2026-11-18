@@ -167,12 +167,20 @@ def requeue(db, row, actor):
     invalidate_verdict(row.url)
 
 
+CONFIRM_FRESHNESS = timedelta(hours=48)
+
+
+def is_fresh(observation) -> bool:
+    """Only observations from the last 48 hours can back a confirmation."""
+    return observation is not None and observation.fetched_at >= now() - CONFIRM_FRESHNESS
+
+
 def review(db, row, decision, note, actor, observation_id):
     latest = db.query(CrawlObservation).filter_by(candidate_id=row.id).order_by(CrawlObservation.id.desc()).first()
     if row.state not in ('review', 'confirmed', 'dismissed') or latest is None or latest.id != observation_id:
         raise ValueError('Son gözlemi yenileyin; bu kayıt şu anda incelemeye uygun değil.')
     if decision == 'confirmed' and (not latest.live or latest.truncated or latest.http_status < 200 or latest.http_status >= 300
-                                  or latest.assessment['coverage'] == 'unknown' or latest.fetched_at < now() - timedelta(hours=48)):
+                                  or latest.assessment['coverage'] == 'unknown' or not is_fresh(latest)):
         raise ValueError('Onay için son 48 saatte alınmış, tam ve başarılı canlı gözlem gerekli.')
     expected = row.state
     # A fresh worker or concurrent decision must not be overwritten by a stale UI.

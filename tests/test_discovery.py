@@ -365,3 +365,17 @@ def test_stale_worker_failure_cannot_overwrite_new_lease(discovery):
         row = db.get(CrawlCandidate, candidate_id)
         assert row.state == 'running' and row.lease_token == 'new-owner'
         assert row.last_error is None
+
+
+def test_detail_reports_freshness_used_by_the_confirm_button(client, discovery):
+    """Regression: the UI gated 'confirm' on detail.fresh, which the API never returned."""
+    from datetime import timedelta
+    candidate_id, observation_id = observe(discovery)
+    assert client.get(f'/api/v2/crawler/candidates/{candidate_id}').json()['fresh'] is True
+    with discovery() as db:
+        obs = db.get(CrawlObservation, observation_id)
+        obs.fetched_at = service.now() - timedelta(hours=49)
+        db.commit()
+    assert client.get(f'/api/v2/crawler/candidates/{candidate_id}').json()['fresh'] is False
+    with discovery() as db, pytest.raises(ValueError):
+        service.review(db, db.get(CrawlCandidate, candidate_id), 'confirmed', 'Stale evidence', 'operator', observation_id)

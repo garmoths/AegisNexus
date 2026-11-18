@@ -125,7 +125,8 @@ def detail(candidate_id: int, db: Session = Depends(get_db)):
     row = require_candidate(db, candidate_id)
     observations = db.query(CrawlObservation).filter_by(candidate_id=candidate_id).order_by(CrawlObservation.id.desc()).limit(10).all()
     reviews = db.query(CrawlReview).filter_by(candidate_id=candidate_id).order_by(CrawlReview.id.desc()).limit(20).all()
-    return {**service.serialize(row), 'observations': [{'id': item.id, 'final_url': display_url(item.final_url),
+    # 'fresh' drives the confirm button; the same rule is enforced again in service.review().
+    return {**service.serialize(row), 'fresh': service.is_fresh(observations[0] if observations else None), 'observations': [{'id': item.id, 'final_url': display_url(item.final_url),
                 'http_status': item.http_status, 'live': item.live, 'truncated': item.truncated, 'fetched_at': item.fetched_at,
                 'features': service.public_features(item.features), 'assessment': item.assessment,
                 'has_screenshot': bool(item.screenshot_path)} for item in observations],
