@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { theme } from '../theme'
 import { Shield } from 'lucide-react'
 import { authAPI } from '../lib/endpoints'
@@ -15,11 +15,13 @@ export default function LoginPage() {
   const [fullName, setFullName] = useState('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [busy, setBusy] = useState(false)
 
   const handleRegister = async (e) => {
     e.preventDefault()
     setError('')
     setSuccess('')
+    setBusy(true)
     try {
       const res = await authAPI.register(email, fullName)
       const data = res.data
@@ -30,12 +32,15 @@ export default function LoginPage() {
       }
     } catch (err) {
       setError(err.response?.data?.detail || 'Kayıt sırasında hata oluştu.')
+    } finally {
+      setBusy(false)
     }
   }
 
   const handleLogin = async (e) => {
     e.preventDefault()
     setError('')
+    setBusy(true)
     try {
       const res = await authAPI.login(email, apiKey)
       const data = res.data
@@ -48,6 +53,7 @@ export default function LoginPage() {
       nav('/dashboard')
     } catch (err) {
       setError(err.response?.data?.detail || 'Giriş sırasında hata oluştu.')
+      setBusy(false)
     }
   }
 
@@ -58,8 +64,9 @@ export default function LoginPage() {
       padding: 24,
     }}>
       <motion.div
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
+        initial={{ opacity: 0, y: 16, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
         style={{
           width: '100%', maxWidth: 420,
           background: theme.gradientSurface,
@@ -84,37 +91,41 @@ export default function LoginPage() {
           {['login', 'register'].map(m => (
             <button
               key={m}
+              type="button"
               onClick={() => { setMode(m); setError(''); setSuccess('') }}
               style={{
-                flex: 1, padding: '8px 0',
-                background: mode === m ? theme.gradientPrimary : 'transparent',
+                flex: 1, padding: '8px 0', position: 'relative',
+                background: 'transparent',
                 color: mode === m ? theme.bgDeep : theme.textMuted,
                 border: 'none', borderRadius: theme.radius.sm,
                 fontWeight: 600, fontSize: 13, cursor: 'pointer',
-                transition: 'all 0.2s',
+                transition: 'color 0.2s',
               }}
             >
-              {m === 'login' ? 'Giriş' : 'Kayıt'}
+              {mode === m && <motion.span layoutId="login-mode-pill" transition={{ type: 'spring', stiffness: 500, damping: 38 }} style={{ position: 'absolute', inset: 0, background: theme.gradientPrimary, borderRadius: theme.radius.sm }} />}
+              <span style={{ position: 'relative' }}>{m === 'login' ? 'Giriş' : 'Kayıt'}</span>
             </button>
           ))}
         </div>
 
+        <AnimatePresence initial={false}>
         {error && (
-          <div style={{
+          <motion.div key="err" role="alert" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} style={{ overflow: 'hidden' }}><div style={{
             padding: 12, marginBottom: 16,
             background: `${theme.danger}12`, border: `1px solid ${theme.danger}30`,
             borderRadius: theme.radius.sm, color: theme.danger, fontSize: 13,
-          }}>{error}</div>
+          }}>{error}</div></motion.div>
         )}
 
         {success && (
-          <div style={{
+          <motion.div key="ok" role="status" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} style={{ overflow: 'hidden' }}><div style={{
             padding: 12, marginBottom: 16,
             background: `${theme.success}12`, border: `1px solid ${theme.success}30`,
             borderRadius: theme.radius.sm, color: theme.success, fontSize: 13,
             wordBreak: 'break-all',
-          }}>{success}</div>
+          }}>{success}</div></motion.div>
         )}
+        </AnimatePresence>
 
         {mode === 'register' ? (
           <form onSubmit={handleRegister}>
@@ -142,13 +153,13 @@ export default function LoginPage() {
                 }}
               />
             </label>
-            <button type="submit" style={{
+            <button type="submit" disabled={busy} className="press" style={{
               width: '100%', padding: '12px',
               background: theme.gradientPrimary, color: theme.bgDeep,
               fontWeight: 700, border: 'none', borderRadius: theme.radius.sm,
               cursor: 'pointer', fontSize: 14,
             }}>
-              Kayıt Ol & API Key Al
+              {busy ? 'Kaydediliyor…' : 'Kayıt Ol & API Key Al'}
             </button>
           </form>
         ) : (
@@ -178,13 +189,13 @@ export default function LoginPage() {
                 }}
               />
             </label>
-            <button type="submit" style={{
+            <button type="submit" disabled={busy} className="press" style={{
               width: '100%', padding: '12px',
               background: theme.gradientPrimary, color: theme.bgDeep,
               fontWeight: 700, border: 'none', borderRadius: theme.radius.sm,
               cursor: 'pointer', fontSize: 14,
             }}>
-              Giriş Yap
+              {busy ? 'Giriş yapılıyor…' : 'Giriş Yap'}
             </button>
           </form>
         )}

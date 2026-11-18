@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Shield, Menu, X, Activity } from 'lucide-react'
@@ -52,6 +52,11 @@ export default function ModulesApp() {
   const location=useLocation()
   const [menuOpen,setMenuOpen]=useState(false)
   const [eventsOpen,setEventsOpen]=useState(false)
+  useEffect(()=>{
+    const onKey=e=>{if(e.key==='Escape'){setMenuOpen(false);setEventsOpen(false)}}
+    window.addEventListener('keydown',onKey)
+    return ()=>window.removeEventListener('keydown',onKey)
+  },[])
   const events=useEventBus(s=>s.events)
   const counts=events.reduce((acc,e)=>{acc[e.module]=(acc[e.module]||0)+1;return acc},{})
   const entry=Object.hasOwn(entries,module)?entries[module]:null

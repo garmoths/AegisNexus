@@ -40,6 +40,7 @@ function CopyBtn({ value }) {
 function HoneypotIOC({ initialIocQuery = '', onClearPrefill }) {
   const [iocStats, setIocStats] = useState(null)
   const [iocList, setIocList] = useState([])
+  const [loaded, setLoaded] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState([])
   const [searching, setSearching] = useState(false)
@@ -147,6 +148,7 @@ function HoneypotIOC({ initialIocQuery = '', onClearPrefill }) {
           }
         }
         if (!cancelled) setIocList(allIocs)
+        if (!cancelled) setLoaded(true)
       } catch {
         if (cancelled) return
         try {
@@ -156,6 +158,7 @@ function HoneypotIOC({ initialIocQuery = '', onClearPrefill }) {
         } catch {
           setIocList([])
         }
+        setLoaded(true)
       }
     })()
 
@@ -286,7 +289,7 @@ function HoneypotIOC({ initialIocQuery = '', onClearPrefill }) {
               )
             })}
           </div>
-        ) : <p style={{ color:theme.textMuted, fontSize:13 }}>Yükleniyor...</p>}
+        ) : <p className={loaded?undefined:'animate-pulse'} style={{ color:theme.textMuted, fontSize:13 }}>{loaded?'Henüz veri yok.':'Yükleniyor…'}</p>}
       </Card>
 
       {/* Tehdit Tipi Dağılımı — CSS donut + liste */}
@@ -330,7 +333,7 @@ function HoneypotIOC({ initialIocQuery = '', onClearPrefill }) {
               </div>
             </div>
           )
-        })() : <p style={{ color:theme.textMuted, fontSize:13 }}>Yükleniyor...</p>}
+        })() : <p className={loaded?undefined:'animate-pulse'} style={{ color:theme.textMuted, fontSize:13 }}>{loaded?'Henüz veri yok.':'Yükleniyor…'}</p>}
       </Card>
     </div>
 
@@ -343,7 +346,7 @@ function HoneypotIOC({ initialIocQuery = '', onClearPrefill }) {
       </div>
       {(() => {
         const hotIocs = [...iocList].sort((a,b)=>(b.risk_score||0)-(a.risk_score||0)).slice(0,6)
-        if (!hotIocs.length) return <p style={{ color:theme.textMuted, fontSize:13 }}>Yükleniyor...</p>
+        if (!hotIocs.length) return <p className={loaded?undefined:'animate-pulse'} style={{ color:theme.textMuted, fontSize:13 }}>{loaded?'Henüz veri yok.':'Yükleniyor…'}</p>
         return (
           <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12 }}>
             {hotIocs.map((item,i)=>{
@@ -408,7 +411,7 @@ function HoneypotIOC({ initialIocQuery = '', onClearPrefill }) {
             </div>
           </motion.div>
         )
-      }) : <p style={{ color:theme.textMuted, fontSize:13 }}>Yükleniyor...</p>}
+      }) : <p className={loaded?undefined:'animate-pulse'} style={{ color:theme.textMuted, fontSize:13 }}>{loaded?'Henüz veri yok.':'Yükleniyor…'}</p>}
     </Card>
 
     {/* ── IOC Tablosu ── */}
@@ -431,7 +434,7 @@ function HoneypotIOC({ initialIocQuery = '', onClearPrefill }) {
             </tr>
           </thead>
           <tbody>
-            {iocList.length===0 && <tr><td colSpan={6} style={{ textAlign:'center', padding:24, color:theme.textMuted }}>Yükleniyor...</td></tr>}
+            {iocList.length===0 && <tr><td colSpan={6} style={{ textAlign:'center', padding:24, color:theme.textMuted }}>{loaded?'Henüz kayıt yok.':'Yükleniyor…'}</td></tr>}
             {iocList.map((item,i)=>{
               const rs = item.risk_score||0
               const sColor = rs>75?'#ef4444':rs>40?theme.warning:theme.success
