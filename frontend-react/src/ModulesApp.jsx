@@ -86,7 +86,7 @@ export default function ModulesApp() {
   const jump=(target)=>{ const t=aliases[target]||target; if(entries[t]){go(t)}; setEventsOpen(false) }
 
   return <div className="flex min-h-screen flex-col text-foreground">
-    <header className="sticky top-0 z-40 border-b border-border/80 bg-background/70 backdrop-blur-xl">
+    <header className="sticky top-0 z-40 border-b border-border/80 bg-background/85 backdrop-blur-md">
       <div className="mx-auto flex w-full max-w-[1600px] items-center gap-3 px-4 py-3 md:px-6">
         <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Modül menüsü" aria-expanded={menuOpen} onClick={()=>setMenuOpen(v=>!v)}>{menuOpen?<X/>:<Menu/>}</Button>
         <Link to="/" className="group flex items-center gap-2.5 text-foreground no-underline">
@@ -111,7 +111,7 @@ export default function ModulesApp() {
     <AnimatePresence initial={false}>
       {menuOpen && (
         <motion.div key="mobile-menu" initial={{height:0,opacity:0}} animate={{height:'auto',opacity:1}} exit={{height:0,opacity:0}}
-          transition={{duration:0.25,ease:EASE}} className="overflow-hidden border-b border-border bg-card/90 backdrop-blur-xl lg:hidden">
+          transition={{duration:0.25,ease:EASE}} className="overflow-hidden border-b border-border bg-card lg:hidden">
           <div className="p-3"><ModuleNav module={module} counts={counts} layoutGroup="mobile" onPick={()=>setMenuOpen(false)}/></div>
         </motion.div>
       )}
@@ -136,7 +136,7 @@ export default function ModulesApp() {
             initial={{scaleX:0}} animate={{scaleX:1}} transition={{duration:0.9,ease:EASE,delay:0.1}} />
         </motion.div>
         <Suspense fallback={<div role="status" aria-label="Modül yükleniyor" className="flex flex-col gap-4"><Skeleton className="h-16 w-full"/><div className="grid grid-cols-2 gap-3 sm:grid-cols-4"><Skeleton className="h-24"/><Skeleton className="h-24"/><Skeleton className="h-24"/><Skeleton className="h-24"/></div><Skeleton className="h-56 w-full"/></div>}>
-          <motion.div key={module+location.key} initial={{opacity:0,y:14,filter:'blur(4px)'}} animate={{opacity:1,y:0,filter:'blur(0px)'}} transition={{duration:0.45,ease:EASE}}>
+          <motion.div key={module+location.key} initial={{opacity:0,y:8}} animate={{opacity:1,y:0}} transition={{duration:0.3,ease:EASE}}>
             <Module initialUrl={location.state?.value||''} initialIocQuery={location.state?.value||''}
               initialProfile={location.state?.profile||null} onNavigate={go} />
           </motion.div>
@@ -153,7 +153,7 @@ export default function ModulesApp() {
     <AnimatePresence>
       {eventsOpen && (
         <div key="events-drawer" className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-label="Canlı olaylar">
-          <motion.button type="button" aria-label="Olayları kapat" className="absolute inset-0 cursor-default bg-black/70 backdrop-blur-sm" onClick={()=>setEventsOpen(false)}
+          <motion.button type="button" aria-label="Olayları kapat" className="absolute inset-0 cursor-default bg-black/70" onClick={()=>setEventsOpen(false)}
             initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} transition={{duration:0.2}}/>
           <motion.div className="absolute inset-y-0 right-0 w-[min(92vw,360px)] p-3"
             initial={{x:'100%'}} animate={{x:0}} exit={{x:'100%'}} transition={{type:'spring',stiffness:420,damping:42}}>
@@ -163,7 +163,7 @@ export default function ModulesApp() {
       )}
     </AnimatePresence>
 
-    <footer className="border-t border-border/80 bg-background/60 backdrop-blur">
+    <footer className="border-t border-border/80 bg-background/90">
       <div className="mx-auto flex w-full max-w-[1600px] flex-wrap items-center justify-between gap-3 px-4 py-5 text-sm text-muted-foreground md:px-6">
         <span className="font-mono text-[11px] tracking-[0.16em]">AEGISNEXUS · AÇIK KAYNAK</span>
         <span className="flex items-center gap-5">

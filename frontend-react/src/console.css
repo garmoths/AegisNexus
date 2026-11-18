@@ -1,6 +1,6 @@
 /* ============================================================
    AegisNexus "operasyon konsolu" görsel katmanı.
-   Izgara + tarama çizgisi + mono etiketler. Tüm sürekli hareket
+   Aurora arka plan + mono etiketler. Tüm sürekli hareket
    prefers-reduced-motion altında kapanır.
    ============================================================ */
 
@@ -8,30 +8,16 @@ h1, h2, h3, .font-display { font-family: var(--font-display); letter-spacing: -0
 
 /* --- Arka plan ------------------------------------------------ */
 .console-backdrop { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
-.console-backdrop .grid {
-  position: absolute; inset: -1px;
-  background-image:
-    linear-gradient(rgba(242,106,46,0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(242,106,46,0.05) 1px, transparent 1px);
-  background-size: 44px 44px;
-  -webkit-mask-image: radial-gradient(ellipse 85% 65% at 50% 0%, #000 25%, transparent 78%);
-          mask-image: radial-gradient(ellipse 85% 65% at 50% 0%, #000 25%, transparent 78%);
-}
 .console-backdrop .glow {
   position: absolute; width: 1100px; height: 620px; left: 50%; top: -340px; transform: translateX(-50%);
-  background: radial-gradient(closest-side, rgba(242,106,46,0.16), transparent);
+  background: radial-gradient(closest-side, rgba(242,106,46,0.14), transparent);
 }
-.console-backdrop .scan {
-  position: absolute; left: 0; right: 0; height: 36vh; top: -36vh;
-  background: linear-gradient(180deg, transparent, rgba(242,106,46,0.02) 85%, rgba(242,106,46,0.05));
-  border-bottom: 1px solid rgba(242,106,46,0.1);
-  animation: console-scan 11s cubic-bezier(.45,0,.55,1) infinite;
-}
+.console-backdrop .aurora { position: absolute; inset: 0 0 auto 0; height: 70vh; }
+.console-backdrop .fade { position: absolute; inset: 0; background: linear-gradient(180deg, transparent 0%, transparent 45%, #0d0b0a 85%); }
 .console-backdrop .grain {
   position: absolute; inset: 0; opacity: .05; mix-blend-mode: overlay;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
-@keyframes console-scan { 0% { top: -36vh; } 55%, 100% { top: 110vh; } }
 
 /* İçerik arka planın üstünde dursun */
 .console-layer { position: relative; z-index: 1; }
@@ -51,8 +37,7 @@ h1, h2, h3, .font-display { font-family: var(--font-display); letter-spacing: -0
 /* --- Paneller -------------------------------------------------- */
 .panel {
   position: relative; border: 1px solid #2b2622; border-radius: 16px;
-  background: linear-gradient(180deg, rgba(28,25,22,.92), rgba(21,18,16,.92));
-  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+  background: linear-gradient(180deg, rgba(28,25,22,.96), rgba(21,18,16,.96));
 }
 .panel-corners::before, .panel-corners::after {
   content: ""; position: absolute; width: 12px; height: 12px; pointer-events: none;
@@ -70,7 +55,7 @@ h1, h2, h3, .font-display { font-family: var(--font-display); letter-spacing: -0
 .account-nav a.active { background: #f26a2e; color: #1a0e07; }
 .workspace-card {
   background: linear-gradient(180deg, rgba(28,25,22,.82), rgba(21,18,16,.82));
-  border-color: #2b2622; -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+  border-color: #2b2622;
 }
 .workspace-card button, .action-button { background: #f26a2e; color: #1a0e07; }
 .workspace-card button:hover:not(:disabled), .action-button:hover { box-shadow: 0 0 24px -6px rgba(242,106,46,.6); }
@@ -80,7 +65,7 @@ h1, h2, h3, .font-display { font-family: var(--font-display); letter-spacing: -0
 .skeleton-shimmer { background: linear-gradient(90deg, #1c1916 25%, #2b2622 50%, #1c1916 75%); background-size: 200% 100%; }
 
 @media (prefers-reduced-motion: reduce) {
-  .console-backdrop .scan, .signal-dot::after { animation: none !important; display: none; }
+  .signal-dot::after { animation: none !important; display: none; }
 }
 
 /* Tıklanabilir satırlar: tutarlı hover + klavye odağı */

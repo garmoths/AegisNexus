@@ -206,9 +206,9 @@ function HoneypotIOC({ initialIocQuery = '', onClearPrefill }) {
           <div style={{ display:'flex', alignItems:'center', paddingLeft:12, color:theme.textMuted }}><Search size={16}/></div>
           <input value={searchQuery} onChange={e=>{const value=e.target.value;setSearchQuery(value);if(value.length<2)setShowDropdown(false)}} onKeyDown={e=>e.key==='Enter'&&handleSearch()}
             placeholder="IP adresi, domain, URL veya hash girin..."
-            style={{ flex:1, padding:'14px 8px', background:'transparent', border:'none', color:'#fff', fontSize:15, outline:'none', fontFamily:theme.font }}/>
+            style={{ flex:1, minWidth:0, padding:'14px 8px', background:'transparent', border:'none', color:'#fff', fontSize:15, outline:'none', fontFamily:theme.font }}/>
           <button onClick={handleSearch} disabled={searching}
-            style={{ padding:'14px 28px', borderRadius:theme.radiusMd, background:searching?'#2b2622':theme.gradientPrimary, color:searching?'#666':'#000', border:'none', cursor:searching?'not-allowed':'pointer', fontWeight:600, fontSize:14, display:'flex', alignItems:'center', gap:8 }}>
+            style={{ flexShrink:0, padding:'14px 20px', borderRadius:theme.radiusMd, background:searching?'#2b2622':theme.gradientPrimary, color:searching?'#666':'#000', border:'none', cursor:searching?'not-allowed':'pointer', fontWeight:600, fontSize:14, display:'flex', alignItems:'center', gap:8 }}>
             {searching ? <><span style={{ width:14,height:14,border:'2px solid #666',borderTopColor:'transparent',borderRadius:'50%',display:'inline-block',animation:'spin 0.8s linear infinite'}}/> Aranıyor</> : <><Search size={14}/> Sorgula</>}
           </button>
         </div>
@@ -237,7 +237,7 @@ function HoneypotIOC({ initialIocQuery = '', onClearPrefill }) {
       </div>
 
       {/* STIX Export Button */}
-      <div style={{ display:'flex', justifyContent:'center', gap:12, marginTop:20 }}>
+      <div style={{ display:'flex', justifyContent:'center', flexWrap:'wrap', gap:12, marginTop:20 }}>
         <button onClick={()=>exportSTIX(0)} disabled={exportingSTIX}
           style={{ padding:'10px 20px', borderRadius:theme.radiusSm, background:exportingSTIX?'#2b2622':theme.surface, border:`1px solid ${theme.border}`, color:theme.text, cursor:exportingSTIX?'not-allowed':'pointer', fontSize:13, fontWeight:600, display:'flex', alignItems:'center', gap:8 }}>
           <Download size={14}/>
@@ -260,7 +260,7 @@ function HoneypotIOC({ initialIocQuery = '', onClearPrefill }) {
     )}
 
     {/* ── İkili grid: Risk dağılımı + Tehdit tipi dağılımı ── */}
-    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20, marginBottom:20 }}>
+    <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap:20, marginBottom:20 }}>
       {/* Risk dağılımı */}
       <Card>
         <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:20 }}>
@@ -473,7 +473,7 @@ function HoneypotIOC({ initialIocQuery = '', onClearPrefill }) {
     </Card>
 
     {/* ── Proje açıklama kartı (yarışma için) ── */}
-    <div style={{ padding:24, background:theme.surface, border:`1px solid ${theme.border}`, borderRadius:theme.radiusMd, display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:20 }}>
+    <div style={{ padding:24, background:theme.surface, border:`1px solid ${theme.border}`, borderRadius:theme.radiusMd, display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap:20 }}>
       {[
         { icon:Shield, color:theme.primary, title:'IOC Nedir?', desc:'Indicator of Compromise — bir sistemin tehlikeye girdiğine işaret eden zararlı IP, domain, URL veya dosya hash değerleridir.' },
         { icon:Hash, color:theme.warning, title:'Nasıl Kullanılır?', desc:'Bir IP veya domain şüpheli geliyorsa arama kutusuna girerek veritabanımızda tehdit kaydı olup olmadığını anlık sorgulayabilirsiniz.' },

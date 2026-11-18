@@ -737,7 +737,7 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
         >
           <SpotlightCard spotlightColor={stat.color} intensity={0.22} spotlightSize={220} borderGlow={0.5}
             className="!rounded-2xl !p-5 border border-[color:var(--border)]"
-            style={{ '--spotlight-card-surface':'rgba(21,18,16,0.82)', backdropFilter:'blur(12px)' }}>
+            style={{ '--spotlight-card-surface':'rgba(21,18,16,0.96)' }}>
             <p className="mono-label" style={{ marginBottom:14 }}>{stat.label}</p>
             <p style={{ fontSize:32, fontWeight:600, color:stat.color, fontFamily:theme.display, letterSpacing:'-0.02em', lineHeight:1 }}><CountUp end={stat.value}/></p>
             <span aria-hidden="true" style={{ display:'block', height:2, marginTop:16, borderRadius:2, background:`linear-gradient(90deg, ${stat.color}, transparent)`, opacity:0.6 }} />
