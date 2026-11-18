@@ -208,7 +208,7 @@ function HoneypotIOC({ initialIocQuery = '', onClearPrefill }) {
             placeholder="IP adresi, domain, URL veya hash girin..."
             style={{ flex:1, padding:'14px 8px', background:'transparent', border:'none', color:'#fff', fontSize:15, outline:'none', fontFamily:theme.font }}/>
           <button onClick={handleSearch} disabled={searching}
-            style={{ padding:'14px 28px', borderRadius:theme.radiusMd, background:searching?'#333':theme.gradientPrimary, color:searching?'#666':'#000', border:'none', cursor:searching?'not-allowed':'pointer', fontWeight:600, fontSize:14, display:'flex', alignItems:'center', gap:8 }}>
+            style={{ padding:'14px 28px', borderRadius:theme.radiusMd, background:searching?'#1c2230':theme.gradientPrimary, color:searching?'#666':'#000', border:'none', cursor:searching?'not-allowed':'pointer', fontWeight:600, fontSize:14, display:'flex', alignItems:'center', gap:8 }}>
             {searching ? <><span style={{ width:14,height:14,border:'2px solid #666',borderTopColor:'transparent',borderRadius:'50%',display:'inline-block',animation:'spin 0.8s linear infinite'}}/> Aranıyor</> : <><Search size={14}/> Sorgula</>}
           </button>
         </div>
@@ -239,12 +239,12 @@ function HoneypotIOC({ initialIocQuery = '', onClearPrefill }) {
       {/* STIX Export Button */}
       <div style={{ display:'flex', justifyContent:'center', gap:12, marginTop:20 }}>
         <button onClick={()=>exportSTIX(0)} disabled={exportingSTIX}
-          style={{ padding:'10px 20px', borderRadius:theme.radiusSm, background:exportingSTIX?'#333':theme.surface, border:`1px solid ${theme.border}`, color:theme.text, cursor:exportingSTIX?'not-allowed':'pointer', fontSize:13, fontWeight:600, display:'flex', alignItems:'center', gap:8 }}>
+          style={{ padding:'10px 20px', borderRadius:theme.radiusSm, background:exportingSTIX?'#1c2230':theme.surface, border:`1px solid ${theme.border}`, color:theme.text, cursor:exportingSTIX?'not-allowed':'pointer', fontSize:13, fontWeight:600, display:'flex', alignItems:'center', gap:8 }}>
           <Download size={14}/>
           {exportingSTIX ? 'İndiriliyor...' : 'STIX 2.1 İndir'}
         </button>
         <button onClick={()=>exportSTIX(50)} disabled={exportingSTIX}
-          style={{ padding:'10px 20px', borderRadius:theme.radiusSm, background:exportingSTIX?'#333':'rgba(239,68,68,0.1)', border:`1px solid rgba(239,68,68,0.3)`, color:'#ef4444', cursor:exportingSTIX?'not-allowed':'pointer', fontSize:13, fontWeight:600, display:'flex', alignItems:'center', gap:8 }}>
+          style={{ padding:'10px 20px', borderRadius:theme.radiusSm, background:exportingSTIX?'#1c2230':'rgba(239,68,68,0.1)', border:`1px solid rgba(239,68,68,0.3)`, color:'#ef4444', cursor:exportingSTIX?'not-allowed':'pointer', fontSize:13, fontWeight:600, display:'flex', alignItems:'center', gap:8 }}>
           <ShieldAlert size={14}/>
           {exportingSTIX ? 'İndiriliyor...' : 'Yüksek Risk (50+)'}
         </button>

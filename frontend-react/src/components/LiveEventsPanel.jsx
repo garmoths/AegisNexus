@@ -25,16 +25,14 @@ export default function LiveEventsPanel({ className, onJump }) {
   const highCount = events.filter(e => e.severity === 'high' || e.severity === 'critical').length
 
   return (
-    <aside className={cn('flex h-full flex-col rounded-xl border border-border bg-card', className)}>
+    <aside className={cn('panel panel-corners flex h-full flex-col overflow-hidden', className)}>
       <div className="flex items-center justify-between gap-2 border-b border-border p-4">
-        <div className="flex items-center gap-2">
-          <span className="relative flex size-2.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
-            <span className="relative inline-flex size-2.5 rounded-full bg-primary" />
-          </span>
-          <h2 className="text-sm font-semibold">Canlı Olaylar</h2>
-          <Badge variant="muted">{events.length}</Badge>
-          {highCount > 0 && <Badge variant="destructive">{highCount} yüksek</Badge>}
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className={cn('signal-dot', highCount > 0 && 'is-danger')} />
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold leading-none">Canlı Olaylar</h2>
+            <p className="mono-label mt-1.5">{events.length} kayıt{highCount > 0 ? ` · ${highCount} yüksek` : ''}</p>
+          </div>
         </div>
         {events.length > 0 && (
           <Button variant="ghost" size="icon" className="size-8 text-muted-foreground" onClick={clear} title="Temizle">
@@ -45,9 +43,16 @@ export default function LiveEventsPanel({ className, onJump }) {
 
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
         {events.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center gap-2 px-4 py-10 text-center text-muted-foreground">
-            <motion.span animate={{ scale: [1, 1.12, 1], opacity: [0.6, 1, 0.6] }} transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}><Radio className="size-7 text-primary/70" /></motion.span>
-            <p className="text-sm">Henüz olay yok.</p>
+          <div className="flex h-full flex-col items-center justify-center gap-3 px-4 py-10 text-center text-muted-foreground">
+            <span className="relative grid size-20 place-items-center">
+              {[0, 1, 2].map(i => (
+                <motion.span key={i} className="absolute inset-0 rounded-full border border-primary/40"
+                  initial={{ scale: 0.4, opacity: 0 }} animate={{ scale: [0.4, 1.15], opacity: [0.7, 0] }}
+                  transition={{ duration: 2.8, repeat: Infinity, delay: i * 0.9, ease: 'easeOut' }} />
+              ))}
+              <span className="grid size-10 place-items-center rounded-full border border-primary/40 bg-primary/10"><Radio className="size-5 text-primary" /></span>
+            </span>
+            <p className="font-display text-sm text-foreground">Dinlemede — henüz olay yok.</p>
             <p className="text-xs">Bir modülü çalıştırın; bulgular burada canlı akar ve diğer modüllere iletilir.</p>
           </div>
         ) : (
@@ -62,8 +67,9 @@ export default function LiveEventsPanel({ className, onJump }) {
                   <button
                     type="button"
                     onClick={() => onJump?.(e.module, e)}
-                    className="group press w-full rounded-lg border border-transparent p-2.5 text-left transition-colors hover:border-border hover:bg-muted/50"
+                    className="group press relative w-full overflow-hidden rounded-lg border border-transparent p-2.5 pl-3.5 text-left transition-colors hover:border-border hover:bg-muted/50"
                   >
+                    <span className={cn('absolute inset-y-2 left-0 w-[2px] rounded-full', severityDot[e.severity] || severityDot.info)} />
                     <div className="flex items-center gap-2">
                       <span className={cn('size-2 shrink-0 rounded-full', severityDot[e.severity] || severityDot.info)} />
                       <Badge variant={severityVariant[e.severity] || 'muted'} className="px-1.5 py-0 text-[10px]">{meta.short}</Badge>

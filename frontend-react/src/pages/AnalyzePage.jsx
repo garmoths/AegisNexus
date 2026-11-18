@@ -81,12 +81,12 @@ export default function AnalyzePage({ onNavigate } = {}){
     catch(e){setFeedback(errorText(e))}
   }
   return <section style={{maxWidth:850,margin:embedded?'0':'auto',padding:embedded?0:24}}>
-    {!embedded && <><h1>Şüpheli içeriği kontrol et</h1><p style={{margin:'12px 0',color:'#a1a1aa'}}>URL, SMS veya e-posta yapıştırın. Kararı, gerekçeyi ve sonraki adımı görün.</p></>}
+    {!embedded && <><h1>Şüpheli içeriği kontrol et</h1><p style={{margin:'12px 0',color:'#8b96a8'}}>URL, SMS veya e-posta yapıştırın. Kararı, gerekçeyi ve sonraki adımı görün.</p></>}
     <form className="workspace-card" onSubmit={analyze}>
       <label>İçerik türü <select aria-label="İçerik türü" value={mode} onChange={e=>{resetAnalysis();setMode(e.target.value)}}><option value="auto">Otomatik algıla</option><option value="url">URL</option><option value="sms">SMS</option><option value="email">E-posta</option><option value="incident">Yaşadığım olay</option></select></label>
       <label htmlFor="analysis-input">İncelenecek içerik</label>
       <textarea id="analysis-input" rows={7} maxLength={20000} required value={text} onChange={e=>{resetAnalysis();setText(e.target.value)}} placeholder="Şüpheli bağlantı veya mesajı buraya yapıştırın…" style={{width:'100%'}}/>
-      <p style={{margin:'12px 0',fontSize:13,color:'#a1a1aa'}}>Parola, kart numarası ve doğrulama kodlarını paylaşmayın. Olay raporları için giriş gerekir.</p>
+      <p style={{margin:'12px 0',fontSize:13,color:'#8b96a8'}}>Parola, kart numarası ve doğrulama kodlarını paylaşmayın. Olay raporları için giriş gerekir.</p>
       <button disabled={busy||!text.trim()}>{busy?'Analiz sürüyor…':'Analiz et'}</button>
       {job&&<p role="status" style={{marginTop:12}}>Derin analiz kuyruğunda; sonucu bekliyoruz. Yeniden denemeler otomatik takip edilir.</p>}
       {error&&<p role="alert" className="error-message">{error}</p>}

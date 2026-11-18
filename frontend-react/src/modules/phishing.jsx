@@ -3,6 +3,8 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Search } from 'lucide-react'
 import { emitEvent } from '../stores/eventBus'
+import { BorderBeam } from '../components/ui/border-beam'
+import SpotlightCard from '../components/SpotlightCard'
 import { IkLink2, IkShieldDoc, IkGlobe2, IkBolt, IkSearch, IkScope, IkCamera, theme, Card, RiskGauge, IkAlert, IkWarn, IkCheck2, IkRadar, IkGrid, IkMonitor, IkClipboard, useWindowWidth, API, Toast, IkChart, CountUp, StatusDot, normalizeStatus } from './shared.jsx'
 
 function PhishingResult({ result, url }) {
@@ -428,14 +430,14 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
           transition={{ delay:0.1, duration:0.4, ease:theme.ease.out }}
           style={{ maxWidth:800, margin:'0 auto', position:'relative', zIndex:200 }}
         >
-          <div style={{ 
-            background:'rgba(255,255,255,0.05)', 
-            border:`1px solid ${theme.primary}33`,
+          <p className="eyebrow" style={{ marginBottom:12 }}>Hedef adres</p>
+          <div className="panel" style={{ 
             borderRadius:theme.radius.lg,
             padding:8,
-            boxShadow:'0 1px 2px rgba(0,0,0,0.3)',
+            boxShadow:'0 0 0 1px rgba(92,225,230,0.06), 0 30px 80px -40px rgba(92,225,230,0.35)',
             position:'relative'
           }}>
+            <BorderBeam size={120} duration={8} colorFrom="#5ce1e6" colorTo="#2563eb" borderWidth={1.5} />
             <div style={{ display:'flex', gap:12, flexDirection: isMobile ? 'column' : 'row' }}>
               <input 
                 value={url} 
@@ -444,14 +446,15 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
                 style={{ 
                   flex:1, 
                   minWidth:0,
-                  padding:'20px 28px', 
+                  padding:'18px 22px', 
                   borderRadius:theme.radius.md,
-                  background:'rgba(255,255,255,0.05)',
-                  border:'none',
-                  color:'#fff', 
-                  fontSize:17, 
+                  background:'rgba(5,7,10,0.6)',
+                  border:`1px solid ${theme.borderSoft}`,
+                  color:theme.text, 
+                  fontSize:16, 
                   outline:'none',
-                  fontFamily:theme.font
+                  fontFamily:theme.mono,
+                  letterSpacing:'0.01em'
                 }} 
                 onKeyDown={e=>e.key==='Enter'&&handleCheck()}
               />
@@ -463,19 +466,19 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
                 transition={{ duration:0.15 }}
                 style={{
                   flexShrink:0,
-                  padding:'20px 40px',
+                  padding:'18px 32px',
                   borderRadius:theme.radius.md,
                   cursor:checking?'not-allowed':'pointer',
                   fontSize:16,
                   fontWeight:600,
-                  background:checking?'#444':theme.gradientPrimary,
-                  color:checking?'#888':'#000',
+                  background:checking?'#1c2230':theme.gradientPrimary,
+                  color:checking?theme.textMuted:'#04161a',
                   border:'none',
                   display:'inline-flex',
                   alignItems:'center',
                   gap:10,
                   opacity:checking?0.5:1,
-                  boxShadow:checking?'none':'0 1px 2px rgba(0,0,0,0.3)',
+                  boxShadow:checking?'none':'0 0 30px -8px rgba(92,225,230,0.65)',
                   transition:'all 0.3s ease'
                 }}
               >
@@ -720,8 +723,8 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
       {[
         { label:'Toplam URL', value:totalUrls, color:theme.primary },
         { label:'Phishing', value:phCount, color:theme.danger },
-        { label:'Guvenli', value:safeCount, color:theme.success },
-        { label:'Bugun Taranan', value:stats?.stats?.today_scans||0, color:theme.warning }
+        { label:'Güvenli', value:safeCount, color:theme.success },
+        { label:'Bugün Taranan', value:stats?.stats?.today_scans||0, color:theme.warning }
       ].map((stat, i) => (
         <motion.div
           key={i}
@@ -729,15 +732,13 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
           animate={{ opacity:1, y:0 }}
           transition={{ delay:0.2 + i * 0.06, duration:0.35, ease:theme.ease.spring }}
         >
-          <Card style={{ 
-            textAlign:'center', 
-            padding:'32px 20px',
-            background:'rgba(255,255,255,0.03)',
-            border:`1px solid ${theme.border}`
-          }}>
-            <p style={{ fontSize:11, color:theme.textMuted, fontWeight:600, marginBottom:12 }}>{stat.label}</p>
-            <p style={{ fontSize:30, fontWeight:600, color:stat.color }}><CountUp end={stat.value}/></p>
-          </Card>
+          <SpotlightCard spotlightColor={stat.color} intensity={0.22} spotlightSize={220} borderGlow={0.5}
+            className="!rounded-2xl !p-5 border border-[color:var(--border)]"
+            style={{ '--spotlight-card-surface':'rgba(11,14,20,0.82)', backdropFilter:'blur(12px)' }}>
+            <p className="mono-label" style={{ marginBottom:14 }}>{stat.label}</p>
+            <p style={{ fontSize:32, fontWeight:600, color:stat.color, fontFamily:theme.display, letterSpacing:'-0.02em', lineHeight:1 }}><CountUp end={stat.value}/></p>
+            <span aria-hidden="true" style={{ display:'block', height:2, marginTop:16, borderRadius:2, background:`linear-gradient(90deg, ${stat.color}, transparent)`, opacity:0.6 }} />
+          </SpotlightCard>
         </motion.div>
       ))}
     </motion.div>

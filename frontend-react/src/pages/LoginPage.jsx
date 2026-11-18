@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { theme } from '../theme'
-import { Shield } from 'lucide-react'
+import { ShieldCheck } from 'lucide-react'
+import { BorderBeam } from '../components/ui/border-beam'
 import { authAPI } from '../lib/endpoints'
 import useAuthStore from '../stores/authStore'
 
@@ -59,7 +60,7 @@ export default function LoginPage() {
 
   return (
     <div style={{
-      minHeight: '100vh', background: theme.bg,
+      minHeight: 'calc(100vh - 120px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       padding: 24,
     }}>
@@ -67,18 +68,24 @@ export default function LoginPage() {
         initial={{ opacity: 0, y: 16, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+        className="panel panel-corners"
         style={{
-          width: '100%', maxWidth: 420,
-          background: theme.gradientSurface,
-          border: `1px solid ${theme.border}`,
+          width: '100%', maxWidth: 440,
           borderRadius: theme.radius.lg,
-          padding: 32,
+          padding: 36,
+          boxShadow: '0 40px 120px -50px rgba(92,225,230,0.45)',
         }}
       >
-        <h1 style={{ fontSize: 24, fontWeight: 700, color: theme.text, margin: '0 0 8px', textAlign: 'center' }}>
-          <Shield size={20} style={{marginRight:6}}/> AegisNexus
+        <BorderBeam size={140} duration={10} colorFrom="#5ce1e6" colorTo="#2563eb" />
+        <div style={{ display: 'grid', placeItems: 'center', width: 52, height: 52, margin: '0 auto 18px', borderRadius: 14,
+          border: `1px solid ${theme.primary}55`, background: theme.primaryDim, boxShadow: theme.glow }}>
+          <ShieldCheck size={24} color={theme.primary} />
+        </div>
+        <p className="eyebrow" style={{ textAlign: 'center' }}>Güvenli erişim</p>
+        <h1 style={{ fontSize: 28, fontWeight: 600, color: theme.text, margin: '10px 0 8px', textAlign: 'center' }}>
+          AegisNexus
         </h1>
-        <p style={{ color: theme.textMuted, fontSize: 14, margin: '0 0 24px', textAlign: 'center' }}>
+        <p style={{ color: theme.textMuted, fontSize: 14, margin: '0 0 28px', textAlign: 'center' }}>
           Phishing keşif ve analiz platformu
         </p>
 
@@ -130,25 +137,25 @@ export default function LoginPage() {
         {mode === 'register' ? (
           <form onSubmit={handleRegister}>
             <label style={{ display: 'block', marginBottom: 16 }}>
-              <span style={{ color: theme.textMuted, fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Email</span>
+              <span style={{ color: theme.textMuted, fontSize: 10.5, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.16em', fontFamily: theme.mono }}>Email</span>
               <input
                 type="email" value={email} onChange={e => setEmail(e.target.value)} required
                 placeholder="ornek@email.com"
                 style={{
                   width: '100%', padding: '10px 14px', marginTop: 6,
-                  background: theme.surface, border: `1px solid ${theme.border}`,
+                  background: 'rgba(5,7,10,0.6)', border: `1px solid ${theme.border}`,
                   borderRadius: theme.radius.sm, color: theme.text, fontSize: 14, outline: 'none',
                 }}
               />
             </label>
             <label style={{ display: 'block', marginBottom: 20 }}>
-              <span style={{ color: theme.textMuted, fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Ad Soyad</span>
+              <span style={{ color: theme.textMuted, fontSize: 10.5, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.16em', fontFamily: theme.mono }}>Ad Soyad</span>
               <input
                 type="text" value={fullName} onChange={e => setFullName(e.target.value)}
                 placeholder="Ad Soyad"
                 style={{
                   width: '100%', padding: '10px 14px', marginTop: 6,
-                  background: theme.surface, border: `1px solid ${theme.border}`,
+                  background: 'rgba(5,7,10,0.6)', border: `1px solid ${theme.border}`,
                   borderRadius: theme.radius.sm, color: theme.text, fontSize: 14, outline: 'none',
                 }}
               />
@@ -165,25 +172,25 @@ export default function LoginPage() {
         ) : (
           <form onSubmit={handleLogin}>
             <label style={{ display: 'block', marginBottom: 16 }}>
-              <span style={{ color: theme.textMuted, fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Email</span>
+              <span style={{ color: theme.textMuted, fontSize: 10.5, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.16em', fontFamily: theme.mono }}>Email</span>
               <input
                 type="email" value={email} onChange={e => setEmail(e.target.value)} required
                 placeholder="ornek@email.com"
                 style={{
                   width: '100%', padding: '10px 14px', marginTop: 6,
-                  background: theme.surface, border: `1px solid ${theme.border}`,
+                  background: 'rgba(5,7,10,0.6)', border: `1px solid ${theme.border}`,
                   borderRadius: theme.radius.sm, color: theme.text, fontSize: 14, outline: 'none',
                 }}
               />
             </label>
             <label style={{ display: 'block', marginBottom: 20 }}>
-              <span style={{ color: theme.textMuted, fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>API Key</span>
+              <span style={{ color: theme.textMuted, fontSize: 10.5, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.16em', fontFamily: theme.mono }}>API Key</span>
               <input
                 type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} required
                 placeholder="aeg_..."
                 style={{
                   width: '100%', padding: '10px 14px', marginTop: 6,
-                  background: theme.surface, border: `1px solid ${theme.border}`,
+                  background: 'rgba(5,7,10,0.6)', border: `1px solid ${theme.border}`,
                   borderRadius: theme.radius.sm, color: theme.text, fontSize: 14, outline: 'none',
                   fontFamily: 'monospace',
                 }}
@@ -199,7 +206,7 @@ export default function LoginPage() {
             </button>
           </form>
         )}
-        <p style={{marginTop:20}}><Link to="/recovery" style={{color:theme.primary}}>Anahtarımı kaybettim</Link></p>
+        <p style={{marginTop:22,textAlign:'center',fontSize:13}}><Link to="/recovery" style={{color:theme.primary,textDecoration:'none'}}>Anahtarımı kaybettim →</Link></p>
       </motion.div>
     </div>
   )
