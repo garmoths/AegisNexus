@@ -7,29 +7,27 @@ Harici API servisleri ile tehdit istihbaratı entegrasyonu.
 - AbuseIPDB
 """
 
-import os
-import json
-import logging
 import hashlib
-import socket
 import ipaddress
-import requests
+import logging
+import os
+import socket
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from urllib.parse import urlparse
-from dotenv import load_dotenv
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from urllib.parse import urlparse
 
-from .cache_db import write_phishing_url, write_ioc
-from .screenshot_analyzer import analyze as analyze_screenshot
+import requests
+from dotenv import load_dotenv
+
+from .cache_db import write_ioc, write_phishing_url
 from .scoring import (
-    combine_probabilities,
-    to_probability,
+    SCORING_MODEL_VERSION,
+    apply_correlation_boost,
     apply_source_weight,
     detect_signals,
-    apply_correlation_boost,
-    SCORING_MODEL_VERSION,
 )
+from .screenshot_analyzer import analyze as analyze_screenshot
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 load_dotenv(BASE_DIR / ".env")
@@ -81,7 +79,7 @@ def _rotate_api_key(api_name):
     """API key'i rotate et (rate limit aşıldıysa sonraki key'e geç)."""
     if api_name not in API_RATE_LIMITS:
         return None
-    
+
     if api_name == "virustotal":
         if len(VIRUSTOTAL_API_KEYS) > 1:
             current_idx = API_RATE_LIMITS[api_name]["key_index"]
@@ -91,7 +89,7 @@ def _rotate_api_key(api_name):
             logger.info(f"Rotated VirusTotal key: {current_idx} → {next_idx}")
             return VIRUSTOTAL_API_KEYS[next_idx]
         return VIRUSTOTAL_API_KEYS[0] if VIRUSTOTAL_API_KEYS else None
-    
+
     elif api_name == "google_safe":
         if len(GOOGLE_SAFE_BROWSING_KEYS) > 1:
             current_idx = API_RATE_LIMITS[api_name]["key_index"]
@@ -101,7 +99,7 @@ def _rotate_api_key(api_name):
             logger.info(f"Rotated Google Safe key: {current_idx} → {next_idx}")
             return GOOGLE_SAFE_BROWSING_KEYS[next_idx]
         return GOOGLE_SAFE_BROWSING_KEYS[0] if GOOGLE_SAFE_BROWSING_KEYS else None
-    
+
     elif api_name == "abuseipdb":
         if len(ABUSEIPDB_API_KEYS) > 1:
             current_idx = API_RATE_LIMITS[api_name]["key_index"]
@@ -133,22 +131,22 @@ def _check_rate_limit(api_name):
     """Rate limit kontrolü."""
     if api_name not in API_RATE_LIMITS:
         return True
-    
+
     limit_config = API_RATE_LIMITS[api_name]
     now = datetime.now()
     cutoff = now - timedelta(seconds=limit_config["window"])
-    
+
     # Eski requestleri temizle
     limit_config["requests"] = [
         req_time for req_time in limit_config["requests"]
         if req_time > cutoff
     ]
-    
+
     # Limiti kontrol et
     if len(limit_config["requests"]) >= limit_config["limit"]:
         logger.warning(f"{api_name} rate limit aşıldı")
         return False
-    
+
     limit_config["requests"].append(now)
     return True
 
@@ -202,12 +200,12 @@ def check_virustotal(url, timeout=5):
     Döndürür: {"malicious": int, "suspicious": int, "clean": int, "status": str}
     """
     cache_key = f"vt_{hashlib.sha256(url.encode()).hexdigest()}"
-    
+
     # Cache kontrol
     cached = _get_cached(cache_key)
     if cached:
         return cached
-    
+
     if not VIRUSTOTAL_API_KEYS:
         return {
             "available": False,
@@ -215,7 +213,7 @@ def check_virustotal(url, timeout=5):
             "malicious": 0, "suspicious": 0, "clean": 0,
             "engines": []
         }
-    
+
     # Tüm key'leri dene
     attempts = len(VIRUSTOTAL_API_KEYS)
     last_status_code = None
@@ -223,25 +221,25 @@ def check_virustotal(url, timeout=5):
         try:
             import base64
             url_id = base64.urlsafe_b64encode(url.encode()).decode().strip("=")
-            
+
             current_key = _get_current_api_key("virustotal")
             headers = {"x-apikey": current_key}
-            
+
             api_url = f"https://www.virustotal.com/api/v3/urls/{url_id}"
             resp = requests.get(api_url, headers=headers, timeout=timeout)
             last_status_code = resp.status_code
-            
+
             # Sadece 200 = başarı - immediately return!
             if resp.status_code == 200:
                 data = resp.json()
                 stats = data.get("data", {}).get("attributes", {}).get("last_analysis_stats", {})
                 results = data.get("data", {}).get("attributes", {}).get("last_analysis_results", {})
-                
+
                 malicious = stats.get("malicious", 0)
                 suspicious = stats.get("suspicious", 0)
                 harmless = stats.get("harmless", 0)
                 undetected = stats.get("undetected", 0)
-                
+
                 threat_engines = []
                 for engine_name, result in results.items():
                     if result.get("category") in ("malicious", "suspicious"):
@@ -250,7 +248,7 @@ def check_virustotal(url, timeout=5):
                             "result": result.get("result", ""),
                             "category": result.get("category", "")
                         })
-                
+
                 total = malicious + suspicious + harmless + undetected
                 if malicious > 0:
                     status = f"🚨 {malicious}/{total} motor TEHLİKELİ olarak işaretledi"
@@ -258,7 +256,7 @@ def check_virustotal(url, timeout=5):
                     status = f"⚠️ {suspicious}/{total} motor ŞÜPHELİ olarak işaretledi"
                 else:
                     status = f"✅ {total} motorun hiçbiri tehdit tespit etmedi"
-                
+
                 result = {
                     "available": True,
                     "status": status,
@@ -271,7 +269,7 @@ def check_virustotal(url, timeout=5):
                 _set_cached(cache_key, result)
                 logger.debug(f"✅ VirusTotal success on attempt {attempt + 1}, returning immediately")
                 return result
-            
+
             elif resp.status_code == 404:
                 # Rapor yoksa yeni tarama başlat
                 scan_resp = requests.post(
@@ -293,13 +291,13 @@ def check_virustotal(url, timeout=5):
                     logger.warning(f"VirusTotal key #{API_RATE_LIMITS['virustotal']['key_index']}: HTTP {scan_resp.status_code}, rotating...")
                     _rotate_api_key("virustotal")
                     continue
-            
+
             else:
                 # Non-200 status = rotate to next key
                 logger.warning(f"VirusTotal key #{API_RATE_LIMITS['virustotal']['key_index']}: HTTP {resp.status_code}, rotating (attempt {attempt + 1}/{attempts})...")
                 _rotate_api_key("virustotal")
                 continue
-        
+
         except requests.Timeout:
             logger.warning(f"VirusTotal key #{API_RATE_LIMITS['virustotal']['key_index']}: timeout (attempt {attempt + 1}/{attempts}), rotating...")
             _rotate_api_key("virustotal")
@@ -308,7 +306,7 @@ def check_virustotal(url, timeout=5):
             logger.warning(f"VirusTotal key #{API_RATE_LIMITS['virustotal']['key_index']}: {e} (attempt {attempt + 1}/{attempts}), rotating...")
             _rotate_api_key("virustotal")
             continue
-    
+
     # Tüm key'ler başarısız - return empty result
     logger.error(f"❌ VirusTotal: All {len(VIRUSTOTAL_API_KEYS)} keys exhausted")
     status_detail = f"VirusTotal: Tüm {len(VIRUSTOTAL_API_KEYS)} API key başarısız"
@@ -333,12 +331,12 @@ def check_google_safe_browsing(url, timeout=5):
     Döndürür: {"threat": bool, "threat_type": str, "status": str}
     """
     cache_key = f"gsb_{hashlib.sha256(url.encode()).hexdigest()}"
-    
+
     # Cache kontrol
     cached = _get_cached(cache_key)
     if cached:
         return cached
-    
+
     if not GOOGLE_SAFE_BROWSING_KEYS:
         return {
             "available": False,
@@ -346,14 +344,14 @@ def check_google_safe_browsing(url, timeout=5):
             "threat": False,
             "threat_type": None
         }
-    
+
     # Tüm key'leri dene
     attempts = len(GOOGLE_SAFE_BROWSING_KEYS)
     for attempt in range(attempts):
         try:
             current_key = _get_current_api_key("google_safe")
             api_url = f"https://safebrowsing.googleapis.com/v4/threatMatches:find?key={current_key}"
-            
+
             payload = {
                 "client": {
                     "clientId": "phishing-detector",
@@ -372,14 +370,14 @@ def check_google_safe_browsing(url, timeout=5):
                     "threatEntries": [{"url": url}]
                 }
             }
-            
+
             resp = requests.post(api_url, json=payload, timeout=timeout)
-            
+
             # Sadece 200 = başarı - immediately return!
             if resp.status_code == 200:
                 data = resp.json()
                 matches = data.get("matches", [])
-                
+
                 if matches:
                     threat_type = matches[0].get("threatType", "UNKNOWN")
                     threat_names = {
@@ -397,7 +395,7 @@ def check_google_safe_browsing(url, timeout=5):
                     _set_cached(cache_key, result)
                     logger.debug(f"✅ Google Safe Browsing success on attempt {attempt + 1}, returning immediately")
                     return result
-                
+
                 result = {
                     "available": True,
                     "status": "✅ Google Safe Browsing: Temiz",
@@ -407,12 +405,12 @@ def check_google_safe_browsing(url, timeout=5):
                 _set_cached(cache_key, result)
                 logger.debug(f"✅ Google Safe Browsing success (clean) on attempt {attempt + 1}, returning immediately")
                 return result
-            
+
             else:
                 logger.warning(f"Google Safe Browsing key #{API_RATE_LIMITS['google_safe']['key_index']}: HTTP {resp.status_code}, rotating (attempt {attempt + 1}/{attempts})...")
                 _rotate_api_key("google_safe")
                 continue
-        
+
         except requests.Timeout:
             logger.warning(f"Google Safe Browsing key #{API_RATE_LIMITS['google_safe']['key_index']}: timeout (attempt {attempt + 1}/{attempts}), rotating...")
             _rotate_api_key("google_safe")
@@ -421,7 +419,7 @@ def check_google_safe_browsing(url, timeout=5):
             logger.warning(f"Google Safe Browsing key #{API_RATE_LIMITS['google_safe']['key_index']}: {e} (attempt {attempt + 1}/{attempts}), rotating...")
             _rotate_api_key("google_safe")
             continue
-    
+
     # Tüm key'ler başarısız - return empty result
     logger.error(f"❌ Google Safe Browsing: All {len(GOOGLE_SAFE_BROWSING_KEYS)} keys exhausted")
     return {
@@ -443,12 +441,12 @@ def check_abuseipdb(url, timeout=5):
     Döndürür: {"abuse_score": int, "reports": int, "status": str}
     """
     cache_key = f"abuseipdb_{hashlib.sha256(url.encode()).hexdigest()}"
-    
+
     # Cache kontrol
     cached = _get_cached(cache_key)
     if cached:
         return cached
-    
+
     if not ABUSEIPDB_API_KEYS:
         return {
             "available": False,
@@ -456,7 +454,7 @@ def check_abuseipdb(url, timeout=5):
             "abuse_score": 0,
             "total_reports": 0
         }
-    
+
     # Tüm key'leri dene
     attempts = len(ABUSEIPDB_API_KEYS)
     for attempt in range(attempts):
@@ -465,7 +463,7 @@ def check_abuseipdb(url, timeout=5):
             parsed = urlparse(url if url.startswith("http") else "https://" + url)
             hostname = parsed.netloc or parsed.path
             hostname = hostname.replace("www.", "").split(":")[0]
-            
+
             try:
                 ip_address = socket.gethostbyname(hostname)
             except socket.gaierror:
@@ -475,7 +473,7 @@ def check_abuseipdb(url, timeout=5):
                     "abuse_score": 0,
                     "total_reports": 0
                 }
-            
+
             current_key = _get_current_api_key("abuseipdb")
             headers = {
                 "Key": current_key,
@@ -485,12 +483,12 @@ def check_abuseipdb(url, timeout=5):
                 "ipAddress": ip_address,
                 "maxAgeInDays": 90
             }
-            
+
             resp = requests.get(
                 "https://api.abuseipdb.com/api/v2/check",
                 headers=headers, params=params, timeout=timeout
             )
-            
+
             # Sadece 200 = başarı - immediately return!
             if resp.status_code == 200:
                 data = resp.json().get("data", {})
@@ -498,7 +496,7 @@ def check_abuseipdb(url, timeout=5):
                 total_reports = data.get("totalReports", 0)
                 country = data.get("countryCode", "??")
                 isp = data.get("isp", "Bilinmiyor")
-                
+
                 if abuse_score >= 70:
                     status = f"🚨 AbuseIPDB: Yüksek risk skoru ({abuse_score}%) — {total_reports} rapor — {country}"
                 elif abuse_score >= 30:
@@ -507,7 +505,7 @@ def check_abuseipdb(url, timeout=5):
                     status = f"ℹ️ AbuseIPDB: Düşük risk ({abuse_score}%) — {total_reports} rapor — ISP: {isp}"
                 else:
                     status = f"✅ AbuseIPDB: Temiz — ISP: {isp} — {country}"
-                
+
                 result = {
                     "available": True,
                     "status": status,
@@ -520,12 +518,12 @@ def check_abuseipdb(url, timeout=5):
                 _set_cached(cache_key, result)
                 logger.debug(f"✅ AbuseIPDB success on attempt {attempt + 1}, returning immediately")
                 return result
-            
+
             else:
                 logger.warning(f"AbuseIPDB key #{API_RATE_LIMITS['abuseipdb']['key_index']}: HTTP {resp.status_code}, rotating (attempt {attempt + 1}/{attempts})...")
                 _rotate_api_key("abuseipdb")
                 continue
-        
+
         except requests.Timeout:
             logger.warning(f"AbuseIPDB key #{API_RATE_LIMITS['abuseipdb']['key_index']}: timeout (attempt {attempt + 1}/{attempts}), rotating...")
             _rotate_api_key("abuseipdb")
@@ -534,7 +532,7 @@ def check_abuseipdb(url, timeout=5):
             logger.warning(f"AbuseIPDB key #{API_RATE_LIMITS['abuseipdb']['key_index']}: {e} (attempt {attempt + 1}/{attempts}), rotating...")
             _rotate_api_key("abuseipdb")
             continue
-    
+
     # Tüm key'ler başarısız - return empty result
     logger.error(f"❌ AbuseIPDB: All {len(ABUSEIPDB_API_KEYS)} keys exhausted")
     return {
@@ -731,7 +729,7 @@ def _parse_iso_datetime(value: str | None):
             normalized = normalized[:-1] + "+00:00"
         parsed = datetime.fromisoformat(normalized)
         if parsed.tzinfo is None:
-            parsed = parsed.replace(tzinfo=timezone.utc)
+            parsed = parsed.replace(tzinfo=UTC)
         return parsed
     except Exception:
         return None
@@ -745,7 +743,7 @@ def combine_probabilities(probabilities: list[float]) -> float:
     """
     Birden fazla bağımsız risk sinyalini Bayesian kombinasyon ile birleştir.
     P(malicious) = 1 - Π(1 - p_i)
-    
+
     Örnek:
     - [0.8, 0.7] → 0.94
     - [0.3, 0.2] → 0.44
@@ -753,12 +751,12 @@ def combine_probabilities(probabilities: list[float]) -> float:
     """
     if not probabilities:
         return 0.0
-    
+
     prob_safe = 1.0
     for p in probabilities:
         bounded_p = max(0.0, min(1.0, float(p)))
         prob_safe *= (1.0 - bounded_p)
-    
+
     return max(0.0, min(1.0, 1.0 - prob_safe))
 
 
@@ -819,39 +817,39 @@ def _apply_legacy_boost(signals: dict, base_risk: float) -> list[tuple[str, floa
     """
     Belirli sinyal kombinasyonları bir arada gelirse,
     çarpanla artar (boost).
-    
+
     Döner: [(boost_name, multiplier), ...]
     """
     boosts = []
-    
+
     # Phishing trifecta: typosquatting + şüpheli TLD + login formu
     if (signals.get("typosquatting") and
         signals.get("suspicious_tld") and
         signals.get("credential_form")):
         boosts.append(("phishing_trifecta", 1.4))
-    
+
     # Threat intel + görsel analiz aynı markayı işaret
     if (signals.get("ti_brand") and
         signals.get("visual_brand") and
         signals.get("ti_brand") == signals.get("visual_brand")):
         boosts.append(("brand_consensus", 1.3))
-    
+
     # Yeni domain + suistimal IP + kara liste = fresh_malicious
     if (signals.get("domain_age_days", 999) < 30 and
         signals.get("abuseipdb_score", 0) > 50 and
         signals.get("urlhaus_listed")):
         boosts.append(("fresh_malicious", 1.35))
-    
+
     # Screenshot alınamadı AMA diğer sinyaller şüpheli
     if (signals.get("screenshot_failed") and
         signals.get("structural_risk", 0) > 0.3):
         boosts.append(("hidden_suspicious", 1.2))
-    
+
     # Birden fazla VT motor + GSB'nin de bulması
     if (signals.get("vt_malicious_count", 0) >= 3 and
         signals.get("google_safe_browsing_threat")):
         boosts.append(("multi_engine_consensus", 1.25))
-    
+
     return boosts
 
 
@@ -915,7 +913,7 @@ def _get_domain_age_penalty(domain: str) -> dict:
                 "detail": "Domain yaşı alınamadı (RDAP creation date yok).",
             }
 
-        age_days = max(0, (datetime.now(timezone.utc) - creation_ts).days)
+        age_days = max(0, (datetime.now(UTC) - creation_ts).days)
         if age_days < 7:
             return {
                 "available": True,
@@ -1064,8 +1062,9 @@ def _task_virustotal(url: str):
             logger.warning(f"VT API hatası, yerel DB'ye geçiliyor: {exc}")
 
     # API key yok veya API başarısız → yerel DB sorgusu
-    from .threat_intel_local import check_virustotal_local
     from app.database import SessionLocal
+
+    from .threat_intel_local import check_virustotal_local
     db = None
     try:
         db = SessionLocal()
@@ -1093,6 +1092,8 @@ def _task_abuseipdb(url: str):
     from .threat_intel_local import (
         _best_cached_scan_raw_data,
         _extract_cached_component,
+    )
+    from .threat_intel_local import (
         check_abuseipdb_local as check_abuseipdb,
     )
 
@@ -1113,10 +1114,11 @@ def _task_abuseipdb(url: str):
 
 def _task_spamhaus_group(url: str, domain: str, resolved_ip: str | None):
     """URLhaus + Spamhaus (domain+IP) + ThreatFox — dahili paralel ThreadPoolExecutor."""
+    from .spamhaus_client import query_domain as spamhaus_query_domain
+    from .spamhaus_client import query_ip as spamhaus_query_ip
     from .threat_intel_local import _best_cached_scan_raw_data, _extract_cached_component
-    from .spamhaus_client import query_ip as spamhaus_query_ip, query_domain as spamhaus_query_domain
-    from .urlhaus_client import query_url as urlhaus_query_url
     from .threatfox_client import query_ioc as threatfox_query_ioc
+    from .urlhaus_client import query_url as urlhaus_query_url
 
     cached_scan = _best_cached_scan_raw_data(url, domain)
     if cached_scan:
@@ -1150,7 +1152,7 @@ def _task_spamhaus_group(url: str, domain: str, resolved_ip: str | None):
                 except Exception as exc:
                     logger.warning(f"Spamhaus grup alt-sorgu hatası [{key}]: {exc}")
         except TimeoutError:
-            for future, key in inner_futures.items():
+            for key in inner_futures.values():
                 if key not in group:
                     logger.warning(f"Spamhaus grup alt-sorgu timeout [{key}]")
 
@@ -1220,7 +1222,7 @@ def run_threat_intelligence(url, http_meta=None, page_text: str = "", is_whiteli
         except TimeoutError:
             # Süre dolan tasklar None olarak işle, eldeki sonuçlarla devam et
             all_available = False
-            for fut, name in futures_map.items():
+            for _fut, name in futures_map.items():
                 if name not in task_results:
                     logger.warning(f"Paralel task timeout [{name}] — sonuç atlanıyor")
                     task_results[name] = None
@@ -1387,7 +1389,7 @@ def run_threat_intelligence(url, http_meta=None, page_text: str = "", is_whiteli
         results["spamhaus_ip"] = spamhaus_ip_result
         ip_lists = spamhaus_ip_result.get("lists", [])
         if is_whitelisted:
-            results["sources"].append({"name": "Spamhaus IP", "status": f"IP listed whitelist nedeniyle ceza yok"})
+            results["sources"].append({"name": "Spamhaus IP", "status": "IP listed whitelist nedeniyle ceza yok"})
         else:
             if any(ll in ip_lists for ll in ("XBL", "eXBL")):
                 results["total_penalty"] += 30
@@ -1467,7 +1469,7 @@ def run_threat_intelligence(url, http_meta=None, page_text: str = "", is_whiteli
 
     # Risk skorunu ve seviyesini hesapla
     risk_score = min(100, results["total_penalty"])
-    
+
     if risk_score >= 70:
         risk_level = "critical"
     elif risk_score >= 50:
@@ -1478,14 +1480,14 @@ def run_threat_intelligence(url, http_meta=None, page_text: str = "", is_whiteli
         risk_level = "low"
     else:
         risk_level = "safe"
-    
+
     is_safe = risk_score < 30
-    
+
     # Sonuçları ekle
     results["risk_score"] = risk_score
     results["risk_level"] = risk_level
     results["is_safe"] = is_safe
-    
+
     # Detaylı analiz sonuçları
     results["analysis"] = {
         "summary": generate_analysis_summary(results),
@@ -1496,7 +1498,7 @@ def run_threat_intelligence(url, http_meta=None, page_text: str = "", is_whiteli
     # Validated flag - tüm API'ler başarılıysa TRUE
     results["validated"] = all_available
     logger.debug(f"Threat Intel Result - Validated: {all_available}, Sources: {len(results['sources'])}")
-    
+
     # Cache'e yaz - persistent storage
     try:
         sources_list = [s.get("name", "").lower() for s in results["sources"]]
@@ -1512,7 +1514,7 @@ def run_threat_intelligence(url, http_meta=None, page_text: str = "", is_whiteli
         logger.debug(f"URL cached to persistent DB: {url}")
     except Exception as e:
         logger.error(f"Failed to cache URL to DB: {e}")
-    
+
     # ── Faz A: Bayesian probability kombiner ──────────────────────────────
     _pe: list = []
 
@@ -1626,11 +1628,11 @@ def run_threat_intelligence(url, http_meta=None, page_text: str = "", is_whiteli
 
 def generate_analysis_summary(results):
     """Detaylı analiz özeti oluştur"""
-    score = results.get("risk_score", 0)
+    results.get("risk_score", 0)
     level = results.get("risk_level", "unknown")
     findings = results.get("findings", [])
     sources = results.get("sources", [])
-    
+
     if level == "safe":
         return f"✅ URL güvenli görünüyor. {len(sources)} güvenlik kaynağı tarafından kontrol edildi ve herhangi bir tehdit tespit edilmedi."
     elif level == "low":
@@ -1648,8 +1650,8 @@ def generate_analysis_summary(results):
 def generate_recommendations(results):
     """Güvenlik önerileri oluştur"""
     level = results.get("risk_level", "unknown")
-    score = results.get("risk_score", 0)
-    
+    results.get("risk_score", 0)
+
     if level == "safe":
         return [
             "✅ URL güvenli görünmektedir",
@@ -1687,7 +1689,7 @@ def generate_recommendations(results):
 def extract_threat_details(results):
     """Tehdit detaylarını çıkar"""
     details = []
-    
+
     # VirusTotal detayları
     vt = results.get("virustotal") or {}
     if vt.get("available"):
@@ -1695,12 +1697,12 @@ def extract_threat_details(results):
             details.append(f"🛡️ VirusTotal: {vt['malicious']}/{vt.get('total', 0)} motor tehlikeli")
         if vt.get("suspicious", 0) > 0:
             details.append(f"⚠️ VirusTotal: {vt['suspicious']} motor şüpheli")
-    
+
     # Google Safe Browsing detayları
     gsb = results.get("google_safe_browsing") or {}
     if gsb.get("available") and gsb.get("threat"):
         details.append(f"🔍 Google: {gsb.get('threat_type', 'Bilinmeyen tehdit')}")
-    
+
     # AbuseIPDB detayları
     abuse = results.get("abuseipdb") or {}
     if abuse.get("available"):
@@ -1708,7 +1710,7 @@ def extract_threat_details(results):
             details.append(f"📊 AbuseIPDB: %{abuse['abuse_score']} suistimal skoru")
         if abuse.get("total_reports", 0) > 0:
             details.append(f"📝 AbuseIPDB: {abuse['total_reports']} rapor")
-    
+
     # Screenshot Analyzer detayları
     shot = results.get("screenshot_analysis", {}) or {}
     if shot:

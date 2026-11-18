@@ -5,15 +5,14 @@ Spamhaus DQS/Intel API ile IP ve domain itibar sorgulama.
 Auth: Login-based token (POST /api/v1/login → Bearer token).
 """
 
-import os
-import logging
 import ipaddress
+import logging
+import os
 from datetime import datetime, timedelta
-from typing import Dict, Optional
+from pathlib import Path
 
 import requests
 from dotenv import load_dotenv
-from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 load_dotenv(BASE_DIR / ".env")
@@ -26,7 +25,7 @@ LOGIN_URL = "https://api.spamhaus.org/api/v1/login"
 API_BASE = "https://api.spamhaus.org/api/intel/v1"
 
 # In-memory token cache
-_token_cache: Optional[Dict] = None
+_token_cache: dict | None = None
 
 
 def _is_valid_ip(value: str) -> bool:
@@ -37,7 +36,7 @@ def _is_valid_ip(value: str) -> bool:
         return False
 
 
-def _get_auth_token(timeout: int = 10) -> Optional[str]:
+def _get_auth_token(timeout: int = 10) -> str | None:
     """Login endpoint'inden Bearer token al. Cache'le, süresi dolunca yenile."""
     global _token_cache
 
@@ -79,14 +78,14 @@ def _get_auth_token(timeout: int = 10) -> Optional[str]:
     return None
 
 
-def _api_headers() -> Dict[str, str]:
+def _api_headers() -> dict[str, str]:
     token = _get_auth_token()
     if token:
         return {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     return {}
 
 
-def _clean_result() -> Dict:
+def _clean_result() -> dict:
     """Not listed / clean sonucu."""
     return {
         "listed": False,
@@ -99,7 +98,7 @@ def _clean_result() -> Dict:
     }
 
 
-def query_ip(ip: str, timeout: int = 10) -> Dict:
+def query_ip(ip: str, timeout: int = 10) -> dict:
     """
     Spamhaus IP sorgulama.
     SBL/XBL/eXBL/CBL liste durumu, reputation skoru, botnet adı, C2 bilgisi döndürür.
@@ -202,7 +201,7 @@ def query_ip(ip: str, timeout: int = 10) -> Dict:
     return result
 
 
-def query_domain(domain: str, timeout: int = 10) -> Dict:
+def query_domain(domain: str, timeout: int = 10) -> dict:
     """
     Spamhaus domain sorgulama.
     DBL liste durumu, ZRD kontrolü, reputation skoru döndürür.

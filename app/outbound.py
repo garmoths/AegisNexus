@@ -3,7 +3,7 @@ import ipaddress
 import json
 import socket
 import time
-from urllib.parse import urlsplit, urlunsplit, urljoin
+from urllib.parse import urljoin, urlsplit, urlunsplit
 
 import requests
 import urllib3

@@ -1,17 +1,17 @@
 """Private reports, actionable cases and quota-accounted PDF exports."""
-from datetime import datetime, timezone
-from pathlib import Path
 import os
+from datetime import UTC, datetime
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import func
 from sqlalchemy.orm import Session
+
+from app import runtime_store as store
 from app.auth import resolve_api_key
 from app.database import get_db
-from app.models import APIKey, UserReport, UserRole, PDFDownload, EventOutbox
-from app import runtime_store as store
+from app.models import APIKey, EventOutbox, PDFDownload, UserReport, UserRole
 
 router = APIRouter(tags=['reports'])
 FREE_MONTHLY_PDF_QUOTA = 3
@@ -89,7 +89,7 @@ def update_report(report_id: int, body: ReportPatch, api_key: APIKey = Depends(r
 def _check_pdf_quota(api_key, db):
     if api_key.role in (UserRole.premium, UserRole.corporate, UserRole.admin):
         return True
-    month = datetime.now(timezone.utc).strftime('%Y-%m')
+    month = datetime.now(UTC).strftime('%Y-%m')
     return db.query(PDFDownload).filter_by(user_id=api_key.user_id, month=month).count() < FREE_MONTHLY_PDF_QUOTA
 
 
@@ -101,7 +101,7 @@ def download_pdf(report_id: int, api_key: APIKey = Depends(resolve_api_key), db:
     if not store.claim(lease, True, 60):
         raise HTTPException(409, 'Başka bir PDF işlemi sürüyor.')
     try:
-        month = datetime.now(timezone.utc).strftime('%Y-%m')
+        month = datetime.now(UTC).strftime('%Y-%m')
         previous = db.query(PDFDownload).filter_by(user_id=api_key.user_id, report_id=report_id, month=month).first()
         if previous is None and not _check_pdf_quota(api_key, db):
             raise HTTPException(429, 'Aylık 3 farklı PDF dışa aktarma sınırı doldu.')

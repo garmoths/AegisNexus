@@ -1,13 +1,14 @@
 """Durable event delivery and user watch checks."""
 import hashlib
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
-from celery.signals import task_prerun, task_postrun, task_failure, heartbeat_sent
+from celery.signals import heartbeat_sent, task_failure, task_postrun, task_prerun
+
+from app import runtime_store as store
 from app.celery_app import celery_app
 from app.database import SessionLocal
-from app.models import EventOutbox, WatchItem, UserNotification, IndicatorOfCompromise, UserReport
-from app import runtime_store as store
+from app.models import EventOutbox, IndicatorOfCompromise, UserNotification, UserReport, WatchItem
 
 
 @celery_app.task(name='app.workflow_tasks.runtime_probe')
@@ -18,14 +19,14 @@ def runtime_probe():
 
 @task_prerun.connect
 def task_started(sender=None, task_id=None, **kwargs):
-    store.put('task:' + sender.name, {'state': 'running', 'task_id': task_id, 'started_at': datetime.now(timezone.utc).isoformat()}, 604800)
+    store.put('task:' + sender.name, {'state': 'running', 'task_id': task_id, 'started_at': datetime.now(UTC).isoformat()}, 604800)
 
 
 @task_postrun.connect
 def task_finished(sender=None, state=None, retval=None, **kwargs):
     value = store.get('task:' + sender.name, {})
     reported_error = isinstance(retval, dict) and retval.get('status') in ('error', 'failed')
-    value.update(state='FAILURE' if reported_error else state, finished_at=datetime.now(timezone.utc).isoformat())
+    value.update(state='FAILURE' if reported_error else state, finished_at=datetime.now(UTC).isoformat())
     if state == 'SUCCESS' and not reported_error:
         value['last_success_at'] = value['finished_at']
     store.put('task:' + sender.name, value, 604800)
@@ -34,14 +35,14 @@ def task_finished(sender=None, state=None, retval=None, **kwargs):
 @task_failure.connect
 def task_failed(sender=None, **kwargs):
     value = store.get('task:' + sender.name, {})
-    value.update(state='FAILURE', last_error='task_failed', finished_at=datetime.now(timezone.utc).isoformat())
+    value.update(state='FAILURE', last_error='task_failed', finished_at=datetime.now(UTC).isoformat())
     store.put('task:' + sender.name, value, 604800)
 
 
 @heartbeat_sent.connect
 def worker_heartbeat(sender=None, **kwargs):
     hostname = getattr(getattr(sender, 'eventer', None), 'hostname', 'worker')
-    store.put('worker:' + str(hostname), {'hostname': hostname, 'seen_at': datetime.now(timezone.utc).isoformat()}, 60)
+    store.put('worker:' + str(hostname), {'hostname': hostname, 'seen_at': datetime.now(UTC).isoformat()}, 60)
 
 
 @celery_app.task(name='app.workflow_tasks.deliver_outbox', acks_late=True)
@@ -63,7 +64,7 @@ def deliver_outbox():
                     continue
                 try:
                     publish(entry.event, entry.payload, strict=True)
-                    entry.processed_at = datetime.now(timezone.utc)
+                    entry.processed_at = datetime.now(UTC)
                     entry.last_error = None
                     processed += 1
                 except Exception:
@@ -99,7 +100,7 @@ def check_watchlist():
                         result = {'risk_score': max([c.risk_score for c in hits], default=0), 'indicators': sorted(c.ioc_value_hash or str(c.id) for c in hits)}
                         # No feed observation is unknown, not a clean domain.
                         if db.query(IndicatorOfCompromise.id).filter(
-                            IndicatorOfCompromise.last_seen >= datetime.now(timezone.utc) - timedelta(hours=48)
+                            IndicatorOfCompromise.last_seen >= datetime.now(UTC) - timedelta(hours=48)
                         ).first() is None:
                             raise ValueError('no_feed_data')
                     fingerprint = hashlib.sha256(json.dumps(result, sort_keys=True).encode()).hexdigest()
@@ -110,7 +111,7 @@ def check_watchlist():
                     checked += 1
                 except Exception:
                     item.last_error = 'source_unavailable'
-                item.last_checked_at = datetime.now(timezone.utc)
+                item.last_checked_at = datetime.now(UTC)
                 db.commit()
         finally:
             store.delete(lease)

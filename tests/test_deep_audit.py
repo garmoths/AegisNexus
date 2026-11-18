@@ -6,16 +6,6 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 
-
-
-
-
-
-
-
-
-
-
 def test_malformed_sms_url_is_an_indicator_not_a_crash():
     from modules.sms_guard.router import _analyze_sms
     db = MagicMock()
@@ -52,8 +42,9 @@ def test_contact_does_not_claim_delivery_without_a_delivery_channel():
 
 @pytest.mark.parametrize('key', ['CHANGE_ME_LONG_RANDOM_VALUE', 'YOUR_ADMIN_KEY', 'REPLACE_ME'])
 def test_template_admin_keys_cannot_authorize_requests(monkeypatch, key):
-    from app.security import require_admin_api_key
     from fastapi import HTTPException
+
+    from app.security import require_admin_api_key
     monkeypatch.setenv('ADMIN_API_KEY', key)
     with pytest.raises(HTTPException) as exc:
         require_admin_api_key(key)
@@ -64,6 +55,7 @@ def test_template_admin_keys_cannot_authorize_requests(monkeypatch, key):
 
 def redirect_pool(monkeypatch, location):
     import socket
+
     import urllib3
     calls = []
     monkeypatch.setattr(socket, 'getaddrinfo', lambda *a, **k: [(2, 1, 6, '', ('93.184.216.34', 443))])
@@ -98,7 +90,7 @@ def test_cross_origin_redirect_does_not_forward_custom_secrets(monkeypatch):
 
 @pytest.mark.parametrize('method,body,location', [('POST', b'private', 'https://other.example/'), ('GET', None, 'http://source.example/')])
 def test_redirect_rejects_body_leaks_and_tls_downgrades(monkeypatch, method, body, location):
-    from app.outbound import safe_request, UnsafeTarget
+    from app.outbound import UnsafeTarget, safe_request
     calls = redirect_pool(monkeypatch, location)
     with pytest.raises(UnsafeTarget):
         safe_request(method, 'https://source.example/', data=body)

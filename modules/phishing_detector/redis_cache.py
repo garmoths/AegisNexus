@@ -1,5 +1,6 @@
 """Compatibility API backed by shared, expiring SQLite storage (no Redis server)."""
 import os
+
 from app import runtime_store as store
 
 SCAN_CACHE_TTL = int(os.getenv('SCAN_CACHE_TTL', '21600'))

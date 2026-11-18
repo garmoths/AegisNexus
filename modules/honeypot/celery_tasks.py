@@ -1,19 +1,18 @@
 import logging
 import os
-from datetime import datetime, timezone
-from typing import Dict, List
+from datetime import UTC, datetime
 
 from app.celery_app import celery_app as app
 from app.database import SessionLocal
 from app.models import IndicatorOfCompromise
 from modules.phishing_detector.fetch_all_sources import fetch_all_sources
 
-from .ioc_collector import AlienVaultOTXCollector, IOCCollectorEngine, IOCSource, IOCRecord
+from .ioc_collector import AlienVaultOTXCollector, IOCCollectorEngine, IOCRecord, IOCSource
 
 logger = logging.getLogger(__name__)
 
 
-def _persist_iocs(db, iocs: List[IOCRecord]) -> Dict[str, int]:
+def _persist_iocs(db, iocs: list[IOCRecord]) -> dict[str, int]:
     inserted = 0
     updated = 0
 
@@ -24,11 +23,11 @@ def _persist_iocs(db, iocs: List[IOCRecord]) -> Dict[str, int]:
         ).first()
 
         if existing:
-            existing.last_seen = datetime.now(timezone.utc)
+            existing.last_seen = datetime.now(UTC)
             existing.detection_count = max(existing.detection_count + 1, ioc.detection_count)
             existing.risk_score = max(existing.risk_score, ioc.risk_score)
             existing.confidence = max(existing.confidence, ioc.confidence)
-            existing.updated_at = datetime.now(timezone.utc)
+            existing.updated_at = datetime.now(UTC)
             updated += 1
             continue
 
@@ -132,12 +131,9 @@ def fetch_spamhaus_iocs(self):
     """Spamhaus Intel API'den XBL/CBL/DBL listelerini çekip IOC tablosuna yaz."""
     db = SessionLocal()
     try:
-        from modules.phishing_detector.spamhaus_client import query_ip, query_domain
-        from modules.phishing_detector.cache_db import read_threat_cache, write_threat_cache
-
         # Son 6 saatte taranan yüksek riskli domain'leri Spamhaus'ta sorgula
-        from app.models import PhishingURL
-        from modules.phishing_detector.cache_db import get_latest_phishing
+        from modules.phishing_detector.cache_db import get_latest_phishing, read_threat_cache
+        from modules.phishing_detector.spamhaus_client import query_domain
         recent_phishing = get_latest_phishing(limit=200)
 
         inserted = 0
@@ -160,9 +156,9 @@ def fetch_spamhaus_iocs(self):
                         IndicatorOfCompromise.source == "spamhaus_dbl",
                     ).first()
                     if existing:
-                        existing.last_seen = datetime.now(timezone.utc)
+                        existing.last_seen = datetime.now(UTC)
                         existing.detection_count += 1
-                        existing.updated_at = datetime.now(timezone.utc)
+                        existing.updated_at = datetime.now(UTC)
                         updated += 1
                     else:
                         db.add(IndicatorOfCompromise(
@@ -173,8 +169,8 @@ def fetch_spamhaus_iocs(self):
                             threat_type="spam",
                             risk_score=85,
                             confidence=95,
-                            first_seen=datetime.now(timezone.utc),
-                            last_seen=datetime.now(timezone.utc),
+                            first_seen=datetime.now(UTC),
+                            last_seen=datetime.now(UTC),
                             detection_count=1,
                             status="active",
                         ))
@@ -218,10 +214,10 @@ def fetch_threatfox_iocs(self):
                 ).first()
 
                 if existing:
-                    existing.last_seen = datetime.now(timezone.utc)
+                    existing.last_seen = datetime.now(UTC)
                     existing.detection_count += 1
                     existing.risk_score = max(existing.risk_score, confidence)
-                    existing.updated_at = datetime.now(timezone.utc)
+                    existing.updated_at = datetime.now(UTC)
                     updated += 1
                 else:
                     db.add(IndicatorOfCompromise(
@@ -233,8 +229,8 @@ def fetch_threatfox_iocs(self):
                         threat_tags=[malware] if malware else [],
                         risk_score=confidence,
                         confidence=confidence,
-                        first_seen=datetime.now(timezone.utc),
-                        last_seen=datetime.now(timezone.utc),
+                        first_seen=datetime.now(UTC),
+                        last_seen=datetime.now(UTC),
                         detection_count=1,
                         context={"malware_family": malware},
                         status="active",
@@ -268,8 +264,9 @@ def refresh_ip_blacklists(self):
     """Celery beat ile günde 1 kez çalıştır - IP blacklist'leri güncelle"""
     try:
         import os
+
         import requests
-        
+
         SAVE_DIR = "/opt/phishing/ip_lists"
         os.makedirs(SAVE_DIR, exist_ok=True)
 

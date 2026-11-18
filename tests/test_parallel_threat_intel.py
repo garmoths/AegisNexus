@@ -7,9 +7,7 @@ Her task fonksiyonu mock'lanarak test edilir.
 pytest tests/test_parallel_threat_intel.py -v
 """
 import time
-import pytest
-from unittest.mock import patch, MagicMock
-
+from unittest.mock import MagicMock, patch
 
 CLEAN_SHOT = {
     "available": True,
@@ -238,7 +236,7 @@ class TestTaskFunctions:
         import modules.phishing_detector.threat_intel as ti
         called = []
         monkeypatch.setattr(ti, "analyze_screenshot", lambda **k: called.append(k) or CLEAN_SHOT)
-        result = ti._task_screenshot("https://test.com", {}, "text", 30)
+        ti._task_screenshot("https://test.com", {}, "text", 30)
         assert len(called) == 1
         assert called[0]["pre_penalty"] == 30
 

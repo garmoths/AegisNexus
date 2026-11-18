@@ -1,11 +1,11 @@
 """Disposable browser capture. No forms, downloads, websocket or private-network access."""
 import json
 import os
-from pathlib import Path
 import sys
-from urllib.parse import urlsplit
+from pathlib import Path
+
 from app.discovery.analysis import canonical_url
-from app.discovery.transport import robots_allows, UA
+from app.discovery.transport import UA, robots_allows
 from app.outbound import safe_request
 
 

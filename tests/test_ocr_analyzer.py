@@ -11,9 +11,6 @@ import base64
 import io
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-
 # ── Test helpers ─────────────────────────────────────────────────────────────
 
 def _make_png_bytes(color=(255, 255, 255)) -> bytes:

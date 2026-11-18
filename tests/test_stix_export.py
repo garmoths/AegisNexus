@@ -1,12 +1,8 @@
 """
 Tests for STIX 2.1 export endpoint and helpers.
 """
-import uuid
-from datetime import datetime, timezone
-from unittest.mock import MagicMock, patch
-
-import pytest
-
+from datetime import UTC, datetime
+from unittest.mock import MagicMock
 
 # ── Unit: _ioc_to_stix_indicator ─────────────────────────────────────────────
 
@@ -28,10 +24,10 @@ def _make_ioc(
     row.source = source
     row.source_reference = source_reference
     row.detection_count = 3
-    row.first_seen = datetime(2024, 1, 1, tzinfo=timezone.utc)
-    row.last_seen = datetime(2024, 6, 1, tzinfo=timezone.utc)
-    row.created_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
-    row.updated_at = datetime(2024, 6, 1, tzinfo=timezone.utc)
+    row.first_seen = datetime(2024, 1, 1, tzinfo=UTC)
+    row.last_seen = datetime(2024, 6, 1, tzinfo=UTC)
+    row.created_at = datetime(2024, 1, 1, tzinfo=UTC)
+    row.updated_at = datetime(2024, 6, 1, tzinfo=UTC)
     return row
 
 
@@ -47,19 +43,19 @@ def test_stix_indicator_structure():
 
 
 def test_stix_tlp_white_for_low_risk():
-    from modules.honeypot.ioc_api import _ioc_to_stix_indicator, _TLP_MAP
+    from modules.honeypot.ioc_api import _TLP_MAP, _ioc_to_stix_indicator
     obj = _ioc_to_stix_indicator(_make_ioc(risk_score=30))
     assert _TLP_MAP["white"] in obj["object_marking_refs"]
 
 
 def test_stix_tlp_amber_for_medium_risk():
-    from modules.honeypot.ioc_api import _ioc_to_stix_indicator, _TLP_MAP
+    from modules.honeypot.ioc_api import _TLP_MAP, _ioc_to_stix_indicator
     obj = _ioc_to_stix_indicator(_make_ioc(risk_score=65))
     assert _TLP_MAP["amber"] in obj["object_marking_refs"]
 
 
 def test_stix_tlp_red_for_high_risk():
-    from modules.honeypot.ioc_api import _ioc_to_stix_indicator, _TLP_MAP
+    from modules.honeypot.ioc_api import _TLP_MAP, _ioc_to_stix_indicator
     obj = _ioc_to_stix_indicator(_make_ioc(risk_score=95))
     assert _TLP_MAP["red"] in obj["object_marking_refs"]
 

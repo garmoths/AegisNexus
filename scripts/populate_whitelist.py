@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Populate SQLite whitelist database with 1000+ trusted domains"""
 
-import sqlite3
 import os
-from datetime import datetime
+import sqlite3
 
 DB_PATH = os.path.join(os.path.dirname(__file__), '../data/whitelist.db')
 
@@ -105,11 +104,11 @@ def normalize_domain(domain):
 def populate_whitelist():
     """Populate SQLite whitelist database"""
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    
+
     # Connect to SQLite
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    
+
     print("📋 Creating tables...")
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS whitelist_domains (
@@ -126,26 +125,26 @@ def populate_whitelist():
         )
     """)
     cursor.execute("""
-        CREATE INDEX IF NOT EXISTS idx_domain_norm 
+        CREATE INDEX IF NOT EXISTS idx_domain_norm
         ON whitelist_domains(domain_norm)
     """)
     conn.commit()
     print("✅ Tables created!")
-    
+
     added = 0
     skipped = 0
-    
+
     print("\n🌍 Populating global whitelist...")
-    
+
     for category, domains in WHITELIST_DATA.items():
         print(f"\n📌 {category}:")
-        
+
         for domain in domains:
             domain_norm = normalize_domain(domain)
-            
+
             try:
                 cursor.execute("""
-                    INSERT INTO whitelist_domains 
+                    INSERT INTO whitelist_domains
                     (domain, domain_norm, category, company_name, trusted_level, verified)
                     VALUES (?, ?, ?, ?, ?, ?)
                 """, (domain, domain_norm, category, domain.split('.')[0].title(), 'high', 1))
@@ -154,13 +153,13 @@ def populate_whitelist():
             except sqlite3.IntegrityError:
                 skipped += 1
                 continue
-        
+
         conn.commit()
-    
+
     conn.close()
-    
+
     print("\n" + "="*60)
-    print(f"✅ Whitelist Populated!")
+    print("✅ Whitelist Populated!")
     print(f"   Added: {added}")
     print(f"   Skipped: {skipped}")
     print(f"   Total: {added + skipped}")

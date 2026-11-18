@@ -5,9 +5,7 @@ BeautifulSoup DOM analizi, BS4 kurulu olmalı.
 
 pytest tests/test_html_analyzer.py -v
 """
-import pytest
 from modules.phishing_detector.visual_analyzer import analyze_html
-
 
 # ── Yardımcı HTML şablonları ──────────────────────────────────────────────
 

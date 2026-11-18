@@ -13,16 +13,17 @@ Monitoring:
 
 from __future__ import annotations
 
-import json
 import logging
 import os
+from datetime import UTC
 
-from celery.signals import worker_process_init, worker_process_shutdown
 from billiard.exceptions import SoftTimeLimitExceeded
+from celery.signals import worker_process_init, worker_process_shutdown
 
 from app.celery_app import celery_app as app
-from .redis_cache import redis_set_scan
+
 from .cache_db import set_celery_job
+from .redis_cache import redis_set_scan
 from .url_normalize import normalize_url_record
 
 logger = logging.getLogger(__name__)
@@ -93,6 +94,7 @@ def sync_phishtank_db():
       Son indirilen ETag Redis'te saklanır (db=1, key=phishtank:etag).
     """
     import bz2
+
     import requests
 
     app_key = os.getenv("PHISHTANK_APP_KEY", "")
@@ -135,11 +137,12 @@ def sync_phishtank_db():
         return {"status": "error", "error": "empty_response"}
 
     # ── 3. DB import ──────────────────────────────────────────────────────────
-    from app.database import SessionLocal
-    from .fetch_all_sources import convert_to_phishtank_format, import_to_database
+    from datetime import datetime
 
-    from datetime import datetime, timezone
-    now = datetime.now(timezone.utc).isoformat()
+    from app.database import SessionLocal
+
+    from .fetch_all_sources import import_to_database
+    now = datetime.now(UTC).isoformat()
     entries = [
         {
             "url": item.get("url", ""),
@@ -187,11 +190,13 @@ def sync_phishtank_db():
 @app.task(bind=True, max_retries=2, acks_late=True, reject_on_worker_lost=True,
           name="modules.phishing_detector.celery_tasks.run_heavy_analysis")
 def run_heavy_analysis(self, url: str, job_id: str):
-    from app.database import SessionLocal
-    from app import runtime_store as store
-    from .scanner import calculate_safety_score
-    from .cache_db import get_celery_job, persist_scan_result
     from datetime import datetime, timedelta
+
+    from app import runtime_store as store
+    from app.database import SessionLocal
+
+    from .cache_db import get_celery_job, persist_scan_result
+    from .scanner import calculate_safety_score
     norm = normalize_url_record(url)
     lock_key = 'analyzing:' + norm.get('url_hash', '')
     previous = get_celery_job('job:' + job_id) or {}

@@ -7,12 +7,12 @@ pytest tests/test_conditional_gemini.py -v
 """
 import pytest
 
+
 @pytest.fixture(autouse=True)
 def small_ai_budget(monkeypatch):
     import modules.phishing_detector.screenshot_analyzer as analyzer
     monkeypatch.setattr(analyzer, 'AI_DAILY_LIMIT', 1400)
 
-from unittest.mock import patch, MagicMock
 
 
 # ── Yardımcılar ────────────────────────────────────────────────────────────

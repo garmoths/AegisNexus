@@ -5,9 +5,9 @@ from __future__ import annotations
 
 import re
 import time
-from datetime import datetime
-from typing import Any, Dict, List, Optional
 from dataclasses import dataclass
+from datetime import datetime
+from typing import Any
 
 
 @dataclass
@@ -20,13 +20,13 @@ class HoneypotSession:
     last_activity: datetime
     interaction_count: int = 0
     time_wasted_seconds: float = 0.0
-    captured_data: Dict = None
+    captured_data: dict = None
     threat_score: int = 0
-    
+
     def __post_init__(self):
         if self.captured_data is None:
             self.captured_data = {}
-    
+
     def add_interaction(self, action: str, data: dict = None):
         """Yeni etkileşim kaydet"""
         self.interaction_count += 1
@@ -35,7 +35,7 @@ class HoneypotSession:
             self.captured_data[action] = data
         # Her etkileşimde zaman kaybı artar
         self.time_wasted_seconds += 5.0  # Bot cevap bekleme süresi
-    
+
     def to_dict(self) -> dict:
         return {
             "session_id": self.session_id,
@@ -60,9 +60,9 @@ class IOCRecord:
     first_seen: datetime
     last_seen: datetime
     count: int = 1
-    context: Optional[Dict[str, Any]] = None
+    context: dict[str, Any] | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "type": self.ioc_type,
             "value": self.value,
@@ -79,7 +79,7 @@ class HoneypotEngine:
     """
     Aktif savunma motoru - Dolandırıcıları oyalayan ve bilgi toplayan sistem
     """
-    
+
     # Banka login sayfalarına benzeyen tuzak içerikleri
     DECOY_TEMPLATES = {
         "bank_login": {
@@ -101,18 +101,18 @@ class HoneypotEngine:
             "fake_errors": ["E-posta veya şifre hatalı", "Hesabınızı doğrulayın", "Güvenlik kodu gönderildi"],
         },
     }
-    
+
     def __init__(self):
-        self.active_sessions: Dict[str, HoneypotSession] = {}
+        self.active_sessions: dict[str, HoneypotSession] = {}
         self.captured_ips: set = set()
         self.total_time_wasted: float = 0.0
         self.total_sessions: int = 0
-        self.ioc_store: Dict[str, IOCRecord] = {}
+        self.ioc_store: dict[str, IOCRecord] = {}
 
     @staticmethod
-    def _flatten_payload_values(payload: Any) -> List[str]:
+    def _flatten_payload_values(payload: Any) -> list[str]:
         """Nested payload icindeki tum string degerleri toplar."""
-        values: List[str] = []
+        values: list[str] = []
         if payload is None:
             return values
 
@@ -138,7 +138,7 @@ class HoneypotEngine:
         value: str,
         source: str,
         confidence: float,
-        context: Optional[Dict[str, Any]] = None,
+        context: dict[str, Any] | None = None,
     ) -> IOCRecord:
         """IOC kaydini ekler veya mevcut kaydi gunceller."""
         key = f"{ioc_type}:{value.lower()}"
@@ -167,7 +167,7 @@ class HoneypotEngine:
         self.ioc_store[key] = record
         return record
 
-    def extract_iocs(self, payload: Optional[Dict[str, Any]] = None, raw_text: str = "") -> List[Dict[str, Any]]:
+    def extract_iocs(self, payload: dict[str, Any] | None = None, raw_text: str = "") -> list[dict[str, Any]]:
         """Payload ve serbest metinden temel IOC tiplerini cikarir."""
         corpus_parts = self._flatten_payload_values(payload)
         if raw_text:
@@ -186,7 +186,7 @@ class HoneypotEngine:
             "md5": (r"\b[a-fA-F0-9]{32}\b", 0.8),
         }
 
-        found: Dict[str, Dict[str, Any]] = {}
+        found: dict[str, dict[str, Any]] = {}
         for ioc_type, (pattern, confidence) in patterns.items():
             for match in re.finditer(pattern, corpus):
                 value = match.group(0).strip().rstrip(",.;")
@@ -203,13 +203,13 @@ class HoneypotEngine:
     def collect_iocs(
         self,
         source: str,
-        payload: Optional[Dict[str, Any]] = None,
+        payload: dict[str, Any] | None = None,
         raw_text: str = "",
-        context: Optional[Dict[str, Any]] = None,
-    ) -> List[Dict[str, Any]]:
+        context: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
         """IOC cikarimi yapip collector store'a ekler."""
         extracted = self.extract_iocs(payload=payload, raw_text=raw_text)
-        collected: List[Dict[str, Any]] = []
+        collected: list[dict[str, Any]] = []
 
         for item in extracted:
             record = self._upsert_ioc(
@@ -223,7 +223,7 @@ class HoneypotEngine:
 
         return collected
 
-    def list_iocs(self, ioc_type: Optional[str] = None, limit: int = 100, min_count: int = 1) -> List[Dict[str, Any]]:
+    def list_iocs(self, ioc_type: str | None = None, limit: int = 100, min_count: int = 1) -> list[dict[str, Any]]:
         """Toplanan IOC kayitlarini filtreleyip listeler."""
         records = [r for r in self.ioc_store.values() if r.count >= max(min_count, 1)]
         if ioc_type:
@@ -232,9 +232,9 @@ class HoneypotEngine:
         records.sort(key=lambda r: (r.count, r.last_seen), reverse=True)
         return [r.to_dict() for r in records[: max(limit, 1)]]
 
-    def ioc_stats(self) -> Dict[str, Any]:
+    def ioc_stats(self) -> dict[str, Any]:
         """IOC collector ozet istatistikleri."""
-        by_type: Dict[str, int] = {}
+        by_type: dict[str, int] = {}
         total_hits = 0
         for record in self.ioc_store.values():
             by_type[record.ioc_type] = by_type.get(record.ioc_type, 0) + 1
@@ -245,7 +245,7 @@ class HoneypotEngine:
             "total_ioc_hits": total_hits,
             "ioc_types": by_type,
         }
-    
+
     def create_session(self, ip: str, user_agent: str, decoy_type: str = "bank_login") -> HoneypotSession:
         """Yeni tuzak oturumu oluştur"""
         session_id = f"HONEY-{int(time.time())}-{hash(ip) % 10000}"
@@ -260,7 +260,7 @@ class HoneypotEngine:
         self.captured_ips.add(ip)
         self.total_sessions += 1
         return session
-    
+
     def get_decoy_page(self, decoy_type: str = "bank_login") -> dict:
         """Tuzak sayfa şablonunu getir"""
         template = self.DECOY_TEMPLATES.get(decoy_type, self.DECOY_TEMPLATES["bank_login"])
@@ -270,33 +270,33 @@ class HoneypotEngine:
             "fields": template["fields"],
             "requires_delay": template["delay_response"],
         }
-    
+
     def process_interaction(self, session_id: str, action: str, payload: dict = None) -> dict:
         """Dolandırıcı etkileşimini işle"""
         session = self.active_sessions.get(session_id)
         if not session:
             return {"error": "Oturum bulunamadı", "status": "expired"}
-        
+
         # Oyalama taktikleri
         response_delay = 2.0  # Saniye cinsinden yapay gecikme
         fake_error = None
-        
+
         if action == "login_attempt":
             session.add_interaction("login_attempt", payload)
             fake_error = "Hatalı şifre. Tekrar deneyin. (Kalan deneme: 2)"
             session.threat_score += 10
-        
+
         elif action == "otp_request":
             session.add_interaction("otp_request", payload)
             fake_error = "Onay kodu gönderildi. Lütfen 2 dakika içinde girin."
             response_delay = 5.0  # Daha uzun bekleme
-        
+
         elif action == "password_reset":
             session.add_interaction("password_reset", payload)
             fake_error = "Hesap doğrulaması gerekiyor. Müşteri temsilcisine bağlanıyorsunuz..."
             response_delay = 8.0  # En uzun bekleme
             session.threat_score += 15
-        
+
         # Toplam zaman kaybını güncelle
         self.total_time_wasted += response_delay
         session.time_wasted_seconds += response_delay
@@ -310,7 +310,7 @@ class HoneypotEngine:
                 "threat_score": session.threat_score,
             },
         )
-        
+
         return {
             "session_id": session_id,
             "action": action,
@@ -321,7 +321,7 @@ class HoneypotEngine:
             "ioc_detected": len(collected_iocs),
             "status": "active",
         }
-    
+
     def get_session_stats(self, session_id: str = None) -> dict:
         """Oturum istatistiklerini getir"""
         if session_id and session_id in self.active_sessions:
@@ -331,11 +331,11 @@ class HoneypotEngine:
                 "estimated_victims_saved": round(session.time_wasted_seconds / 300, 2),  # 5 dakika = 1 kurban
                 "money_saved_try": round(session.time_wasted_seconds / 300 * 5000, 2),  # Tahmini
             }
-        
+
         # Tüm istatistikler
         all_sessions = [s.to_dict() for s in self.active_sessions.values()]
         total_interactions = sum(s.interaction_count for s in self.active_sessions.values())
-        
+
         return {
             "total_sessions": self.total_sessions,
             "active_sessions": len(self.active_sessions),
@@ -347,7 +347,7 @@ class HoneypotEngine:
             "ioc": self.ioc_stats(),
             "recent_sessions": all_sessions[-10:] if all_sessions else [],
         }
-    
+
     def close_session(self, session_id: str) -> dict:
         """Oturumu kapat ve raporla"""
         session = self.active_sessions.pop(session_id, None)

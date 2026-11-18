@@ -6,15 +6,13 @@ Endpoint: https://threatfox-api.abuse.ch/api/v1/ (POST, JSON).
 Auth: ABUSE_API_KEY header.
 """
 
-import os
-import hashlib
 import logging
-from datetime import datetime, timezone
-from typing import Dict, List, Optional
+import os
+from datetime import UTC, datetime
+from pathlib import Path
 
 import requests
 from dotenv import load_dotenv
-from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 load_dotenv(BASE_DIR / ".env")
@@ -27,7 +25,7 @@ if "," in ABUSE_CH_API_KEY:
 THREATFOX_ENDPOINT = "https://threatfox-api.abuse.ch/api/v1/"
 
 
-def query_ioc(value: str, ioc_type: str = "domain", timeout: int = 15) -> Dict:
+def query_ioc(value: str, ioc_type: str = "domain", timeout: int = 15) -> dict:
     """
     ThreatFox IOC sorgulama.
     ioc_type: "url", "domain", "ip:port"
@@ -119,7 +117,7 @@ def query_ioc(value: str, ioc_type: str = "domain", timeout: int = 15) -> Dict:
     return result
 
 
-def get_recent_iocs(limit: int = 100, timeout: int = 30) -> List[Dict]:
+def get_recent_iocs(limit: int = 100, timeout: int = 30) -> list[dict]:
     """
     Son IOC'ları çekip normalize eder.
     fetch_all_sources.py akışında PhishingURL tablosuna yazılmak üzere
@@ -166,7 +164,7 @@ def get_recent_iocs(limit: int = 100, timeout: int = 30) -> List[Dict]:
         except ImportError:
             _has_normalize = False
 
-        results: List[Dict] = []
+        results: list[dict] = []
         for entry in entries[:limit]:
             ioc_type = str(entry.get("ioc_type", "")).lower()
             # ThreatFox API'de alan adı "ioc", eski versiyonlarda "ioc_value"
@@ -213,7 +211,7 @@ def get_recent_iocs(limit: int = 100, timeout: int = 30) -> List[Dict]:
                 "status": "valid",
                 "online": True,
                 "target": malware_printable or malware or "Unknown",
-                "submission_time": first_seen or datetime.now(timezone.utc).isoformat(),
+                "submission_time": first_seen or datetime.now(UTC).isoformat(),
                 "source": "threatfox",
                 "ioc_type": ioc_type,
                 "threat_type": threat_type,

@@ -4,14 +4,13 @@ Gerçek API çağrısı yapılmaz, _call_gemini mock'lanır.
 """
 import json
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from modules.ai_analyzer.incident_analysis import (
     _extract_json,
     _parse_analysis,
     analyze_user_report,
 )
-
 
 MOCK_ANALYSIS_RESPONSE = """ANALİZ SONUCU:
 - Saldırı Tipi: smishing

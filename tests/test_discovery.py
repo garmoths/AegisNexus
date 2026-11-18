@@ -1,8 +1,6 @@
 """Discovery stays bounded, isolated from verified threats and operable offline."""
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
-from unittest.mock import MagicMock
-import importlib
 
 import pytest
 import requests
@@ -12,10 +10,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base, get_db
-from app.models import CrawlCandidate, CrawlObservation, CrawlReview, PhishingURL
 from app.discovery import service, worker
-from app.discovery.analysis import canonical_url, extract, assess, display_url
-from app.discovery.router import router, operator
+from app.discovery.analysis import assess, canonical_url, display_url, extract
+from app.discovery.router import operator, router
+from app.models import CrawlCandidate, CrawlObservation, CrawlReview, PhishingURL
 
 HTML = '<html><title>Google hesabı</title><body>Google giriş<form action="https://collector.example/save" method="post"><input type="password"><input name="otp"></form><a href="/login">Giriş</a></body></html>'
 
@@ -218,9 +216,10 @@ def test_source_parsing_never_marks_ct_as_threat():
 
 
 def test_local_console_defends_against_cross_origin_and_rebinding():
-    from app.discovery.server import local_operator
     from fastapi import HTTPException
     from starlette.requests import Request
+
+    from app.discovery.server import local_operator
     def request(host='127.0.0.1:8010', origin='http://127.0.0.1:8010', client='127.0.0.1', header=True):
         headers=[(b'host',host.encode()),(b'origin',origin.encode())]
         if header:
@@ -265,8 +264,9 @@ def test_robots_disallow_prevents_page_request(monkeypatch):
 
 
 def test_redirect_to_private_network_never_reaches_transport(monkeypatch):
-    from app.discovery import transport
     import socket
+
+    from app.discovery import transport
     monkeypatch.setattr(socket,'getaddrinfo',lambda *a,**k:[(2,1,6,'',('93.184.216.34',443))])
     calls=[]
     def getter(url,**kwargs):

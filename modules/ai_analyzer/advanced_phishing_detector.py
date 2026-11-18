@@ -15,25 +15,25 @@ Short-message safety rule:
   very short phishing texts should not be dampened back toward prior 0.5.
 """
 
+import json
+import logging
+import math
 import os
 import re
-import ssl
-import json
-import math
 import socket
-import logging
-from typing import Dict, List, Tuple, Optional
-from urllib.parse import urlparse
-from datetime import datetime, timezone
+import ssl
 from dataclasses import dataclass
+from datetime import UTC, datetime
+from urllib.parse import urlparse
 
 # Load .env file
 from dotenv import load_dotenv
+
 load_dotenv()
 
 # Third-party imports
-from rapidfuzz import fuzz, distance
 from openai import OpenAI
+from rapidfuzz import distance, fuzz
 
 # transformers opsiyonel — kaldırıldıysa emotion pipeline None kalır (no-op).
 try:
@@ -69,16 +69,16 @@ class PhishingResult:
     verdict: str  # "PHİSHİNG", "ŞÜPHELİ", "DÜŞÜK RİSK", "TEMİZ"
     score: float  # S_star (0.0 - 1.0)
     confidence: float  # C (0.0 - 1.0)
-    breakdown: Dict
+    breakdown: dict
     hard_override: bool
     reason: str
-    matched_categories: Optional[List[str]] = None
-    evidence: Optional[List[str]] = None
+    matched_categories: list[str] | None = None
+    evidence: list[str] | None = None
 
 
 class AdvancedPhishingDetector:
     """3-Module Hybrid Phishing Detection System with Lazy Loading"""
-    
+
     def __init__(self):
         self.phishing_urls = []
         self.llm_client = None
@@ -86,12 +86,12 @@ class AdvancedPhishingDetector:
         self._db_loaded = False
         self._llm_loaded = False
         self._emotion_loaded = False
-    
+
     def _load_phishing_db(self):
         """Load phishing URLs from database (lazy loading - 10K for memory optimization)"""
         if self._db_loaded:
             return
-        
+
         try:
             with get_db_connection() as conn:
                 cursor = conn.cursor()
@@ -110,12 +110,12 @@ class AdvancedPhishingDetector:
             logger.warning(f"Could not load phishing DB: {e}")
             self.phishing_urls = []
             self._db_loaded = True
-    
+
     def _init_llm(self):
         """Initialize Groq LLM API (lazy loading)"""
         if self._llm_loaded:
             return
-        
+
         if GROQ_API_KEY:
             try:
                 self.llm_client = OpenAI(
@@ -132,7 +132,7 @@ class AdvancedPhishingDetector:
             logger.warning("GROQ_API_KEY not found")
             self.llm_client = None
             self._llm_loaded = True
-    
+
     def _init_emotion_model(self):
         """Initialize emotion analysis model (lazy loading)"""
         if self._emotion_loaded:
@@ -157,20 +157,20 @@ class AdvancedPhishingDetector:
             logger.warning(f"Could not load emotion model: {e}")
             self.emotion_analyzer = None
             self._emotion_loaded = True
-    
+
     def detect(
         self,
         message: str,
-        url: Optional[str] = None,
-        email_signals: Optional[Dict[str, float]] = None,
+        url: str | None = None,
+        email_signals: dict[str, float] | None = None,
     ) -> PhishingResult:
         """
         Main detection function with lazy loading
-        
+
         Args:
             message: Message text to analyze
             url: Optional URL to check
-        
+
         Returns:
             PhishingResult with verdict and scores
         """
@@ -195,10 +195,10 @@ class AdvancedPhishingDetector:
                 matched_categories=matched_categories,
                 evidence=evidence,
             )
-        
+
         # === MODULE 1: URL ANALYSIS ===
         s_url, url_breakdown, hard_override = self._analyze_url(url)
-        
+
         if hard_override:
             domain_risk_val = url_breakdown.get("domain_risk", 0)
             db_sim_val = url_breakdown.get("db_similarity", url_breakdown.get("max_similarity", 0))
@@ -216,17 +216,17 @@ class AdvancedPhishingDetector:
                 hard_override=True,
                 reason=override_reason
             )
-        
+
         # Lazy load ML models for text/emotion analysis
         self._init_llm()
         self._init_emotion_model()
-        
+
         # === MODULE 2: TEXT + EMOTION ANALYSIS ===
         s_text, text_breakdown = self._analyze_text(message)
-        
+
         # === MODULE 3: CONFIDENCE SCORE ===
         confidence, conf_breakdown = self._calculate_confidence(url, message, text_breakdown)
-        
+
         email_signal = 0.0
         if email_signals:
             email_signal = float(email_signals.get("total", 0.0) or 0.0)
@@ -249,16 +249,16 @@ class AdvancedPhishingDetector:
         else:
             S_raw = 0.55 * s_text + 0.45 * signal_score
             score_mode = "text"
-        
+
         # Amplification
         S_star = self._amplify_score(S_raw)
-        
+
         # Verdict
         verdict = self._get_verdict(S_star)
-        
+
         # Reason from LLM
         reason = text_breakdown.get("llm_reason", "Analiz tamamlandı")
-        
+
         return PhishingResult(
             verdict=verdict,
             score=round(S_star, 4),
@@ -285,14 +285,14 @@ class AdvancedPhishingDetector:
             evidence=evidence,
         )
 
-    def _signal_scan(self, message: str) -> Tuple[float, List[str], List[str]]:
+    def _signal_scan(self, message: str) -> tuple[float, list[str], list[str]]:
         """Scan for rule-based phishing signals with composite Turkish patterns."""
         if not message:
             return 0.0, [], []
 
         text = message.lower()
-        evidence: List[str] = []
-        matched_categories: List[str] = []
+        evidence: list[str] = []
+        matched_categories: list[str] = []
         score = 0.0
 
         categories = {
@@ -356,42 +356,42 @@ class AdvancedPhishingDetector:
             score = min(score + 0.10 * (len(matched_categories) - 1), 1.0)
 
         return round(score, 4), matched_categories, evidence
-    
-    def _analyze_url(self, url: Optional[str]) -> Tuple[float, Dict, bool]:
+
+    def _analyze_url(self, url: str | None) -> tuple[float, dict, bool]:
         """
         URL Module Analysis
         Returns: (s_url, breakdown, hard_override)
         """
         if not url:
             return 0.0, {"ssl_score": 0.0, "db_similarity": 0.0}, False
-        
+
         # A) Database Similarity Score (70% weight)
         s_sim, max_similarity = self._calculate_db_similarity(url)
-        
+
         # Hard Override Check
         if max_similarity >= 0.90:
             return 1.0, {"ssl_score": 0.0, "db_similarity": max_similarity}, True
-        
+
         # B) SSL Score (30% weight)
         ssl_score = self._check_ssl(url)
-        
+
         # C) Suspicious Domain Pattern Detection (override if high risk)
         domain_risk = self._check_suspicious_domain(url)
         if domain_risk > 0.8:
             return domain_risk, {"ssl_score": ssl_score, "db_similarity": s_sim, "domain_risk": domain_risk}, True
-        
+
         # D) Combine
         s_url = 0.70 * s_sim + 0.30 * ssl_score
-        
+
         breakdown = {
             "ssl_score": ssl_score,
             "db_similarity": s_sim,
             "max_similarity": max_similarity,
             "domain_risk": domain_risk
         }
-        
+
         return s_url, breakdown, False
-    
+
     def _check_suspicious_domain(self, url: str) -> float:
         """
         Check for suspicious domain patterns
@@ -530,43 +530,43 @@ class AdvancedPhishingDetector:
         except Exception as e:
             logger.debug(f"Domain check error: {e}")
             return 0.0
-    
-    def _calculate_db_similarity(self, url: str) -> Tuple[float, float]:
+
+    def _calculate_db_similarity(self, url: str) -> tuple[float, float]:
         """
         Calculate DB similarity using Levenshtein + Jaro-Winkler
         Returns: (normalized_sim, max_raw_sim)
         """
         if not self.phishing_urls:
             return 0.0, 0.0
-        
+
         max_sim = 0.0
         url_lower = url.lower()
         url_len = len(url)
-        
+
         for db_url in self.phishing_urls:
             db_url_lower = db_url.lower()
             db_len = len(db_url)
-            
+
             # Levenshtein distance (normalized)
             lev_dist = distance.Levenshtein.distance(url_lower, db_url_lower)
             max_len = max(url_len, db_len)
             lev_sim = 1 - (lev_dist / max_len) if max_len > 0 else 0
-            
+
             # Jaro-Winkler similarity
             jaro_sim = fuzz.WRatio(url_lower, db_url_lower) / 100.0
-            
+
             # Average
             combined_sim = (lev_sim + jaro_sim) / 2.0
-            
+
             if combined_sim > max_sim:
                 max_sim = combined_sim
-                
+
             # Early exit if perfect match found
             if max_sim >= 0.95:
                 break
-        
+
         return max_sim, max_sim
-    
+
     def _check_ssl(self, url: str) -> float:
         """
         Check SSL certificate
@@ -583,47 +583,47 @@ class AdvancedPhishingDetector:
             with socket.create_connection((address, port), timeout=5) as sock:
                 with context.wrap_socket(sock, server_hostname=hostname) as ssock:
                     cert = ssock.getpeercert()
-                    
+
                     if not cert:
                         return 0.8
-                    
+
                     # Check expiration
                     not_after = cert.get("notAfter")
                     if not_after:
-                        expire_date = datetime.strptime(not_after, "%b %d %H:%M:%S %Y %Z").replace(tzinfo=timezone.utc)
-                        if expire_date < datetime.now(timezone.utc):
+                        expire_date = datetime.strptime(not_after, "%b %d %H:%M:%S %Y %Z").replace(tzinfo=UTC)
+                        if expire_date < datetime.now(UTC):
                             return 0.8
-                    
+
                     return 0.0  # Valid
-                    
+
         except ssl.SSLCertVerificationError:
             return 0.8  # Invalid/expired
-        except socket.error:
+        except OSError:
             return 0.5  # Connection error
         except Exception as e:
             logger.debug(f"SSL check error: {e}")
             return 0.5
-    
-    def _analyze_text(self, message: str) -> Tuple[float, Dict]:
+
+    def _analyze_text(self, message: str) -> tuple[float, dict]:
         """
         Text + Emotion Module Analysis
         Returns: (s_text, breakdown)
         """
         if not message or len(message.strip()) < 10:
             return 0.0, {"s_llm": 0.0, "s_urgency": 0.0, "s_emotion": 0.3}
-        
+
         # A) LLM Semantic Score (50%)
         s_llm, llm_reason, llm_quality = self._llm_score(message)
-        
+
         # B) Rule-based Urgency Score (30%)
         s_urgency = self._urgency_score(message)
-        
+
         # C) VAD Emotion Score (20%)
         s_emotion = self._emotion_score(message)
-        
+
         # Combine
         s_text = 0.50 * s_llm + 0.30 * s_urgency + 0.20 * s_emotion
-        
+
         breakdown = {
             "s_llm": s_llm,
             "s_urgency": s_urgency,
@@ -631,17 +631,17 @@ class AdvancedPhishingDetector:
             "llm_reason": llm_reason,
             "llm_quality": llm_quality
         }
-        
+
         return s_text, breakdown
-    
-    def _llm_score(self, message: str) -> Tuple[float, str, float]:
+
+    def _llm_score(self, message: str) -> tuple[float, str, float]:
         """
         Get phishing score from Groq LLM
         Returns: (score, reason, quality)
         """
         if not self.llm_client:
             return 0.5, "LLM not available", 0.0
-        
+
         try:
             from app.ai_budget import reserve_ai_call
             reserve_ai_call()
@@ -670,9 +670,9 @@ class AdvancedPhishingDetector:
                 temperature=0.1,
                 max_tokens=100,
             )
-            
+
             text = response.choices[0].message.content.strip()
-            
+
             # Extract JSON
             json_match = re.search(r'\{[^}]+\}', text)
             if json_match:
@@ -680,20 +680,20 @@ class AdvancedPhishingDetector:
                 score = float(data.get("score", 0.5))
                 reason = data.get("reason", "Değerlendirildi")
                 return min(max(score, 0.0), 1.0), reason, 1.0
-            
+
             return 0.5, "JSON parse error", 0.4
-            
+
         except Exception as e:
             logger.debug(f"Groq LLM error: {e}")
             return 0.5, "LLM timeout/error", 0.0
-    
+
     def _urgency_score(self, message: str) -> float:
         """
         Rule-based urgency scoring
         Returns: 0.0 - 1.0
         """
         text_lower = message.lower()
-        
+
         categories = {
             "urgency": [
                 "hemen", "acil", "son gün", "bugün sona eriyor",
@@ -717,26 +717,26 @@ class AdvancedPhishingDetector:
                 "itiraz formu", "appeal form", "doğrulamanız gerekmektedir"
             ]
         }
-        
+
         hits = 0
-        for category, keywords in categories.items():
+        for _category, keywords in categories.items():
             if any(kw in text_lower for kw in keywords):
                 hits += 1
-        
+
         # If multiple hits from same category, weight more heavily
         total_matches = sum(1 for category in categories.values() for kw in category if kw in text_lower)
-        
+
         # Base score from category hits
         score = min(hits / 3.0, 1.0)
-        
+
         # Boost if multiple keyword matches
         if total_matches >= 3:
             score = min(score + 0.2, 1.0)
         if total_matches >= 5:
             score = min(score + 0.2, 1.0)
-        
+
         return score
-    
+
     def _emotion_score(self, message: str) -> float:
         """
         VAD emotion analysis
@@ -744,20 +744,20 @@ class AdvancedPhishingDetector:
         """
         if not self.emotion_analyzer:
             return 0.3  # Neutral default
-        
+
         try:
             # Truncate if too long
             text = message[:512]
             result = self.emotion_analyzer(text)
-            
+
             if result and len(result) > 0:
                 scores = result[0]
-                
+
                 # Map emotions to VAD
                 # anger, disgust, fear = negative valence + high arousal
                 # joy = positive valence + high arousal
                 # sadness, neutral = low arousal
-                
+
                 emotion_map = {
                     "anger": (-0.8, 0.8),
                     "disgust": (-0.7, 0.6),
@@ -767,43 +767,43 @@ class AdvancedPhishingDetector:
                     "sadness": (-0.6, 0.3),
                     "surprise": (0.0, 0.8)
                 }
-                
+
                 # Calculate weighted VAD
                 total_valence = 0
                 total_arousal = 0
                 total_weight = 0
-                
+
                 for emotion_score in scores:
                     label = emotion_score.get("label", "").lower()
                     score = emotion_score.get("score", 0)
-                    
+
                     if label in emotion_map:
                         valence, arousal = emotion_map[label]
                         total_valence += valence * score
                         total_arousal += arousal * score
                         total_weight += score
-                
+
                 if total_weight > 0:
                     avg_valence = total_valence / total_weight
                     avg_arousal = total_arousal / total_weight
-                    
+
                     # Phishing pattern: negative valence + high arousal
                     # Normalize to [0, 1]
                     s_emotion = (-avg_valence + avg_arousal + 2) / 4
                     return min(max(s_emotion, 0.0), 1.0)
-            
+
             return 0.3
-            
+
         except Exception as e:
             logger.debug(f"Emotion analysis error: {e}")
             return 0.3
-    
+
     def _calculate_confidence(
-        self, 
-        url: Optional[str], 
-        message: str, 
-        text_breakdown: Dict
-    ) -> Tuple[float, Dict]:
+        self,
+        url: str | None,
+        message: str,
+        text_breakdown: dict
+    ) -> tuple[float, dict]:
         """
         Calculate confidence score C
         Returns: (C, breakdown)
@@ -817,7 +817,7 @@ class AdvancedPhishingDetector:
             source_score = 0.7
         else:
             source_score = 0.0
-        
+
         # B) URL Accessibility Score (30%)
         if url:
             try:
@@ -826,25 +826,25 @@ class AdvancedPhishingDetector:
                     url_access = 1.0
                 else:
                     url_access = 0.5
-            except:
+            except Exception:
                 url_access = 0.0
         else:
             url_access = 0.0
-        
+
         # C) LLM Quality Score (30%)
         llm_quality = text_breakdown.get("llm_quality", 0.0)
-        
+
         # Combine
         C = 0.40 * source_score + 0.30 * url_access + 0.30 * llm_quality
-        
+
         breakdown = {
             "source_score": source_score,
             "url_access": url_access,
             "llm_quality": llm_quality
         }
-        
+
         return C, breakdown
-    
+
     def _amplify_score(self, S_raw: float) -> float:
         """
         Amplify score using sigmoid-like function
@@ -854,12 +854,12 @@ class AdvancedPhishingDetector:
             return 0.0
         if S_raw >= 1:
             return 1.0
-        
+
         S_beta = math.pow(S_raw, BETA)
         one_minus_S_beta = math.pow(1 - S_raw, BETA)
-        
+
         return S_beta / (S_beta + one_minus_S_beta)
-    
+
     def _get_verdict(self, S_star: float) -> str:
         """Get verdict based on amplified score"""
         if S_star >= 0.62:
@@ -876,7 +876,7 @@ class AdvancedPhishingDetector:
 detector = AdvancedPhishingDetector()
 
 
-def detect_phishing(message: str, url: Optional[str] = None, email_signals: Optional[Dict[str, float]] = None) -> Dict:
+def detect_phishing(message: str, url: str | None = None, email_signals: dict[str, float] | None = None) -> dict:
     """Public API function"""
     result = detector.detect(message, url, email_signals=email_signals)
     return {
@@ -895,10 +895,10 @@ def detect_phishing(message: str, url: Optional[str] = None, email_signals: Opti
 # Event Bus entegrasyonu: Victim Atlas → extra sinyal hint
 # ─────────────────────────────────────────────────────────
 
-_EXTRA_HINTS: List[str] = []
+_EXTRA_HINTS: list[str] = []
 
 
-def update_extra_hints(attack_methods: List[str]) -> None:
+def update_extra_hints(attack_methods: list[str]) -> None:
     """
     Victim Atlas ingest tamamlandığında çağrılır.
     Yeni saldırı yöntemlerini in-memory hint listesine ekler.
@@ -911,6 +911,6 @@ def update_extra_hints(attack_methods: List[str]) -> None:
         _EXTRA_HINTS = _EXTRA_HINTS[-200:]
 
 
-def get_extra_hints() -> List[str]:
+def get_extra_hints() -> list[str]:
     """Mevcut extra hint listesini döner (debug/test)."""
     return list(_EXTRA_HINTS)

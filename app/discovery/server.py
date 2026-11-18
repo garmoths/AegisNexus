@@ -1,15 +1,15 @@
 """Loopback-only operator console: no account, Redis or external provider needed."""
-from contextlib import asynccontextmanager
-from pathlib import Path
 import ipaddress
 import threading
-from urllib.parse import urlsplit
+from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+
 from app.database import Base, engine
-from app.discovery.router import router, operator
+from app.discovery.router import operator, router
 
 
 def local_operator(request: Request):

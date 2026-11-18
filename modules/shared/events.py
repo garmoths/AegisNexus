@@ -17,22 +17,23 @@ Kullanım:
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Dict, List
+from collections.abc import Callable
+from typing import Any
 
 logger = logging.getLogger("aegis.events")
 
 # { event_name: [handler_fn, ...] }
-_listeners: Dict[str, List[Callable[[Dict[str, Any]], None]]] = {}
+_listeners: dict[str, list[Callable[[dict[str, Any]], None]]] = {}
 
 
-def subscribe(event: str, fn: Callable[[Dict[str, Any]], None]) -> None:
+def subscribe(event: str, fn: Callable[[dict[str, Any]], None]) -> None:
     """Bir event'e handler kaydet."""
     if fn not in _listeners.setdefault(event, []):
         _listeners[event].append(fn)
     logger.debug(f"[EventBus] subscribed: {event} → {fn.__module__}.{fn.__name__}")
 
 
-def publish(event: str, payload: Dict[str, Any], *, durable=False, strict=False) -> None:
+def publish(event: str, payload: dict[str, Any], *, durable=False, strict=False) -> None:
     """
     Event yayınla. Kayıtlı tüm handler'ları sırayla çağırır.
     Bir handler exception fırlatırsa log alınır ama akış kesilmez.
@@ -70,6 +71,6 @@ def clear_all() -> None:
     _listeners.clear()
 
 
-def registered_events() -> List[str]:
+def registered_events() -> list[str]:
     """Kayıtlı event isimlerini döner (debug/test)."""
     return list(_listeners.keys())

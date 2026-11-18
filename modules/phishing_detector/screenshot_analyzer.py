@@ -8,15 +8,14 @@ import base64
 import json
 import logging
 import os
-from typing import Any, Dict, Tuple
+from typing import Any
 
 import httpx
-import requests
 from openai import OpenAI
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
-from .playwright_pool import acquire_browser_context
 
-from .redis_cache import redis_get_ai_count, redis_incr_ai_counter, AI_DAILY_LIMIT
+from .playwright_pool import acquire_browser_context
+from .redis_cache import AI_DAILY_LIMIT, redis_get_ai_count, redis_incr_ai_counter
 
 logger = logging.getLogger(__name__)
 _groq_client = None
@@ -55,7 +54,7 @@ Return ONLY valid JSON (no markdown, no explanations) with this exact schema:
 """
 
 
-def _fallback_result() -> Dict[str, Any]:
+def _fallback_result() -> dict[str, Any]:
     return {
         "risk_score": 50,
         "risk_level": "UNKNOWN",
@@ -67,7 +66,7 @@ def _fallback_result() -> Dict[str, Any]:
     }
 
 
-def _ai_skipped_result(reason: str) -> Dict[str, Any]:
+def _ai_skipped_result(reason: str) -> dict[str, Any]:
     """AI (Groq) atlandığında dönen sonuç — screenshot alınmış ama AI analizi yapılmamış."""
     return {
         "risk_score": 35,
@@ -84,7 +83,7 @@ def _ai_skipped_result(reason: str) -> Dict[str, Any]:
 
 def _should_skip_ai(pre_penalty: int) -> tuple[bool, str]:
     """AI (Groq) çağrısının atlanıp atlanmayacağını belirler.
-    
+
     Returns:
         (skip: bool, reason: str)
     """
@@ -100,7 +99,7 @@ def _clean_page_text(page_text: str | None) -> str:
     return (page_text or "").strip()[:MAX_PAGE_TEXT]
 
 
-def _capture_screenshot_base64(url: str, page_text: str) -> Tuple[str, str, bool]:
+def _capture_screenshot_base64(url: str, page_text: str) -> tuple[str, str, bool]:
     """Headless Chromium ile tam sayfa PNG al ve base64'e cevir.
 
     A3: Her çağrıda yeni browser başlatmaz — pool'dan BrowserContext al.
@@ -189,7 +188,7 @@ def _capture_screenshot_base64(url: str, page_text: str) -> Tuple[str, str, bool
     raise last_exc or RuntimeError("Screenshot capture failed after retries")
 
 
-def _extract_json(text: str) -> Dict[str, Any]:
+def _extract_json(text: str) -> dict[str, Any]:
     raw = (text or "").strip()
     if raw.startswith("```"):
         raw = raw.strip("`")
@@ -206,7 +205,7 @@ def _extract_json(text: str) -> Dict[str, Any]:
     return data
 
 
-def _normalize_result(data: Dict[str, Any]) -> Dict[str, Any]:
+def _normalize_result(data: dict[str, Any]) -> dict[str, Any]:
     result = _fallback_result()
     try:
         risk_score = int(data.get("risk_score", 50))
@@ -246,7 +245,7 @@ def _get_groq_client() -> OpenAI:
     return _groq_client
 
 
-def _call_groq(url: str, screenshot_b64: str, http_meta: Dict[str, Any], page_text: str) -> Dict[str, Any]:
+def _call_groq(url: str, screenshot_b64: str, http_meta: dict[str, Any], page_text: str) -> dict[str, Any]:
     api_key = os.getenv("GROQ_API_KEY", "").strip()
     if not api_key:
         raise RuntimeError("GROQ_API_KEY not configured")
@@ -299,10 +298,10 @@ def _call_groq(url: str, screenshot_b64: str, http_meta: Dict[str, Any], page_te
 
 def analyze(
     url: str,
-    http_meta: Dict[str, Any] | None = None,
+    http_meta: dict[str, Any] | None = None,
     page_text: str | None = None,
     pre_penalty: int = 0,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     URL ekran goruntusunu alip Groq (llama-4-scout) ile phishing analizi yapar.
     Hata durumunda exception firlatmaz, fallback dondurur.
@@ -334,8 +333,9 @@ def analyze(
 
     # B2: pHash logo karşılaştırma — AI'dan önce çalışır
     try:
-        from .visual_analyzer import check_logo_phash
         import base64 as _b64
+
+        from .visual_analyzer import check_logo_phash
         phash_result = check_logo_phash(_b64.b64decode(screenshot_b64), url=normalized_url)
         if phash_result.get("definitive") and phash_result.get("penalty", 0) >= 60:
             brand = phash_result.get("brand", "bilinmeyen")
@@ -358,9 +358,10 @@ def analyze(
     # B3: OCR metin analizi — pHash'ten sonra, Groq'dan önce
     ocr_result = None
     try:
-        from .visual_analyzer import analyze_with_ocr
         import base64 as _b64
         from urllib.parse import urlparse as _urlparse
+
+        from .visual_analyzer import analyze_with_ocr
         _domain = _urlparse(normalized_url).netloc or normalized_url
         ocr_result = analyze_with_ocr(_b64.b64decode(screenshot_b64), domain=_domain)
         if ocr_result.get("definitive") and ocr_result.get("penalty", 0) >= 50:

@@ -6,14 +6,13 @@ Endpoint: https://urlhaus-api.abuse.ch/v1/url/ (POST, form-data).
 Auth: ABUSE_API_KEY header.
 """
 
-import os
 import hashlib
 import logging
-from typing import Dict, Optional
+import os
+from pathlib import Path
 
 import requests
 from dotenv import load_dotenv
-from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 load_dotenv(BASE_DIR / ".env")
@@ -26,7 +25,7 @@ if "," in ABUSE_CH_API_KEY:
 URLHAUS_ENDPOINT = "https://urlhaus-api.abuse.ch/v1/url/"
 
 
-def query_url(url: str, timeout: int = 15) -> Dict:
+def query_url(url: str, timeout: int = 15) -> dict:
     """
     URLhaus ile URL sorgulama.
     query_status, threat tipi, tags, ilk görülme tarihi döndürür.

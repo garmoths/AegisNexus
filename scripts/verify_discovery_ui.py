@@ -1,8 +1,9 @@
 """Browser smoke test against a disposable, paused discovery console."""
 import argparse
-from pathlib import Path
 import uuid
-from playwright.sync_api import sync_playwright, expect
+from pathlib import Path
+
+from playwright.sync_api import expect, sync_playwright
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--url', default='http://127.0.0.1:8011')

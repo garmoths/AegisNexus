@@ -13,8 +13,6 @@ from email import message_from_string
 from email.header import decode_header, make_header
 from email.message import Message
 from email.utils import getaddresses, parseaddr
-from typing import Dict, List, Optional
-
 
 _FORWARDED_SPLIT_RE = re.compile(r"^[-]{2,}\s*Forwarded message\s*[-]{2,}$", re.IGNORECASE | re.MULTILINE)
 _URL_RE = re.compile(r"https?://[\w\-._~:/?#@!$&'()*+,;=%]+", re.IGNORECASE)
@@ -36,7 +34,7 @@ _BRAND_KEYWORDS = {
 }
 
 
-def _decode_value(value: Optional[str]) -> Optional[str]:
+def _decode_value(value: str | None) -> str | None:
     if not value:
         return None
     try:
@@ -45,14 +43,14 @@ def _decode_value(value: Optional[str]) -> Optional[str]:
         return value.strip()
 
 
-def _extract_domain(address: Optional[str]) -> Optional[str]:
+def _extract_domain(address: str | None) -> str | None:
     if not address or "@" not in address:
         return None
     return address.split("@", 1)[1].strip().lower() or None
 
 
-def _collect_addresses(message: Message, field_name: str) -> List[str]:
-    values: List[str] = []
+def _collect_addresses(message: Message, field_name: str) -> list[str]:
+    values: list[str] = []
     for _, address in getaddresses(message.get_all(field_name, [])):
         if address:
             values.append(address.strip())
@@ -61,7 +59,7 @@ def _collect_addresses(message: Message, field_name: str) -> List[str]:
 
 def _get_body_text(message: Message) -> str:
     if message.is_multipart():
-        parts: List[str] = []
+        parts: list[str] = []
         for part in message.walk():
             content_type = (part.get_content_type() or "").lower()
             disposition = (part.get_content_disposition() or "").lower()
@@ -89,8 +87,8 @@ def _get_body_text(message: Message) -> str:
     return raw_payload if isinstance(raw_payload, str) else ""
 
 
-def _extract_attachments(message: Message) -> List[str]:
-    attachments: List[str] = []
+def _extract_attachments(message: Message) -> list[str]:
+    attachments: list[str] = []
     if not message.is_multipart():
         return attachments
 
@@ -103,7 +101,7 @@ def _extract_attachments(message: Message) -> List[str]:
     return attachments
 
 
-def _scan_header_signals(from_name: Optional[str], from_domain: Optional[str], reply_to: List[str], subject: Optional[str]) -> tuple[Dict[str, float], List[str]]:
+def _scan_header_signals(from_name: str | None, from_domain: str | None, reply_to: list[str], subject: str | None) -> tuple[dict[str, float], list[str]]:
     signals = {
         "reply_to_mismatch": 0.0,
         "display_name_mismatch": 0.0,
@@ -111,7 +109,7 @@ def _scan_header_signals(from_name: Optional[str], from_domain: Optional[str], r
         "subject_urgency": 0.0,
         "total": 0.0,
     }
-    evidence: List[str] = []
+    evidence: list[str] = []
 
     if reply_to and from_domain:
         reply_domains = {_extract_domain(address) for address in reply_to}
@@ -165,19 +163,19 @@ def _scan_header_signals(from_name: Optional[str], from_domain: Optional[str], r
 
 @dataclass
 class ParsedEmail:
-    from_address: Optional[str] = None
-    from_domain: Optional[str] = None
-    display_name: Optional[str] = None
-    to: List[str] = field(default_factory=list)
-    reply_to: List[str] = field(default_factory=list)
-    cc: List[str] = field(default_factory=list)
-    subject: Optional[str] = None
-    date: Optional[str] = None
+    from_address: str | None = None
+    from_domain: str | None = None
+    display_name: str | None = None
+    to: list[str] = field(default_factory=list)
+    reply_to: list[str] = field(default_factory=list)
+    cc: list[str] = field(default_factory=list)
+    subject: str | None = None
+    date: str | None = None
     body_text: str = ""
-    urls: List[str] = field(default_factory=list)
-    attachments: List[str] = field(default_factory=list)
-    email_signals: Dict[str, float] = field(default_factory=dict)
-    email_evidence: List[str] = field(default_factory=list)
+    urls: list[str] = field(default_factory=list)
+    attachments: list[str] = field(default_factory=list)
+    email_signals: dict[str, float] = field(default_factory=dict)
+    email_evidence: list[str] = field(default_factory=list)
 
 
 def parse_email(raw_message: str) -> ParsedEmail:

@@ -1,11 +1,11 @@
 """The compatibility cache API uses shared SQLite, including TTL and bounded AI budgets."""
 import importlib
-import json
 import os
 import subprocess
 import sys
 
 import pytest
+
 from app import runtime_store as store
 
 

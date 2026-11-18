@@ -70,7 +70,7 @@ def normalize_url_record(raw: str) -> dict:
     netloc_canon = f"{host}:{port}" if port else host
     canonical = urlunparse((scheme, netloc_canon, path, "", query, ""))
     digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-    
+
     return {
         "canonical_url": canonical,
         "url_hash": digest,

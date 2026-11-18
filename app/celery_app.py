@@ -16,7 +16,9 @@ Beat schedule tüm modüller için burada tek noktada tanımlıdır.
 """
 
 import os
+
 from dotenv import load_dotenv
+
 load_dotenv()
 from celery import Celery
 from celery.schedules import crontab

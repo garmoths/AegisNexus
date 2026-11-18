@@ -3,8 +3,6 @@ Tests for SMS Guard smishing/phishing analysis module.
 """
 from unittest.mock import MagicMock
 
-import pytest
-
 
 def _mock_db_no_hit():
     db = MagicMock()

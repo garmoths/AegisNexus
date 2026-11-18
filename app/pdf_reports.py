@@ -8,11 +8,11 @@ from pathlib import Path
 def generate_pdf(report):
     import reportlab
     from reportlab.lib import colors
-    from reportlab.lib.styles import getSampleStyleSheet
     from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
     font_paths = [os.getenv('PDF_FONT_PATH', ''), '/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf',
                   '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
                   '/System/Library/Fonts/Supplemental/Arial.ttf', str(Path(reportlab.__file__).parent / 'fonts/Vera.ttf')]

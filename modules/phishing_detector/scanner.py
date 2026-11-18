@@ -1,22 +1,24 @@
-import re
 import json
-import os
-import ssl
-import socket
 import logging
-import requests
-from app.outbound import safe_get, validate_url
-from urllib.parse import urlparse
-from sqlalchemy.orm import Session
-from sqlalchemy import or_
-from app.models import IndicatorOfCompromise, PhishingURL, WhitelistDomain
+import os
+import re
+import socket
+import sqlite3
+import ssl
 from datetime import datetime
-from .url_normalize import normalize_url_record
+from urllib.parse import urlparse
+
+from sqlalchemy import or_
+from sqlalchemy.orm import Session
+
+from app.models import IndicatorOfCompromise, PhishingURL
+from app.outbound import safe_get, validate_url
 
 # AI Modülleri - Yerel modüllerden import
 from .ai_analyzer import analyze_page_content
 from .ml_classifier import classify_url
 from .threat_intel import check_ioc_threatfox, run_threat_intelligence
+from .url_normalize import normalize_url_record
 from .visual_analyzer import analyze_html
 
 logger = logging.getLogger(__name__)
@@ -31,7 +33,7 @@ PHISHTANK_PATH = os.path.join(BASE_DIR, "phishtank.json")
 PHISHTANK_DB = set()
 try:
     if os.path.exists(PHISHTANK_PATH):
-        with open(PHISHTANK_PATH, "r", encoding="utf-8") as f:
+        with open(PHISHTANK_PATH, encoding="utf-8") as f:
             data = json.load(f)
             for entry in data:
                 u = entry['url']
@@ -110,7 +112,7 @@ WHITELIST = {
     "kalkinma.com.tr",
     "exim.gov.tr", "eximbank.gov.tr",
     "ilbank.gov.tr",
-    "tbb.org.tr", "turkiyebankalari.com.tr",  # Birlik sitesi
+    "turkiyebankalari.com.tr",  # Birlik sitesi
     "ziraat-online.com.tr", "isbank-online.com.tr",  # Online bankacılık
     "garanti-online.com.tr", "akbank-online.com.tr",
 
@@ -240,7 +242,6 @@ WHITELIST = {
     "whatsapp.com", "web.whatsapp.com",
     "signal.org",
     "twitch.tv", "twitch.com",
-    "youtube.com",
     "viber.com",
     "nextdoor.com",
 
@@ -267,7 +268,6 @@ WHITELIST = {
     "disneyplus.com",
     "hbo.com", "hbomax.com",
     "primevideo.com",
-    "twitch.tv",
     "soundcloud.com",
     "deezer.com",
     "imdb.com",
@@ -275,8 +275,7 @@ WHITELIST = {
 
     # ===== GLOBAL — HABER & BİLGİ =====
     "wikipedia.org", "en.wikipedia.org", "tr.wikipedia.org",
-    "bbc.co.uk", "bbc.com",
-    "cnn.com", "reuters.com",
+    "bbc.co.uk", "cnn.com", "reuters.com",
     "nytimes.com", "theguardian.com",
     "washingtonpost.com", "forbes.com",
     "bloomberg.com", "ft.com",
@@ -363,8 +362,6 @@ def check_official_tr_tld(domain: str) -> dict | None:
 # YARDIMCI FONKSİYONLAR
 # =========================================================
 
-import sqlite3
-
 WHITELIST_DB_PATH = os.path.join(os.path.dirname(__file__), '../../data/whitelist.db')
 
 def check_whitelist(domain: str, db: Session = None) -> dict:
@@ -375,23 +372,23 @@ def check_whitelist(domain: str, db: Session = None) -> dict:
     try:
         if not os.path.exists(WHITELIST_DB_PATH):
             return {"whitelisted": False, "category": None, "trusted_level": None}
-        
+
         # Normalize domain
         domain_norm = domain.lower().strip()
         if domain_norm.startswith("www."):
             domain_norm = domain_norm[4:]
-        
+
         conn = sqlite3.connect(WHITELIST_DB_PATH)
         cursor = conn.cursor()
-        
+
         # Exact match ara
         cursor.execute("""
-            SELECT id, category, trusted_level, company_name 
-            FROM whitelist_domains 
+            SELECT id, category, trusted_level, company_name
+            FROM whitelist_domains
             WHERE domain_norm = ?
         """, (domain_norm,))
         result = cursor.fetchone()
-        
+
         if result:
             conn.close()
             return {
@@ -400,17 +397,17 @@ def check_whitelist(domain: str, db: Session = None) -> dict:
                 "trusted_level": result[2],
                 "company_name": result[3]
             }
-        
+
         # Subdomain check
         for part_count in range(1, len(domain_norm.split('.'))):
             partial_domain = '.'.join(domain_norm.split('.')[-part_count-1:])
             cursor.execute("""
-                SELECT id, category, trusted_level, company_name 
-                FROM whitelist_domains 
+                SELECT id, category, trusted_level, company_name
+                FROM whitelist_domains
                 WHERE domain_norm = ?
             """, (partial_domain,))
             result = cursor.fetchone()
-            
+
             if result:
                 conn.close()
                 return {
@@ -420,10 +417,10 @@ def check_whitelist(domain: str, db: Session = None) -> dict:
                     "company_name": result[3],
                     "subdomain": True
                 }
-        
+
         conn.close()
         return {"whitelisted": False, "category": None, "trusted_level": None}
-        
+
     except Exception as e:
         logger.error(f"Whitelist check error for {domain}: {e}")
         return {"whitelisted": False, "category": None, "trusted_level": None}
@@ -753,7 +750,7 @@ def calculate_safety_score(input_url, db: Session = None):
     score = 100
     risks = []
     sources = []
-    
+
     domain_match = None
     if db:
         exact_match = None
@@ -998,7 +995,7 @@ def calculate_safety_score(input_url, db: Session = None):
         elif http_status == 404:
             score -= 3
             risks.append("⚠️ URL yolu bulunamadı (HTTP 404), ancak alan adı erişilebilir.")
-    
+
     # Whitelist flag ekle
     if is_whitelisted:
         sources.append({"name": "Whitelist", "status": f"✅ {whitelist_info.get('company_name', 'Verified')}"})

@@ -2,9 +2,7 @@
 
 PostgreSQL gerektirmedien, SQLAlchemy SQLite in-memory ile model doğrulaması yapar.
 """
-import json
 import unittest
-from datetime import datetime, timezone
 
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker

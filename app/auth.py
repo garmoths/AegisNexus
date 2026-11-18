@@ -5,15 +5,13 @@ Role göre yetki ve rate-limit uygulanır.
 """
 import hashlib
 import secrets
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from fastapi import Cookie, Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.database import SessionLocal, get_db
+from app.database import get_db
 from app.models import APIKey, User, UserRole, UserSession
-
 
 # ── Yardımcı ──────────────────────────────────────────────
 
@@ -36,28 +34,28 @@ def _resolve(db, raw_key=None, session_token=None):
     if session_token:
         return (query.join(UserSession, UserSession.api_key_id == APIKey.id)
                 .filter(UserSession.token_hash == _hash_key(session_token),
-                        UserSession.expires_at > datetime.now(timezone.utc)).first())
+                        UserSession.expires_at > datetime.now(UTC)).first())
     return None
 
 
 def resolve_api_key(
-    x_api_key: Optional[str] = Header(default=None, alias="X-API-Key"),
-    aegis_session: Optional[str] = Cookie(default=None),
+    x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+    aegis_session: str | None = Cookie(default=None),
     db: Session = Depends(get_db),
 ) -> APIKey:
     key = _resolve(db, x_api_key, aegis_session)
     if key is None:
         raise HTTPException(status_code=401, detail="Geçerli bir oturum veya API anahtarı gerekli.")
-    key.last_used_at = datetime.now(timezone.utc)
+    key.last_used_at = datetime.now(UTC)
     db.commit()
     return key
 
 
 def resolve_optional_api_key(
-    x_api_key: Optional[str] = Header(default=None, alias="X-API-Key"),
-    aegis_session: Optional[str] = Cookie(default=None),
+    x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+    aegis_session: str | None = Cookie(default=None),
     db: Session = Depends(get_db),
-) -> Optional[APIKey]:
+) -> APIKey | None:
     return _resolve(db, x_api_key, aegis_session)
 
 

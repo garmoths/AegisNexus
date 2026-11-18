@@ -1,7 +1,7 @@
 """Tests use disposable storage and never call paid/external services implicitly."""
 import os
-from pathlib import Path
 import tempfile
+from pathlib import Path
 
 import pytest
 
@@ -19,8 +19,8 @@ for key in ('GEMINI_API_KEY', 'GROQ_API_KEY', 'OPENAI_API_KEY', 'VIRUSTOTAL_API_
 
 @pytest.fixture(scope='session', autouse=True)
 def initialize_test_schema():
-    from app.database import Base, engine
     import app.models  # noqa: F401
+    from app.database import Base, engine
     Base.metadata.create_all(engine)
     yield
     engine.dispose()
@@ -36,9 +36,10 @@ def isolated_runtime(tmp_path, monkeypatch):
         connection.exec_driver_sql('DELETE FROM scan_results')
         connection.exec_driver_sql('DELETE FROM scan_events')
     # Modules that intentionally exercise a network response install their own mocks.
+    import urllib.request
+
     import requests
     import urllib3
-    import urllib.request
     def blocked(*args, **kwargs):
         raise requests.ConnectionError('External network disabled during tests')
     monkeypatch.setattr(requests.sessions.Session, 'request', blocked)

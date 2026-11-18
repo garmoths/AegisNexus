@@ -5,12 +5,10 @@ URL'den özellik çıkarımı yaparak makine öğrenmesi tabanlı sınıflandır
 Heuristic-ML hybrid yaklaşım — harici model gerektirmez.
 """
 
-import re
 import math
-import string
-from urllib.parse import urlparse, parse_qs
+import re
 from collections import Counter
-
+from urllib.parse import parse_qs, urlparse
 
 # =========================================================
 # URL ÖZELLİK ÇIKARIMI (Feature Extraction)

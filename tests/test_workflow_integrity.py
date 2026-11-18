@@ -1,11 +1,10 @@
 """Behavioral regressions for security boundaries and complete user workflows."""
-from datetime import datetime, timedelta, timezone
-from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import importlib
-import json
 import socket
 import uuid
+from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
 import pytest
@@ -13,10 +12,9 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.database import Base, get_db
-from app.models import (User, UserRole, APIKey, IndicatorOfCompromise, URLAnalizHistory, UserReport,
-                        EventOutbox, PrivateScan)
 from app.auth import generate_api_key
+from app.database import Base, get_db
+from app.models import APIKey, EventOutbox, IndicatorOfCompromise, PrivateScan, URLAnalizHistory, User, UserReport, UserRole
 
 
 @pytest.fixture
@@ -24,8 +22,8 @@ def environment(tmp_path, monkeypatch):
     engine = create_engine('sqlite:///' + str(tmp_path / 'main.db'), connect_args={'check_same_thread': False})
     Base.metadata.create_all(engine)
     sessions = sessionmaker(bind=engine)
-    from app.main import app
     import app.middleware.rate_limit as limiter
+    from app.main import app
     monkeypatch.setattr(limiter, 'SessionLocal', sessions)
     for module_name in ('app.database', 'shared.utils.db', 'app.workflow_tasks'):
         monkeypatch.setattr(importlib.import_module(module_name), 'SessionLocal', sessions)
@@ -84,13 +82,13 @@ def test_cache_counter_is_atomic_and_bounded():
 
 @pytest.mark.parametrize('url', ['http://127.0.0.1','http://[::1]','https://10.0.0.1','http://169.254.169.254','file:///etc/passwd','https://user:pass@example.com','https://localhost','https://example.com:8080'])
 def test_outbound_rejects_private_and_unsafe_targets(url):
-    from app.outbound import validate_url, UnsafeTarget
+    from app.outbound import UnsafeTarget, validate_url
     with pytest.raises(UnsafeTarget):
         validate_url(url,resolve=False)
 
 
 def test_outbound_rejects_mixed_dns_and_pins_public_address(monkeypatch):
-    from app.outbound import validate_url, UnsafeTarget, safe_get
+    from app.outbound import UnsafeTarget, safe_get, validate_url
     monkeypatch.setattr(socket,'getaddrinfo',lambda *a,**k:[(2,1,6,'',('93.184.216.34',443)),(2,1,6,'',('10.0.0.2',443))])
     with pytest.raises(UnsafeTarget): validate_url('https://public.example')
     monkeypatch.setattr(socket,'getaddrinfo',lambda *a,**k:[(2,1,6,'',('93.184.216.34',443))])
@@ -111,7 +109,7 @@ def test_outbound_rejects_mixed_dns_and_pins_public_address(monkeypatch):
 
 
 def test_redirect_to_private_address_is_blocked(monkeypatch):
-    from app.outbound import safe_get, UnsafeTarget
+    from app.outbound import UnsafeTarget, safe_get
     monkeypatch.setattr(socket,'getaddrinfo',lambda *a,**k:[(2,1,6,'',('93.184.216.34',443))])
     response=MagicMock(status=302,headers={'Location':'http://127.0.0.1/private'})
     response.stream.return_value=[]
@@ -292,7 +290,7 @@ def test_recovery_token_is_single_use_and_revokes_old_keys(environment):
     owner,raw=account()
     token='recovery-test-'+'x'*40
     with sessions() as db:
-        db.add(RecoveryToken(user_id=owner,token_hash=hashlib.sha256(token.encode()).hexdigest(),expires_at=datetime.now(timezone.utc)+timedelta(minutes=10)))
+        db.add(RecoveryToken(user_id=owner,token_hash=hashlib.sha256(token.encode()).hexdigest(),expires_at=datetime.now(UTC)+timedelta(minutes=10)))
         db.commit()
     response=client.post('/api/v2/auth/recovery/complete',json={'token':token})
     assert response.status_code==200,response.text
@@ -309,7 +307,9 @@ def test_recovery_token_is_single_use_and_revokes_old_keys(environment):
 
 def test_real_worker_consumes_queued_job_and_api_observes_completion(environment,monkeypatch):
     import time
+
     from celery.contrib.testing.worker import start_worker
+
     from app.celery_app import celery_app
     client,_,account=environment
     _,raw=account()

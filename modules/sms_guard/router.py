@@ -10,9 +10,8 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from datetime import UTC, datetime
 from urllib.parse import urlsplit
-from datetime import datetime, timezone
-from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -41,7 +40,7 @@ _URGENCY_WORDS = ["acil", "hemen", "şimdi", "son", "bugün", "24 saat", "dikkat
 
 class SMSAnalyzeRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=1600, description="Analiz edilecek SMS metni")
-    sender: Optional[str] = Field(None, description="Gönderen numara/başlık (opsiyonel)")
+    sender: str | None = Field(None, description="Gönderen numara/başlık (opsiyonel)")
 
 
 class URLIndicator(BaseModel):
@@ -49,7 +48,7 @@ class URLIndicator(BaseModel):
     is_suspicious: bool
     reason: str
     in_ioc_db: bool = False
-    ioc_risk_score: Optional[int] = None
+    ioc_risk_score: int | None = None
 
 
 class SMSAnalyzeResponse(BaseModel):
@@ -57,8 +56,8 @@ class SMSAnalyzeResponse(BaseModel):
     category: str
     confidence: float
     action: str
-    indicators: List[str]
-    urls: List[URLIndicator]
+    indicators: list[str]
+    urls: list[URLIndicator]
     explanation: str
     analyzed_at: str
 
@@ -74,14 +73,14 @@ def _normalized(text: str) -> str:
 
 
 
-def _analyze_sms(text: str, sender: Optional[str], db: Session) -> SMSAnalyzeResponse:
+def _analyze_sms(text: str, sender: str | None, db: Session) -> SMSAnalyzeResponse:
     text_lower = _normalized(text)
     score = 0
-    indicators: List[str] = []
+    indicators: list[str] = []
 
     # 1. URL analizi
     raw_urls = _URL_RE.findall(text)
-    url_results: List[URLIndicator] = []
+    url_results: list[URLIndicator] = []
 
     for raw_url in raw_urls[:5]:
         raw_url = raw_url.rstrip('.,;!?)')
@@ -225,7 +224,7 @@ def _analyze_sms(text: str, sender: Optional[str], db: Session) -> SMSAnalyzeRes
         indicators=indicators,
         urls=url_results,
         explanation=explanation,
-        analyzed_at=datetime.now(timezone.utc).isoformat(),
+        analyzed_at=datetime.now(UTC).isoformat(),
     )
 
 

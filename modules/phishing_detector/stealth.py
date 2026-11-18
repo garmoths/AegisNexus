@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Sequence, TypedDict
+from collections.abc import Sequence
+from typing import TypedDict
 
 from playwright.async_api import Browser as AsyncBrowser
 from playwright.async_api import BrowserContext as AsyncBrowserContext

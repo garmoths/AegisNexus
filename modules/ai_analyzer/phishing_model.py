@@ -3,18 +3,17 @@
 ML-Powered Phishing Detection Model
 Random Forest + TF-IDF with balanced training data + URL feature engineering
 """
-import os, json, re, logging
-import numpy as np
-from typing import Dict, List
-from collections import Counter
+import logging
+import os
+import re
 
 logger = logging.getLogger(__name__)
 
 try:
-    from sklearn.feature_extraction.text import TfidfVectorizer
-    from sklearn.ensemble import RandomForestClassifier
     import joblib
     import tldextract
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.feature_extraction.text import TfidfVectorizer
     ML_AVAILABLE = True
 except ImportError:
     ML_AVAILABLE = False
@@ -29,20 +28,20 @@ class PhishingMLModel:
     ML_WEIGHT = 0.25
     URL_WEIGHT = 0.50
     TEXT_WEIGHT = 0.25
-    
+
     # For text-only scams (no URLs), boost text weight
     TEXT_ONLY_BOOST = 1.8
-    
+
     MODEL_PATH = os.path.join(os.path.dirname(__file__), "phishing_model.joblib")
     VECTORIZER_PATH = os.path.join(os.path.dirname(__file__), "tfidf_vectorizer.joblib")
-    
+
     def __init__(self):
         self.model = None
         self.vectorizer = None
         self.is_trained = False
         if ML_AVAILABLE:
             self._load_or_create()
-    
+
     def _load_or_create(self):
         if os.path.exists(self.MODEL_PATH) and os.path.exists(self.VECTORIZER_PATH):
             try:
@@ -51,11 +50,11 @@ class PhishingMLModel:
                 self.is_trained = True
                 logger.info("ML model loaded from disk")
                 return
-            except:
+            except Exception:
                 pass
         logger.info("Training new ML model...")
         self._train_model()
-    
+
     def _train_model(self):
         phishing = [
             # --- Aksansiz orijinal ornekler ---
@@ -194,19 +193,19 @@ class PhishingMLModel:
             "PTT kargo sorgulama: https://www.ptt.gov.tr",
             "SGK borcumu öğrendim, sorun yok.",
         ]
-        
+
         all_texts = phishing + safe
         all_labels = [1]*len(phishing) + [0]*len(safe)
-        
+
         self.vectorizer = TfidfVectorizer(
             max_features=5000, ngram_range=(1, 4),
             analyzer="char_wb", sublinear_tf=True,
             max_df=0.85, min_df=1,
             strip_accents="unicode",
-            token_pattern=r"(?u)\b\w+\b"
+            token_pattern=r"(?u)\b\w+\b",  # noqa: S106 - regex, not a secret
         )
         X = self.vectorizer.fit_transform(all_texts)
-        
+
         self.model = RandomForestClassifier(
             n_estimators=300, max_depth=20,
             min_samples_split=5, min_samples_leaf=2,
@@ -215,15 +214,15 @@ class PhishingMLModel:
         self.model.fit(X, all_labels)
         self.is_trained = True
         logger.info(f"ML model trained on {len(all_texts)} samples")
-        
+
         try:
             os.makedirs(os.path.dirname(self.MODEL_PATH), exist_ok=True)
             joblib.dump(self.model, self.MODEL_PATH)
             joblib.dump(self.vectorizer, self.VECTORIZER_PATH)
-        except:
+        except Exception:
             pass
-    
-    def extract_url_features(self, text: str) -> Dict:
+
+    def extract_url_features(self, text: str) -> dict:
         features = {
             "has_url": 0.0, "url_count": 0.0, "has_https": 0.0,
             "has_ip": 0.0, "num_dots": 0.0, "num_hyphens": 0.0,
@@ -233,13 +232,13 @@ class PhishingMLModel:
             "has_redirect": 0.0, "subdomain_len": 0.0,
         }
         urls = re.findall(r"http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+", text)
-        
+
         if not urls:
             return features
-        
+
         features["has_url"] = 1.0
         features["url_count"] = float(len(urls))
-        
+
         for url in urls:
             domain = url.split("//")[-1].split("/")[0].lower() if "//" in url else url.lower()
             features["has_https"] = max(features["has_https"], 1.0 if url.startswith("https://") else 0.0)
@@ -247,28 +246,28 @@ class PhishingMLModel:
             features["num_dots"] = max(features["num_dots"], float(url.count(".")))
             features["num_hyphens"] = max(features["num_hyphens"], float(url.count("-")))
             features["url_length"] = max(features["url_length"], float(len(url)))
-            
+
             suspicious_tlds = [".tk", ".ml", ".ga", ".cf", ".gq", ".xyz", ".top", ".work", ".click", ".link"]
             features["has_suspicious_tld"] = max(features["has_suspicious_tld"],
                 1.0 if any(tld in url.lower() for tld in suspicious_tlds) else 0.0)
-            
+
             shorteners = ["bit.ly", "tinyurl", "tiny.cc", "is.gd", "ow.ly", "buff.ly", "rb.gy"]
             features["has_shortener"] = max(features["has_shortener"],
                 1.0 if any(s in url.lower() for s in shorteners) else 0.0)
-            
+
             phishing_paths = ["/verify", "/confirm", "/login", "/auth", "/secure",
                 "/update", "/account", "/password", "/reset", "/activate",
                 "/giris", "/hesap", "/dogrulama", "/guncelle", "/odeme", "/sifre", "/onay"]
             path_part = url.split(domain)[-1] if domain in url else ""
             features["has_phishing_path"] = max(features["has_phishing_path"],
                 1.0 if any(pp in path_part.lower() for pp in phishing_paths) else 0.0)
-            
+
             try:
                 ext = tldextract.extract(url)
                 features["subdomain_len"] = max(features["subdomain_len"], float(len(ext.subdomain)))
-            except:
+            except Exception:
                 pass
-            
+
             brand_words = ["apple", "icloud", "google", "microsoft", "paypal", "netflix", "amazon",
                 "akbank", "garanti", "isbank", "ziraat", "vakifbank", "halkbank", "yapikredi",
                 "instagram", "facebook", "whatsapp", "twitter", "linkedin", "spotify",
@@ -276,38 +275,38 @@ class PhishingMLModel:
                 "guvenlik", "hesap", "dogrulama", "onay", "sifre", "odeme", "kargo"]
             features["has_brand"] = max(features["has_brand"],
                 1.0 if any(b in domain for b in brand_words) else 0.0)
-            
+
             features["has_at"] = max(features["has_at"], 1.0 if "@" in url else 0.0)
             if "?" in url:
                 q = url.split("?")[-1]
                 features["num_params"] = max(features["num_params"], float(len(q.split("&"))))
             if re.search(r"redirect|url=|link=|goto=", url.lower()):
                 features["has_redirect"] = max(features["has_redirect"], 1.0)
-        
+
         return features
-    
-    def predict(self, text: str) -> Dict:
+
+    def predict(self, text: str) -> dict:
         result = {
             "is_phishing": False, "is_scam": False, "confidence_score": 0.0,
             "threat_level": "low", "ml_probability": 0.0,
             "identified_threats": [], "psychological_triggers": [],
             "suspicious_elements": [], "url_features": {}
         }
-        
+
         text_lower = text.lower()
         urf = self.extract_url_features(text)
         result["url_features"] = urf
-        
+
         # 1. ML probability
         ml_prob = 0.0
         if ML_AVAILABLE and self.is_trained:
             try:
                 X = self.vectorizer.transform([text])
                 ml_prob = float(self.model.predict_proba(X)[0][1])
-            except:
+            except Exception:
                 pass
         result["ml_probability"] = ml_prob
-        
+
         # 2. URL risk score
         url_risk = 0.0
         url_weights = {
@@ -326,7 +325,7 @@ class PhishingMLModel:
         if urf.get("has_suspicious_tld", 0) > 0 and urf.get("has_brand", 0) > 0:
             url_risk = max(url_risk, 85.0)
         url_risk = min(url_risk, 95.0)
-        
+
         # 3. Text-based scoring (aksan normalize edilmis metin uzerinde)
         text_norm = _normalize_tr(text_lower)
         text_score = 0.0
@@ -371,46 +370,46 @@ class PhishingMLModel:
             if kw in text_norm:
                 text_score += 25.0
                 result["identified_threats"].append(f"Scam kelimesi tespit edildi: {kw}")
-        
+
         for kw in invoice_scam_keywords:
             if kw in text_norm:
                 text_score += 20.0
                 result["identified_threats"].append(f"Fatura/kargo scam kelimesi tespit edildi: {kw}")
-        
+
         # Phone number detection for scam patterns
         phone_pattern = r'(05\d{2}|\+90\s*5\d{2}|0\d{3})\s*\d{3}\s*\d{2}\s*\d{2}|0900\s*\d{3}\s*\d{4}'
         if re.search(phone_pattern, text):
             text_score += 30.0
             result["identified_threats"].append("Telefon numarasi tespit edildi (scam pattern)")
             result["suspicious_elements"].append("Telefon arama istegi (scam)")
-        
+
         urgent = ["acil", "hemen", "simdi", "tehlike", "uyari", "son gun", "son saat", "sure doluyor"]
         if any(k in text_norm for k in urgent):
             text_score += 12.0
             result["psychological_triggers"].append("urgency")
             result["identified_threats"].append("Aciliyet yaratarak acele karar aldirma")
-        
+
         fear = ["kapatilacak", "engellenecek", "askiya", "bloke", "kisitli", "tehdit", "silinecek",
                 "kisitlamaya", "iade edilecek", "yasal islem", "icra", "dava"]
         if any(k in text_norm for k in fear):
             text_score += 18.0
             result["psychological_triggers"].append("fear")
             result["identified_threats"].append("Korku/tehdit temasi (psikolojik baski)")
-        
+
         auth = ["banka", "devlet", "guvenlik", "yetkili", "resmi", "musterimiz",
                 "sgk", "ptt", "garanti", "akbank", "ziraat", "vakifbank"]
         if any(k in text_norm for k in auth):
             text_score += 8.0
             result["psychological_triggers"].append("authority")
-        
+
         if text.count("!") >= 2:
             text_score += 5.0
         upper_ratio = sum(1 for c in text if c.isupper()) / max(len(text), 1)
         if upper_ratio > 0.3 and len(text) > 50:
             text_score += 5.0
-        
+
         text_score = min(text_score, 50.0)
-        
+
         # 4. Suspicious elements
         if urf.get("has_suspicious_tld", 0) > 0:
             result["suspicious_elements"].append("Supheli alan adi (.tk, .ml vb.)")
@@ -422,20 +421,20 @@ class PhishingMLModel:
             result["suspicious_elements"].append("Phishing URL path (/verify, /login)")
         if urf.get("has_ip", 0) > 0:
             result["suspicious_elements"].append("IP tabanli URL")
-        
+
         # 5. FINAL HYBRID SCORE
         if ml_prob > 0:
             final = (self.ML_WEIGHT * ml_prob * 100) + (self.URL_WEIGHT * url_risk) + (self.TEXT_WEIGHT * text_score)
         else:
             final = (0.60 * url_risk) + (0.40 * text_score)
-        
+
         # Boost text-only scams (no URLs)
         if urf.get("has_url", 0) == 0 and text_score > 20:
             final *= self.TEXT_ONLY_BOOST
             result["identified_threats"].append("Metin tabanli scam (URL yok)")
-        
+
         final = min(final, 100.0)
-        
+
         # 6. Decision
         result["confidence_score"] = round(final, 1)
         if final >= 35:
@@ -450,11 +449,11 @@ class PhishingMLModel:
             result["threat_level"] = "medium"
         else:
             result["threat_level"] = "safe"
-        
+
         # Add brand impersonation threat
         if urf.get("has_brand", 0) > 0 and final >= 30:
             result["identified_threats"].append("Marka taklidi tespit edildi")
-        
+
         return result
 
 phishing_model = PhishingMLModel()

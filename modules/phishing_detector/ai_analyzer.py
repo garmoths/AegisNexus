@@ -9,11 +9,11 @@ Check Point ve sektör standartlarına uygun AI tabanlı analiz modülü.
 - Sayfa Yapısal Anomali Analizi
 """
 
-import re
-import math
 import logging
-from urllib.parse import urlparse
+import math
+import re
 from collections import Counter
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -383,12 +383,12 @@ def _detect_credential_harvesting(html_raw, html_lower):
     # Password alanı sayısı
     password_fields = len(re.findall(r'type\s*=\s*["\']password["\']', html_lower))
     # Email/text input alanları
-    email_fields = len(re.findall(r'type\s*=\s*["\']email["\']', html_lower))
-    text_fields = len(re.findall(r'type\s*=\s*["\']text["\']', html_lower))
+    len(re.findall(r'type\s*=\s*["\']email["\']', html_lower))
+    len(re.findall(r'type\s*=\s*["\']text["\']', html_lower))
     # Form sayısı
     form_count = len(re.findall(r'<form\b', html_lower))
     # Submit button
-    submit_buttons = len(re.findall(r'type\s*=\s*["\']submit["\']|<button\b', html_lower))
+    len(re.findall(r'type\s*=\s*["\']submit["\']|<button\b', html_lower))
 
     # Hidden input'lar (veri toplama için)
     hidden_inputs = len(re.findall(r'type\s*=\s*["\']hidden["\']', html_lower))
@@ -565,8 +565,6 @@ def _calculate_entropy(text):
 
 def fetch_page_content(url, timeout=8):
     """Sayfa HTML içeriğini güvenli şekilde çeker."""
-    import requests
-    import certifi
 
     try:
         headers = {

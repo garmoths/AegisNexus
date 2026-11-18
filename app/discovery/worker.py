@@ -1,19 +1,20 @@
 """Bounded crawl worker usable from CLI, the local supervisor or Celery."""
-from datetime import timedelta
 import hashlib
 import json
 import os
 import subprocess
 import sys
-from urllib.parse import urlsplit, urljoin
+from datetime import timedelta
+from urllib.parse import urljoin, urlsplit
 
 import requests
-from app.database import SessionLocal
+
 from app import runtime_store as store
-from app.models import CrawlCandidate, CrawlObservation, CrawlSource
+from app.database import SessionLocal
 from app.discovery import service
-from app.discovery.analysis import canonical_url, extract, assess
-from app.discovery.transport import fetch_page, CrawlBlocked
+from app.discovery.analysis import assess, canonical_url, extract
+from app.discovery.transport import CrawlBlocked, fetch_page
+from app.models import CrawlCandidate, CrawlSource
 from app.outbound import UnsafeTarget, safe_get
 
 

@@ -6,13 +6,13 @@ import fcntl
 import hashlib
 import json
 import os
-from pathlib import Path
 import shutil
 import signal
 import socket
 import subprocess
 import sys
 import time
+from pathlib import Path
 from urllib.request import urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -293,8 +293,9 @@ def main():
                 replies = celery_app.control.ping(destination=names, timeout=0.5)
                 return {next(iter(reply)) for reply in replies} >= set(names)
             wait_until(workers_ready, 'Celery workerları')
-            from app.workflow_tasks import runtime_probe
             from celery.exceptions import TimeoutError as TaskTimeout
+
+            from app.workflow_tasks import runtime_probe
             for queue in ('default', 'phishing'):
                 probe = runtime_probe.apply_async(queue=queue, expires=60)
                 try:

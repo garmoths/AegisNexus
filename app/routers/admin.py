@@ -4,7 +4,7 @@ POST /api/v2/admin/classify           — Gemini ile toplu sınıflandırma
 GET  /api/v2/admin/users              — Kullanıcı listesi
 PATCH /api/v2/admin/users/{user_id}   — Kullanıcı rol değiştirme
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session

@@ -1,57 +1,56 @@
 """
 AI Security Analysis Engine - Ana analiz motoru
 """
-from typing import Dict, List, Optional
-from sqlalchemy.orm import Session
 from datetime import datetime
-import json
 
-from app.models import URLAnalizHistory
+from sqlalchemy.orm import Session
+
 from .llm_client import llm_client
 from .url_checker import URLSecurityChecker
 
+
 class AIAnalyzerEngine:
     """AI güvenlik analiz motoru"""
-    
+
     def __init__(self, db: Session = None):
         self.db = db
         self.url_checker = URLSecurityChecker(db)
-    
-    def analyze_message(self, message: str, context: str = "email", 
-                       sender: str = None, subject: str = None) -> Dict:
+
+    def analyze_message(self, message: str, context: str = "email",
+                       sender: str = None, subject: str = None) -> dict:
         """
         Mesajı analiz et - Tam güvenlik raporu
-        
+
         Args:
             message: Mesaj içeriği
             context: email, sms, whatsapp, social_media
             sender: Gönderen bilgisi
             subject: Konu (email için)
-        
+
         Returns:
             Tam analiz raporu
         """
         # Başlangıç zamanı
         start_time = datetime.utcnow()
-        
+
         # 1. LLM analizi
         llm_result = llm_client.analyze_text(message, context)
-        
+
         # 2. URL çıkar ve kontrol et
         urls = self.url_checker.extract_urls(message)
         url_results = []
-        
+
         for url in urls:
             check_result = self.url_checker.check_url(url)
             url_results.append(check_result)
-            
+
             # LLM URL analizini güncelle (eğer varsa)
             if "url_analysis" in llm_result:
                 for ua in llm_result["url_analysis"]:
                     if ua["url"] == url:
                         ua["database_check"] = check_result["in_database"]
                         ua["risk_score"] = check_result["risk_score"]
-        
+
         # 3. Rapor oluştur
         report = self._generate_report(
             message=message,
@@ -62,13 +61,13 @@ class AIAnalyzerEngine:
             url_results=url_results,
             start_time=start_time
         )
-        
+
         return report
-    
-    def quick_scan(self, message: str) -> Dict:
+
+    def quick_scan(self, message: str) -> dict:
         """Hızlı tarama - Sadece kritik bilgiler"""
         urls = self.url_checker.extract_urls(message)
-        
+
         # URL'leri kontrol et
         malicious_urls = []
         for url in urls:
@@ -79,10 +78,10 @@ class AIAnalyzerEngine:
                     "risk_score": result["risk_score"],
                     "reason": result["checks"]
                 })
-        
+
         # LLM hızlı analiz
         llm_result = llm_client.analyze_text(message, "unknown")
-        
+
         return {
             "is_safe": len(malicious_urls) == 0 and llm_result["threat_level"] in ["low", "medium"],
             "threat_level": llm_result["threat_level"],
@@ -90,12 +89,12 @@ class AIAnalyzerEngine:
             "is_phishing": llm_result["is_phishing"],
             "confidence": llm_result["confidence_score"]
         }
-    
+
     def _generate_report(self, message: str, context: str, sender: str,
-                        subject: str, llm_analysis: Dict, 
-                        url_results: List[Dict], start_time: datetime) -> Dict:
+                        subject: str, llm_analysis: dict,
+                        url_results: list[dict], start_time: datetime) -> dict:
         """Detaylı rapor oluştur"""
-        
+
         # Güvenlik skoru hesapla (0-100, düşük = güvenli)
         base_score = llm_analysis.get("confidence_score", 0)
 
@@ -132,7 +131,7 @@ class AIAnalyzerEngine:
 
         # Güvenlik durumu
         threat_level_str = llm_analysis.get("threat_level", "low")
-        
+
         if is_phishing_flag or is_scam_flag or threat_level_str in ("critical", "high"):
             safety_status = "TEHLİKELİ"
             action_required = "ACİL"
@@ -146,12 +145,12 @@ class AIAnalyzerEngine:
         else:
             safety_status = "GÜVENLİ"
             action_required = "YOK"
-        
+
         # Öneriler oluştur
         recommendations = self._generate_recommendations(
             llm_analysis, url_results, total_risk
         )
-        
+
         # Rapor
         report = {
             "analysis_id": f"ai-{start_time.strftime('%Y%m%d%H%M%S')}-{hash(message) % 10000}",
@@ -182,14 +181,14 @@ class AIAnalyzerEngine:
             "recommendations": recommendations,
             "summary": self._generate_summary(llm_analysis, url_results, total_risk, message)
         }
-        
+
         return report
-    
-    def _generate_recommendations(self, llm_analysis: Dict, 
-                                 url_results: List[Dict], total_risk: float) -> List[Dict]:
+
+    def _generate_recommendations(self, llm_analysis: dict,
+                                 url_results: list[dict], total_risk: float) -> list[dict]:
         """Kişiselleştirilmiş öneriler"""
         recommendations = []
-        
+
         # Tehlike seviyesine gore
         ml_conf = llm_analysis.get("confidence_score", 0)
         is_phishing_flag = llm_analysis.get("is_phishing", False)
@@ -211,7 +210,7 @@ class AIAnalyzerEngine:
                 "action": "DİKKATLİ OLUN",
                 "description": "Mesaj şüpheli. Göndereni doğrulamadan işlem yapmayın."
             })
-        
+
         # URL önerileri
         for url_result in url_results:
             if not url_result["is_safe"]:
@@ -221,7 +220,7 @@ class AIAnalyzerEngine:
                     "description": f"Risk skoru: {url_result['risk_score']}/100. "
                                 f"Nedenler: {', '.join(url_result['checks'][:2])}"
                 })
-        
+
         # Genel öneriler
         if is_phishing_flag or llm_analysis.get("is_scam", False) or ml_conf >= 50:
             recommendations.append({
@@ -229,7 +228,7 @@ class AIAnalyzerEngine:
                 "action": "🚨 KİMLİK AVI TESPİT EDİLDİ",
                 "description": "Bu mesaj %100 phishing/scam özellikleri taşıyor! KESİNLİKLE linke tıklamayın, bilgi girmeyin, yanıt vermeyin."
             })
-        
+
         # Psikolojik tetikleyiciler
         triggers = llm_analysis.get("psychological_triggers", [])
         if "urgency" in triggers:
@@ -239,7 +238,7 @@ class AIAnalyzerEngine:
                 "description": "Mesaj acele etmenizi istiyor. Gerçek acil durumlarda bile "
                             "önce doğrulama yapın. 'Şimdi' diyorsa durun ve düşünün."
             })
-        
+
         if "fear" in triggers:
             recommendations.append({
                 "priority": "MEDIUM",
@@ -247,7 +246,7 @@ class AIAnalyzerEngine:
                 "description": "Hesabınızın kapatılacağı gibi tehditler var. "
                             "Bankanızı/resmi kurumu doğrudan arayın, mesajdaki linkleri kullanmayın."
             })
-        
+
         # Güvenli ise
         if ml_conf < 12 and not recommendations:
             recommendations.append({
@@ -255,10 +254,10 @@ class AIAnalyzerEngine:
                 "action": "GÜVENLİ",
                 "description": "Mesaj güvenli görünüyor. Yine de dikkatli olun."
             })
-        
+
         return recommendations
-    
-    def _generate_summary(self, llm_analysis: Dict, url_results: List[Dict],
+
+    def _generate_summary(self, llm_analysis: dict, url_results: list[dict],
                          total_risk: float, message: str = "") -> str:
         """Kısa ve öz güvenlik özeti oluştur"""
 
@@ -266,7 +265,7 @@ class AIAnalyzerEngine:
         is_phishing_flag = llm_analysis.get("is_phishing", False)
         is_scam_flag = llm_analysis.get("is_scam", False)
         threat_level_str = llm_analysis.get("threat_level", "low")
-        
+
         if is_phishing_flag or is_scam_flag or threat_level_str in ("critical", "high") or total_risk >= 50:
             status = "⚠️ TEHLİKELİ"
             action = "Hemen silin ve göndereni engelleyin"

@@ -4,9 +4,10 @@ import os
 from urllib.parse import urlsplit
 
 from fastapi import Request
+from starlette.concurrency import run_in_threadpool
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
-from starlette.concurrency import run_in_threadpool
+
 from app import runtime_store as store
 from app.auth import _resolve
 from app.database import SessionLocal

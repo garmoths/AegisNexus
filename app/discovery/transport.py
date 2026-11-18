@@ -1,8 +1,10 @@
 """Every hop (including robots/favicon) is pinned to a validated public address."""
-from urllib.parse import urlsplit, urljoin
+from urllib.parse import urljoin, urlsplit
 from urllib.robotparser import RobotFileParser
+
 import requests
-from app.outbound import safe_get, validate_url, UnsafeTarget
+
+from app.outbound import safe_get, validate_url
 
 UA = 'AegisNexus-Discovery/1.0'
 MAX_HTML = 1_000_000

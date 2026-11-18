@@ -3,16 +3,16 @@
 Testler ağa çıkmaz; gerçek WebSocket açılmaz. Dinleyici mesaj işleme yolu örnek
 CT JSON sözlükleriyle sınanır.
 """
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base, get_db
-from app.models import CrawlCandidate, CrawlSource
 from app.discovery import certstream, matcher, service, worker
-from app.discovery.router import router, operator
+from app.discovery.router import operator, router
+from app.models import CrawlCandidate, CrawlSource
 
 
 @pytest.fixture

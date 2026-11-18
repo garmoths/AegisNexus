@@ -1,19 +1,19 @@
 """Operator-only discovery API. Raw captured HTML is never served as active content."""
-from typing import Literal
-from pathlib import Path
-from datetime import timedelta
 import uuid
+from datetime import timedelta
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlalchemy.orm import Session
+
 from app.auth import require_admin
 from app.database import get_db
-from app.models import CrawlCandidate, CrawlObservation, CrawlReview, CrawlSource
 from app.discovery import service
 from app.discovery.analysis import canonical_url, display_url
+from app.models import CrawlCandidate, CrawlObservation, CrawlReview, CrawlSource
 
 
 def operator(key=Depends(require_admin)):

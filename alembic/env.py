@@ -1,8 +1,7 @@
 from logging.config import fileConfig
-from dotenv import load_dotenv
 
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
+from dotenv import load_dotenv
+from sqlalchemy import engine_from_config, pool
 
 from alembic import context
 
@@ -11,6 +10,7 @@ load_dotenv()
 config = context.config
 
 from app.database import SQLALCHEMY_DATABASE_URL  # noqa: E402 — tek kaynak: DATABASE_URL
+
 config.set_main_option("sqlalchemy.url", SQLALCHEMY_DATABASE_URL)
 
 if config.config_file_name is not None:

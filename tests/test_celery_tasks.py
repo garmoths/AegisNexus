@@ -1,6 +1,6 @@
 """Celery task testleri — mock ile, gerçek broker gerektirmez."""
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 
 class TestCeleryTaskDefinitions(unittest.TestCase):

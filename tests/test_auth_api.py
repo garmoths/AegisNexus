@@ -1,5 +1,4 @@
 """Auth ve API endpoint testleri — FastAPI TestClient ile."""
-import hashlib
 import unittest
 
 from fastapi.testclient import TestClient

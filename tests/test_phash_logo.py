@@ -15,12 +15,7 @@ from __future__ import annotations
 import base64
 import io
 import json
-import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import pytest
-
 
 # ── Test için minimal PNG helper ────────────────────────────────────────────
 
@@ -256,7 +251,6 @@ class TestBuildLogoDb:
 
     def test_logos_dict_has_expected_brands(self):
         """LOGOS sözlüğünde kritik markalar olmalı."""
-        import ast, textwrap
         src = Path("modules/phishing_detector/build_logo_db.py").read_text()
         # Kaynak kodda marka adlarının geçip geçmediğini kontrol et
         for brand in ("paypal", "google", "microsoft", "ziraat", "garanti"):

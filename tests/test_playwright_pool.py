@@ -9,12 +9,11 @@ pytest tests/test_playwright_pool.py -v
 """
 from __future__ import annotations
 
+import threading
 from contextlib import contextmanager
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock
 
 import pytest
-import threading
-
 
 # ── Yardımcı mock'lar ────────────────────────────────────────────────────────
 
@@ -127,7 +126,7 @@ class TestPlaywrightPool:
         monkeypatch.setattr(pool, "_ensure_browser", lambda: mock_browser)
 
         with pytest.raises(ValueError, match="test error"):
-            with pool.acquire_browser_context() as ctx:
+            with pool.acquire_browser_context():
                 raise ValueError("test error")
 
         mock_ctx.close.assert_called_once()
@@ -169,8 +168,9 @@ class TestPlaywrightPool:
 class TestScreenshotAnalyzerPool:
     def test_uses_pool_not_sync_playwright(self):
         """screenshot_analyzer artık sync_playwright() çağırmamalı."""
-        import modules.phishing_detector.screenshot_analyzer as sa
         import inspect
+
+        import modules.phishing_detector.screenshot_analyzer as sa
         source = inspect.getsource(sa._capture_screenshot_base64)
         assert "sync_playwright" not in source, \
             "_capture_screenshot_base64 hala sync_playwright() kullanıyor!"
@@ -214,7 +214,8 @@ class TestScreenshotAnalyzerPool:
 # ── 3. cache-health endpoint playwright_pool durumu ──────────────────────────
 
 def _get_router_mod():
-    import sys, importlib
+    import importlib
+    import sys
     m = sys.modules.get("modules.phishing_detector.router")
     if m is None:
         importlib.import_module("modules.phishing_detector.router")

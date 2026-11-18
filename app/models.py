@@ -1,9 +1,11 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, Float, JSON, Index, BigInteger, ForeignKey, Enum as SAEnum
-from sqlalchemy import func
-from sqlalchemy.orm import relationship
-from app.database import Base
-from datetime import datetime, timezone
 import enum
+from datetime import UTC, datetime
+
+from sqlalchemy import JSON, BigInteger, Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, String, Text, func
+from sqlalchemy import Enum as SAEnum
+from sqlalchemy.orm import relationship
+
+from app.database import Base
 
 
 class PhishingURL(Base):
@@ -17,7 +19,7 @@ class PhishingURL(Base):
     status = Column(String)
     online = Column(Boolean)
     target = Column(String)
-    submission_time = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    submission_time = Column(DateTime, default=lambda: datetime.now(UTC))
 
 
 
@@ -63,8 +65,8 @@ class WhitelistDomain(Base):
     country = Column(String(100), nullable=True)
     trusted_level = Column(String(20), default="high")  # high, medium
     verified = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
+    updated_at = Column(DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
 
 
 class HoneypotEvent(Base):
@@ -78,7 +80,7 @@ class HoneypotEvent(Base):
     path = Column(String(256))
     referer = Column(String(512), nullable=True)
     note = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
 
 
 class IndicatorOfCompromise(Base):
@@ -90,45 +92,45 @@ class IndicatorOfCompromise(Base):
     __tablename__ = "indicators_of_compromise"
 
     id = Column(BigInteger().with_variant(Integer, 'sqlite'), primary_key=True, index=True)
-    
+
     # Core IOC data
     ioc_type = Column(String(20), index=True, nullable=False)  # 'ip', 'domain', 'url', 'hash'
     ioc_value = Column(String(1000), index=True, nullable=False)  # The actual value (normalized)
     ioc_value_hash = Column(String(64), unique=True, index=True)  # SHA256 of value (for dedup)
-    
+
     # Source tracking
     source = Column(String(50), index=True, nullable=False)  # 'abuse_urlhaus', 'abuse_phishtank', 'abuseipdb', 'honeypot'
     source_reference = Column(String(500), nullable=True)  # URL/ID to original report
-    
+
     # Threat classification
     threat_type = Column(String(100), index=True, nullable=False)  # 'phishing', 'malware', 'botnet', 'spam', 'c2'
     threat_tags = Column(JSON, nullable=True, default=[])  # ['zeus', 'dridex', 'emotet'] etc.
-    
+
     # Scoring & confidence
     risk_score = Column(Integer, index=True, nullable=False)  # 1-100 (calculated)
     confidence = Column(Float, nullable=False)  # 0.0-1.0 from source
-    
+
     # Timeline & frequency
-    first_seen = Column(DateTime, index=True, nullable=False, default=lambda: datetime.now(timezone.utc))
-    last_seen = Column(DateTime, index=True, nullable=False, default=lambda: datetime.now(timezone.utc))
+    first_seen = Column(DateTime, index=True, nullable=False, default=lambda: datetime.now(UTC))
+    last_seen = Column(DateTime, index=True, nullable=False, default=lambda: datetime.now(UTC))
     detection_count = Column(Integer, default=1)  # How many times we've seen this
-    
+
     # Enrichment data
     context = Column(JSON, nullable=True)  # {'country': 'CN', 'asn': 'AS12345', 'owner': 'XYZ Corp'}
     ioc_metadata = Column(JSON, nullable=True)  # Extra data from source API
-    
+
     # Operator tracking
     operator_alert_sent = Column(Boolean, default=False, index=True)
     operator_alert_timestamp = Column(DateTime, nullable=True)
-    
+
     # Status & lifecycle
     status = Column(String(50), default='active', index=True)  # 'active', 'resolved', 'false_positive', 'archived'
     is_monitored = Column(Boolean, default=True, index=True)  # Whether to continue monitoring
-    
+
     # Timestamps
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
-    
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC), index=True)
+    updated_at = Column(DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
+
     # Indexes for performance
     __table_args__ = (
         Index('ix_ioc_type_value', 'ioc_type', 'ioc_value'),
@@ -143,26 +145,26 @@ class URLAnalizHistory(Base):
     URL Analiz Geçmişi - AI Analyzer tarafından yapılan analizlerin kaydı.
     """
     __tablename__ = "url_analiz_history"
-    
+
     id = Column(BigInteger().with_variant(Integer, 'sqlite'), primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey('users.id'), index=True, nullable=True)
-    
+
     # Analiz edilen URL
     url = Column(String(2000), index=True, nullable=False)
     domain = Column(String(512), index=True, nullable=False)
-    
+
     # Analiz sonucu
     risk_level = Column(String(20), index=True, nullable=False)  # 'safe', 'low', 'medium', 'high'
     is_phishing = Column(Boolean, index=True, default=False)
     confidence = Column(Float, nullable=True)  # 0.0-1.0
-    
+
     # Analiz detayları
     analysis_result = Column(JSON, nullable=True)  # Tüm analiz sonuçları
     llm_analysis = Column(Text, nullable=True)  # LLM analizi metni
     url_checks = Column(JSON, nullable=True)  # URL kontrolleri sonuçları
-    
+
     # Timestamps
-    created_at = Column(DateTime, index=True, nullable=False, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, index=True, nullable=False, default=lambda: datetime.now(UTC))
 
 
 # =========================================================
@@ -186,7 +188,7 @@ class User(Base):
     full_name = Column(String(256), nullable=True)
     role = Column(SAEnum(UserRole), default=UserRole.free, index=True, nullable=False)
     is_active = Column(Boolean, default=True, index=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC), index=True)
 
     # Relationships
     api_keys = relationship("APIKey", back_populates="user", lazy="dynamic")
@@ -206,7 +208,7 @@ class APIKey(Base):
     rate_limit_tier = Column(String(20), default="free", index=True)  # free/premium/corporate/admin
     last_used_at = Column(DateTime, nullable=True)
     is_active = Column(Boolean, default=True, index=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
 
     # Relationships
     user = relationship("User", back_populates="api_keys")
@@ -225,9 +227,9 @@ class UserReport(Base):
     pdf_status = Column(String(20), nullable=False, default='pending')
     status = Column(String(20), nullable=False, default='open')
     action_steps = Column(JSON, nullable=False, default=list)
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
     report_quota_month = Column(String(7), nullable=True)  # "2026-04" gibi, quota takibi için
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC), index=True)
 
     # Relationships
     user = relationship("User", back_populates="reports")
@@ -261,7 +263,7 @@ class PDFDownload(Base):
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
     report_id = Column(Integer, ForeignKey('user_reports.id'), nullable=False)
     month = Column(String(7), nullable=False, index=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
     __table_args__ = (Index('ix_pdf_month_unique', 'user_id', 'report_id', 'month', unique=True),)
 
 
@@ -270,7 +272,7 @@ class EventOutbox(Base):
     id = Column(Integer, primary_key=True)
     event = Column(String(100), nullable=False)
     payload = Column(JSON, nullable=False)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
     processed_at = Column(DateTime, nullable=True)
     attempts = Column(Integer, default=0, nullable=False)
     last_error = Column(String(250), nullable=True)
@@ -286,7 +288,7 @@ class AnalysisFeedback(Base):
     reason = Column(String(2000), nullable=False)
     status = Column(String(20), default='pending', nullable=False)
     review_note = Column(String(2000), nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
 
 
 class WatchItem(Base):
@@ -311,7 +313,7 @@ class UserNotification(Base):
     title = Column(String(250), nullable=False)
     detail = Column(JSON, nullable=True)
     read_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
 
 
 class PrivateScan(Base):
@@ -322,7 +324,7 @@ class PrivateScan(Base):
     url = Column(String(2048), nullable=False)
     risk_score = Column(Integer, nullable=False)
     risk_level = Column(String(100), nullable=False)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC), index=True)
     __table_args__ = (Index('ix_private_scan_job', 'user_id', 'job_id', unique=True),)
 
 
@@ -344,8 +346,8 @@ class CrawlCandidate(Base):
     risk = Column(Integer, nullable=True)
     coverage = Column(String(24), default='unknown', nullable=False)
     last_error = Column(String(120), nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
+    updated_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
 
 
 class CrawlObservation(Base):
@@ -362,7 +364,7 @@ class CrawlObservation(Base):
     screenshot_path = Column(String(250), nullable=True)
     features = Column(JSON, nullable=False)
     assessment = Column(JSON, nullable=False)
-    fetched_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    fetched_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
 
 
 class CrawlReview(Base):
@@ -373,7 +375,7 @@ class CrawlReview(Base):
     decision = Column(String(24), nullable=False)
     note = Column(String(2000), nullable=False)
     actor = Column(String(120), nullable=False)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
 
 
 class CrawlSource(Base):

@@ -6,18 +6,19 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import UTC, datetime, timedelta
+
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from typing import Optional, List
-from datetime import datetime, timedelta
 
-from shared.utils.db import get_db
 from app.models import HoneypotEvent, IndicatorOfCompromise
 from app.security import require_admin_api_key
-from .engine import honeypot_engine, HoneypotSession
-from .ioc_collector import IOCCollectorEngine, IOCRecord, IOCType, ThreatType, IOCSource
+from shared.utils.db import get_db
+
+from .engine import honeypot_engine
+from .ioc_collector import IOCCollectorEngine
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,7 @@ def _client_ip(request: Request) -> str:
 class HoneypotInteractionRequest(BaseModel):
     session_id: str
     action: str  # login_attempt, otp_request, password_reset
-    payload: Optional[dict] = None
+    payload: dict | None = None
 
 
 class HoneypotCreateRequest(BaseModel):
@@ -47,9 +48,9 @@ class HoneypotCreateRequest(BaseModel):
 
 class IOCCollectRequest(BaseModel):
     source: str = "external"
-    payload: Optional[dict] = None
-    raw_text: Optional[str] = None
-    tags: Optional[List[str]] = None
+    payload: dict | None = None
+    raw_text: str | None = None
+    tags: list[str] | None = None
 
 
 # Gerçekçi banka login tuzak sayfası
@@ -178,36 +179,36 @@ _BANK_DECOY_HTML = """<!DOCTYPE html>
     <div class="hidden-warning">
         ⚠️ BU SAYFA BİR TUZAKTIR - DOLANDIRICI AKTİF OLARAK İZLENİYOR
     </div>
-    
+
     <script>
         // Session ID'yi URL'den al
         const urlParams = new URLSearchParams(window.location.search);
         const sessionId = urlParams.get('session') || 'unknown';
-        
+
         let interactionCount = 0;
         let startTime = Date.now();
-        
+
         // Sayfa yüklendiğinde oturum başlat
         fetch('/api/v2/honeypot/interaction', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({session_id: sessionId, action: 'page_load'})
         });
-        
+
         document.getElementById('login-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             interactionCount++;
-            
+
             const customerId = document.getElementById('customer-id').value;
             const password = document.getElementById('password').value;
             const otp = document.getElementById('otp').value;
-            
+
             const statusDiv = document.getElementById('status-message');
             statusDiv.style.display = 'block';
             statusDiv.className = 'info';
             statusDiv.textContent = 'Giriş yapılıyor...';
             document.getElementById('submit-btn').disabled = true;
-            
+
             // Etkileşimi kaydet
             const response = await fetch('/api/v2/honeypot/interaction', {
                 method: 'POST',
@@ -218,21 +219,21 @@ _BANK_DECOY_HTML = """<!DOCTYPE html>
                     payload: {customer_id: customerId, has_otp: !!otp}
                 })
             });
-            
+
             const result = await response.json();
-            
+
             setTimeout(() => {
                 statusDiv.className = 'error';
                 statusDiv.textContent = result.fake_error || 'Şifre hatalı. Tekrar deneyin.';
                 document.getElementById('submit-btn').disabled = false;
-                
+
                 if (interactionCount >= 3) {
                     document.getElementById('otp').value = '';
                     document.getElementById('otp').placeholder = 'Yeni kod gönderildi (1:59)';
                 }
             }, result.delay_seconds * 1000);
         });
-        
+
         // Şifre sıfırlama linki (sahte)
         document.addEventListener('DOMContentLoaded', () => {
             const form = document.querySelector('.login-container');
@@ -241,7 +242,7 @@ _BANK_DECOY_HTML = """<!DOCTYPE html>
             resetLink.style.textAlign = 'center';
             resetLink.style.marginTop = '15px';
             form.appendChild(resetLink);
-            
+
             resetLink.querySelector('a').addEventListener('click', async (e) => {
                 e.preventDefault();
                 await fetch('/api/v2/honeypot/interaction', {
@@ -268,10 +269,10 @@ def honeypot_decoy_page(request: Request, db: Session = Depends(get_db)):
     """
     ip = _client_ip(request)
     user_agent = request.headers.get("user-agent", "")
-    
+
     # Yeni oturum oluştur
     session = honeypot_engine.create_session(ip, user_agent, "bank_login")
-    
+
     # Veritabanına kaydet
     event = HoneypotEvent(
         client_ip=ip,
@@ -282,13 +283,13 @@ def honeypot_decoy_page(request: Request, db: Session = Depends(get_db)):
     )
     db.add(event)
     db.commit()
-    
+
     # HTML'e session ID göm
     html_with_session = _BANK_DECOY_HTML.replace(
         "const sessionId = urlParams.get('session') || 'unknown';",
         f"const sessionId = '{session.session_id}';"
     )
-    
+
     return HTMLResponse(content=html_with_session)
 
 
@@ -301,9 +302,9 @@ def create_honeypot_session(
     """Yeni tuzak oturumu oluştur"""
     ip = _client_ip(request)
     user_agent = request.headers.get("user-agent", "")
-    
+
     session = honeypot_engine.create_session(ip, user_agent, req.decoy_type)
-    
+
     event = HoneypotEvent(
         client_ip=ip,
         user_agent=user_agent[:500],
@@ -312,7 +313,7 @@ def create_honeypot_session(
     )
     db.add(event)
     db.commit()
-    
+
     return {
         "session_id": session.session_id,
         "decoy_page": f"/api/v2/honeypot/decoy?session={session.session_id}",
@@ -329,24 +330,24 @@ def record_interaction(
 ):
     """Dolandırıcı etkileşimini kaydet ve oyala"""
     result = honeypot_engine.process_interaction(req.session_id, req.action, req.payload)
-    
+
     # Veritabanına kaydet
     ip = _client_ip(request)
     event = HoneypotEvent(
         client_ip=ip,
         user_agent=request.headers.get("user-agent", "")[:500],
-        path=f"/api/v2/honeypot/interaction",
+        path="/api/v2/honeypot/interaction",
         note=f"session_id:{req.session_id},action:{req.action},threat_score:{result.get('threat_score', 0)},ioc:{result.get('ioc_detected', 0)}",
     )
     db.add(event)
     db.commit()
-    
+
     result["module"] = "02_honeypot"
     return result
 
 
 @router.get("/stats")
-def get_honeypot_stats(session_id: Optional[str] = None):
+def get_honeypot_stats(session_id: str | None = None):
     """Honeypot istatistikleri - Kurtarılmış kurban sayısı"""
     stats = honeypot_engine.get_session_stats(session_id)
     stats["module"] = "02_honeypot"
@@ -423,7 +424,7 @@ def collect_ioc_data(
 
 
 @router.get("/ioc/list")
-def list_collected_iocs(ioc_type: Optional[str] = None, limit: int = 100, min_count: int = 1):
+def list_collected_iocs(ioc_type: str | None = None, limit: int = 100, min_count: int = 1):
     """Toplanan IOC listesi."""
     return {
         "status": "success",
@@ -438,16 +439,16 @@ def list_collected_iocs(ioc_type: Optional[str] = None, limit: int = 100, min_co
 
 class IOCCollectorFetchRequest(BaseModel):
     """Fetch IOCs from external threat intelligence sources."""
-    sources: Optional[List[str]] = None  # Specific sources to fetch from
+    sources: list[str] | None = None  # Specific sources to fetch from
     limit_per_source: int = 100
 
 
 class IOCFilterRequest(BaseModel):
     """Filter stored IOCs by criteria."""
-    ioc_type: Optional[str] = None  # 'ip', 'domain', 'url', 'hash'
-    threat_type: Optional[str] = None  # 'phishing', 'malware', 'botnet', 'c2'
+    ioc_type: str | None = None  # 'ip', 'domain', 'url', 'hash'
+    threat_type: str | None = None  # 'phishing', 'malware', 'botnet', 'c2'
     min_risk_score: int = 0  # Only return IOCs >= this score
-    source: Optional[str] = None  # Filter by specific source
+    source: str | None = None  # Filter by specific source
 
 
 @router.post("/ioc/fetch-external")
@@ -458,25 +459,25 @@ async def fetch_external_iocs(
 ):
     """
     Fetch IOCs from external threat intelligence sources.
-    
+
     Sources:
     - abuse.ch (URLhaus, PhishTank, SSL Phishing)
     - AbuseIPDB (malicious IP database)
-    
+
     Response: Collected, deduplicated, and scored IOCs
     """
     try:
         logger.info(f"Starting external IOC collection from sources: {req.sources}")
-        
+
         # Collect from sources
         collected_iocs = ioc_engine.collect_all(include_sources=req.sources)
-        
+
         logger.info(f"Collected {len(collected_iocs)} unique IOCs")
-        
+
         # Store in memory cache
         for ioc in collected_iocs:
             ioc_engine.store_ioc(ioc)
-        
+
         # Also persist to database (for operator gateway)
         stored_count = 0
         for ioc in collected_iocs:
@@ -503,28 +504,28 @@ async def fetch_external_iocs(
             except Exception as e:
                 logger.error(f"Error storing IOC {ioc.ioc_value}: {e}")
                 continue
-        
+
         db.commit()
         logger.info(f"Persisted {stored_count} IOCs to database")
 
         # Event Bus: Her yeni IOC için event yayınla
         try:
+
             from modules.shared.events import publish
-            from datetime import timezone
             for ioc in collected_iocs:
                 publish("honeypot.ioc_collected", {
                     "ioc_type": ioc.ioc_type,
                     "value": ioc.ioc_value,
                     "risk_score": ioc.risk_score,
                     "source": ioc.source or "honeypot",
-                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "created_at": datetime.now(UTC).isoformat(),
                 }, durable=True)
         except Exception as _ev_err:
             logger.warning(f"Event publish failed (non-critical): {_ev_err}")
 
         # Get updated stats
         stats = ioc_engine.get_stats()
-        
+
         return {
             "status": "success",
             "module": "02_honeypot_ioc_collector",
@@ -533,7 +534,7 @@ async def fetch_external_iocs(
             "stats": stats,
             "samples": [ioc.to_dict() for ioc in collected_iocs[:10]],  # First 10 samples
         }
-    
+
     except Exception as e:
         logger.error(f"External IOC collection failed: {e}", exc_info=True)
         return {
@@ -545,16 +546,16 @@ async def fetch_external_iocs(
 
 @router.get("/ioc/list-collected")
 async def list_collected_iocs_advanced(
-    ioc_type: Optional[str] = None,
-    threat_type: Optional[str] = None,
+    ioc_type: str | None = None,
+    threat_type: str | None = None,
     min_risk_score: int = 0,
-    source: Optional[str] = None,
+    source: str | None = None,
     limit: int = 100,
     offset: int = 0,
 ):
     """
     List collected IOCs with advanced filtering.
-    
+
     Filters:
     - ioc_type: 'ip', 'domain', 'url', 'hash'
     - threat_type: 'phishing', 'malware', 'botnet', 'c2'
@@ -570,11 +571,11 @@ async def list_collected_iocs_advanced(
         filters['min_risk_score'] = min_risk_score
     if source:
         filters['source'] = source
-    
+
     all_iocs = ioc_engine.list_iocs(filters=filters)
     total = len(all_iocs)
     paginated = all_iocs[offset:offset+limit]
-    
+
     return {
         "status": "success",
         "module": "02_honeypot_ioc_collector",
@@ -590,7 +591,7 @@ async def list_collected_iocs_advanced(
 async def get_ioc_stats_advanced():
     """
     Get comprehensive IOC statistics.
-    
+
     Returns:
     - Total IOC count
     - Breakdown by type (ip, domain, url, hash)
@@ -601,7 +602,7 @@ async def get_ioc_stats_advanced():
     - Critical count (>= 95)
     """
     stats = ioc_engine.get_stats()
-    
+
     return {
         "status": "success",
         "module": "02_honeypot_ioc_collector",
@@ -618,7 +619,7 @@ async def get_ioc_stats_advanced():
 async def search_ioc(q: str):
     """
     Search for specific IOC in database.
-    
+
     Searches across: IP, domain, URL, file hash, source reference.
     """
     if len(q) < 2:
@@ -626,15 +627,15 @@ async def search_ioc(q: str):
             "status": "error",
             "message": "Search query must be at least 2 characters",
         }
-    
+
     try:
         from app.database import SessionLocal
         db = SessionLocal()
-        
+
         results = db.query(IndicatorOfCompromise).filter(
             IndicatorOfCompromise.ioc_value.ilike(f"%{q}%")
         ).limit(50).all()
-        
+
         response = {
             "status": "success",
             "module": "02_honeypot_ioc_collector",
@@ -679,18 +680,18 @@ async def get_iocs_by_risk_level(
         'medium': (50, 79),
         'low': (1, 49),
     }
-    
+
     if level not in risk_ranges:
         return {"status": "error", "message": f"Invalid level. Must be one of: {list(risk_ranges.keys())}"}
-    
+
     min_score, max_score = risk_ranges[level]
-    
+
     try:
         results = db.query(IndicatorOfCompromise).filter(
             IndicatorOfCompromise.risk_score >= min_score,
             IndicatorOfCompromise.risk_score <= max_score,
         ).order_by(IndicatorOfCompromise.risk_score.desc()).limit(limit).all()
-        
+
         return {
             "status": "success",
             "module": "02_honeypot_ioc_collector",
@@ -722,19 +723,20 @@ def get_ioc_statistics(db: Session = Depends(get_db)):
     """
     IoC istatistikleri aggregation endpoint
     """
-    from sqlalchemy import func, desc, cast, Date
-    from datetime import datetime, timedelta
-    
+    from datetime import datetime
+
+    from sqlalchemy import Date, cast, desc, func
+
     try:
         # 1. Toplam kayıt
         total = db.query(func.count(IndicatorOfCompromise.id)).scalar() or 0
-        
+
         # 2. Bugün eklenen
         today = datetime.utcnow().date()
         today_added = db.query(func.count(IndicatorOfCompromise.id)).filter(
             cast(IndicatorOfCompromise.created_at, Date) == today
         ).scalar() or 0
-        
+
         # 3. Son 7 gün günlük artış
         weekly_growth = []
         for i in range(7, -1, -1):
@@ -743,7 +745,7 @@ def get_ioc_statistics(db: Session = Depends(get_db)):
                 cast(IndicatorOfCompromise.created_at, Date) == date
             ).scalar() or 0
             weekly_growth.append({"date": date.isoformat(), "count": count})
-        
+
         # 4. Risk skoru dağılımı
         risk_ranges = [
             ("Düşük (0-20)", 0, 20),
@@ -763,7 +765,7 @@ def get_ioc_statistics(db: Session = Depends(get_db)):
                 "count": count,
                 "percentage": round((count / total * 100), 2) if total > 0 else 0
             })
-        
+
         # 5. En çok görülen tehdit tipleri
         top_threats = db.query(
             IndicatorOfCompromise.threat_type,
@@ -773,7 +775,7 @@ def get_ioc_statistics(db: Session = Depends(get_db)):
         ).group_by(
             IndicatorOfCompromise.threat_type
         ).order_by(desc("count")).limit(10).all()
-        
+
         # 6. Kaynak dağılımı
         sources = db.query(
             IndicatorOfCompromise.source,
@@ -783,12 +785,12 @@ def get_ioc_statistics(db: Session = Depends(get_db)):
         ).group_by(
             IndicatorOfCompromise.source
         ).order_by(desc("count")).limit(10).all()
-        
+
         # Risk kategorilerine göre sayılar (frontend uyumluluğu için)
         high_risk = sum(r["count"] for r in risk_distribution if "Yüksek" in r["range"])
         medium_risk = sum(r["count"] for r in risk_distribution if "Orta" in r["range"] and "Yüksek" not in r["range"])
         low_risk = sum(r["count"] for r in risk_distribution if "Düşük" in r["range"])
-        
+
         return {
             "status": "success",
             "stats": {
@@ -825,20 +827,22 @@ def get_phishing_statistics(db: Session = Depends(get_db)):
     """
     Phishing verileri aggregation endpoint
     """
+    from datetime import datetime
+
+    from sqlalchemy import Date, cast, desc, func
+
     from app.models import PhishingURL
-    from sqlalchemy import func, desc, cast, Date
-    from datetime import datetime, timedelta
-    
+
     try:
         # 1. Toplam URL
         total = db.query(func.count(PhishingURL.id)).scalar() or 0
-        
+
         # 2. Bugün eklenen
         today = datetime.utcnow().date()
         daily_new = db.query(func.count(PhishingURL.id)).filter(
             cast(PhishingURL.submission_time, Date) == today
         ).scalar() or 0
-        
+
         # 3. En çok phishing yapılan domainler
         top_domains = db.query(
             PhishingURL.domain_norm,
@@ -848,12 +852,12 @@ def get_phishing_statistics(db: Session = Depends(get_db)):
         ).group_by(
             PhishingURL.domain_norm
         ).order_by(desc("count")).limit(20).all()
-        
+
         # 4. Son 20 URL
         recent = db.query(PhishingURL).order_by(
             desc(PhishingURL.submission_time)
         ).limit(20).all()
-        
+
         # 5. Hedef kategorileri
         categories = db.query(
             PhishingURL.target,
@@ -863,7 +867,7 @@ def get_phishing_statistics(db: Session = Depends(get_db)):
         ).group_by(
             PhishingURL.target
         ).order_by(desc("count")).limit(15).all()
-        
+
         return {
             "status": "success",
             "stats": {

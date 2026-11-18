@@ -12,8 +12,9 @@ import os
 import re
 import time
 import zipfile
-from datetime import datetime, timezone
-from typing import Any, Callable, Dict, Iterable, List, Optional, Set
+from collections.abc import Callable, Iterable
+from datetime import UTC, datetime
+from typing import Any
 from urllib.parse import urlparse
 
 import requests
@@ -22,6 +23,7 @@ from sqlalchemy.orm import Session
 from urllib3.util.retry import Retry
 
 from app.models import PhishingURL
+
 from .url_normalize import normalize_url_record
 
 DEFAULT_GITHUB_FEEDS = {
@@ -67,13 +69,13 @@ def _http_session() -> requests.Session:
     return session
 
 
-def get_github_feed_urls() -> Dict[str, str]:
+def get_github_feed_urls() -> dict[str, str]:
     """GitHub feed URL'lerini env'den veya varsayilandan alir."""
     raw = os.getenv("PHISHING_GITHUB_FEEDS", "").strip()
     if not raw:
         return DEFAULT_GITHUB_FEEDS
 
-    feeds: Dict[str, str] = {}
+    feeds: dict[str, str] = {}
     for idx, item in enumerate(raw.split(","), start=1):
         url = item.strip()
         if not url:
@@ -82,7 +84,7 @@ def get_github_feed_urls() -> Dict[str, str]:
     return feeds or DEFAULT_GITHUB_FEEDS
 
 
-def _line_to_candidate_url(raw_line: str) -> Optional[str]:
+def _line_to_candidate_url(raw_line: str) -> str | None:
     line = (raw_line or "").strip().strip('"').strip("'")
     if not line or line.startswith("#"):
         return None
@@ -105,9 +107,9 @@ def _line_to_candidate_url(raw_line: str) -> Optional[str]:
     return None
 
 
-def parse_feed_lines_to_urls(content: str) -> List[str]:
+def parse_feed_lines_to_urls(content: str) -> list[str]:
     """Duz metin feed satirlarini URL listesine cevirir."""
-    urls: Set[str] = set()
+    urls: set[str] = set()
     for line in (content or "").splitlines():
         candidate = _line_to_candidate_url(line)
         if candidate:
@@ -115,7 +117,7 @@ def parse_feed_lines_to_urls(content: str) -> List[str]:
     return list(urls)
 
 
-def fetch_openphish_data(session: Optional[requests.Session] = None) -> List[str]:
+def fetch_openphish_data(session: requests.Session | None = None) -> list[str]:
     """OpenPhish canlı feed."""
     http = session or _http_session()
     limit = int(os.getenv("PHISHING_OPENPHISH_LIMIT", "20000"))
@@ -131,7 +133,7 @@ def fetch_openphish_data(session: Optional[requests.Session] = None) -> List[str
         return []
 
 
-def fetch_urlhaus_data(session: Optional[requests.Session] = None) -> List[str]:
+def fetch_urlhaus_data(session: requests.Session | None = None) -> list[str]:
     """URLHaus CSV recent dump'tan phishing odaklı URL'ler."""
     http = session or _http_session()
     limit = int(os.getenv("PHISHING_URLHAUS_LIMIT", "3000"))
@@ -143,7 +145,7 @@ def fetch_urlhaus_data(session: Optional[requests.Session] = None) -> List[str]:
             return []
 
         reader = csv.reader(io.StringIO(response.text))
-        urls: List[str] = []
+        urls: list[str] = []
         for row in reader:
             if not row or row[0].startswith("#"):
                 continue
@@ -163,9 +165,9 @@ def fetch_urlhaus_data(session: Optional[requests.Session] = None) -> List[str]:
         return []
 
 
-def _extract_urls_from_kaggle_zip(zip_blob: bytes) -> List[str]:
+def _extract_urls_from_kaggle_zip(zip_blob: bytes) -> list[str]:
     """Kaggle dataset zip içindeki URL adaylarını çıkarır."""
-    urls: Set[str] = set()
+    urls: set[str] = set()
     url_columns = {"url", "urls", "phishing_url", "link", "domain", "site", "website"}
 
     with zipfile.ZipFile(io.BytesIO(zip_blob)) as zf:
@@ -195,7 +197,7 @@ def _extract_urls_from_kaggle_zip(zip_blob: bytes) -> List[str]:
     return list(urls)
 
 
-def fetch_kaggle_data(session: Optional[requests.Session] = None) -> List[str]:
+def fetch_kaggle_data(session: requests.Session | None = None) -> list[str]:
     """
     Kaggle phishing dataset fetch.
     Supports either:
@@ -220,7 +222,7 @@ def fetch_kaggle_data(session: Optional[requests.Session] = None) -> List[str]:
     endpoint = f"https://www.kaggle.com/api/v1/datasets/download/{dataset_ref}"
 
     try:
-        headers: Dict[str, str] = {}
+        headers: dict[str, str] = {}
         auth = None
         if api_token:
             headers["Authorization"] = f"Bearer {api_token}"
@@ -238,7 +240,7 @@ def fetch_kaggle_data(session: Optional[requests.Session] = None) -> List[str]:
         return []
 
 
-def fetch_otx_phishing_data(session: Optional[requests.Session] = None) -> List[str]:
+def fetch_otx_phishing_data(session: requests.Session | None = None) -> list[str]:
     """AlienVault OTX subscribed pulses üzerinden phishing URL/domain toplar."""
     api_key = os.getenv("ALIENVAULT_OTX_API_KEY", "").strip()
     if not api_key:
@@ -257,7 +259,7 @@ def fetch_otx_phishing_data(session: Optional[requests.Session] = None) -> List[
             return []
 
         payload = response.json()
-        urls: Set[str] = set()
+        urls: set[str] = set()
         for pulse in payload.get("results", []):
             tags = [str(t).lower() for t in pulse.get("tags", [])]
             pulse_blob = " ".join(
@@ -299,7 +301,7 @@ def _is_suspicious_certstream_domain(domain: str, keywords: Iterable[str]) -> bo
     return False
 
 
-def fetch_certstream_data(session: Optional[requests.Session] = None) -> List[str]:
+def fetch_certstream_data(session: requests.Session | None = None) -> list[str]:
     """
     CertStream websocket üzerinden kısa süreli şüpheli domain toplar.
     websocket-client paketi yoksa kaynak atlanır.
@@ -321,8 +323,8 @@ def fetch_certstream_data(session: Optional[requests.Session] = None) -> List[st
         else DEFAULT_CERTSTREAM_KEYWORDS
     )
 
-    found: Set[str] = set()
-    observed_domains: Set[str] = set()
+    found: set[str] = set()
+    observed_domains: set[str] = set()
     start = time.time()
     ws = None
     try:
@@ -414,7 +416,7 @@ def extract_target_from_url(url: str) -> str:
         return "Unknown"
 
 
-def _fetch_phishtank_direct(http: requests.Session) -> List[Dict[str, Any]]:
+def _fetch_phishtank_direct(http: requests.Session) -> list[dict[str, Any]]:
     """PhishTank JSON DB'sini doğrudan indirir. App key varsa limitsiz, yoksa günde birkaç kez."""
     import bz2
     app_key = os.getenv("PHISHTANK_APP_KEY", "")
@@ -434,7 +436,7 @@ def _fetch_phishtank_direct(http: requests.Session) -> List[Dict[str, Any]]:
     return []
 
 
-def update_phishtank_json(session: Optional[requests.Session] = None) -> int:
+def update_phishtank_json(session: requests.Session | None = None) -> int:
     """PhishTank JSON DB'sini (veya OpenPhish fallback) phishtank.json olarak kaydeder.
     - PHISHTANK_APP_KEY tanımlıysa → PhishTank'tan doğrudan indirir (limitsiz)
     - Tanımlı değilse → OpenPhish feed fallback
@@ -445,13 +447,13 @@ def update_phishtank_json(session: Optional[requests.Session] = None) -> int:
     http = session or _http_session()
 
     app_key = os.getenv("PHISHTANK_APP_KEY", "")
-    entries: List[Dict[str, Any]] = []
+    entries: list[dict[str, Any]] = []
 
     if app_key:
         print("   [PhishTank] App key bulundu, doğrudan indiriliyor...")
         pt_data = _fetch_phishtank_direct(http)
         if pt_data:
-            now = datetime.now(timezone.utc).isoformat()
+            now = datetime.now(UTC).isoformat()
             entries = [
                 {
                     "url": item.get("url", ""),
@@ -470,7 +472,7 @@ def update_phishtank_json(session: Optional[requests.Session] = None) -> int:
             print("   [PhishTank] Veri alınamadı, OpenPhish fallback deneniyor...")
 
     if not entries:
-        urls: List[str] = []
+        urls: list[str] = []
         try:
             resp = http.get("https://openphish.com/feed.txt", timeout=60)
             if resp.status_code == 200:
@@ -479,7 +481,7 @@ def update_phishtank_json(session: Optional[requests.Session] = None) -> int:
             print(f"OpenPhish indir hatası: {exc}")
         if not urls:
             return 0
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         entries = [{"url": u, "submission_time": now, "status": "valid"} for u in urls]
     try:
         with open(output_path, "w", encoding="utf-8") as fh:
@@ -500,10 +502,10 @@ def update_phishtank_json(session: Optional[requests.Session] = None) -> int:
         return 0
 
 
-def convert_to_phishtank_format(urls: List[str], source: str) -> List[Dict[str, Any]]:
+def convert_to_phishtank_format(urls: list[str], source: str) -> list[dict[str, Any]]:
     """URL listesini PhishTank-benzeri kayıt formatına çevirir."""
-    now = datetime.now(timezone.utc).isoformat()
-    entries: List[Dict[str, Any]] = []
+    now = datetime.now(UTC).isoformat()
+    entries: list[dict[str, Any]] = []
     for url in urls:
         entries.append(
             {
@@ -520,10 +522,10 @@ def convert_to_phishtank_format(urls: List[str], source: str) -> List[Dict[str, 
     return entries
 
 
-def deduplicate_urls(urls: List[str], seen_hashes: Optional[Set[str]] = None) -> List[str]:
+def deduplicate_urls(urls: list[str], seen_hashes: set[str] | None = None) -> list[str]:
     """URL'leri normalize ederek hash bazlı tekilleştirir."""
-    unique_urls: List[str] = []
-    local_hashes: Set[str] = set()
+    unique_urls: list[str] = []
+    local_hashes: set[str] = set()
 
     for raw_url in urls:
         normalized = normalize_url_record(raw_url)
@@ -554,14 +556,14 @@ _URL_MAX = 2000
 _DOMAIN_MAX = 480
 
 
-def import_to_database(db: Session, entries: List[Dict[str, Any]], batch_size: int = 1000) -> Dict[str, int]:
+def import_to_database(db: Session, entries: list[dict[str, Any]], batch_size: int = 1000) -> dict[str, int]:
     """Entry'leri veritabanina aktar."""
     from sqlalchemy.exc import IntegrityError, OperationalError
 
     added = 0
     updated = 0
     errors = 0
-    batch_seen: Set[str] = set()
+    batch_seen: set[str] = set()
 
     for i, entry in enumerate(entries):
         try:
@@ -622,7 +624,7 @@ def import_to_database(db: Session, entries: List[Dict[str, Any]], batch_size: i
                         status=entry.get("status", "unknown"),
                         online=_parse_bool(entry.get("online", False)),
                         target=entry.get("target", "Unknown"),
-                        submission_time=datetime.now(timezone.utc),
+                        submission_time=datetime.now(UTC),
                     )
                 )
                 added += 1
@@ -650,11 +652,11 @@ def fetch_and_import_github_feed(
     db: Session,
     feed_url: str,
     source_name: str,
-    global_seen_hashes: Set[str],
-    session: Optional[requests.Session] = None,
-) -> Dict[str, Any]:
+    global_seen_hashes: set[str],
+    session: requests.Session | None = None,
+) -> dict[str, Any]:
     """GitHub feed'ini çekip DB'ye batch import eder."""
-    result: Dict[str, Any] = {"total": 0, "added": 0, "updated": 0, "errors": 0}
+    result: dict[str, Any] = {"total": 0, "added": 0, "updated": 0, "errors": 0}
     http = session or _http_session()
 
     try:
@@ -681,11 +683,11 @@ def fetch_and_import_github_feed(
 def _collect_and_import_source(
     db: Session,
     source_name: str,
-    collector: Callable[..., List[str]],
-    global_seen_hashes: Set[str],
+    collector: Callable[..., list[str]],
+    global_seen_hashes: set[str],
     session: requests.Session,
-) -> Dict[str, Any]:
-    result: Dict[str, Any] = {"total": 0, "added": 0, "updated": 0, "errors": 0}
+) -> dict[str, Any]:
+    result: dict[str, Any] = {"total": 0, "added": 0, "updated": 0, "errors": 0}
     try:
         raw_urls = collector(session=session)
         deduped_urls = deduplicate_urls(raw_urls, global_seen_hashes)
@@ -702,13 +704,13 @@ def _collect_and_import_source(
         return result
 
 
-def fetch_threatfox_data(session: Optional[requests.Session] = None) -> List[str]:
+def fetch_threatfox_data(session: requests.Session | None = None) -> list[str]:
     """ThreatFox API üzerinden son IOC'ları çeker ve URL listesine çevirir."""
     try:
         from .threatfox_client import get_recent_iocs
         limit = int(os.getenv("PHISHING_THREATFOX_LIMIT", "500"))
         iocs = get_recent_iocs(limit=limit)
-        urls: List[str] = []
+        urls: list[str] = []
         for ioc in iocs:
             url = ioc.get("url", "")
             if url:
@@ -719,12 +721,12 @@ def fetch_threatfox_data(session: Optional[requests.Session] = None) -> List[str
         return []
 
 
-def fetch_all_sources(db: Session) -> Dict[str, Any]:
+def fetch_all_sources(db: Session) -> dict[str, Any]:
     """Tum kaynaklardan phishing verilerini ceker."""
     from .alerts import get_alert_manager
 
-    global_seen_hashes: Set[str] = set()
-    all_results: Dict[str, Dict[str, Any]] = {}
+    global_seen_hashes: set[str] = set()
+    all_results: dict[str, dict[str, Any]] = {}
     total_added = 0
     total_updated = 0
     session = _http_session()
@@ -754,7 +756,7 @@ def fetch_all_sources(db: Session) -> Dict[str, Any]:
             print(f"   ⚠️  {source_name}: {result.get('error', 'veri alinamadi')}")
 
     # 2) Additional direct collectors
-    collector_sources: List[tuple[str, Callable[..., List[str]]]] = [
+    collector_sources: list[tuple[str, Callable[..., list[str]]]] = [
         ("openphish", fetch_openphish_data),
         ("urlhaus", fetch_urlhaus_data),
         ("kaggle_phishing_site_urls", fetch_kaggle_data),

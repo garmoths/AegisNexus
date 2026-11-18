@@ -14,8 +14,6 @@ Ortam değişkenleri (.env):
 from __future__ import annotations
 
 import argparse
-import csv
-import io
 import json
 import os
 import sys
@@ -23,13 +21,12 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-import requests
-
 # Proje kökünü Python path'e ekle
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from dotenv import load_dotenv
+
 load_dotenv(ROOT / ".env")
 
 from modules.phishing_detector.threat_intel import run_threat_intelligence
@@ -132,7 +129,7 @@ def print_result(idx: int, url: str, result: dict) -> dict:
     print(f"  Combined prob    : {_color_prob(crp)}  {_bar(crp)}")
     print(f"  Legacy penalty   : {legacy}")
     if boosts:
-        print(f"  Correlation boost:")
+        print("  Correlation boost:")
         for b in boosts:
             print(f"    ✦ {b['rule']:45s}  ×{b['factor']}  {b['before']:.3f}→{b['after']:.3f}")
     if events:
@@ -193,12 +190,12 @@ def print_summary(records: list[dict]) -> None:
     print(f"  < 0.30 (Tespit edilemedi): {G}{below_30}/{n}{W}")
 
     if source_counter:
-        print(f"\n  En çok tetiklenen kaynaklar:")
+        print("\n  En çok tetiklenen kaynaklar:")
         for src, cnt in sorted(source_counter.items(), key=lambda x: -x[1])[:8]:
             print(f"    {src:<35s}  {cnt} URL")
 
     if boost_counter:
-        print(f"\n  Tetiklenen boost kuralları:")
+        print("\n  Tetiklenen boost kuralları:")
         for rule, cnt in sorted(boost_counter.items(), key=lambda x: -x[1]):
             print(f"    {rule:<50s}  {cnt}×")
 
@@ -209,15 +206,15 @@ def print_summary(records: list[dict]) -> None:
         print(f"  {R}⚠ {below_30} URL'de combined_risk < 0.30 — bunlar kaçırıldı:{W}")
         for u in low_urls:
             print(f"      {u}")
-        print(f"     → Önerim: SOURCE_WEIGHTS'i artır veya to_probability eşiğini düşür")
+        print("     → Önerim: SOURCE_WEIGHTS'i artır veya to_probability eşiğini düşür")
     if avg_prob < 0.50:
         print(f"  {Y}⚠ Ortalama prob {avg_prob:.2f} — genel skor düşük.{W}")
-        print(f"     → Önerim: DEFAULT_SOURCE_WEIGHT değerini 0.35→0.45 dene")
+        print("     → Önerim: DEFAULT_SOURCE_WEIGHT değerini 0.35→0.45 dene")
     if above_70 == n:
         print(f"  {G}✓ Tüm URL'ler ≥ 0.70 — scoring başarılı görünüyor.{W}")
     if not boost_counter:
         print(f"  {Y}ℹ Hiçbir correlation boost tetiklenmedi.{W}")
-        print(f"     → Önerim: suspicious_tld/credential_form sinyal eşiklerini gözden geçir")
+        print("     → Önerim: suspicious_tld/credential_form sinyal eşiklerini gözden geçir")
 
 
 # ── Ana akış ─────────────────────────────────────────────────────────────────
@@ -239,7 +236,7 @@ def main() -> None:
     missing = [k for k in ("VT_API_KEY", "GSB_API_KEY") if not os.getenv(k)]
     if missing:
         print(f"\n{Y}[!] Eksik API key'ler: {', '.join(missing)}{W}")
-        print(f"    TI sonuçları eksik olabilir.\n")
+        print("    TI sonuçları eksik olabilir.\n")
 
     urls = fetch_phishtank_urls(args.count)
     if not urls:

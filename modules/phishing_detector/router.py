@@ -2,44 +2,37 @@
 01 - Phishing Detector Module Router
 Tehdit veritabanı, URL tarama ve analiz endpointleri
 """
-import json
-import os
-import uuid
 import logging
+import uuid
 from datetime import datetime, timedelta
-from functools import wraps
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
 from sqlalchemy import case, func
+from sqlalchemy.orm import Session
 
-from shared.utils.db import get_db
-from app.models import PhishingURL, APIKey, PrivateScan
-from app.auth import resolve_api_key, resolve_optional_api_key
-from app.security import require_admin_api_key
-from urllib.parse import urlparse as _urlparse
-from .scanner import calculate_safety_score, run_quick_checks
-from app.outbound import validate_url, UnsafeTarget
 from app import runtime_store as store
-from .url_normalize import normalize_url_record
-from .fetch_all_sources import fetch_all_sources
+from app.auth import resolve_api_key, resolve_optional_api_key
+from app.models import APIKey, PhishingURL, PrivateScan
+from app.outbound import UnsafeTarget, validate_url
+from app.security import require_admin_api_key
+from shared.utils.db import get_db
+
 from .cache_db import (
-    get_cached_scan_result,
-    get_phishing_history,
     get_latest_phishing,
-    get_threat_type_distribution,
     get_phishing_stats,
-    get_scan_history,
-    write_phishing_url,
+    get_threat_type_distribution,
     persist_scan_result,
 )
+from .fetch_all_sources import fetch_all_sources
 from .redis_cache import (
     redis_get_scan,
-    redis_set_scan,
-    redis_invalidate_scan,
     redis_health,
+    redis_invalidate_scan,
+    redis_set_scan,
 )
+from .scanner import run_quick_checks
+from .url_normalize import normalize_url_record
 
 logger = logging.getLogger(__name__)
 
@@ -221,7 +214,7 @@ def get_stats(db: Session = Depends(get_db)):
                 "stats": cache_stats,
                 "module": "01_phishing_detector"
             }
-        
+
         # Fallback to SQLAlchemy (yalnızca total_urls için)
         count = db.query(PhishingURL).count()
         return {
@@ -287,13 +280,13 @@ def search_urls(url: str, limit: int = 20, page: int = 1, db: Session = Depends(
     try:
         if not url:
             raise HTTPException(status_code=400, detail="Arama sorgusu boş olamaz")
-        
+
         offset = (page - 1) * limit
         # Fast search - no count() for performance
         results = db.query(PhishingURL).filter(
             PhishingURL.url.ilike(f"%{url}%")
         ).order_by(PhishingURL.id.desc()).offset(offset).limit(limit).all()
-        
+
         if not results and page == 1:
             logger.info(f"Arama sonuç yok: {url}")
             return {
@@ -304,12 +297,12 @@ def search_urls(url: str, limit: int = 20, page: int = 1, db: Session = Depends(
                 "total": 0,
                 "module": "01_phishing_detector"
             }
-        
+
         # Approximate pagination - if we got full limit, there are more results
         has_more = len(results) == limit
         total = len(results) + (1 if has_more else 0)  # Approximate
         total_pages = page + (1 if has_more else 0)
-        
+
         logger.info(f"Arama yapıldı: {url} - Sonuç: {len(results)}")
         return {
             "status": "DANGER" if results else "SAFE",
@@ -387,7 +380,7 @@ def get_latest_phishing_urls(limit: int = 20, db: Session = Depends(get_db)):
     try:
         # Use real PhishingURL table instead of cache
         items = db.query(PhishingURL).order_by(PhishingURL.id.desc()).limit(limit).all()
-        
+
         latest = []
         for item in items:
             latest.append({
@@ -399,7 +392,7 @@ def get_latest_phishing_urls(limit: int = 20, db: Session = Depends(get_db)):
                 'phish_id': item.phish_id,
                 'status': item.status
             })
-        
+
         return {
             "latest": latest,
             "limit": limit,
@@ -416,7 +409,7 @@ def get_latest_phishing_urls(limit: int = 20, db: Session = Depends(get_db)):
                 "limit": limit,
                 "module": "01_phishing_detector"
             }
-        except:
+        except Exception:
             return {
                 "latest": [],
                 "limit": limit,

@@ -4,6 +4,7 @@ import re
 from urllib.parse import urljoin, urlsplit
 
 from bs4 import BeautifulSoup
+
 from app.outbound import validate_url
 
 VERSION = 'discovery-rules-v1'

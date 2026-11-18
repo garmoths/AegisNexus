@@ -1,0 +1,61 @@
+[project]
+name = "aegisnexus"
+version = "2.1.0"
+description = "Self-hosted, modular cybersecurity platform: phishing detection, threat intelligence, IOC feeds and AI-assisted analysis."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11,<3.14"
+
+# Runtime dependencies are pinned in requirements.txt; dev tools in requirements-dev.txt.
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-p no:cacheprovider"
+filterwarnings = [
+    "ignore::DeprecationWarning:celery.*",
+]
+
+[tool.coverage.run]
+source = ["app", "modules"]
+omit = ["tests/*"]
+
+[tool.coverage.report]
+skip_empty = true
+show_missing = false
+
+[tool.ruff]
+line-length = 140
+target-version = "py311"
+extend-exclude = ["frontend-react", "data", "alembic/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "LOG", "T20"]
+ignore = [
+    "B008",   # FastAPI's Depends()/Query() in defaults is the documented pattern
+    "E501",   # line length is handled by the formatter where it matters
+    "S101",   # assert is fine in tests and invariants
+    "S311",   # random is not used for security
+    "S603", "S607",  # subprocess calls are to fixed local binaries (redis, celery, npm)
+    "S608",   # SQL strings are built from fixed column names only
+    "UP042",  # str+Enum is kept for SQLAlchemy Enum compatibility
+    # Tightened by the config/logging refactor commits:
+    "E402", "T201", "S110", "S112", "B904",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S", "T20", "B017", "E402", "E701", "E702", "E741"]
+"scripts/**" = ["T20", "E402", "S104", "S108", "S310", "S606"]
+"alembic/**" = ["E402"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app", "modules", "shared"]
+
+[tool.mypy]
+python_version = "3.12"
+files = ["app"]
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+check_untyped_defs = true
+plugins = ["pydantic.mypy"]

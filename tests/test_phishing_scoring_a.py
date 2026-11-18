@@ -7,19 +7,19 @@ Regresyon: whitelist URL yüksek güvenli, kritik URL düşük güvenli kalmalı
 pytest tests/test_phishing_scoring_a.py -v
 """
 from __future__ import annotations
+
 import pytest
+
 from modules.phishing_detector.scoring import (
-    combine_probabilities,
-    to_probability,
-    apply_source_weight,
-    detect_signals,
-    apply_correlation_boost,
-    SOURCE_WEIGHTS,
     DEFAULT_SOURCE_WEIGHT,
     SCORING_MODEL_VERSION,
-    SUSPICIOUS_TLDS,
+    SOURCE_WEIGHTS,
+    apply_correlation_boost,
+    apply_source_weight,
+    combine_probabilities,
+    detect_signals,
+    to_probability,
 )
-
 
 # ── 1. combine_probabilities ─────────────────────────────────────────────────
 
@@ -236,7 +236,6 @@ class TestThreatIntelBayesianOutput:
 
     def test_vt_stronger_than_abuseipdb_same_base(self, monkeypatch):
         """Aynı base sinyal: VT > AbuseIPDB weighted impact (Faz B)."""
-        import modules.phishing_detector.threat_intel as ti
         from modules.phishing_detector.scoring import apply_source_weight, to_probability
 
         base = to_probability(25)

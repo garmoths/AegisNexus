@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from datetime import datetime, timezone
-from typing import Any, Dict
+from datetime import UTC, datetime
+from typing import Any
 
 logger = logging.getLogger("aegis.event_listeners")
 
@@ -20,14 +20,14 @@ logger = logging.getLogger("aegis.event_listeners")
 # Action: PhishingURL tablosuna ekle
 # ─────────────────────────────────────────────
 
-def _on_url_phishing_confirmed(payload: Dict[str, Any]) -> None:
+def _on_url_phishing_confirmed(payload: dict[str, Any]) -> None:
     url = payload.get("url", "")
-    score = payload.get("score", 0)
+    payload.get("score", 0)
     if not url:
         return
     try:
-        from shared.utils.db import SessionLocal
         from app.models import PhishingURL
+        from shared.utils.db import SessionLocal
 
         db = SessionLocal()
         try:
@@ -41,7 +41,7 @@ def _on_url_phishing_confirmed(payload: Dict[str, Any]) -> None:
                     status="active",
                     online=True,
                     target="unknown",
-                    submission_time=datetime.now(timezone.utc),
+                    submission_time=datetime.now(UTC),
                 )
                 db.add(entry)
             db.commit()
@@ -59,7 +59,7 @@ def _on_url_phishing_confirmed(payload: Dict[str, Any]) -> None:
 # Action: IndicatorOfCompromise blacklist güncellemesi
 # ─────────────────────────────────────────────
 
-def _on_honeypot_ioc_collected(payload: Dict[str, Any]) -> None:
+def _on_honeypot_ioc_collected(payload: dict[str, Any]) -> None:
     ioc_value = payload.get("value", "")
     ioc_type = payload.get("ioc_type", "url")
     risk_score = payload.get("risk_score", 75)
@@ -67,8 +67,8 @@ def _on_honeypot_ioc_collected(payload: Dict[str, Any]) -> None:
     if not ioc_value:
         return
     try:
-        from shared.utils.db import SessionLocal
         from app.models import IndicatorOfCompromise
+        from shared.utils.db import SessionLocal
 
         db = SessionLocal()
         try:
@@ -80,7 +80,7 @@ def _on_honeypot_ioc_collected(payload: Dict[str, Any]) -> None:
             )
             if existing:
                 existing.detection_count = (existing.detection_count or 0) + 1
-                existing.last_seen = datetime.now(timezone.utc)
+                existing.last_seen = datetime.now(UTC)
                 existing.risk_score = max(existing.risk_score or 0, risk_score)
             else:
                 entry = IndicatorOfCompromise(
@@ -91,8 +91,8 @@ def _on_honeypot_ioc_collected(payload: Dict[str, Any]) -> None:
                     threat_type="phishing",
                     risk_score=min(int(risk_score), 100),
                     confidence=0.85,
-                    first_seen=datetime.now(timezone.utc),
-                    last_seen=datetime.now(timezone.utc),
+                    first_seen=datetime.now(UTC),
+                    last_seen=datetime.now(UTC),
                     detection_count=1,
                     status="active",
                 )

@@ -10,8 +10,8 @@ kaynağı yokken boşta bekler; API anahtarı veya Redis gerektirmez.
 Durdurma: Ctrl+C (SIGINT) veya SIGTERM.
 """
 import signal
-import threading
 import sys
+import threading
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))

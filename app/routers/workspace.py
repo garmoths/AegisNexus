@@ -1,17 +1,17 @@
 """Owned feedback, watchlists, notifications and operational evidence."""
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlalchemy.orm import Session
-from app.auth import resolve_api_key, require_admin
-from app.database import get_db, engine
-from app.models import (APIKey, AnalysisFeedback, UserReport, WatchItem, UserNotification,
-                        IndicatorOfCompromise, EventOutbox)
+
 from app import runtime_store as store
-from app.outbound import validate_url, UnsafeTarget
+from app.auth import require_admin, resolve_api_key
+from app.database import get_db
+from app.models import AnalysisFeedback, APIKey, EventOutbox, IndicatorOfCompromise, UserNotification, UserReport, WatchItem
+from app.outbound import validate_url
 
 router = APIRouter(tags=['workspace'])
 
@@ -120,7 +120,7 @@ def read_notification(notification_id: int, key: APIKey = Depends(resolve_api_ke
     row = db.query(UserNotification).filter_by(id=notification_id, user_id=key.user_id).first()
     if row is None:
         raise HTTPException(404, 'Bildirim bulunamadı.')
-    row.read_at = datetime.now(timezone.utc)
+    row.read_at = datetime.now(UTC)
     db.commit()
     return {'status': 'read'}
 
@@ -148,14 +148,14 @@ def operations(key: APIKey = Depends(require_admin), db: Session = Depends(get_d
 
 @router.get('/telemetry/overview')
 def telemetry(db: Session = Depends(get_db)):
-    from modules.phishing_detector.cache_db import get_phishing_stats
     from app.models import URLAnalizHistory
+    from modules.phishing_detector.cache_db import get_phishing_stats
     stats = get_phishing_stats()
     return {'data_source': 'local_observations', 'scanned_urls': stats.get('today_scans', 0),
             'active_iocs': db.query(IndicatorOfCompromise).filter_by(status='active').count(),
             'analyzed_urls': db.query(URLAnalizHistory).count(),
             'last_feed_at': db.query(func.max(IndicatorOfCompromise.last_seen)).scalar(),
-            'measured_at': datetime.now(timezone.utc).isoformat(), 'sla_percent': None, 'average_scan_seconds': None}
+            'measured_at': datetime.now(UTC).isoformat(), 'sla_percent': None, 'average_scan_seconds': None}
 
 
 @router.get('/system/capabilities')

@@ -8,8 +8,7 @@ from __future__ import annotations
 
 import ipaddress
 import uuid
-from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Optional, Set
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
@@ -46,12 +45,12 @@ _TLP_MAP = {
 }
 
 
-def _ioc_to_stix_indicator(row: IndicatorOfCompromise) -> Dict:
+def _ioc_to_stix_indicator(row: IndicatorOfCompromise) -> dict:
     stix_attr = _STIX_TYPE_MAP.get(row.ioc_type or "url", "url:value")
     pattern = f"[{stix_attr} = '{row.ioc_value}']"
     tlp = "white" if (row.risk_score or 0) < 50 else "amber" if (row.risk_score or 0) < 80 else "red"
-    valid_from = (row.first_seen or row.created_at or datetime.now(timezone.utc)).isoformat()
-    valid_until = (row.last_seen or datetime.now(timezone.utc)).isoformat()
+    valid_from = (row.first_seen or row.created_at or datetime.now(UTC)).isoformat()
+    valid_until = (row.last_seen or datetime.now(UTC)).isoformat()
     return {
         "type": "indicator",
         "spec_version": "2.1",
@@ -87,7 +86,7 @@ def _is_valid_ip(value: str) -> bool:
         return False
 
 
-def _lookup_local_ioc(db: Session, value: str) -> Dict:
+def _lookup_local_ioc(db: Session, value: str) -> dict:
     row = (
         db.query(IndicatorOfCompromise)
         .filter(
@@ -116,8 +115,8 @@ async def check_ip_reputation(ip: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Geçersiz IP adresi")
 
     confidence = 0
-    sources: List[str] = []
-    threat_types: Set[str] = set()
+    sources: list[str] = []
+    threat_types: set[str] = set()
     is_c2 = False
 
     local = _lookup_local_ioc(db, ip)
@@ -289,7 +288,7 @@ def get_phishing_data(limit: int = 100, db: Session = Depends(get_db)):
     response_class=JSONResponse,
 )
 def export_stix_bundle(
-    threat_type: Optional[str] = Query(None, description="Filtre: phishing, malware, botnet, c2, spam"),
+    threat_type: str | None = Query(None, description="Filtre: phishing, malware, botnet, c2, spam"),
     min_risk_score: int = Query(0, ge=0, le=100, description="Minimum risk skoru"),
     limit: int = Query(1000, ge=1, le=5000, description="Maksimum kayıt sayısı"),
     db: Session = Depends(get_db),
@@ -318,12 +317,12 @@ def export_stix_bundle(
                 "identity_class": "system",
                 "description": "Türkiye merkezli açık kaynak siber tehdit istihbaratı platformu.",
                 "created": "2024-01-01T00:00:00Z",
-                "modified": datetime.now(timezone.utc).isoformat(),
+                "modified": datetime.now(UTC).isoformat(),
             },
             *indicators,
         ],
         "_meta": {
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
             "indicator_count": len(indicators),
             "filters": {"threat_type": threat_type, "min_risk_score": min_risk_score},
             "source": "AegisNexus",

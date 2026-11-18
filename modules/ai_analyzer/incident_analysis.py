@@ -10,7 +10,7 @@ import json
 import logging
 import os
 import time
-from typing import Any, Dict
+from typing import Any
 
 from google import genai
 from google.genai import types
@@ -82,7 +82,7 @@ def _call_gemini(system: str, user: str) -> str:
 
 # ── JSON parse yardımcı ──────────────────────────────────
 
-def _extract_json(text: str) -> Dict[str, Any]:
+def _extract_json(text: str) -> dict[str, Any]:
     """Metin içinden JSON çıkar — ```json bloğu veya direkt JSON."""
     # ```json ... ``` bloğu ara
     if "```json" in text:
@@ -102,7 +102,7 @@ def _extract_json(text: str) -> Dict[str, Any]:
 
 # ── Analiz parser ─────────────────────────────────────────
 
-def _parse_analysis(text: str) -> Dict[str, Any]:
+def _parse_analysis(text: str) -> dict[str, Any]:
     """Kullanıcı analiz yanıtını parse et."""
     result = {
         "attack_type": "unknown",
@@ -161,7 +161,7 @@ def _parse_analysis(text: str) -> Dict[str, Any]:
 
 # ── Public fonksiyonlar ───────────────────────────────────
 
-def analyze_user_report(user_text: str) -> Dict[str, Any]:
+def analyze_user_report(user_text: str) -> dict[str, Any]:
     """Kullanıcının anlattığı olayı Gemini ile analiz et.
 
     Returns:

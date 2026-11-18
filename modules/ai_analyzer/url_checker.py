@@ -2,23 +2,24 @@
 URL Güvenlik Kontrolü - Veritabanı ve API entegrasyonu
 """
 import re
-import requests
 from urllib.parse import urlparse
-from typing import Dict, List, Optional
+
+import requests
 from sqlalchemy.orm import Session
+
 
 class URLSecurityChecker:
     """URL güvenlik analizi"""
-    
+
     def __init__(self, db: Session = None):
         self.db = db
         self.virustotal_key = ""
         self.urlscan_key = ""
-    
-    def check_url(self, url: str) -> Dict:
+
+    def check_url(self, url: str) -> dict:
         """
         URL güvenlik kontrolü
-        
+
         Returns:
             {
                 "url": url,
@@ -40,29 +41,29 @@ class URLSecurityChecker:
             "safety_verified": False,
             "limitation": "Yerel işaretler ve mevcut kayıtlar incelendi; eşleşme olmaması güvenlik garantisi değildir."
         }
-        
+
         # 1. Format kontrolü
         if not self._is_valid_url(url):
             result["risk_score"] = 100
             result["is_safe"] = False
             result["checks"].append("Invalid URL format")
             return result
-        
+
         parsed = urlparse(url)
         domain = (parsed.hostname or '').lower().rstrip('.')
-        
+
         # 2. Şüpheli TLD kontrolü
         suspicious_tlds = ['.tk', '.ml', '.ga', '.cf', '.xyz', '.top', '.click', '.link', '.work', '.gq', '.cc', '.pw']
         has_suspicious_tld = any(domain.endswith(tld) for tld in suspicious_tlds)
         if has_suspicious_tld:
             result["risk_score"] += 35
             result["checks"].append(f"Şüpheli TLD: {domain}")
-        
+
         # 3. HTTP kullanımı (HTTPS yoksa şüpheli)
         if url.startswith('http://') and not url.startswith('https://'):
             result["risk_score"] += 20
             result["checks"].append("Güvensiz HTTP bağlantısı (HTTPS yok)")
-        
+
         # 4. Phishing anahtar kelimeleri domain içinde
         phishing_keywords = ['fake', 'phish', 'scam', 'fraud', 'spoof', 'clone', 'mirror']
         domain_lower = domain.lower()
@@ -70,7 +71,7 @@ class URLSecurityChecker:
             if keyword in domain_lower:
                 result["risk_score"] += 40
                 result["checks"].append(f"PHISHING KELİMESİ: '{keyword}' domain içinde tespit edildi!")
-        
+
         # 5. Banka/Kurum taklitleri (sahte banka domainleri)
         bank_names = [
             'bank', 'garanti', 'akbank', 'isbank', 'halkbank', 'vakifbank',
@@ -121,7 +122,7 @@ class URLSecurityChecker:
         if has_brand_domain and any(domain.endswith(tld) for tld in ['.net', '.org', '.info', '.biz']):
             result["risk_score"] = max(result["risk_score"], 75)
             result["checks"].append("⚠️ Kurum adı .net/.org uzantılı domain'de — resmi değil!")
-        
+
         # 6. Şüpheli path'ler (/verify, /login, /confirm, /secure)
         suspicious_paths = [
             '/verify', '/confirm', '/secure', '/login', '/auth',
@@ -136,23 +137,23 @@ class URLSecurityChecker:
             if spath in path_lower:
                 result["risk_score"] += 18
                 result["checks"].append(f"Şüpheli path: '{spath}' (kimlik doğrulama/işlem sayfası)")
-        
+
         # 7. Çok uzun subdomain veya rastgele karakterler
         subdomain = domain.split('.')[0]
         if len(subdomain) > 30:
             result["risk_score"] += 20
             result["checks"].append("Çok uzun subdomain (obfuscation şüphesi)")
-        
+
         # 8. Rastgele karakter içeren domain (otomatik oluşturulmuş)
         if re.search(r'[a-z0-9]{20,}', domain_lower):
             result["risk_score"] += 25
             result["checks"].append("Rastgele karakterler içeren domain (otomatik phishing)")
-        
+
         # 9. IP tabanlı URL
         if re.match(r'\d+\.\d+\.\d+\.\d+', domain):
             result["risk_score"] += 25
             result["checks"].append("IP-based URL (suspicious)")
-        
+
         # 10. Veritabanında var mı? (Phishing DB)
         if self.db:
             db_result = self._check_database(url, domain)
@@ -163,7 +164,7 @@ class URLSecurityChecker:
                 result["is_safe"] = False
                 result["checks"].append(f"TEHDİT VERİTABANINDA BULUNDU: {db_result['info'].get('target', 'Unknown')}")
                 return result
-        
+
         # 11. URLScan.io kontrolü (opsiyonel)
         if self.urlscan_key:
             scan_result = self._check_urlscan(url)
@@ -171,7 +172,7 @@ class URLSecurityChecker:
             if scan_result.get("malicious"):
                 result["risk_score"] += 40
                 result["checks"].append("URLScan: Zararlı olarak işaretlendi")
-        
+
         # 12. VirusTotal kontrolü (opsiyonel)
         if self.virustotal_key:
             vt_result = self._check_virustotal(url)
@@ -179,7 +180,7 @@ class URLSecurityChecker:
             if vt_result.get("positives", 0) > 0:
                 result["risk_score"] += min(vt_result["positives"] * 10, 50)
                 result["checks"].append(f"VirusTotal: {vt_result['positives']}/{vt_result['total']} tespit")
-        
+
         result["risk_score"] = min(100, result["risk_score"])
 
         # 13. Son Karar
@@ -191,41 +192,9 @@ class URLSecurityChecker:
             result["checks"].insert(0, f"⚠️  ŞÜPHELİ URL! Skor: {result['risk_score']}/100")
         elif result["risk_score"] > 0:
             result["checks"].insert(0, f"ℹ️  Düşük risk: {result['risk_score']}/100")
-        
-        # 14. Analizi database'e kaydet
-        if self.db:
-            try:
-                parsed = urlparse(url)
-                domain = (parsed.hostname or '').lower().rstrip('.')
-                
-                # Risk level belirle
-                if result["risk_score"] >= 70:
-                    risk_level = "high"
-                elif result["risk_score"] >= 40:
-                    risk_level = "medium"
-                elif result["risk_score"] > 0:
-                    risk_level = "low"
-                else:
-                    risk_level = "safe"
-                
-                history = URLAnalizHistory(
-                    user_id=getattr(self, 'user_id', None),
-                    url=url,
-                    domain=domain,
-                    risk_level=risk_level,
-                    is_phishing=not result["is_safe"],
-                    confidence=result["risk_score"] / 100.0,
-                    analysis_result=result,
-                    url_checks=result.get("checks", [])
-                )
-                self.db.add(history)
-                self.db.commit()
-            except Exception as e:
-                print(f"Analiz kayıt hatası: {e}")
-                self.db.rollback()
-        
+
         return result
-    
+
     def _is_valid_url(self, url: str) -> bool:
         """URL format kontrolü"""
         try:
@@ -248,16 +217,16 @@ class URLSecurityChecker:
         except (ValueError, UnicodeError):
             return False
 
-    def _check_database(self, url: str, domain: str) -> Dict:
+    def _check_database(self, url: str, domain: str) -> dict:
         """Veritabanında ara (Phishing URLs)"""
         try:
             from app.models import PhishingURL
-            
+
             # Tam URL ara
             exact_match = self.db.query(PhishingURL).filter(
                 PhishingURL.url == url
             ).first()
-            
+
             if exact_match:
                 return {
                     "found": True,
@@ -268,12 +237,12 @@ class URLSecurityChecker:
                         "submission_time": str(exact_match.submission_time)
                     }
                 }
-            
+
             # Domain ara
             domain_match = self.db.query(PhishingURL).filter(
                 PhishingURL.domain_norm == domain
             ).first()
-            
+
             if domain_match:
                 return {
                     "found": True,
@@ -283,14 +252,14 @@ class URLSecurityChecker:
                         "target": domain_match.target
                     }
                 }
-            
+
             return {"found": False}
-            
+
         except Exception as e:
             print(f"Database check error: {e}")
             return {"found": False}
-    
-    def _check_urlscan(self, url: str) -> Dict:
+
+    def _check_urlscan(self, url: str) -> dict:
         """URLScan.io API kontrolü"""
         try:
             headers = {"API-Key": self.urlscan_key}
@@ -299,7 +268,7 @@ class URLSecurityChecker:
                 headers=headers,
                 timeout=10
             )
-            
+
             if response.status_code == 200:
                 data = response.json()
                 return {
@@ -308,23 +277,23 @@ class URLSecurityChecker:
                     "screenshot": data.get("task", {}).get("screenshotURL")
                 }
             return {"error": f"HTTP {response.status_code}"}
-            
+
         except Exception as e:
             return {"error": str(e)}
-    
-    def _check_virustotal(self, url: str) -> Dict:
+
+    def _check_virustotal(self, url: str) -> dict:
         """VirusTotal API kontrolü"""
         try:
             import hashlib
             url_hash = hashlib.sha256(url.encode()).hexdigest()
-            
+
             headers = {"x-apikey": self.virustotal_key}
             response = requests.get(
                 f"https://www.virustotal.com/api/v3/urls/{url_hash}",
                 headers=headers,
                 timeout=10
             )
-            
+
             if response.status_code == 200:
                 data = response.json()
                 stats = data.get("data", {}).get("attributes", {}).get("last_analysis_stats", {})
@@ -334,21 +303,21 @@ class URLSecurityChecker:
                     "harmless": stats.get("harmless", 0)
                 }
             return {"error": f"HTTP {response.status_code}"}
-            
+
         except Exception as e:
             return {"error": str(e)}
-    
-    def extract_urls(self, text: str) -> List[str]:
+
+    def extract_urls(self, text: str) -> list[str]:
         """Metinden URL çıkar"""
         # URL pattern
         url_pattern = re.compile(
             r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+'
         )
         urls = url_pattern.findall(text)
-        
+
         # www. ile başlayanları da bul
         www_pattern = re.compile(r'www\.[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}')
         www_matches = www_pattern.findall(text)
         urls.extend([f"http://{w}" for w in www_matches])
-        
+
         return list(set(urls))  # Unique

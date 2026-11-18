@@ -28,13 +28,13 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
 # ── Marka → resmi domain eşlemesi ────────────────────────────────────────
-BRAND_DOMAINS: Dict[str, List[str]] = {
+BRAND_DOMAINS: dict[str, list[str]] = {
     "ziraat":       ["ziraatbank.com.tr", "ziraat.com.tr"],
     "ziraatbank":   ["ziraatbank.com.tr", "ziraat.com.tr"],
     "garanti":      ["garantibbva.com.tr", "garanti.com.tr"],
@@ -98,7 +98,7 @@ def _extract_domain(url: str) -> str:
         return ""
 
 
-def analyze_html(html_content: str, url: str) -> Dict[str, Any]:
+def analyze_html(html_content: str, url: str) -> dict[str, Any]:
     """
     HTML DOM'u BeautifulSoup ile ayrıştırarak phishing göstergelerini tespit eder.
 
@@ -126,8 +126,8 @@ def analyze_html(html_content: str, url: str) -> Dict[str, Any]:
 
     domain = _extract_domain(url)
     penalty = 0
-    details: List[str] = []
-    raw: Dict[str, Any] = {}
+    details: list[str] = []
+    raw: dict[str, Any] = {}
 
     # ── 1. Çapraz-domain form action ──────────────────────────────────────
     cross_domain_forms = 0
@@ -185,7 +185,7 @@ def analyze_html(html_content: str, url: str) -> Dict[str, Any]:
     ])).lower()
 
     brand_mismatch_found = None
-    for brand, official_domains in BRAND_DOMAINS.items():
+    for brand, _official_domains in BRAND_DOMAINS.items():
         if brand.lower() in page_header_text:
             if not _domain_matches_brand(domain, brand):
                 brand_mismatch_found = brand
@@ -267,7 +267,7 @@ def analyze_html(html_content: str, url: str) -> Dict[str, Any]:
 _LOGO_DB_PATH = Path(__file__).parent / "data" / "logo_hashes.json"
 _PHASH_THRESHOLD = int(os.getenv("PHASH_THRESHOLD", "8"))
 
-_LOGO_DB: Dict[str, List[Dict[str, str]]] = {}
+_LOGO_DB: dict[str, list[dict[str, str]]] = {}
 
 
 def _load_logo_db() -> None:
@@ -275,7 +275,7 @@ def _load_logo_db() -> None:
     global _LOGO_DB
     try:
         if _LOGO_DB_PATH.exists():
-            with open(_LOGO_DB_PATH, "r", encoding="utf-8") as f:
+            with open(_LOGO_DB_PATH, encoding="utf-8") as f:
                 _LOGO_DB = json.load(f)
             logger.debug(f"[pHash] Logo DB yüklendi: {len(_LOGO_DB)} marka")
         else:
@@ -303,7 +303,7 @@ def _brand_matches_url(brand: str, url: str) -> bool:
 def check_logo_phash(
     screenshot_bytes: bytes,
     url: str = "",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     B2: Screenshot PNG baytlarından perceptual hash hesaplar, logo DB ile karşılaştırır.
 
@@ -349,12 +349,12 @@ def check_logo_phash(
         return {**_no_match, "detail": f"Görüntü açılamadı: {exc}"}
 
     # Kontrol bölgeleri: tam sayfa + header (üst %30)
-    regions: Dict[str, Any] = {"full": img}
+    regions: dict[str, Any] = {"full": img}
     if h > 100:
         regions["header"] = img.crop((0, 0, w, max(100, int(h * 0.30))))
 
     best_distance = 999
-    best_brand: Optional[str] = None
+    best_brand: str | None = None
     best_region = "full"
 
     for region_name, region_img in regions.items():
@@ -440,7 +440,7 @@ def get_ocr_reader():
 
 # ── OCR için credential / brand anahtar kelimeleri ────────────────────────────
 
-_CREDENTIAL_KEYWORDS: List[str] = [
+_CREDENTIAL_KEYWORDS: list[str] = [
     "şifre", "sifre", "parola", "password", "pin", "kart no", "kart numarası",
     "cvv", "cvc", "son kullanma", "expiry", "iban", "tc kimlik", "tckn",
     "kullanıcı adı", "username", "email", "e-posta", "giriş yap", "login",
@@ -448,7 +448,7 @@ _CREDENTIAL_KEYWORDS: List[str] = [
     "kredi kartı", "banka kartı", "hesap numarası",
 ]
 
-_BRAND_OCR_KEYWORDS: Dict[str, str] = {
+_BRAND_OCR_KEYWORDS: dict[str, str] = {
     "ziraat": "Ziraat Bankası",
     "garanti": "Garanti BBVA",
     "akbank": "Akbank",
@@ -476,7 +476,7 @@ _BRAND_OCR_KEYWORDS: Dict[str, str] = {
 def analyze_with_ocr(
     screenshot_bytes: bytes,
     domain: str = "",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     B3: Screenshot PNG'den EasyOCR ile metin oku, brand/credential tespit et.
 
@@ -499,7 +499,7 @@ def analyze_with_ocr(
           "detail": str,
         }
     """
-    _no_match: Dict[str, Any] = {
+    _no_match: dict[str, Any] = {
         "penalty": 0,
         "definitive": False,
         "ocr_text_sample": "",
@@ -537,11 +537,11 @@ def analyze_with_ocr(
 
     domain_lower = domain.lower()
     penalty = 0
-    brands_found: List[str] = []
-    credentials_found: List[str] = []
+    brands_found: list[str] = []
+    credentials_found: list[str] = []
 
     # Brand tespiti
-    for keyword, brand_name in _BRAND_OCR_KEYWORDS.items():
+    for keyword, _brand_name in _BRAND_OCR_KEYWORDS.items():
         if keyword in ocr_text:
             # Domain kendi markasıysa ceza verme
             if _brand_matches_url(keyword, domain_lower if domain_lower.startswith("http") else f"https://{domain_lower}"):

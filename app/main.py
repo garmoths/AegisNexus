@@ -1,31 +1,31 @@
 import logging
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
-from dotenv import load_dotenv
 
-import os
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.database import Base, engine
-from app.routers.contact import router as contact_router
-from app.routers.auth import router as auth_router
-from app.routers.reports import router as reports_router
-from app.routers.admin import router as admin_router
-from app.middleware.rate_limit import RateLimitMiddleware
-from app.routers.workspace import router as workspace_router
 from app.discovery.router import router as discovery_router
+from app.middleware.rate_limit import RateLimitMiddleware
+from app.routers.admin import router as admin_router
+from app.routers.auth import router as auth_router
+from app.routers.contact import router as contact_router
+from app.routers.reports import router as reports_router
+from app.routers.workspace import router as workspace_router
 
 # Load environment variables
 load_dotenv()
 # Çekirdek modüller
 from modules import (
-    phishing_detector_router,    # 01 - Phishing Detector
-    honeypot_router,             # 02 - IP Avcısı
-    ai_analyzer_router,          # 05 - AI Güvenlik Asistanı
-    sms_guard_router,            # 07 - SMS Guard
+    ai_analyzer_router,  # 05 - AI Güvenlik Asistanı
+    honeypot_router,  # 02 - IP Avcısı
+    phishing_detector_router,  # 01 - Phishing Detector
+    sms_guard_router,  # 07 - SMS Guard
 )
 from modules.honeypot.ioc_api import router as honeypot_ioc_router
 
@@ -119,6 +119,7 @@ def health():
 @app.get('/ready')
 def ready():
     from sqlalchemy import text
+
     from app import runtime_store
     try:
         with engine.connect() as connection:

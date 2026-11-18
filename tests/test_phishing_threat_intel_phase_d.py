@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 
 def test_screenshot_failed_penalty_thresholds():
@@ -15,7 +15,7 @@ def test_screenshot_failed_penalty_thresholds():
 def test_domain_age_penalty_very_new_domain(monkeypatch):
     from modules.phishing_detector import threat_intel as ti
 
-    event_date = (datetime.now(timezone.utc) - timedelta(days=3)).isoformat()
+    event_date = (datetime.now(UTC) - timedelta(days=3)).isoformat()
 
     class FakeResponse:
         ok = True

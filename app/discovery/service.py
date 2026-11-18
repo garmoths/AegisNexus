@@ -1,20 +1,20 @@
 """Durable candidate lifecycle. A scanner result cannot publish itself as a threat."""
-from datetime import datetime, timedelta, timezone
 import hashlib
-import json
 import os
-from pathlib import Path
 import uuid
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
+
+from app.discovery.analysis import assess, canonical_url, display_url, extract
 from app.models import CrawlCandidate, CrawlObservation, CrawlReview, CrawlSettings, PhishingURL
-from app.discovery.analysis import canonical_url, display_url, extract, assess
 
 
 def now():
     # Existing SQLite/DateTime columns are UTC-naive; keep the persisted contract.
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 def settings(db):

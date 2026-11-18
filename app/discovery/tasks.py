@@ -1,8 +1,9 @@
-from app.celery_app import celery_app
-from app.discovery.worker import run_one, poll_sources, release, schedule_rechecks
-from app import runtime_store as store
-from app.discovery.service import now
 import uuid
+
+from app import runtime_store as store
+from app.celery_app import celery_app
+from app.discovery.service import now
+from app.discovery.worker import poll_sources, release, run_one, schedule_rechecks
 
 
 def tick():

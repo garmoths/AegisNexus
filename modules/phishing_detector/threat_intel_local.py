@@ -5,14 +5,15 @@ VirusTotal ve AbuseIPDB'nin yaptığını tamamen local yapan modül
 Mevcut kodunda sadece import'u değiştirmen yeterli
 """
 
-import re
-import socket
 import ipaddress
 import json
 import logging
+import re
+import socket
 import sqlite3
 from pathlib import Path
 from urllib.parse import urlparse
+
 from rapidfuzz import fuzz
 
 logger = logging.getLogger(__name__)
@@ -204,14 +205,14 @@ def check_virustotal_local(url: str, db) -> dict:
     """
     Döndürdüğü dict orijinal VirusTotal dict'i ile aynı yapıda:
     {
-        "malicious": int,   # 0, 1, 2, 3+ 
+        "malicious": int,   # 0, 1, 2, 3+
         "suspicious": int,
         "source": str       # hangi feed'den geldi
     }
     Böylece mevcut penalty kodun (>=3, >=1) hiç değişmez.
     """
     from app.models import PhishingURL
-    
+
     domain = urlparse(url).netloc.lower().replace("www.", "")
     malicious_hits = 0
     suspicious_hits = 0
@@ -303,7 +304,7 @@ def _calculate_url_suspicion(url: str, domain: str) -> int:
         score += 2
 
     # Riskli TLD
-    RISKY_TLDS = {'.xyz', '.tk', '.ml', '.ga', '.cf', '.gq', '.top', 
+    RISKY_TLDS = {'.xyz', '.tk', '.ml', '.ga', '.cf', '.gq', '.top',
                   '.work', '.click', '.loan', '.win', '.racing'}
     if any(domain.endswith(tld) for tld in RISKY_TLDS):
         score += 1
@@ -353,14 +354,14 @@ def preload_models(ip_lists_dir: str = "/opt/phishing/ip_lists") -> dict:
 
     Böylece her istekte ~30sn OCR yükleme + ~2-3sn IP blacklist yükleme
     overhead'i ortadan kalkar.
-    
+
     Returns:
         {"ocr_loaded": bool, "ip_loaded": int, "playwright_loaded": bool}
     """
     global _EASYOCR_READER, _IP_BLACKLIST, _IP_NETWORKS
-    
+
     result = {"ocr_loaded": False, "ip_loaded": 0, "playwright_loaded": False}
-    
+
     # 1. EasyOCR preload
     try:
         from modules.phishing_detector.visual_analyzer import get_ocr_reader
@@ -371,7 +372,7 @@ def preload_models(ip_lists_dir: str = "/opt/phishing/ip_lists") -> dict:
         logger.warning("[Preload] easyocr yüklü değil, atlanıyor")
     except Exception as exc:
         logger.warning(f"[Preload] EasyOCR yüklenemedi: {exc}")
-    
+
     # 2. IP blacklist preload
     try:
         count = load_ip_blacklists(ip_lists_dir)
@@ -379,7 +380,7 @@ def preload_models(ip_lists_dir: str = "/opt/phishing/ip_lists") -> dict:
         logger.info(f"[Preload] IP blacklist yüklendi: {count} giriş")
     except Exception as exc:
         logger.warning(f"[Preload] IP blacklist yüklenemedi: {exc}")
-    
+
     # 3. Playwright pool pre-warm (opsiyonel)
     try:
         from modules.phishing_detector.playwright_pool import init_pool
@@ -388,7 +389,7 @@ def preload_models(ip_lists_dir: str = "/opt/phishing/ip_lists") -> dict:
         logger.info("[Preload] Playwright pool pre-warm tamam")
     except Exception as exc:
         logger.warning(f"[Preload] Playwright pool pre-warm başarısız: {exc}")
-    
+
     return result
 
 
@@ -414,7 +415,7 @@ def load_ip_blacklists(filepath_dir: str = "/opt/phishing/ip_lists"):
         if not os.path.exists(fpath):
             logger.warning(f"IP list file not found: {fpath}")
             continue
-        with open(fpath, 'r') as f:
+        with open(fpath) as f:
             for line in f:
                 line = line.strip()
                 if not line or line.startswith('#') or line.startswith(';'):
