@@ -1,3 +1,9 @@
+"""FastAPI application factory.
+
+``app.main:app`` is what uvicorn serves (``./run.sh``). ``create_app()`` builds a
+fresh instance — routers, middleware, error handlers and the React SPA — so tests
+and tools can create isolated apps.
+"""
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -7,27 +13,39 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.config import get_settings
+from app.config import ROOT_DIR, get_settings
 from app.database import engine
 from app.discovery.router import router as discovery_router
+from app.errors import install_error_handlers
 from app.middleware.rate_limit import RateLimitMiddleware
+from app.observability import RequestContextMiddleware, configure_logging
 from app.routers.admin import router as admin_router
 from app.routers.auth import router as auth_router
 from app.routers.contact import router as contact_router
 from app.routers.reports import router as reports_router
 from app.routers.workspace import router as workspace_router
-
-# Çekirdek modüller
-from modules import (
-    ai_analyzer_router,  # 05 - AI Güvenlik Asistanı
-    honeypot_router,  # 02 - IP Avcısı
-    phishing_detector_router,  # 01 - Phishing Detector
-    sms_guard_router,  # 07 - SMS Guard
-)
+from modules import ai_analyzer_router, honeypot_router, phishing_detector_router, sms_guard_router
 from modules.honeypot.ioc_api import router as honeypot_ioc_router
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
 logger = logging.getLogger("aegis")
+
+API_VERSION = "2.1.0"
+REACT_BUILD_DIR = ROOT_DIR / "frontend-react" / "dist"
+
+# (router, prefix, OpenAPI tag group) — every module mounts under /api/v2.
+ROUTERS = [
+    (phishing_detector_router, "/api/v2/phishing"),
+    (honeypot_router, "/api/v2/honeypot"),
+    (honeypot_ioc_router, "/api/v2/ioc"),
+    (ai_analyzer_router, "/api/v2/ai-analyzer"),
+    (sms_guard_router, "/api/v2/sms"),
+    (auth_router, "/api/v2/auth"),
+    (reports_router, "/api/v2/reports"),
+    (admin_router, "/api/v2/admin"),
+    (workspace_router, "/api/v2"),
+    (contact_router, ""),
+    (discovery_router, ""),
+]
 
 
 @asynccontextmanager
@@ -37,132 +55,107 @@ async def lifespan(_app: FastAPI):
     if current != head:
         logger.warning("Database schema is at %s, expected %s. Run `make migrate` (./run.sh does this).", current, head)
     else:
-        logger.info("Aegis Nexus - Güvenlik Platformu hazır (schema %s)", head)
+        logger.info("Aegis Nexus ready (schema %s)", head)
 
-    # Event Bus: Modüller arası listener'ları kaydet
     try:
         from modules.shared.event_listeners import register_event_listeners
         register_event_listeners()
-    except Exception as e:
-        logger.warning(f"[Lifespan] Event listener kayıt başarısız (devam ediliyor): {e}")
+    except Exception:
+        logger.warning("Event listener registration failed; continuing without in-process listeners", exc_info=True)
 
     yield
 
 
-app = FastAPI(
-    title="Aegis Nexus — Modüler Siber Güvenlik Platformu",
-    description="""\
-    Bireylerin dijital tehlikelere karşı proaktif korunmasını sağlayan
-    yapay zeka ve istihbarat destekli güvenlik platformu.
-
-    Çekirdek:
-    - Phishing Tarayıcı — URL tarama, tehdit veritabanı, SSL/domain analizi
-    - İçerik Analizi    — SMS, e-posta (AI) ve olay bildirimi analizi
-    - IOC / Tuzak       — Zararlı IP, alan adı ve URL göstergeleri
-    - Keşif             — CertStream ile otomatik phishing adayı toplama
-    """,
-    lifespan=lifespan,
-    version="2.0.0",
-)
-
-allowed_origins = get_settings().cors_allow_origins
-app.add_middleware(RateLimitMiddleware)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=allowed_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-REACT_BUILD_DIR = BASE_DIR / "frontend-react" / "dist"
-
-if REACT_BUILD_DIR.exists():
-    app.mount("/react", StaticFiles(directory=str(REACT_BUILD_DIR), html=True), name="react")
-    react_assets_dir = REACT_BUILD_DIR / "assets"
-    if react_assets_dir.exists():
-        app.mount("/assets", StaticFiles(directory=str(react_assets_dir)), name="react-assets")
-    logger.info("React build mount edildi: %s", REACT_BUILD_DIR)
-else:
-    logger.warning("React build klasörü yok: %s", REACT_BUILD_DIR)
-
-# 8 Modüler Router
-app.include_router(phishing_detector_router, prefix="/api/v2/phishing")
-app.include_router(honeypot_router, prefix="/api/v2/honeypot")
-app.include_router(honeypot_ioc_router, prefix="/api/v2/ioc")
-app.include_router(ai_analyzer_router, prefix="/api/v2/ai-analyzer")
-app.include_router(auth_router, prefix="/api/v2/auth")
-app.include_router(reports_router, prefix="/api/v2/reports")
-app.include_router(admin_router, prefix="/api/v2/admin")
-app.include_router(sms_guard_router, prefix="/api/v2/sms")
-app.include_router(contact_router)
-app.include_router(workspace_router, prefix="/api/v2")
-app.include_router(discovery_router)
+def _spa_file(name: str) -> Path:
+    path = REACT_BUILD_DIR / name
+    if not path.is_file():
+        raise HTTPException(503, "Frontend henüz derlenmedi: cd frontend-react && npm run build")
+    return path
 
 
-@app.get('/health')
-def health():
-    return {'status': 'ok', 'service': 'AegisNexus'}
+def _mount_frontend(app: FastAPI) -> None:
+    if REACT_BUILD_DIR.exists():
+        app.mount("/react", StaticFiles(directory=str(REACT_BUILD_DIR), html=True), name="react")
+        assets = REACT_BUILD_DIR / "assets"
+        if assets.exists():
+            app.mount("/assets", StaticFiles(directory=str(assets)), name="react-assets")
+    else:
+        logger.warning("React build not found at %s; only the API is served", REACT_BUILD_DIR)
+
+    @app.get("/favicon.svg", include_in_schema=False)
+    async def favicon():
+        return FileResponse(_spa_file("favicon.svg"))
+
+    @app.get("/icons.svg", include_in_schema=False)
+    async def icons():
+        return FileResponse(_spa_file("icons.svg"))
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def spa(full_path: str):
+        """Client-side routes (/, /app, /admin, ...) all serve the SPA shell."""
+        if full_path == "api" or full_path.startswith(("api/", "assets/")):
+            raise HTTPException(404, "Endpoint bulunamadı.")
+        return FileResponse(_spa_file("index.html"))
 
 
-@app.get('/ready')
-def ready():
-    from sqlalchemy import text
+def create_app() -> FastAPI:
+    settings = get_settings()
+    configure_logging(settings.log_level, settings.log_format)
 
-    from app import runtime_store
-    try:
-        with engine.connect() as connection:
-            connection.execute(text('SELECT id FROM users LIMIT 1'))
-        with runtime_store.connection() as connection:
-            connection.execute('SELECT 1')
-    except Exception as exc:
-        raise HTTPException(503, 'Veri deposu hazır değil.') from exc
-    from app.migrations import is_up_to_date
-    if not is_up_to_date(engine):
-        raise HTTPException(503, 'Veritabanı şeması güncel değil; migration çalıştırın.')
-    return {'status': 'ready', 'database': True, 'runtime_store': True, 'schema': 'current'}
+    app = FastAPI(
+        title="Aegis Nexus API",
+        description=(
+            "Self-hosted, modular cybersecurity platform.\n\n"
+            "- **Phishing detector** — URL scanning, threat-intel aggregation, SSL/domain and visual analysis\n"
+            "- **Content analysis** — SMS, e-mail (AI) and incident-report analysis\n"
+            "- **IOC / honeypot** — malicious IP, domain and URL indicators, STIX export\n"
+            "- **Discovery** — CertStream-driven phishing candidate crawler\n\n"
+            "Authenticate with an `X-API-Key` header or the session cookie from `POST /api/v2/auth/login`. "
+            "Errors share one shape: `{detail, error: {code, status, request_id}}`."
+        ),
+        version=API_VERSION,
+        lifespan=lifespan,
+    )
+    install_error_handlers(app)
+
+    # Starlette runs the last-added middleware first: request context wraps everything.
+    app.add_middleware(RateLimitMiddleware)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_allow_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        expose_headers=["X-Request-ID", "Retry-After"],
+    )
+    app.add_middleware(RequestContextMiddleware)
+
+    for router, prefix in ROUTERS:
+        app.include_router(router, prefix=prefix)
+
+    @app.get("/health", tags=["system"], summary="Liveness probe")
+    def health():
+        return {"status": "ok", "service": "AegisNexus", "version": API_VERSION}
+
+    @app.get("/ready", tags=["system"], summary="Readiness probe (databases reachable, schema current)")
+    def ready():
+        from sqlalchemy import text
+
+        from app import runtime_store
+        from app.migrations import is_up_to_date
+        try:
+            with engine.connect() as connection:
+                connection.execute(text("SELECT 1"))
+            with runtime_store.connection() as connection:
+                connection.execute("SELECT 1")
+        except Exception as exc:
+            raise HTTPException(503, "Veri deposu hazır değil.") from exc
+        if not is_up_to_date(engine):
+            raise HTTPException(503, "Veritabanı şeması güncel değil; migration çalıştırın.")
+        return {"status": "ready", "database": True, "runtime_store": True, "schema": "current"}
+
+    _mount_frontend(app)
+    return app
 
 
-@app.get("/app")
-async def read_react_app():
-    """React SPA uygulaması"""
-    react_index = REACT_BUILD_DIR / "index.html"
-    if react_index.exists():
-        return FileResponse(react_index)
-    return {"Hata": "React build index.html bulunamadı."}
-
-
-@app.get("/favicon.svg")
-async def read_react_favicon():
-    favicon_path = REACT_BUILD_DIR / "favicon.svg"
-    if favicon_path.exists():
-        return FileResponse(favicon_path)
-    return {"Hata": "favicon.svg bulunamadı.", "Aranan_Yol": str(favicon_path)}
-
-
-@app.get("/icons.svg")
-async def read_react_icons():
-    icons_path = REACT_BUILD_DIR / "icons.svg"
-    if icons_path.exists():
-        return FileResponse(icons_path)
-    return {"Hata": "icons.svg bulunamadı.", "Aranan_Yol": str(icons_path)}
-
-
-@app.get("/")
-async def read_root():
-    react_index = REACT_BUILD_DIR / "index.html"
-    if react_index.exists():
-        return FileResponse(react_index)
-    return {"Hata": "Ana sayfa index dosyası bulunamadı.", "Aranan_Yol": [str(react_index)]}
-
-
-@app.get("/{full_path:path}")
-async def spa_catch_all(full_path: str):
-    """React SPA catch-all: /modules, /app gibi client-side route'ları yakalar."""
-    if full_path == 'api' or full_path.startswith(('api/', 'assets/')):
-        raise HTTPException(404, 'Endpoint bulunamadı.')
-    react_index = REACT_BUILD_DIR / 'index.html'
-    if react_index.exists():
-        return FileResponse(react_index)
-    raise HTTPException(503, 'Frontend henüz derlenmedi.')
+app = create_app()

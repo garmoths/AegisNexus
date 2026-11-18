@@ -197,7 +197,7 @@ async def check_hash_reputation(payload: HashCheckRequest):
 @router.get("/stats")
 def get_ioc_statistics(db: Session = Depends(get_db)):
     total = db.query(func.count(IndicatorOfCompromise.id)).scalar() or 0
-    today = datetime.utcnow().date()
+    today = datetime.now(UTC).replace(tzinfo=None).date()
     today_added = (
         db.query(func.count(IndicatorOfCompromise.id))
         .filter(cast(IndicatorOfCompromise.created_at, Date) == today)
@@ -207,7 +207,7 @@ def get_ioc_statistics(db: Session = Depends(get_db)):
 
     weekly_growth = []
     for i in range(7, -1, -1):
-        date = datetime.utcnow().date() - timedelta(days=i)
+        date = datetime.now(UTC).replace(tzinfo=None).date() - timedelta(days=i)
         count = (
             db.query(func.count(IndicatorOfCompromise.id))
             .filter(cast(IndicatorOfCompromise.created_at, Date) == date)
@@ -233,14 +233,14 @@ def get_ioc_statistics(db: Session = Depends(get_db)):
         "today_added": today_added,
         "weekly_growth": weekly_growth,
         "top_threats": [{"threat_type": t[0], "count": t[1]} for t in top_threats],
-        "last_updated": datetime.utcnow(),
+        "last_updated": datetime.now(UTC).replace(tzinfo=None),
     }
 
 
 @router.get("/phishing/data")
 def get_phishing_data(limit: int = 100, db: Session = Depends(get_db)):
     total = db.query(func.count(PhishingURL.id)).scalar() or 0
-    today = datetime.utcnow().date()
+    today = datetime.now(UTC).replace(tzinfo=None).date()
     daily_new = (
         db.query(func.count(PhishingURL.id))
         .filter(cast(PhishingURL.submission_time, Date) == today)
@@ -331,5 +331,5 @@ def export_stix_bundle(
     return JSONResponse(
         content=bundle,
         media_type="application/stix+json",
-        headers={"Content-Disposition": f'attachment; filename="aegisnexus-ioc-stix-{datetime.utcnow().strftime("%Y%m%d")}.json"'},
+        headers={"Content-Disposition": f'attachment; filename="aegisnexus-ioc-stix-{datetime.now(UTC).replace(tzinfo=None).strftime("%Y%m%d")}.json"'},
     )

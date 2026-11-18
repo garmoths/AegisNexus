@@ -179,7 +179,7 @@ def sync_phishtank_db():
         try:
             write_threat_cache("phishtank:etag", {"etag": current_etag}, ttl_seconds=86400 * 2)
         except Exception:
-            pass
+            logger.debug('Ignored non-fatal error', exc_info=True)
 
     total = len(entries)
     added = result.get("added", 0)
@@ -203,8 +203,8 @@ def run_heavy_analysis(self, url: str, job_id: str):
     if previous.get('status') == 'complete':
         store.delete(lock_key)
         return previous
-    deadline = previous.get('deadline') or (datetime.utcnow() + timedelta(minutes=10)).isoformat()
-    if datetime.utcnow() > datetime.fromisoformat(deadline):
+    deadline = previous.get('deadline') or (datetime.now(UTC).replace(tzinfo=None) + timedelta(minutes=10)).isoformat()
+    if datetime.now(UTC).replace(tzinfo=None) > datetime.fromisoformat(deadline):
         payload = {'job_id': job_id, 'status': 'timeout', 'error': 'job_deadline_exceeded'}
         set_celery_job('job:' + job_id, payload)
         store.delete(lock_key)
@@ -237,7 +237,7 @@ def run_heavy_analysis(self, url: str, job_id: str):
         set_celery_job('job:' + job_id, payload)
         if terminal:
             raise
-        raise self.retry(exc=exc, countdown=10)
+        raise self.retry(exc=exc, countdown=10) from exc
     finally:
         db.close()
         if terminal:

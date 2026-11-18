@@ -239,8 +239,8 @@ def main():
         with socket.socket() as port_check:
             try:
                 port_check.bind((args.host, args.port))
-            except OSError:
-                raise RuntimeError(f'{args.host}:{args.port} kullanımda. Başka port: ./run.sh --port 8001')
+            except OSError as exc:
+                raise RuntimeError(f'{args.host}:{args.port} kullanımda. Başka port: ./run.sh --port 8001') from exc
         if len(os.fsencode(RUN / 'redis.sock')) > 100:
             raise RuntimeError('Proje yolu Redis Unix soketi için çok uzun; projeyi daha kısa bir dizine taşıyın.')
         env = environment()
@@ -343,4 +343,4 @@ if __name__ == '__main__':
         raise SystemExit(main())
     except (OSError, RuntimeError, subprocess.CalledProcessError) as exc:
         say('HATA: ' + str(exc))
-        raise SystemExit(1)
+        raise SystemExit(1) from exc

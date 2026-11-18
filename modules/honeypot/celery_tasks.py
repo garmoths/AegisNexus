@@ -66,7 +66,7 @@ def fetch_urlhaus(self, limit: int = 500):
         return {"status": "success", "collected": len(iocs), **persisted}
     except Exception as exc:
         db.rollback()
-        raise self.retry(exc=exc, countdown=60)
+        raise self.retry(exc=exc, countdown=60) from exc
     finally:
         db.close()
 
@@ -82,7 +82,7 @@ def fetch_otx(self, limit: int = 100):
         return {"status": "success", "collected": len(iocs), **persisted}
     except Exception as exc:
         db.rollback()
-        raise self.retry(exc=exc, countdown=60)
+        raise self.retry(exc=exc, countdown=60) from exc
     finally:
         db.close()
 
@@ -107,7 +107,7 @@ def update_ioc_feeds(self):
         }
     except Exception as exc:
         db.rollback()
-        raise self.retry(exc=exc, countdown=90)
+        raise self.retry(exc=exc, countdown=90) from exc
     finally:
         db.close()
 
@@ -120,7 +120,7 @@ def update_phishing_feeds(self):
         return {"status": "success", **result}
     except Exception as exc:
         db.rollback()
-        raise self.retry(exc=exc, countdown=120)
+        raise self.retry(exc=exc, countdown=120) from exc
     finally:
         db.close()
 
@@ -179,7 +179,7 @@ def fetch_spamhaus_iocs(self):
         return {"status": "success", "spamhaus_inserted": inserted, "spamhaus_updated": updated}
     except Exception as exc:
         db.rollback()
-        raise self.retry(exc=exc, countdown=120)
+        raise self.retry(exc=exc, countdown=120) from exc
     finally:
         db.close()
 
@@ -243,7 +243,7 @@ def fetch_threatfox_iocs(self):
         return {"status": "success", "threatfox_collected": len(iocs), "threatfox_inserted": inserted, "threatfox_updated": updated}
     except Exception as exc:
         db.rollback()
-        raise self.retry(exc=exc, countdown=120)
+        raise self.retry(exc=exc, countdown=120) from exc
     finally:
         db.close()
 
@@ -293,4 +293,4 @@ def refresh_ip_blacklists(self):
         return f"{count} IP/CIDR loaded"
     except Exception as exc:
         logger.error(f"IP blacklist refresh failed: {exc}")
-        raise self.retry(exc=exc, countdown=300)
+        raise self.retry(exc=exc, countdown=300) from exc

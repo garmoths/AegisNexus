@@ -362,6 +362,7 @@ def check_logo_phash(
         try:
             region_hash = imagehash.phash(region_img)
         except Exception:
+            logger.debug('Ignored non-fatal error', exc_info=True)
             continue
 
         for brand, entries in _LOGO_DB.items():
@@ -374,6 +375,7 @@ def check_logo_phash(
                         best_brand = brand
                         best_region = region_name
                 except Exception:
+                    logger.debug('Ignored non-fatal error', exc_info=True)
                     continue
 
     if best_distance > _PHASH_THRESHOLD or best_brand is None:

@@ -254,7 +254,7 @@ def quick_scan(
             "module": "07_ai_analyzer"
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Tarama hatası: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Tarama hatası: {str(e)}") from e
 
 @router.post("/check-url")
 def check_url_security(
@@ -280,7 +280,7 @@ def check_url_security(
             "module": "07_ai_analyzer"
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"URL kontrol hatası: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"URL kontrol hatası: {str(e)}") from e
 
 @router.post("/extract-urls")
 def extract_urls_from_text(
@@ -303,7 +303,7 @@ def extract_urls_from_text(
             "module": "07_ai_analyzer"
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"URL çıkarma hatası: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"URL çıkarma hatası: {str(e)}") from e
 
 @router.get("/health")
 def health_check():
@@ -391,7 +391,7 @@ async def get_analiz_history(
             "module": "07_ai_analyzer"
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/history/{history_id}")
@@ -428,4 +428,4 @@ async def get_analiz_detail(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e

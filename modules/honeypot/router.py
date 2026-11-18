@@ -13,16 +13,14 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.models import HoneypotEvent, IndicatorOfCompromise
+from app.auth import require_admin
+from app.models import APIKey, HoneypotEvent, IndicatorOfCompromise
 from shared.utils.db import get_db
 
 from .engine import honeypot_engine
 from .ioc_collector import IOCCollectorEngine
 
 logger = logging.getLogger(__name__)
-
-from app.auth import require_admin
-from app.models import APIKey
 
 router = APIRouter(tags=["02-honeypot"])
 ioc_engine = IOCCollectorEngine()
@@ -734,7 +732,7 @@ def get_ioc_statistics(db: Session = Depends(get_db)):
         total = db.query(func.count(IndicatorOfCompromise.id)).scalar() or 0
 
         # 2. Bugün eklenen
-        today = datetime.utcnow().date()
+        today = datetime.now(UTC).replace(tzinfo=None).date()
         today_added = db.query(func.count(IndicatorOfCompromise.id)).filter(
             cast(IndicatorOfCompromise.created_at, Date) == today
         ).scalar() or 0
@@ -742,7 +740,7 @@ def get_ioc_statistics(db: Session = Depends(get_db)):
         # 3. Son 7 gün günlük artış
         weekly_growth = []
         for i in range(7, -1, -1):
-            date = datetime.utcnow().date() - timedelta(days=i)
+            date = datetime.now(UTC).replace(tzinfo=None).date() - timedelta(days=i)
             count = db.query(func.count(IndicatorOfCompromise.id)).filter(
                 cast(IndicatorOfCompromise.created_at, Date) == date
             ).scalar() or 0
@@ -800,7 +798,7 @@ def get_ioc_statistics(db: Session = Depends(get_db)):
                 "high_risk_count": high_risk,
                 "medium_risk_count": medium_risk,
                 "low_risk_count": low_risk,
-                "last_update": datetime.utcnow().isoformat()
+                "last_update": datetime.now(UTC).replace(tzinfo=None).isoformat()
             },
             "total_records": total,
             "today_added": today_added,
@@ -808,7 +806,7 @@ def get_ioc_statistics(db: Session = Depends(get_db)):
             "risk_distribution": risk_distribution,
             "top_threats": [{"type": t[0], "count": t[1]} for t in top_threats],
             "source_breakdown": [{"source": s[0], "count": s[1]} for s in sources],
-            "last_updated": datetime.utcnow().isoformat()
+            "last_updated": datetime.now(UTC).replace(tzinfo=None).isoformat()
         }
     except Exception as e:
         logger.error(f"IoC stats error: {e}")
@@ -840,7 +838,7 @@ def get_phishing_statistics(db: Session = Depends(get_db)):
         total = db.query(func.count(PhishingURL.id)).scalar() or 0
 
         # 2. Bugün eklenen
-        today = datetime.utcnow().date()
+        today = datetime.now(UTC).replace(tzinfo=None).date()
         daily_new = db.query(func.count(PhishingURL.id)).filter(
             cast(PhishingURL.submission_time, Date) == today
         ).scalar() or 0
@@ -875,7 +873,7 @@ def get_phishing_statistics(db: Session = Depends(get_db)):
             "stats": {
                 "total_urls": total,
                 "daily_new": daily_new,
-                "last_update": datetime.utcnow().isoformat()
+                "last_update": datetime.now(UTC).replace(tzinfo=None).isoformat()
             },
             "total_urls": total,
             "daily_new": daily_new,
@@ -891,7 +889,7 @@ def get_phishing_statistics(db: Session = Depends(get_db)):
                 for r in recent
             ],
             "threat_categories": [{"category": c[0], "count": c[1]} for c in categories],
-            "last_updated": datetime.utcnow().isoformat()
+            "last_updated": datetime.now(UTC).replace(tzinfo=None).isoformat()
         }
     except Exception as e:
         logger.error(f"Phishing stats error: {e}")

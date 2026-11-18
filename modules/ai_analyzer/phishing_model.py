@@ -51,7 +51,7 @@ class PhishingMLModel:
                 logger.info("ML model loaded from disk")
                 return
             except Exception:
-                pass
+                logger.debug('Ignored non-fatal error', exc_info=True)
         logger.info("Training new ML model...")
         self._train_model()
 
@@ -220,7 +220,7 @@ class PhishingMLModel:
             joblib.dump(self.model, self.MODEL_PATH)
             joblib.dump(self.vectorizer, self.VECTORIZER_PATH)
         except Exception:
-            pass
+            logger.debug('Ignored non-fatal error', exc_info=True)
 
     def extract_url_features(self, text: str) -> dict:
         features = {
@@ -266,7 +266,7 @@ class PhishingMLModel:
                 ext = tldextract.extract(url)
                 features["subdomain_len"] = max(features["subdomain_len"], float(len(ext.subdomain)))
             except Exception:
-                pass
+                logger.debug('Ignored non-fatal error', exc_info=True)
 
             brand_words = ["apple", "icloud", "google", "microsoft", "paypal", "netflix", "amazon",
                 "akbank", "garanti", "isbank", "ziraat", "vakifbank", "halkbank", "yapikredi",
@@ -304,7 +304,7 @@ class PhishingMLModel:
                 X = self.vectorizer.transform([text])
                 ml_prob = float(self.model.predict_proba(X)[0][1])
             except Exception:
-                pass
+                logger.debug('Ignored non-fatal error', exc_info=True)
         result["ml_probability"] = ml_prob
 
         # 2. URL risk score

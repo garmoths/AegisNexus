@@ -178,9 +178,9 @@ def recovery_request(body: RecoveryRequest, db: Session = Depends(get_db)):
         try:
             send_recovery(body.email, token)
             db.commit()
-        except Exception:
+        except Exception as exc:
             db.rollback()
-            raise HTTPException(503, 'Kurtarma e-postası gönderilemedi.')
+            raise HTTPException(503, 'Kurtarma e-postası gönderilemedi.') from exc
     return {'message': 'Adres kayıtlıysa kurtarma kodu e-posta ile gönderildi.'}
 
 

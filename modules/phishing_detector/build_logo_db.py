@@ -14,12 +14,15 @@ Kullanım (sunucuda veya lokalde, bir kez çalıştır):
 from __future__ import annotations
 
 import json
+import logging
 import sys
 import time
 from io import BytesIO
 from pathlib import Path
 
 import requests
+
+logger = logging.getLogger(__name__)
 
 try:
     import imagehash
@@ -140,7 +143,7 @@ def main():
             existing = json.loads(OUTPUT_PATH.read_text())
             print(f"Mevcut DB yüklendi ({len(existing)} marka), güncelleniyor...\n")
         except Exception:
-            pass
+            logger.debug('Ignored non-fatal error', exc_info=True)
 
     db: dict = dict(existing)
 

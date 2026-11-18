@@ -5,7 +5,7 @@ import re
 import socket
 import sqlite3
 import ssl
-from datetime import datetime
+from datetime import UTC, datetime
 from urllib.parse import urlparse
 
 from sqlalchemy import or_
@@ -48,7 +48,7 @@ try:
             PHISHTANK_PATH,
         )
 except Exception:
-    pass
+    logger.debug('Ignored non-fatal error', exc_info=True)
 
 
 # =========================================================
@@ -438,7 +438,7 @@ def check_ssl_certificate(domain):
 
             # Sertifika geçerlilik tarihi
             not_after = datetime.strptime(cert['notAfter'], '%b %d %H:%M:%S %Y %Z')
-            days_left = (not_after - datetime.utcnow()).days
+            days_left = (not_after - datetime.now(UTC).replace(tzinfo=None)).days
 
             # Sertifika veren kurum
             issuer = dict(x[0] for x in cert.get('issuer', []))
@@ -670,7 +670,7 @@ def run_quick_checks(input_url: str, db: Session = None) -> dict:
         if ml_result.get("ml_label"):
             ml_source = [{"name": "ML Classifier", "status": ml_result["ml_label"]}]
     except Exception:
-        pass
+        logger.debug('Ignored non-fatal error', exc_info=True)
 
     return {
         "url": input_url,
@@ -825,7 +825,7 @@ def calculate_safety_score(input_url, db: Session = None):
                 "definitive": True,
             }
     except Exception:
-        pass
+        logger.debug('Ignored non-fatal error', exc_info=True)
 
     # ---------------------------------------------------------
     # 4. KATMAN: CANLILIK TESTİ

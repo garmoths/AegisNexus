@@ -73,7 +73,7 @@ def _call_gemini(system: str, user: str) -> str:
         except Exception as e:
             logger.warning("Gemini çağrı hatası (deneme %d/%d): %s", attempt, MAX_RETRIES, e)
             if attempt == MAX_RETRIES:
-                raise RuntimeError(f"Gemini çağrısı {MAX_RETRIES} deneme sonrasında başarısız: {e}")
+                raise RuntimeError(f"Gemini çağrısı {MAX_RETRIES} deneme sonrasında başarısız: {e}") from e
 
         delay = RETRY_BASE_DELAY * (2 ** (attempt - 1))
         time.sleep(delay)

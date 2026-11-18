@@ -48,8 +48,8 @@ def analyze_report(body: AnalyzeRequest, api_key: APIKey = Depends(resolve_api_k
     try:
         from modules.ai_analyzer.incident_analysis import analyze_user_report
         result = analyze_user_report(body.description)
-    except Exception:
-        raise HTTPException(503, 'Analiz kaynağı kullanılamıyor. Lütfen daha sonra tekrar deneyin.')
+    except Exception as exc:
+        raise HTTPException(503, 'Analiz kaynağı kullanılamıyor. Lütfen daha sonra tekrar deneyin.') from exc
     # Keep the structured fields as well as raw model evidence; list/detail use the same schema.
     analysis = {**result.get('ai_analysis', {}), **{k: v for k, v in result.items() if k != 'ai_analysis'}}
     steps = [line.strip() for line in (result.get('protection_plan') or '').splitlines() if line.strip()]

@@ -67,17 +67,17 @@ def _ensure_browser() -> Browser:
                 if browser.is_connected():
                     return browser
             except Exception:
-                pass
+                logger.debug('Ignored non-fatal error', exc_info=True)
 
             # Eski kaynak bozuksa kapatıp temizle
             try:
                 browser.close()
             except Exception:
-                pass
+                logger.debug('Ignored non-fatal error', exc_info=True)
             try:
                 pair[0].stop()
             except Exception:
-                pass
+                logger.debug('Ignored non-fatal error', exc_info=True)
             _thread_resources.pop(tid, None)
 
         return _launch_for_current_thread()
@@ -97,11 +97,11 @@ def close_pool() -> None:
             try:
                 browser.close()
             except Exception:
-                pass
+                logger.debug('Ignored non-fatal error', exc_info=True)
             try:
                 playwright_handle.stop()
             except Exception:
-                pass
+                logger.debug('Ignored non-fatal error', exc_info=True)
             _thread_resources.pop(tid, None)
         _initialized = False
     logger.info("[Pool] Kapatıldı (PID=%d)", os.getpid())
@@ -153,18 +153,18 @@ def acquire_browser_context(
                 try:
                     pair[1].close()
                 except Exception:
-                    pass
+                    logger.debug('Ignored non-fatal error', exc_info=True)
                 try:
                     pair[0].stop()
                 except Exception:
-                    pass
+                    logger.debug('Ignored non-fatal error', exc_info=True)
         raise
     finally:
         if context is not None:
             try:
                 context.close()
             except Exception:
-                pass
+                logger.debug('Ignored non-fatal error', exc_info=True)
 
 
 def is_healthy() -> bool:

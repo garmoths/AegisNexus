@@ -109,7 +109,7 @@ def query_ioc(value: str, ioc_type: str = "domain", timeout: int = 15) -> dict:
     try:
         write_threat_cache(cache_key, result, ttl_seconds=43200)
     except Exception:
-        pass
+        logger.debug('Ignored non-fatal error', exc_info=True)
 
     return result
 

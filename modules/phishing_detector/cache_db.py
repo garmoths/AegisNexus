@@ -521,7 +521,7 @@ def detect_skipped_urls(days: int = 30) -> list[dict]:
 # Veritabanını başlat
 if __name__ == "__main__":
     init_database()
-    print("Cache database initialized successfully")
+    logger.info("Cache database initialized")
 
 
 def write_threat_cache(key: str, data: dict, ttl_seconds: int = 21600) -> bool:

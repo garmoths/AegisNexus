@@ -1,16 +1,19 @@
 """Shared per-client request and expensive-operation budgets."""
 import hashlib
+import logging
 from urllib.parse import urlsplit
 
 from fastapi import Request
 from starlette.concurrency import run_in_threadpool
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import JSONResponse
 
 from app import runtime_store as store
-from app.auth import _resolve
+from app.auth import find_api_key as _resolve
 from app.config import get_settings
 from app.database import SessionLocal
+from app.errors import error_response
+
+logger = logging.getLogger(__name__)
 
 RATE_LIMITS = {'free': 10, 'premium': 60, 'corporate': 300, 'admin': 0}
 WINDOW_SECONDS = 60
@@ -48,12 +51,12 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             origin = request.headers.get('origin')
             allowed = set(get_settings().cors_allow_origins)
             if origin and urlsplit(origin).netloc != request.headers.get('host') and origin not in allowed:
-                return JSONResponse({'detail': 'İstek kaynağına izin verilmedi.'}, status_code=403)
+                return error_response(403, 'İstek kaynağına izin verilmedi.', code='origin_not_allowed')
         try:
             accepted = await run_in_threadpool(consume, request)
         except Exception:
-            return JSONResponse({'detail': 'İstek bütçesi doğrulanamadı.'}, status_code=503)
+            logger.exception('Rate-limit store unavailable')
+            return error_response(503, 'İstek bütçesi doğrulanamadı.')
         if not accepted:
-            return JSONResponse({'detail': 'Dakikalık işlem sınırına ulaştınız.', 'error': 'rate_limit'},
-                                status_code=429, headers={'Retry-After': '60'})
+            return error_response(429, 'Dakikalık işlem sınırına ulaştınız.', headers={'Retry-After': '60'})
         return await call_next(request)

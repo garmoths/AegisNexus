@@ -1,11 +1,14 @@
 """
 URL Güvenlik Kontrolü - Veritabanı ve API entegrasyonu
 """
+import logging
 import re
 from urllib.parse import urlparse
 
 import requests
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 
 class URLSecurityChecker:
@@ -256,7 +259,7 @@ class URLSecurityChecker:
             return {"found": False}
 
         except Exception as e:
-            print(f"Database check error: {e}")
+            logger.warning(f"Database check error: {e}")
             return {"found": False}
 
     def _check_urlscan(self, url: str) -> dict:

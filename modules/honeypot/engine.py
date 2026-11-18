@@ -6,7 +6,7 @@ from __future__ import annotations
 import re
 import time
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 
@@ -30,7 +30,7 @@ class HoneypotSession:
     def add_interaction(self, action: str, data: dict = None):
         """Yeni etkileşim kaydet"""
         self.interaction_count += 1
-        self.last_activity = datetime.utcnow()
+        self.last_activity = datetime.now(UTC).replace(tzinfo=None)
         if data:
             self.captured_data[action] = data
         # Her etkileşimde zaman kaybı artar
@@ -142,7 +142,7 @@ class HoneypotEngine:
     ) -> IOCRecord:
         """IOC kaydini ekler veya mevcut kaydi gunceller."""
         key = f"{ioc_type}:{value.lower()}"
-        now = datetime.utcnow()
+        now = datetime.now(UTC).replace(tzinfo=None)
         existing = self.ioc_store.get(key)
 
         if existing:
@@ -253,8 +253,8 @@ class HoneypotEngine:
             session_id=session_id,
             ip_address=ip,
             user_agent=user_agent,
-            start_time=datetime.utcnow(),
-            last_activity=datetime.utcnow(),
+            start_time=datetime.now(UTC).replace(tzinfo=None),
+            last_activity=datetime.now(UTC).replace(tzinfo=None),
         )
         self.active_sessions[session_id] = session
         self.captured_ips.add(ip)

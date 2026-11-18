@@ -108,6 +108,6 @@ def query_url(url: str, timeout: int = 15) -> dict:
     try:
         write_threat_cache(cache_key, result, ttl_seconds=86400)
     except Exception:
-        pass
+        logger.debug('Ignored non-fatal error', exc_info=True)
 
     return result

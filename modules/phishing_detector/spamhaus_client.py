@@ -193,7 +193,7 @@ def query_ip(ip: str, timeout: int = 10) -> dict:
     try:
         write_threat_cache(cache_key, result, ttl_seconds=21600)
     except Exception:
-        pass
+        logger.debug('Ignored non-fatal error', exc_info=True)
 
     return result
 
@@ -272,6 +272,6 @@ def query_domain(domain: str, timeout: int = 10) -> dict:
     try:
         write_threat_cache(cache_key, result, ttl_seconds=21600)
     except Exception:
-        pass
+        logger.debug('Ignored non-fatal error', exc_info=True)
 
     return result

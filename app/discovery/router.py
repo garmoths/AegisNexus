@@ -88,8 +88,8 @@ def update_settings(body: ConfigPatch, db: Session = Depends(get_db)):
             if urlsplit(url).path != '/' or urlsplit(url).query:
                 raise ValueError()
             exclusions.append(normalized_host)
-        except ValueError:
-            raise HTTPException(422, 'Hariç tutulacak alan adı geçersiz.')
+        except ValueError as exc:
+            raise HTTPException(422, 'Hariç tutulacak alan adı geçersiz.') from exc
     row = service.settings(db)
     for key, value in body.model_dump(exclude={'excluded_hosts'}).items():
         setattr(row, key, value)
@@ -137,7 +137,7 @@ def retry(candidate_id: int, actor=Depends(operator), db: Session = Depends(get_
     try:
         service.requeue(db, require_candidate(db, candidate_id), actor)
     except ValueError as exc:
-        raise HTTPException(409, str(exc))
+        raise HTTPException(409, str(exc)) from exc
     return {'state': 'pending'}
 
 
@@ -146,7 +146,7 @@ def review(candidate_id: int, body: ReviewBody, actor=Depends(operator), db: Ses
     try:
         service.review(db, require_candidate(db, candidate_id), body.decision, body.note, actor, body.observation_id)
     except ValueError as exc:
-        raise HTTPException(409, str(exc))
+        raise HTTPException(409, str(exc)) from exc
     return {'state': body.decision}
 
 
@@ -201,7 +201,7 @@ def import_snapshot(body: Snapshot, db: Session = Depends(get_db)):
         observation = service.finish(db, row.id, token, url=row.url, html=body.html, status=200, live=False)
         return {'id': row.id, 'observation_id': observation.id}
     except ValueError as exc:
-        raise HTTPException(422, str(exc))
+        raise HTTPException(422, str(exc)) from exc
 
 
 @router.get('/sources')
@@ -228,7 +228,7 @@ def add_source(body: SourceBody, db: Session = Depends(get_db)):
         if service.excluded(host, service.settings(db)):
             raise ValueError('Alan adı hariç tutuldu.')
     except ValueError as exc:
-        raise HTTPException(422, str(exc))
+        raise HTTPException(422, str(exc)) from exc
     row = CrawlSource(name=body.name, url=url, kind=body.kind)
     db.add(row)
     db.commit()

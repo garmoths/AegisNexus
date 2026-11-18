@@ -80,8 +80,8 @@ def add_watch(body: WatchRequest, key: APIKey = Depends(resolve_api_key), db: Se
         if urlsplit(normalized).path != '/' or urlsplit(normalized).query:
             raise ValueError('Yalnızca alan adı girin.')
         value = host
-    except ValueError:
-        raise HTTPException(422, 'Geçerli bir alan adı girin.')
+    except ValueError as exc:
+        raise HTTPException(422, 'Geçerli bir alan adı girin.') from exc
     row = db.query(WatchItem).filter_by(user_id=key.user_id, kind=body.kind, value=value).first()
     if row:
         row.is_active = True

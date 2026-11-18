@@ -137,7 +137,7 @@ def _capture_screenshot_base64(url: str, page_text: str) -> tuple[str, str, bool
                 try:
                     page.wait_for_function("document.readyState === 'complete'", timeout=4000)
                 except Exception:
-                    pass
+                    logger.debug('Ignored non-fatal error', exc_info=True)
 
                 # Cloudflare challenge ve JS korumaları için bekle
                 page.wait_for_timeout(2000)
@@ -152,7 +152,7 @@ def _capture_screenshot_base64(url: str, page_text: str) -> tuple[str, str, bool
                         logger.warning(f"[Screenshot] Bot sayfası tespit edildi: '{title}' — {url}")
                         bot_detected = True
                 except Exception:
-                    pass
+                    logger.debug('Ignored non-fatal error', exc_info=True)
 
                 # Lazy-load içerikleri tetikle (kısa scroll)
                 try:
@@ -160,7 +160,7 @@ def _capture_screenshot_base64(url: str, page_text: str) -> tuple[str, str, bool
                     page.wait_for_timeout(400)
                     page.evaluate("window.scrollTo(0, 0)")
                 except Exception:
-                    pass
+                    logger.debug('Ignored non-fatal error', exc_info=True)
 
                 page.wait_for_timeout(_SCREENSHOT_SETTLE_MS)
 

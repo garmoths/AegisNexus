@@ -2,14 +2,17 @@
 Alert System - Slack & Email Notifications
 """
 
+import logging
 import smtplib
-from datetime import datetime
+from datetime import UTC, datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 import requests
 
 from app.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 class AlertManager:
@@ -41,7 +44,7 @@ class AlertManager:
                 "color": colors.get(risk_level, "#CCCCCC"),
                 "title": f"{risk_level} {title}",
                 "text": message,
-                "ts": int(datetime.utcnow().timestamp())
+                "ts": int(datetime.now(UTC).replace(tzinfo=None).timestamp())
             }]
         }
 
@@ -49,7 +52,7 @@ class AlertManager:
             response = requests.post(self.slack_webhook, json=payload, timeout=5)
             return response.status_code == 200
         except Exception as e:
-            print(f"❌ Slack alert failed: {e}")
+            logger.warning(f"Slack alert failed: {e}")
             return False
 
     def send_email_alert(self, recipient: str, subject: str, html_body: str):
@@ -74,7 +77,7 @@ class AlertManager:
 
             return True
         except Exception as e:
-            print(f"❌ Email alert failed: {e}")
+            logger.warning(f"Email alert failed: {e}")
             return False
 
     def alert_phishing_detected(self, url: str, score: int, details: list[str]):
@@ -119,7 +122,7 @@ class AlertManager:
         <html>
             <body style="font-family: Arial, sans-serif;">
                 <h2>📊 Aegis Nexus Daily Report</h2>
-                <p>Date: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}</p>
+                <p>Date: {datetime.now(UTC).replace(tzinfo=None).strftime('%Y-%m-%d %H:%M UTC')}</p>
 
                 <h3>Statistics</h3>
                 <ul>

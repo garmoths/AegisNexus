@@ -170,6 +170,7 @@ def _best_cached_scan_raw_data(url: str, domain: str) -> dict | None:
                 try:
                     raw_data = json.loads(row["raw_data"])
                 except Exception:
+                    logger.debug('Ignored non-fatal error', exc_info=True)
                     continue
                 if isinstance(raw_data, dict):
                     return raw_data

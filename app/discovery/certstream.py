@@ -13,6 +13,7 @@ Sınırlar:
 - API anahtarı, ücretli servis veya Redis gerektirmez.
 """
 import json
+import logging
 
 import websocket
 
@@ -21,6 +22,8 @@ from app.config import get_settings
 from app.database import SessionLocal
 from app.discovery import matcher, service
 from app.models import CrawlSource
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_URL = get_settings().aegis_certstream_url
 RATE_PER_MIN = get_settings().aegis_certstream_rate
@@ -43,7 +46,7 @@ def _state(label):
     try:
         store.put(STATE_KEY, {'state': label, 'seen_at': service.now().isoformat()}, 600)
     except Exception:
-        pass
+        logger.debug('Ignored non-fatal error', exc_info=True)
 
 
 def handle_domains(db, domains, source_row=None):
@@ -137,4 +140,4 @@ def run(stop_event, sessions=SessionLocal, url=None):
                 try:
                     ws.close()
                 except Exception:
-                    pass
+                    logger.debug('Ignored non-fatal error', exc_info=True)

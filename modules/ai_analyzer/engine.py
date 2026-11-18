@@ -1,7 +1,7 @@
 """
 AI Security Analysis Engine - Ana analiz motoru
 """
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
@@ -31,7 +31,7 @@ class AIAnalyzerEngine:
             Tam analiz raporu
         """
         # Başlangıç zamanı
-        start_time = datetime.utcnow()
+        start_time = datetime.now(UTC).replace(tzinfo=None)
 
         # 1. LLM analizi
         llm_result = llm_client.analyze_text(message, context)

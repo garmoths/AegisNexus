@@ -1064,7 +1064,7 @@ def _task_virustotal(url: str):
             try:
                 db.close()
             except Exception:
-                pass
+                logger.debug('Ignored non-fatal error', exc_info=True)
 
 
 def _task_gsb(url: str):
@@ -1185,7 +1185,7 @@ def run_threat_intelligence(url, http_meta=None, page_text: str = "", is_whiteli
     try:
         resolved_ip = socket.gethostbyname(domain)
     except Exception:
-        pass
+        logger.debug('Ignored non-fatal error', exc_info=True)
 
     # ── A4: TÜM kontroller paralel çalıştır (screenshot + RDAP dahil) ─────
     task_results: dict = {}

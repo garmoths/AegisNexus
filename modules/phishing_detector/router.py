@@ -4,7 +4,7 @@ Tehdit veritabanı, URL tarama ve analiz endpointleri
 """
 import logging
 import uuid
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -94,7 +94,7 @@ def add_site(
     except Exception as e:
         db.rollback()
         logger.error(f"Sitesi ekleme hatası: {str(e)}")
-        raise HTTPException(status_code=500, detail="Kayıt hatası")
+        raise HTTPException(status_code=500, detail="Kayıt hatası") from e
 
 
 @router.post("/check-url")
@@ -102,7 +102,7 @@ def check_url(request: URLCheckRequest, db: Session = Depends(get_db), api_key: 
     try:
         requested_url, _, _, _ = validate_url(request.url, resolve=False)
     except UnsafeTarget as exc:
-        raise HTTPException(422, str(exc))
+        raise HTTPException(422, str(exc)) from exc
     norm = normalize_url_record(requested_url)
     url_hash = norm.get('url_hash', '')
     if request.force_fresh:
@@ -133,7 +133,7 @@ def check_url(request: URLCheckRequest, db: Session = Depends(get_db), api_key: 
         return {**quick, 'status': 'analyzing', 'job_id': store.get('analyzing:' + url_hash)}
     from .cache_db import set_celery_job
     stored = set_celery_job('job:' + job_id, {'status': 'queued', 'job_id': job_id, 'url': requested_url,
-                                  'updated_at': datetime.utcnow().isoformat(), 'deadline': (datetime.utcnow() + timedelta(minutes=15)).isoformat()})
+                                  'updated_at': datetime.now(UTC).replace(tzinfo=None).isoformat(), 'deadline': (datetime.now(UTC).replace(tzinfo=None) + timedelta(minutes=15)).isoformat()})
     if not stored:
         store.delete('analyzing:' + url_hash)
         raise HTTPException(503, 'İş kaydedilemedi.')
@@ -141,11 +141,11 @@ def check_url(request: URLCheckRequest, db: Session = Depends(get_db), api_key: 
         from .celery_tasks import run_heavy_analysis
         run_heavy_analysis.apply_async((requested_url, job_id), queue='phishing', task_id=job_id,
                                       expires=900, retry=False)
-    except Exception:
+    except Exception as exc:
         store.delete('analyzing:' + url_hash)
         set_celery_job('job:' + job_id, {'status': 'failed', 'job_id': job_id, 'error': 'queue_unavailable'})
         # Do not run an unbounded scan inside the request when the worker is unavailable.
-        raise HTTPException(503, 'Analiz kuyruğu kullanılamıyor. Lütfen daha sonra tekrar deneyin.')
+        raise HTTPException(503, 'Analiz kuyruğu kullanılamıyor. Lütfen daha sonra tekrar deneyin.') from exc
     return {**quick, 'status': 'analyzing', 'job_state': 'queued', 'job_id': job_id, 'module': '01_phishing_detector'}
 
 
@@ -154,14 +154,14 @@ def get_job_result(job_id: str, api_key: APIKey | None = Depends(resolve_optiona
     from .cache_db import get_celery_job, set_celery_job
     try:
         uuid.UUID(job_id)
-    except ValueError:
-        raise HTTPException(422, 'Geçersiz iş kimliği.')
+    except ValueError as exc:
+        raise HTTPException(422, 'Geçersiz iş kimliği.') from exc
     result = get_celery_job('job:' + job_id)
     if result is None:
         return {'status': 'expired', 'job_id': job_id, 'message': 'İş bulunamadı veya saklama süresi doldu.'}
     if result.get('status') in ('queued', 'running', 'retrying'):
         deadline = result.get('deadline')
-        if deadline and datetime.utcnow() > datetime.fromisoformat(deadline):
+        if deadline and datetime.now(UTC).replace(tzinfo=None) > datetime.fromisoformat(deadline):
             result.update(status='timeout', error='job_deadline_exceeded')
             set_celery_job('job:' + job_id, result)
             if result.get('url'):
@@ -365,7 +365,7 @@ def fetch_all_phishing_data(
 @router.get('/scan-history')
 def get_scan_history_paged(limit: int = Query(20, ge=1, le=100), page: int = Query(1, ge=1), days: int = Query(30, ge=1, le=365),
                            api_key: APIKey = Depends(resolve_api_key), db: Session = Depends(get_db)):
-    query = db.query(PrivateScan).filter(PrivateScan.user_id == api_key.user_id, PrivateScan.created_at >= datetime.utcnow()-timedelta(days=days))
+    query = db.query(PrivateScan).filter(PrivateScan.user_id == api_key.user_id, PrivateScan.created_at >= datetime.now(UTC).replace(tzinfo=None)-timedelta(days=days))
     total = query.count()
     rows = query.order_by(PrivateScan.created_at.desc()).offset((page-1)*limit).limit(limit).all()
     data = [{'url': r.url, 'risk_score': r.risk_score, 'safety_score': 100-r.risk_score, 'risk_level': r.risk_level,

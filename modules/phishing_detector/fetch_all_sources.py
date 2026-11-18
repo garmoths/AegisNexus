@@ -8,6 +8,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import logging
 import os
 import re
 import time
@@ -26,6 +27,8 @@ from app.config import get_settings
 from app.models import PhishingURL
 
 from .url_normalize import normalize_url_record
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_GITHUB_FEEDS = {
     "github_spam404": "https://raw.githubusercontent.com/Spam404/lists/master/main-blacklist.txt",
@@ -125,12 +128,12 @@ def fetch_openphish_data(session: requests.Session | None = None) -> list[str]:
     try:
         response = http.get("https://openphish.com/feed.txt", timeout=60)
         if response.status_code != 200:
-            print(f"OpenPhish status: {response.status_code}")
+            logger.warning(f"OpenPhish status: {response.status_code}")
             return []
         urls = parse_feed_lines_to_urls(response.text)
         return urls[: max(limit, 1)]
     except Exception as exc:
-        print(f"OpenPhish hatasi: {exc}")
+        logger.warning(f"OpenPhish hatasi: {exc}")
         return []
 
 
@@ -142,7 +145,7 @@ def fetch_urlhaus_data(session: requests.Session | None = None) -> list[str]:
     try:
         response = http.get("https://urlhaus.abuse.ch/downloads/csv_recent/", timeout=90)
         if response.status_code != 200:
-            print(f"URLHaus status: {response.status_code}")
+            logger.warning(f"URLHaus status: {response.status_code}")
             return []
 
         reader = csv.reader(io.StringIO(response.text))
@@ -162,7 +165,7 @@ def fetch_urlhaus_data(session: requests.Session | None = None) -> list[str]:
                 break
         return list(dict.fromkeys(urls))[: max(limit, 1)]
     except Exception as exc:
-        print(f"URLHaus hatasi: {exc}")
+        logger.warning(f"URLHaus hatasi: {exc}")
         return []
 
 
@@ -212,11 +215,11 @@ def fetch_kaggle_data(session: requests.Session | None = None) -> list[str]:
     limit = get_settings().phishing_kaggle_limit
 
     if not api_token and (not username or not key):
-        print("Kaggle atlandi: KAGGLE_API_TOKEN veya KAGGLE_USERNAME/KAGGLE_KEY tanimli degil")
+        logger.warning("Kaggle atlandi: KAGGLE_API_TOKEN veya KAGGLE_USERNAME/KAGGLE_KEY tanimli degil")
         return []
 
     if "/" not in dataset_ref:
-        print("Kaggle atlandi: PHISHING_KAGGLE_DATASET formati owner/dataset olmali")
+        logger.warning("Kaggle atlandi: PHISHING_KAGGLE_DATASET formati owner/dataset olmali")
         return []
 
     http = session or _http_session()
@@ -232,12 +235,12 @@ def fetch_kaggle_data(session: requests.Session | None = None) -> list[str]:
 
         response = http.get(endpoint, headers=headers, auth=auth, timeout=180)
         if response.status_code != 200:
-            print(f"Kaggle status: {response.status_code}")
+            logger.warning(f"Kaggle status: {response.status_code}")
             return []
         urls = _extract_urls_from_kaggle_zip(response.content)
         return urls[: max(limit, 1)]
     except Exception as exc:
-        print(f"Kaggle hatasi: {exc}")
+        logger.warning(f"Kaggle hatasi: {exc}")
         return []
 
 
@@ -245,7 +248,7 @@ def fetch_otx_phishing_data(session: requests.Session | None = None) -> list[str
     """AlienVault OTX subscribed pulses üzerinden phishing URL/domain toplar."""
     api_key = get_settings().alienvault_otx_api_key.strip()
     if not api_key:
-        print("OTX atlandi: ALIENVAULT_OTX_API_KEY tanimli degil")
+        logger.warning("OTX atlandi: ALIENVAULT_OTX_API_KEY tanimli degil")
         return []
 
     limit = get_settings().phishing_otx_limit
@@ -256,7 +259,7 @@ def fetch_otx_phishing_data(session: requests.Session | None = None) -> list[str
     try:
         response = http.get(endpoint, headers=headers, timeout=60)
         if response.status_code != 200:
-            print(f"OTX status: {response.status_code}")
+            logger.warning(f"OTX status: {response.status_code}")
             return []
 
         payload = response.json()
@@ -285,7 +288,7 @@ def fetch_otx_phishing_data(session: requests.Session | None = None) -> list[str
 
         return list(urls)
     except Exception as exc:
-        print(f"OTX hatasi: {exc}")
+        logger.warning(f"OTX hatasi: {exc}")
         return []
 
 
@@ -311,7 +314,7 @@ def fetch_certstream_data(session: requests.Session | None = None) -> list[str]:
     try:
         import websocket  # type: ignore
     except ImportError:
-        print("CertStream atlandi: websocket-client paketi kurulu degil")
+        logger.warning("CertStream atlandi: websocket-client paketi kurulu degil")
         return []
 
     ws_url = get_settings().certstream_ws_url
@@ -350,13 +353,13 @@ def fetch_certstream_data(session: requests.Session | None = None) -> list[str]:
                 if len(found) >= max_urls:
                     break
     except Exception as exc:
-        print(f"CertStream hatasi: {exc}")
+        logger.warning(f"CertStream hatasi: {exc}")
     finally:
         if ws is not None:
             try:
                 ws.close()
             except Exception:
-                pass
+                logger.debug('Ignored non-fatal error', exc_info=True)
 
     if found:
         return list(found)
@@ -431,9 +434,9 @@ def _fetch_phishtank_direct(http: requests.Session) -> list[dict[str, Any]]:
             raw = bz2.decompress(resp.content)
             data = json.loads(raw.decode("utf-8"))
             return data if isinstance(data, list) else []
-        print(f"PhishTank HTTP {resp.status_code}")
+        logger.warning(f"PhishTank HTTP {resp.status_code}")
     except Exception as exc:
-        print(f"PhishTank indir hatası: {exc}")
+        logger.warning(f"PhishTank indir hatası: {exc}")
     return []
 
 
@@ -451,7 +454,7 @@ def update_phishtank_json(session: requests.Session | None = None) -> int:
     entries: list[dict[str, Any]] = []
 
     if app_key:
-        print("   [PhishTank] App key bulundu, doğrudan indiriliyor...")
+        logger.info("[PhishTank] App key bulundu, doğrudan indiriliyor...")
         pt_data = _fetch_phishtank_direct(http)
         if pt_data:
             now = datetime.now(UTC).isoformat()
@@ -468,9 +471,9 @@ def update_phishtank_json(session: requests.Session | None = None) -> int:
                 for item in pt_data
                 if item.get("url")
             ]
-            print(f"   [PhishTank] {len(entries)} URL indirildi")
+            logger.info(f"[PhishTank] {len(entries)} URL indirildi")
         else:
-            print("   [PhishTank] Veri alınamadı, OpenPhish fallback deneniyor...")
+            logger.info("[PhishTank] Veri alınamadı, OpenPhish fallback deneniyor...")
 
     if not entries:
         urls: list[str] = []
@@ -479,7 +482,7 @@ def update_phishtank_json(session: requests.Session | None = None) -> int:
             if resp.status_code == 200:
                 urls = parse_feed_lines_to_urls(resp.text)
         except Exception as exc:
-            print(f"OpenPhish indir hatası: {exc}")
+            logger.warning(f"OpenPhish indir hatası: {exc}")
         if not urls:
             return 0
         now = datetime.now(UTC).isoformat()
@@ -495,11 +498,11 @@ def update_phishtank_json(session: requests.Session | None = None) -> int:
                 clean = u.replace("https://", "").replace("http://", "").replace("www.", "").split("/")[0]
                 _scanner.PHISHTANK_DB.add(clean)
         except Exception:
-            pass
-        print(f"phishtank.json güncellendi: {len(entries)} URL → {output_path}")
+            logger.debug('Ignored non-fatal error', exc_info=True)
+        logger.info(f"phishtank.json güncellendi: {len(entries)} URL → {output_path}")
         return len(entries)
     except Exception as exc:
-        print(f"phishtank.json yazma hatası: {exc}")
+        logger.warning(f"phishtank.json yazma hatası: {exc}")
         return 0
 
 
@@ -640,7 +643,7 @@ def import_to_database(db: Session, entries: list[dict[str, Any]], batch_size: i
         except Exception as exc:
             errors += 1
             if errors <= 5:
-                print(f"Kayit hatasi: {exc}")
+                logger.warning(f"Kayit hatasi: {exc}")
 
     try:
         db.commit()
@@ -718,7 +721,7 @@ def fetch_threatfox_data(session: requests.Session | None = None) -> list[str]:
                 urls.append(url)
         return urls
     except Exception as exc:
-        print(f"ThreatFox hatasi: {exc}")
+        logger.warning(f"ThreatFox hatasi: {exc}")
         return []
 
 
@@ -732,14 +735,12 @@ def fetch_all_sources(db: Session) -> dict[str, Any]:
     total_updated = 0
     session = _http_session()
 
-    print("\n" + "=" * 60)
-    print("🚀 PHISHING DATA AGGREGATOR (MULTI-SOURCE)")
-    print("=" * 60)
+    logger.info("PHISHING DATA AGGREGATOR (MULTI-SOURCE)")
 
     # 1) GitHub feeds
-    print("\n📡 GitHub feed'leri")
+    logger.info("GitHub feed'leri")
     for source_name, feed_url in get_github_feed_urls().items():
-        print(f"   ↳ {source_name}: {feed_url}")
+        logger.info(f"{source_name}: {feed_url}")
         result = fetch_and_import_github_feed(
             db=db,
             feed_url=feed_url,
@@ -752,9 +753,9 @@ def fetch_all_sources(db: Session) -> dict[str, Any]:
         total_updated += result.get("updated", 0)
 
         if result.get("total", 0) > 0:
-            print(f"   ✅ {source_name}: {result['total']} URL, {result['added']} eklendi")
+            logger.info(f"{source_name}: {result['total']} URL, {result['added']} eklendi")
         else:
-            print(f"   ⚠️  {source_name}: {result.get('error', 'veri alinamadi')}")
+            logger.warning(f"{source_name}: {result.get('error', 'veri alinamadi')}")
 
     # 2) Additional direct collectors
     collector_sources: list[tuple[str, Callable[..., list[str]]]] = [
@@ -766,9 +767,9 @@ def fetch_all_sources(db: Session) -> dict[str, Any]:
         ("threatfox", fetch_threatfox_data),
     ]
 
-    print("\n🌐 Diger kaynaklar")
+    logger.info("Diger kaynaklar")
     for source_name, collector in collector_sources:
-        print(f"   ↳ {source_name}")
+        logger.info(f"{source_name}")
         result = _collect_and_import_source(
             db=db,
             source_name=source_name,
@@ -781,20 +782,20 @@ def fetch_all_sources(db: Session) -> dict[str, Any]:
         total_updated += result.get("updated", 0)
 
         if result.get("total", 0) > 0:
-            print(f"   ✅ {source_name}: {result['total']} URL, {result['added']} eklendi")
+            logger.info(f"{source_name}: {result['total']} URL, {result['added']} eklendi")
         else:
-            print(f"   ⚠️  {source_name}: {result.get('error', 'veri alinamadi')}")
+            logger.warning(f"{source_name}: {result.get('error', 'veri alinamadi')}")
 
     # phishtank.json güncelle (OpenPhish → disk + bellek)
-    print("\n🗂️  phishtank.json yenileniyor...")
+    logger.info("phishtank.json yenileniyor...")
     try:
         pt_count = update_phishtank_json(session=session)
         if pt_count:
-            print(f"   ✅ phishtank.json: {pt_count} URL")
+            logger.info(f"phishtank.json: {pt_count} URL")
         else:
-            print("   ⚠️  phishtank.json güncellenemedi (OpenPhish erişilemez olabilir)")
+            logger.warning("phishtank.json güncellenemedi (OpenPhish erişilemez olabilir)")
     except Exception as pt_exc:
-        print(f"   ⚠️  phishtank.json hata: {pt_exc}")
+        logger.warning(f"phishtank.json hata: {pt_exc}")
 
     # Optional alerting
     try:
@@ -806,15 +807,13 @@ def fetch_all_sources(db: Session) -> dict[str, Any]:
                 risk_level="🚨",
             )
     except Exception as exc:
-        print(f"Slack alert atlandi: {exc}")
+        logger.warning(f"Slack alert atlandi: {exc}")
 
     active_sources = len([name for name, data in all_results.items() if data.get("total", 0) > 0])
-    print("\n" + "=" * 60)
-    print("📊 ÖZET")
-    print("=" * 60)
-    print(f"   Toplam yeni eklenen: {total_added}")
-    print(f"   Toplam güncellenen: {total_updated}")
-    print(f"   Aktif kaynak: {active_sources}")
+    logger.info("ÖZET")
+    logger.info(f"Toplam yeni eklenen: {total_added}")
+    logger.info(f"Toplam güncellenen: {total_updated}")
+    logger.info(f"Aktif kaynak: {active_sources}")
 
     return {
         "status": "success",
@@ -830,6 +829,6 @@ if __name__ == "__main__":
 
     db = SessionLocal()
     try:
-        print(fetch_all_sources(db))
+        print(fetch_all_sources(db))  # noqa: T201 - CLI entry point
     finally:
         db.close()
