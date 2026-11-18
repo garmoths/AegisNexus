@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components -- Shared hooks, primitives and formatters for lazy module entries. */
-import { Component, useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
+import { Component, useState, useEffect, useRef } from 'react'
+import { animate, useReducedMotion } from 'framer-motion'
 import { Globe, CheckCircle, XCircle, Link2, AtSign } from 'lucide-react'
 
 const API = import.meta.env.VITE_API_BASE_URL || '/api/v2'
@@ -135,9 +135,26 @@ function GlowButton({ children, onClick, disabled, loading, variant='primary', s
     onMouseLeave={e=>{ e.currentTarget.style.background = isPrimary ? '#fafafa' : 'transparent' }}
     style={{ height:40, padding:'0 16px', borderRadius:6, cursor:off?'not-allowed':'pointer', fontSize:14, fontWeight:500, fontFamily:theme.font, background:isPrimary?'#fafafa':'transparent', color:isPrimary?'#18181b':'#fafafa', border:isPrimary?'1px solid transparent':'1px solid #27272a', transition:'background 0.15s ease', opacity:off?0.5:1, display:'inline-flex', alignItems:'center', justifyContent:'center', gap:8, whiteSpace:'nowrap', ...style }} {...props}>{loading&&<Spinner size={16}/>}{children}</button>
 }
+// Değer değiştiğinde mevcut sayıdan yenisine yumuşakça sayar.
+function useTweened(target, duration = 0.9) {
+  const reduce = useReducedMotion()
+  const [value, setValue] = useState(0)
+  const from = useRef(0)
+  useEffect(() => {
+    if (reduce) return
+    const controls = animate(from.current, target, {
+      duration,
+      ease: [0.16, 1, 0.3, 1],
+      onUpdate: v => { from.current = v; setValue(v) },
+    })
+    return () => controls.stop()
+  }, [target, duration, reduce])
+  return reduce ? target : value
+}
+
 function CountUp({ end }) {
-  // Sayı animasyonsuz, doğrudan gösterilir.
-  return <>{(Number(end) || 0).toLocaleString('tr-TR')}</>
+  const v = useTweened(Number(end) || 0)
+  return <>{Math.round(v).toLocaleString('tr-TR')}</>
 }
 // Modül başlığı artık kabukta (ModulesApp) tek tip gösteriliyor; modül içinde
 // tekrar başlık basılmaz. İmza, mevcut çağrılar kırılmasın diye korunuyor.
@@ -234,8 +251,7 @@ function IkLink2({ size=16, color='currentColor' }) {
 }
 
 function PlatformStatCounter({ target, suffix, label, color, fmt }) {
-  // Sayı animasyonsuz, doğrudan gösterilir.
-  const val = target || 0
+  const val = Math.round(useTweened(Number(target) || 0))
   return (
     <div style={{ textAlign:'center', minWidth:90 }}>
       <div style={{ fontSize:24, fontWeight:600, color, lineHeight:1, fontFamily:theme.font }}>
@@ -254,8 +270,8 @@ function RiskGauge({ score, label, showPercentage = false, size = 'md', safetyMo
   }
   const { width, height, radius, stroke, fontSize } = sizeMap[size] || sizeMap.md
   
-  // Skor animasyonsuz, doğrudan gösterilir.
-  const displayScore = Math.round(Math.min(Number(score) || 0, 100))
+  const tweened = useTweened(Math.min(Number(score) || 0, 100), 1)
+  const displayScore = Math.round(tweened)
 
   const c = 2 * Math.PI * radius
   const o = c - (Math.min(displayScore, 100) / 100) * c
@@ -270,8 +286,7 @@ function RiskGauge({ score, label, showPercentage = false, size = 'md', safetyMo
       <circle 
         cx={center} cy={center} r={radius} fill="none" stroke={color} strokeWidth={stroke} 
         strokeDasharray={c} strokeDashoffset={o} 
-        transform={`rotate(-90 ${center} ${center})`} 
-        
+        transform={`rotate(-90 ${center} ${center})`}
         strokeLinecap="round"
       />
       <text x={center} y={center} textAnchor="middle" dominantBaseline="central" fill="#fafafa" fontSize={fontSize} fontWeight="600" fontFamily="Geist, Inter, sans-serif">

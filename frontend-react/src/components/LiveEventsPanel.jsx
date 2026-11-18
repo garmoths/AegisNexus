@@ -1,4 +1,5 @@
-import { Activity, Trash2, Radio } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Trash2, Radio } from 'lucide-react'
 import useEventBus from '@/stores/eventBus'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -45,20 +46,23 @@ export default function LiveEventsPanel({ className, onJump }) {
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
         {events.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 px-4 py-10 text-center text-muted-foreground">
-            <Radio className="size-7 text-primary/70" />
+            <motion.span animate={{ scale: [1, 1.12, 1], opacity: [0.6, 1, 0.6] }} transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}><Radio className="size-7 text-primary/70" /></motion.span>
             <p className="text-sm">Henüz olay yok.</p>
             <p className="text-xs">Bir modülü çalıştırın; bulgular burada canlı akar ve diğer modüllere iletilir.</p>
           </div>
         ) : (
           <ul className="flex flex-col gap-1.5">
+            <AnimatePresence initial={false}>
             {events.map(e => {
               const meta = moduleMeta[e.module] || moduleMeta.system
               return (
-                <li key={e.id}>
+                <motion.li key={e.id} layout="position"
+                  initial={{ opacity: 0, y: -10, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.97 }}
+                  transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}>
                   <button
                     type="button"
                     onClick={() => onJump?.(e.module, e)}
-                    className="group w-full rounded-lg border border-transparent p-2.5 text-left transition-colors hover:border-border hover:bg-muted/50"
+                    className="group press w-full rounded-lg border border-transparent p-2.5 text-left transition-colors hover:border-border hover:bg-muted/50"
                   >
                     <div className="flex items-center gap-2">
                       <span className={cn('size-2 shrink-0 rounded-full', severityDot[e.severity] || severityDot.info)} />
@@ -68,9 +72,10 @@ export default function LiveEventsPanel({ className, onJump }) {
                     </div>
                     {e.detail && <p className="mt-1 line-clamp-2 pl-4 text-[11px] text-muted-foreground">{e.detail}</p>}
                   </button>
-                </li>
+                </motion.li>
               )
             })}
+            </AnimatePresence>
           </ul>
         )}
       </div>

@@ -1,4 +1,5 @@
 import { lazy, Suspense, useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Shield, Menu, X, Activity } from 'lucide-react'
 import logo from './assets/logo.png'
@@ -6,6 +7,7 @@ import useEventBus from './stores/eventBus'
 import LiveEventsPanel from './components/LiveEventsPanel'
 import { Button } from './components/ui/button'
 import { Badge } from './components/ui/badge'
+import { Skeleton } from './components/ui/skeleton'
 import { cn } from './lib/utils'
 
 // Modül başlıkları ve açıklamaları tek yerde; her modül aynı başlık şablonuyla açılır.
@@ -29,13 +31,14 @@ function ModuleNav({ module, counts, onPick }) {
             aria-current={active ? 'page' : undefined}
             onClick={onPick}
             className={cn(
-              'flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm transition-colors',
-              active ? 'bg-primary text-primary-foreground font-semibold' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+              'press relative flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm transition-colors',
+              active ? 'text-primary-foreground font-semibold' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
             )}
           >
-            <span className="truncate">{item.label}</span>
-            {n > 0 ? <Badge variant={active ? 'secondary' : 'muted'} className="shrink-0">{n}</Badge>
-              : item.status && <span className={cn('shrink-0 text-[11px]', active ? 'text-primary-foreground/70' : 'text-muted-foreground/70')}>{item.status}</span>}
+            {active && <motion.span layoutId="module-nav-pill" className="absolute inset-0 rounded-lg bg-primary" transition={{ type: 'spring', stiffness: 500, damping: 38 }} />}
+            <span className="relative truncate">{item.label}</span>
+            {n > 0 ? <Badge variant={active ? 'secondary' : 'muted'} className="relative shrink-0">{n}</Badge>
+              : item.status && <span className={cn('relative shrink-0 text-[11px]', active ? 'text-primary-foreground/70' : 'text-muted-foreground/70')}>{item.status}</span>}
           </Link>
         )
       })}
@@ -73,11 +76,14 @@ export default function ModulesApp() {
       </Button>
     </header>
 
-    {menuOpen && (
-      <div className="border-b border-border bg-card p-3 lg:hidden">
-        <ModuleNav module={module} counts={counts} onPick={()=>setMenuOpen(false)}/>
-      </div>
-    )}
+    <AnimatePresence initial={false}>
+      {menuOpen && (
+        <motion.div key="mobile-menu" initial={{height:0,opacity:0}} animate={{height:'auto',opacity:1}} exit={{height:0,opacity:0}}
+          transition={{duration:0.22,ease:[0.16,1,0.3,1]}} className="overflow-hidden border-b border-border bg-card lg:hidden">
+          <div className="p-3"><ModuleNav module={module} counts={counts} onPick={()=>setMenuOpen(false)}/></div>
+        </motion.div>
+      )}
+    </AnimatePresence>
 
     <div className="mx-auto grid w-full max-w-[1600px] flex-1 grid-cols-1 gap-5 p-4 md:p-6 lg:grid-cols-[220px_minmax(0,1fr)_340px]">
       <div className="hidden lg:block">
@@ -87,16 +93,18 @@ export default function ModulesApp() {
       </div>
 
       <main className="min-w-0">
-        <div className="mb-6 border-b border-border pb-5">
+        <motion.div key={'head-'+module} initial={{opacity:0,y:6}} animate={{opacity:1,y:0}} transition={{duration:0.25,ease:[0.16,1,0.3,1]}} className="mb-6 border-b border-border pb-5">
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-semibold tracking-tight">{entry.label}</h1>
             {entry.status && <Badge variant="outline">{entry.status}</Badge>}
           </div>
           <p className="mt-1.5 text-sm text-muted-foreground">{entry.description}</p>
-        </div>
-        <Suspense fallback={<p role="status" className="p-10 text-muted-foreground">Modül yükleniyor…</p>}>
-          <Module key={module+location.key} initialUrl={location.state?.value||''} initialIocQuery={location.state?.value||''}
-            initialProfile={location.state?.profile||null} onNavigate={go} />
+        </motion.div>
+        <Suspense fallback={<div role="status" aria-label="Modül yükleniyor" className="flex flex-col gap-4"><Skeleton className="h-16 w-full"/><div className="grid grid-cols-2 gap-3 sm:grid-cols-4"><Skeleton className="h-24"/><Skeleton className="h-24"/><Skeleton className="h-24"/><Skeleton className="h-24"/></div><Skeleton className="h-56 w-full"/></div>}>
+          <motion.div key={module+location.key} initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} transition={{duration:0.28,ease:[0.16,1,0.3,1]}}>
+            <Module initialUrl={location.state?.value||''} initialIocQuery={location.state?.value||''}
+              initialProfile={location.state?.profile||null} onNavigate={go} />
+          </motion.div>
         </Suspense>
       </main>
 
@@ -107,14 +115,18 @@ export default function ModulesApp() {
       </div>
     </div>
 
-    {eventsOpen && (
-      <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-label="Canlı olaylar">
-        <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={()=>setEventsOpen(false)}/>
-        <div className="absolute inset-y-0 right-0 w-[min(92vw,360px)] p-3">
-          <LiveEventsPanel className="h-full" onJump={jump}/>
+    <AnimatePresence>
+      {eventsOpen && (
+        <div key="events-drawer" className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-label="Canlı olaylar">
+          <motion.div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={()=>setEventsOpen(false)}
+            initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} transition={{duration:0.2}}/>
+          <motion.div className="absolute inset-y-0 right-0 w-[min(92vw,360px)] p-3"
+            initial={{x:'100%'}} animate={{x:0}} exit={{x:'100%'}} transition={{type:'spring',stiffness:420,damping:42}}>
+            <LiveEventsPanel className="h-full" onJump={jump}/>
+          </motion.div>
         </div>
-      </div>
-    )}
+      )}
+    </AnimatePresence>
 
     <footer className="flex items-center justify-center gap-5 border-t border-border py-5 text-sm text-muted-foreground">
       <Shield className="size-[18px]"/><Link to="/" className="hover:text-foreground">Ana Sayfa</Link><a href="/docs" className="hover:text-foreground">API belgeleri</a>
