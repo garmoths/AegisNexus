@@ -46,7 +46,7 @@ def owned(report_id, key, db):
 @router.post('/analyze')
 def analyze_report(body: AnalyzeRequest, api_key: APIKey = Depends(resolve_api_key), db: Session = Depends(get_db)):
     try:
-        from modules.victim_atlas.gemini_service import analyze_user_report
+        from modules.ai_analyzer.incident_analysis import analyze_user_report
         result = analyze_user_report(body.description)
     except Exception:
         raise HTTPException(503, 'Analiz kaynağı kullanılamıyor. Lütfen daha sonra tekrar deneyin.')

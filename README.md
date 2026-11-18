@@ -1,6 +1,6 @@
 # AegisNexus
 
-AegisNexus is an open-source, modular cybersecurity platform for running on your own machine. It combines phishing detection, threat intelligence, AI-assisted analysis, a honeypot/IOC feed, SMS fraud checks and victim profiling behind one FastAPI backend and React UI.
+AegisNexus is an open-source, modular cybersecurity platform for running on your own machine. It combines phishing detection, threat intelligence, AI-assisted analysis, a honeypot/IOC feed, SMS fraud checks and incident-report analysis behind one FastAPI backend and React UI.
 
 **Stack:** FastAPI · React (Vite) · Celery · Redis (local Unix socket) · SQLite
 

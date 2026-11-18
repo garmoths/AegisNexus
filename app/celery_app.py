@@ -21,7 +21,7 @@ load_dotenv()
 from celery import Celery
 from celery.schedules import crontab
 
-BROKER_URL = os.getenv('CELERY_BROKER_URL') or os.getenv('RABBITMQ_URL') or 'redis://127.0.0.1:6379/0'
+BROKER_URL = os.getenv('CELERY_BROKER_URL') or 'redis://127.0.0.1:6379/0'
 RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND') or ('rpc://' if BROKER_URL.startswith(('amqp:', 'amqps:', 'memory:')) else 'redis://127.0.0.1:6379/1')
 TIMEZONE = os.getenv("CELERY_TIMEZONE", "Europe/Istanbul")
 
@@ -32,7 +32,6 @@ celery_app = Celery(
     include=[
         "modules.phishing_detector.celery_tasks",
         "modules.honeypot.celery_tasks",
-        "modules.victim_atlas.celery_tasks",
         "app.workflow_tasks",
         "app.discovery.tasks",
     ],

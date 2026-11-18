@@ -28,7 +28,7 @@ from contextlib import contextmanager
 
 from playwright.sync_api import Browser, BrowserContext, sync_playwright
 
-from .stealh import DEFAULT_VIEWPORT, launch_chromium_sync, new_stealth_browser_context_sync
+from .stealth import DEFAULT_VIEWPORT, launch_chromium_sync, new_stealth_browser_context_sync
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +118,7 @@ def acquire_browser_context(
     """
     Pool'daki browser'dan yeni BrowserContext al.
     Context işlem bitince otomatik kapatılır (browser değil).
-    Stealth profili :mod:`~modules.phishing_detector.stealh` ile oluşturulur.
+    Stealth profili :mod:`~modules.phishing_detector.stealth` ile oluşturulur.
 
     with acquire_browser_context() as ctx:
         page = ctx.new_page()

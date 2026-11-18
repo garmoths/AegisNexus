@@ -6,7 +6,7 @@ import json
 import unittest
 from unittest.mock import patch, MagicMock
 
-from modules.victim_atlas.gemini_service import (
+from modules.ai_analyzer.incident_analysis import (
     _extract_json,
     _parse_analysis,
     analyze_user_report,
@@ -119,7 +119,7 @@ class TestParseAnalysis(unittest.TestCase):
 
 
 class TestAnalyzeUserReport(unittest.TestCase):
-    @patch("modules.victim_atlas.gemini_service._call_gemini")
+    @patch("modules.ai_analyzer.incident_analysis._call_gemini")
     def test_analyze(self, mock_call):
         mock_call.return_value = MOCK_ANALYSIS_RESPONSE
         result = analyze_user_report("SMS ile dolandırıldım")

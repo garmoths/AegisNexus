@@ -13,7 +13,6 @@ from app.database import Base, engine
 from app.routers.contact import router as contact_router
 from app.routers.auth import router as auth_router
 from app.routers.reports import router as reports_router
-# Stats routes victim atlas router altında mount ediliyor
 from app.routers.admin import router as admin_router
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.routers.workspace import router as workspace_router

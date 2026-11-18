@@ -122,6 +122,6 @@ def register_event_listeners() -> None:
 
 
 def _on_pdf_requested(payload):
-    from modules.victim_atlas.celery_tasks import generate_report_pdf
+    from app.workflow_tasks import generate_report_pdf
     generate_report_pdf.run(payload['report_id'])
 

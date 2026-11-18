@@ -45,10 +45,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["01-phishing-detector"])
 
-# Rate limiting depolama (in-memory)
-RATE_LIMIT_STORAGE = {}
-
-
 class SiteAddRequest(BaseModel):
     url: str
     target: str

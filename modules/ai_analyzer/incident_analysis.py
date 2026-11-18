@@ -1,4 +1,4 @@
-"""Gemini AI servis katmanı — olay bildirimi analizi (analyze_user_report).
+"""Incident-report analysis with Gemini (analyze_user_report).
 
 Özellikler:
 - Retry mekanizması (3 deneme, üstel geri çekilme)
@@ -15,7 +15,7 @@ from typing import Any, Dict
 from google import genai
 from google.genai import types
 
-from .prompts.analyze_report import ANALYZE_REPORT_SYSTEM, ANALYZE_REPORT_USER
+from .prompts.incident_report import ANALYZE_REPORT_SYSTEM, ANALYZE_REPORT_USER
 
 logger = logging.getLogger(__name__)
 

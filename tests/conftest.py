@@ -9,11 +9,10 @@ _TEST_ROOT = Path(tempfile.mkdtemp(prefix='aegis-tests-'))
 os.environ['DATABASE_URL'] = 'sqlite:///' + str(_TEST_ROOT / 'app.db')
 os.environ['RUNTIME_DB_PATH'] = str(_TEST_ROOT / 'runtime.db')
 os.environ['PDF_OUTPUT_DIR'] = str(_TEST_ROOT / 'reports')
-os.environ['RABBITMQ_URL'] = 'memory://'
+os.environ['CELERY_BROKER_URL'] = 'memory://'
 os.environ['DEMO_MODE'] = '0'
 os.environ['CELERY_PRELOAD_MODELS'] = '0'
-for key in ('GEMINI_API_KEY', 'GROQ_API_KEY', 'OPENAI_API_KEY', 'HIBP_API_KEY', 'IYZICO_API_KEY', 'IYZICO_SECRET_KEY',
-            'VIRUSTOTAL_API_KEYS', 'GOOGLE_SAFE_BROWSING_KEYS', 'URLSCAN_API_KEYS', 'ABUSE_API_KEY', 'ABUSEIPDB_API_KEYS',
+for key in ('GEMINI_API_KEY', 'GROQ_API_KEY', 'OPENAI_API_KEY', 'VIRUSTOTAL_API_KEYS', 'GOOGLE_SAFE_BROWSING_KEYS', 'URLSCAN_API_KEYS', 'ABUSE_API_KEY', 'ABUSEIPDB_API_KEYS',
             'SPAMHAUS_USERNAME', 'SPAMHAUS_PASSWORD', 'PHISHTANK_APP_KEY', 'SMTP_HOST', 'SMTP_PASSWORD'):
     os.environ[key] = ''
 

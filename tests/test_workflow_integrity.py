@@ -27,7 +27,7 @@ def environment(tmp_path, monkeypatch):
     from app.main import app
     import app.middleware.rate_limit as limiter
     monkeypatch.setattr(limiter, 'SessionLocal', sessions)
-    for module_name in ('app.database', 'shared.utils.db', 'app.workflow_tasks', 'modules.victim_atlas.celery_tasks'):
+    for module_name in ('app.database', 'shared.utils.db', 'app.workflow_tasks'):
         monkeypatch.setattr(importlib.import_module(module_name), 'SessionLocal', sessions)
     # Tarayıcının ham sqlite bağlantısı da aynı geçici veritabanını kullansın.
     monkeypatch.setattr(importlib.import_module('modules.phishing_detector.cache_db'), '_db_path', lambda: tmp_path / 'main.db')
@@ -214,7 +214,7 @@ def test_pdf_export_is_real_private_and_monthly_quota_counts_distinct_reports(en
 def test_report_creation_and_pdf_event_are_atomic(environment,monkeypatch):
     client,sessions,account=environment
     owner,raw=account()
-    monkeypatch.setattr('modules.victim_atlas.gemini_service.analyze_user_report',lambda _: {'attack_type':'smishing','risk_score':80,'protection_plan':'Doğrulayın','ai_analysis':{}})
+    monkeypatch.setattr('modules.ai_analyzer.incident_analysis.analyze_user_report',lambda _: {'attack_type':'smishing','risk_score':80,'protection_plan':'Doğrulayın','ai_analysis':{}})
     response=client.post('/api/v2/reports/analyze',json={'description':'Şüpheli bir banka mesajı aldım.'},headers={'X-API-Key':raw})
     assert response.status_code==200,response.text
     with sessions() as db:
