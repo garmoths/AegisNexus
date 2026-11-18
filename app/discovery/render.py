@@ -15,7 +15,7 @@ def capture(url, token, exclusions):
         raise ValueError('Invalid capture identity')
     with sync_playwright() as p:
         executable = get_settings().aegis_chromium_path
-        browser = p.chromium.launch(headless=True, **({'executable_path': executable} if executable else {}))
+        browser = p.chromium.launch(headless=True, executable_path=executable or None)
         context = browser.new_context(service_workers='block', accept_downloads=False, user_agent=UA)
         context.add_init_script("Object.defineProperty(window, 'RTCPeerConnection', {value: undefined}); Object.defineProperty(window, 'WebTransport', {value: undefined}); HTMLFormElement.prototype.submit = function(){}; HTMLFormElement.prototype.requestSubmit = function(){}; document.addEventListener('submit', e => e.preventDefault(), true);")
         count = 0

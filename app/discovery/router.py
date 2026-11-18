@@ -69,7 +69,7 @@ def overview(response: Response, db: Session = Depends(get_db)):
     from app import runtime_store as store
     day = service.now().strftime('%Y-%m-%d')
     return {'settings': config_json(service.settings(db)),
-            'counts': dict(db.query(CrawlCandidate.state, func.count(CrawlCandidate.id)).group_by(CrawlCandidate.state).all()),
+            'counts': {state: count for state, count in db.query(CrawlCandidate.state, func.count(CrawlCandidate.id)).group_by(CrawlCandidate.state).all()},
             'today_crawled': store.get('crawler:daily:' + day, 0),
             'today_browser': store.get('crawler:browser:' + day, 0),
             'worker': store.get('crawler:heartbeat'),

@@ -1,6 +1,7 @@
 """Bounded static HTML extraction. Scores are rule signals, never probabilities."""
 import hashlib
 import re
+from typing import Any
 from urllib.parse import urljoin, urlsplit
 
 from bs4 import BeautifulSoup
@@ -55,7 +56,7 @@ def extract(html, url):
         kinds = []
         for field in fields:
             descriptor = ' '.join(str(field.get(key, '')) for key in ('type', 'name', 'id', 'autocomplete', 'placeholder')).lower()
-            if field.get('type', '').lower() == 'password':
+            if str(field.get('type') or '').lower() == 'password':
                 kinds.append('password')
             if re.search(r'\botp\b|one-time-code|doğrulama|verification', descriptor):
                 kinds.append('otp')
@@ -64,7 +65,7 @@ def extract(html, url):
         action = _target(base, form.get('action') or url)
         target_host = urlsplit(action).hostname if action else None
         forms.append({'fields': sorted(set(kinds)), 'target_host': target_host,
-                      'external': bool(target_host and target_host != host), 'method': form.get('method', 'get').lower()[:10]})
+                      'external': bool(target_host and target_host != host), 'method': str(form.get('method') or 'get').lower()[:10]})
     # Some frameworks create their forms at runtime; do not call absence safe.
     for anchor in soup.find_all('a', href=True, limit=500):
         target = _target(base, anchor['href'])
@@ -79,7 +80,8 @@ def extract(html, url):
             fingerprints.append(hashlib.sha256(script.string.encode()).hexdigest())
     favicon = None
     for link in soup.find_all('link', href=True, limit=100):
-        if 'icon' in ' '.join(link.get('rel', [])):
+        rel: Any = link.get('rel') or []
+        if 'icon' in ' '.join([rel] if isinstance(rel, str) else rel):
             favicon = _target(base, link['href'])
             break
     source = str(soup)

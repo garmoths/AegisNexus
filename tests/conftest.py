@@ -21,9 +21,10 @@ for key in ('GEMINI_API_KEY', 'GROQ_API_KEY', 'OPENAI_API_KEY', 'VIRUSTOTAL_API_
 
 @pytest.fixture(scope='session', autouse=True)
 def initialize_test_schema():
-    import app.models  # noqa: F401
-    from app.database import Base, engine
-    Base.metadata.create_all(engine)
+    # Build the shared test database through the real migrations, like ./run.sh does.
+    from app.database import engine
+    from app.migrations import upgrade_to_head
+    upgrade_to_head(engine)
     yield
     engine.dispose()
 

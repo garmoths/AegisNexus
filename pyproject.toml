@@ -49,6 +49,7 @@ ignore = [
 
 [tool.ruff.lint.isort]
 known-first-party = ["app", "modules", "shared"]
+known-third-party = ["alembic"]
 
 [tool.mypy]
 python_version = "3.12"
@@ -59,3 +60,8 @@ warn_redundant_casts = true
 no_implicit_optional = true
 check_untyped_defs = true
 plugins = ["pydantic.mypy"]
+
+# Gradual typing: app/ is type-checked; the large detector modules are not yet.
+[[tool.mypy.overrides]]
+module = ["modules.*"]
+ignore_errors = true

@@ -8,13 +8,13 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.database import Base, engine
+from app.database import engine
 from app.discovery.router import operator, router
 
 
 def local_operator(request: Request):
     try:
-        local = ipaddress.ip_address(request.client.host).is_loopback
+        local = request.client is not None and ipaddress.ip_address(request.client.host).is_loopback
     except (ValueError, AttributeError):
         local = False
     if not local or request.url.hostname not in ('localhost', '127.0.0.1', '::1'):
@@ -29,8 +29,8 @@ def local_operator(request: Request):
 
 @asynccontextmanager
 async def lifespan(app):
-    import app.models  # noqa: F401
-    Base.metadata.create_all(engine)
+    from app.migrations import upgrade_to_head
+    upgrade_to_head(engine)
     stop = threading.Event()
     def loop():
         from app.discovery.tasks import tick

@@ -152,8 +152,8 @@ def logout(request: Request, response: Response, api_key: APIKey = Depends(resol
 
 
 @router.get('/me')
-def me(api_key: APIKey = Depends(resolve_api_key), db: Session = Depends(get_db)):
-    user = db.get(User, api_key.user_id)
+def me(api_key: APIKey = Depends(resolve_api_key)):
+    user = api_key.user
     return {'email': user.email, 'full_name': user.full_name, 'role': user.role.value}
 
 
@@ -195,7 +195,7 @@ def recovery_complete(body: RecoveryComplete, db: Session = Depends(get_db)):
         db.rollback()
         raise HTTPException(400, 'Kod zaten kullanıldı.')
     user = db.get(User, token.user_id)
-    if not user.is_active:
+    if user is None or not user.is_active:
         raise HTTPException(403, 'Hesap pasif.')
     keys = db.query(APIKey).filter_by(user_id=user.id).all()
     ids = [key.id for key in keys]

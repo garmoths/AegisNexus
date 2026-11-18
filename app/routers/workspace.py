@@ -1,5 +1,6 @@
 """Owned feedback, watchlists, notifications and operational evidence."""
 from datetime import UTC, datetime
+from typing import Any
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -129,7 +130,7 @@ def read_notification(notification_id: int, key: APIKey = Depends(resolve_api_ke
 @router.get('/system/operations')
 def operations(key: APIKey = Depends(require_admin), db: Session = Depends(get_db)):
     from app.celery_app import celery_app
-    broker = {'available': False, 'queues': {}}
+    broker: dict[str, Any] = {'available': False, 'queues': {}}
     try:
         with celery_app.connection_for_read(connect_timeout=2) as connection:
             connection.ensure_connection(max_retries=0)

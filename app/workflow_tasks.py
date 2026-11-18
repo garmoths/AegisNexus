@@ -2,6 +2,7 @@
 import hashlib
 import json
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from celery.signals import heartbeat_sent, task_failure, task_postrun, task_prerun
 
@@ -60,7 +61,7 @@ def deliver_outbox():
         try:
             with SessionLocal() as db:
                 entry = db.get(EventOutbox, event_id)
-                if entry.processed_at:
+                if entry is None or entry.processed_at:
                     continue
                 try:
                     publish(entry.event, entry.payload, strict=True)
@@ -89,6 +90,8 @@ def check_watchlist():
         try:
             with SessionLocal() as db:
                 item = db.get(WatchItem, item_id)
+                if item is None:
+                    continue
                 try:
                     if item.kind != 'domain':
                         raise ValueError('source_unavailable')
@@ -97,7 +100,7 @@ def check_watchlist():
                             IndicatorOfCompromise.ioc_type.in_(['domain', 'url']),
                             IndicatorOfCompromise.ioc_value.contains(item.value)).limit(2000).all()
                         hits = [c for c in candidates if (urlsplit(c.ioc_value if '://' in c.ioc_value else 'https://' + c.ioc_value).hostname or '').lower().rstrip('.') == item.value]
-                        result = {'risk_score': max([c.risk_score for c in hits], default=0), 'indicators': sorted(c.ioc_value_hash or str(c.id) for c in hits)}
+                        result: dict[str, Any] = {'risk_score': max([c.risk_score for c in hits], default=0), 'indicators': sorted(c.ioc_value_hash or str(c.id) for c in hits)}
                         # No feed observation is unknown, not a clean domain.
                         if db.query(IndicatorOfCompromise.id).filter(
                             IndicatorOfCompromise.last_seen >= datetime.now(UTC) - timedelta(hours=48)

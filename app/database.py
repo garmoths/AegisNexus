@@ -7,7 +7,7 @@ bir dosyada (app/runtime_store.py → data/runtime.db) durur.
 import pathlib
 
 from sqlalchemy import create_engine, event
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from app.config import get_settings
 
@@ -28,7 +28,11 @@ def sqlite_pragmas(connection, _):
 
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
+
+
+class Base(DeclarativeBase):
+    """Declarative base for every ORM model."""
+
 
 
 def get_db():

@@ -1,30 +1,24 @@
+"""Alembic environment. The database URL comes from DATABASE_URL via app.config,
+unless a caller (e.g. the test-suite) sets ``sqlalchemy.url`` explicitly."""
 from logging.config import fileConfig
 
-from dotenv import load_dotenv
+from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from alembic import context
-
-load_dotenv()
+import app.models  # noqa: F401  (registers every table on Base.metadata)
+from app.config import get_settings
+from app.database import Base
 
 config = context.config
 
-from app.database import SQLALCHEMY_DATABASE_URL  # noqa: E402 — tek kaynak: DATABASE_URL
+if not config.get_main_option('sqlalchemy.url'):
+    config.set_main_option('sqlalchemy.url', get_settings().database_url)
 
-config.set_main_option("sqlalchemy.url", SQLALCHEMY_DATABASE_URL)
-
-if config.config_file_name is not None:
+if config.config_file_name is not None and config.attributes.get('configure_logging', True):
     fileConfig(config.config_file_name)
-
-from app.database import Base
-from app.models import *  # noqa: F401,F403 — tüm modelleri yükle
 
 target_metadata = Base.metadata
 
-# other values from the config, defined by the needs of env.py,
-# can be acquired:
-# my_important_option = config.get_main_option("my_important_option")
-# ... etc.
 
 
 def run_migrations_offline() -> None:

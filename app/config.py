@@ -176,5 +176,5 @@ def get_settings() -> Settings:
     global _cached
     fingerprint = hash(frozenset(os.environ.items()))
     if _cached is None or _cached[0] != fingerprint:
-        _cached = (fingerprint, Settings(_env_file=_env_file()))  # type: ignore[call-arg]
+        _cached = (fingerprint, Settings(_env_file=_env_file()))
     return _cached[1]

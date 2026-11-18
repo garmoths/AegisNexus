@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
-from app.database import Base, engine
+from app.database import engine
 from app.discovery.router import router as discovery_router
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.routers.admin import router as admin_router
@@ -32,12 +32,12 @@ logger = logging.getLogger("aegis")
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    try:
-        Base.metadata.create_all(bind=engine)
-        logger.info("Aegis Nexus - Güvenlik Platformu hazır")
-    except Exception as e:
-        logger.error("Veritabanı başlatılamadı: %s", e)
-        raise
+    from app.migrations import current_revision, head_revision
+    current, head = current_revision(engine), head_revision()
+    if current != head:
+        logger.warning("Database schema is at %s, expected %s. Run `make migrate` (./run.sh does this).", current, head)
+    else:
+        logger.info("Aegis Nexus - Güvenlik Platformu hazır (schema %s)", head)
 
     # Event Bus: Modüller arası listener'ları kaydet
     try:
@@ -116,9 +116,12 @@ def ready():
             connection.execute(text('SELECT id FROM users LIMIT 1'))
         with runtime_store.connection() as connection:
             connection.execute('SELECT 1')
-    except Exception:
-        raise HTTPException(503, 'Veri deposu hazır değil.')
-    return {'status': 'ready', 'database': True, 'runtime_store': True}
+    except Exception as exc:
+        raise HTTPException(503, 'Veri deposu hazır değil.') from exc
+    from app.migrations import is_up_to_date
+    if not is_up_to_date(engine):
+        raise HTTPException(503, 'Veritabanı şeması güncel değil; migration çalıştırın.')
+    return {'status': 'ready', 'database': True, 'runtime_store': True, 'schema': 'current'}
 
 
 @app.get("/app")

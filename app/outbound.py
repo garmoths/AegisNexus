@@ -38,7 +38,7 @@ def validate_url(url, *, resolve=True):
                 addresses = [ipaddress.ip_address(r[4][0]) for r in socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)]
             except socket.gaierror as exc:
                 raise UnsafeTarget('Alan adı çözümlenemedi.') from exc
-    if any(not address.is_global or (getattr(address, 'ipv4_mapped', None) and not address.ipv4_mapped.is_global) for address in addresses):
+    if any(not address.is_global or _mapped_private(address) for address in addresses):
         raise UnsafeTarget('Yerel, ayrılmış ve özel ağ adreslerine izin verilmez.')
     if resolve and not addresses:
         raise UnsafeTarget('Adres çözümlenemedi.')
@@ -49,10 +49,16 @@ def validate_url(url, *, resolve=True):
     return normalized, host, port, str(addresses[0]) if addresses else None
 
 
+def _mapped_private(address: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    """IPv4-mapped IPv6 (::ffff:10.0.0.1) must be judged by the embedded IPv4 address."""
+    mapped = getattr(address, 'ipv4_mapped', None)
+    return mapped is not None and not mapped.is_global
+
+
 def safe_request(method, url, *, headers=None, data=None, json_body=None, timeout=8, allow_redirects=True, max_bytes=2_000_000):
     """Validate every redirect; connect to the validated IP while retaining TLS SNI."""
     started = time.monotonic()
-    history = []
+    history: list[str] = []
     body = json.dumps(json_body).encode() if json_body is not None else data
     for _ in range(6):
         normalized, host, port, address = validate_url(url)
