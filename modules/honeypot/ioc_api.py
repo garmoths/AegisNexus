@@ -20,13 +20,13 @@ from pydantic import BaseModel, Field
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
+from app.database import get_db
 from app.models import IndicatorOfCompromise
 from modules.phishing_detector.threat_intel import (
     check_hash_malwarebazaar,
     check_ioc_threatfox,
     check_ip_shodan,
 )
-from shared.utils.db import get_db
 
 from . import service
 

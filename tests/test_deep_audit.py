@@ -2,8 +2,6 @@
 from unittest.mock import MagicMock
 
 import pytest
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
 
 
 def test_malformed_sms_url_is_an_indicator_not_a_crash():
@@ -24,20 +22,6 @@ def test_url_checker_accepts_modern_tld_and_uses_real_hostname():
     assert checker.check_url('https://spring.example')['risk_score'] == 0
     assert checker.check_url('https://google.gov.evil.example')['risk_score'] >= 40
     assert checker.check_url('https://google.com:443')['risk_score'] == 0
-
-
-def test_contact_does_not_claim_delivery_without_a_delivery_channel():
-    from app.routers.contact import router
-    app = FastAPI()
-    app.include_router(router)
-    response = TestClient(app).post('/api/contact', json={'name': 'User', 'email': 'test@example.com', 'message': 'A private message for support.'})
-    assert response.status_code == 503
-
-
-
-
-
-
 
 
 def redirect_pool(monkeypatch, location):

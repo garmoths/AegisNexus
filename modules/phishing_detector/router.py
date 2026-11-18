@@ -13,8 +13,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.auth import require_admin, resolve_api_key, resolve_optional_api_key
+from app.database import get_db
 from app.models import APIKey
-from shared.utils.db import get_db
 
 from . import service
 from .cache_db import get_phishing_stats, get_threat_type_distribution

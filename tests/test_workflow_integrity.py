@@ -25,16 +25,14 @@ def environment(tmp_path, monkeypatch):
     import app.middleware.rate_limit as limiter
     from app.main import app
     monkeypatch.setattr(limiter, 'SessionLocal', sessions)
-    for module_name in ('app.database', 'shared.utils.db', 'app.workflow_tasks'):
+    for module_name in ('app.database', 'app.workflow_tasks'):
         monkeypatch.setattr(importlib.import_module(module_name), 'SessionLocal', sessions)
     # Tarayıcının ham sqlite bağlantısı da aynı geçici veritabanını kullansın.
     monkeypatch.setattr(importlib.import_module('modules.phishing_detector.cache_db'), '_db_path', lambda: tmp_path / 'main.db')
     def db_override():
         with sessions() as db:
             yield db
-    import shared.utils.db as shared_db
     app.dependency_overrides[get_db] = db_override
-    app.dependency_overrides[shared_db.get_db] = db_override
     client = TestClient(app)
     def account(email='owner@example.com', role=UserRole.free):
         with sessions() as db:

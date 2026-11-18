@@ -21,7 +21,6 @@ from app.middleware.rate_limit import RateLimitMiddleware
 from app.observability import RequestContextMiddleware, configure_logging
 from app.routers.admin import router as admin_router
 from app.routers.auth import router as auth_router
-from app.routers.contact import router as contact_router
 from app.routers.reports import router as reports_router
 from app.routers.workspace import router as workspace_router
 from modules import ai_analyzer_router, honeypot_router, phishing_detector_router, sms_guard_router
@@ -43,7 +42,6 @@ ROUTERS = [
     (reports_router, "/api/v2/reports"),
     (admin_router, "/api/v2/admin"),
     (workspace_router, "/api/v2"),
-    (contact_router, ""),
     (discovery_router, ""),
 ]
 

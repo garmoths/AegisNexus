@@ -26,8 +26,8 @@ def _on_url_phishing_confirmed(payload: dict[str, Any]) -> None:
     if not url:
         return
     try:
+        from app.database import SessionLocal
         from app.models import PhishingURL
-        from shared.utils.db import SessionLocal
 
         db = SessionLocal()
         try:
@@ -67,8 +67,8 @@ def _on_honeypot_ioc_collected(payload: dict[str, Any]) -> None:
     if not ioc_value:
         return
     try:
+        from app.database import SessionLocal
         from app.models import IndicatorOfCompromise
-        from shared.utils.db import SessionLocal
 
         db = SessionLocal()
         try:

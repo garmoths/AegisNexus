@@ -8,7 +8,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from shared.utils.db import get_db
+from app.database import get_db
 
 from .service import SMSAnalyzeRequest, SMSAnalyzeResponse, _analyze_sms
 

@@ -48,7 +48,7 @@ ignore = [
 "modules/phishing_detector/build_logo_db.py" = ["T201"]  # interactive CLI
 
 [tool.ruff.lint.isort]
-known-first-party = ["app", "modules", "shared"]
+known-first-party = ["app", "modules"]
 known-third-party = ["alembic"]
 
 [tool.mypy]

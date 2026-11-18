@@ -825,7 +825,7 @@ def fetch_all_sources(db: Session) -> dict[str, Any]:
 
 
 if __name__ == "__main__":
-    from shared.utils.db import SessionLocal
+    from app.database import SessionLocal
 
     db = SessionLocal()
     try:
