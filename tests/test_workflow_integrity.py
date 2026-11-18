@@ -174,7 +174,7 @@ def test_private_history_and_reports_do_not_cross_accounts(environment):
 def test_job_lifecycle_and_final_history(environment,monkeypatch):
     client,sessions,account=environment
     owner,raw=account()
-    rt=importlib.import_module('modules.phishing_detector.router')
+    rt=importlib.import_module('modules.phishing_detector.service')
     scanner=importlib.import_module('modules.phishing_detector.scanner')
     tasks=importlib.import_module('modules.phishing_detector.celery_tasks')
     monkeypatch.setattr(rt,'run_quick_checks',lambda *a:{'definitive':False,'score':50,'sources':[]})
@@ -313,7 +313,7 @@ def test_real_worker_consumes_queued_job_and_api_observes_completion(environment
     from app.celery_app import celery_app
     client,_,account=environment
     _,raw=account()
-    rt=importlib.import_module('modules.phishing_detector.router')
+    rt=importlib.import_module('modules.phishing_detector.service')
     scanner=importlib.import_module('modules.phishing_detector.scanner')
     monkeypatch.setattr(rt,'run_quick_checks',lambda *a:{'definitive':False,'score':50,'sources':[]})
     monkeypatch.setattr(scanner,'calculate_safety_score',lambda *a:{'safety_score':20,'risk_level':'high','sources':[]})

@@ -11,7 +11,10 @@ from app.models import APIKey, RecoveryToken, User, UserRole, UserSession
 
 ADMIN_ONLY = [
     ('post', '/api/v2/phishing/fetch-all', None),
-    ('post', '/api/v2/phishing/update-db', None),
+    ('post', '/api/v2/phishing/cleanup', None),
+    ('get', '/api/v2/phishing/cleanup/analyze', None),
+    ('get', '/api/v2/phishing/cache-health', None),
+    ('get', '/api/v2/phishing/skipped-urls', None),
     ('post', '/api/v2/phishing/add-site', {'url': 'https://x.example', 'target': 'x', 'status': 'online'}),
     ('get', '/api/v2/admin/users', None),
     ('get', '/api/v2/system/operations', None),
@@ -49,7 +52,7 @@ def test_admin_endpoints_reject_non_admin_roles(client, method, path, body, role
 
 def test_admin_role_is_accepted(client):
     _, key = make_user(UserRole.admin)
-    assert client.post('/api/v2/phishing/update-db', headers={'X-API-Key': key}).status_code == 200
+    assert client.post('/api/v2/phishing/cleanup', params={'dry_run': True}, headers={'X-API-Key': key}).status_code == 200
 
 
 def test_admin_cannot_remove_own_admin_role(client):

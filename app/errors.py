@@ -27,6 +27,43 @@ ERROR_CODES = {
 }
 
 
+class AppError(Exception):
+    """Raised by service code; mapped to the standard envelope without HTTP imports in services."""
+
+    status = 500
+    code: str | None = None
+
+    def __init__(self, message: str, *, code: str | None = None):
+        super().__init__(message)
+        self.message = message
+        if code:
+            self.code = code
+
+
+class BadRequest(AppError):
+    status = 400
+
+
+class NotFound(AppError):
+    status = 404
+
+
+class Conflict(AppError):
+    status = 409
+
+
+class Unprocessable(AppError):
+    status = 422
+
+
+class ServiceUnavailable(AppError):
+    status = 503
+
+
+class UpstreamError(AppError):
+    status = 502
+
+
 def error_body(status: int, detail: Any, code: str | None = None) -> dict[str, Any]:
     return {'detail': detail,
             'error': {'code': code or ERROR_CODES.get(status, 'error'), 'status': status, 'request_id': request_id_var.get()}}
@@ -40,6 +77,10 @@ async def _http_exception(_request: Request, exc: StarletteHTTPException) -> JSO
     return error_response(exc.status_code, exc.detail, headers=getattr(exc, 'headers', None))
 
 
+async def _app_error(_request: Request, exc: AppError) -> JSONResponse:
+    return error_response(exc.status, exc.message, exc.code)
+
+
 async def _validation_exception(_request: Request, exc: RequestValidationError) -> JSONResponse:
     return error_response(422, exc.errors())
 
@@ -47,4 +88,5 @@ async def _validation_exception(_request: Request, exc: RequestValidationError) 
 def install_error_handlers(app: FastAPI) -> None:
     app.add_exception_handler(StarletteHTTPException, _http_exception)  # type: ignore[arg-type]
     app.add_exception_handler(RequestValidationError, _validation_exception)  # type: ignore[arg-type]
+    app.add_exception_handler(AppError, _app_error)  # type: ignore[arg-type]
     # Unhandled exceptions become this same 500 shape in RequestContextMiddleware.
