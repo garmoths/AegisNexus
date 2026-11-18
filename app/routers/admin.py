@@ -1,6 +1,5 @@
 """Admin endpoint'leri — toplu sınıflandırma, kullanıcı yönetimi, rol değiştirme.
 
-POST /api/v2/admin/classify           — Gemini ile toplu sınıflandırma
 GET  /api/v2/admin/users              — Kullanıcı listesi
 PATCH /api/v2/admin/users/{user_id}   — Kullanıcı rol değiştirme
 """
@@ -47,9 +46,12 @@ def list_users(page: int = 1, limit: int = 50, api_key: APIKey = Depends(require
 
 @router.patch("/users/{user_id}", summary="Kullanıcı rol değiştirme (admin)")
 def change_user_role(user_id: int, body: RoleChangeRequest, api_key: APIKey = Depends(require_admin), db: Session = Depends(get_db)):
-    user = db.query(User).get(user_id)
+    user = db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı.")
+    if user.id == api_key.user_id and body.role != UserRole.admin:
+        # Prevents the last operator from locking everyone out by accident.
+        raise HTTPException(status_code=409, detail="Kendi yönetici rolünüzü kaldıramazsınız.")
 
     old_role = user.role.value
     user.role = body.role

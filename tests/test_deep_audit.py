@@ -40,19 +40,6 @@ def test_contact_does_not_claim_delivery_without_a_delivery_channel():
 
 
 
-@pytest.mark.parametrize('key', ['CHANGE_ME_LONG_RANDOM_VALUE', 'YOUR_ADMIN_KEY', 'REPLACE_ME'])
-def test_template_admin_keys_cannot_authorize_requests(monkeypatch, key):
-    from fastapi import HTTPException
-
-    from app.security import require_admin_api_key
-    monkeypatch.setenv('ADMIN_API_KEY', key)
-    with pytest.raises(HTTPException) as exc:
-        require_admin_api_key(key)
-    assert exc.value.status_code == 503
-
-
-
-
 def redirect_pool(monkeypatch, location):
     import socket
 

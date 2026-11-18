@@ -14,13 +14,15 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.models import HoneypotEvent, IndicatorOfCompromise
-from app.security import require_admin_api_key
 from shared.utils.db import get_db
 
 from .engine import honeypot_engine
 from .ioc_collector import IOCCollectorEngine
 
 logger = logging.getLogger(__name__)
+
+from app.auth import require_admin
+from app.models import APIKey
 
 router = APIRouter(tags=["02-honeypot"])
 ioc_engine = IOCCollectorEngine()
@@ -455,7 +457,7 @@ class IOCFilterRequest(BaseModel):
 async def fetch_external_iocs(
     req: IOCCollectorFetchRequest,
     db: Session = Depends(get_db),
-    _: None = Depends(require_admin_api_key),
+    _: APIKey = Depends(require_admin),
 ):
     """
     Fetch IOCs from external threat intelligence sources.

@@ -67,6 +67,7 @@ celery_app.conf.update(
         "discovery-tick": {"task": "app.discovery.tasks.tick", "schedule": 10.0, "options": {"queue": "phishing"}},
         'outbox-delivery': {'task': 'app.workflow_tasks.deliver_outbox', 'schedule': 30.0},
         'watchlist-check': {'task': 'app.workflow_tasks.check_watchlist', 'schedule': 3600.0},
+        'purge-expired-credentials': {'task': 'app.workflow_tasks.purge_expired_credentials', 'schedule': crontab(minute=15, hour=3)},
 
         # ── Honeypot / IOC ────────────────────────────────────────────────
         "ioc-refresh": {

@@ -9,7 +9,7 @@ from celery.signals import heartbeat_sent, task_failure, task_postrun, task_prer
 from app import runtime_store as store
 from app.celery_app import celery_app
 from app.database import SessionLocal
-from app.models import EventOutbox, IndicatorOfCompromise, UserNotification, UserReport, WatchItem
+from app.models import EventOutbox, IndicatorOfCompromise, RecoveryToken, UserNotification, UserReport, UserSession, WatchItem
 
 
 @celery_app.task(name='app.workflow_tasks.runtime_probe')
@@ -138,3 +138,16 @@ def generate_report_pdf(self, report_id: int):
             report.pdf_status = 'failed'
             db.commit()
             raise
+
+
+@celery_app.task(name='app.workflow_tasks.purge_expired_credentials')
+def purge_expired_credentials():
+    """Delete expired login sessions and expired or redeemed recovery tokens."""
+    now = datetime.now(UTC)
+    with SessionLocal() as db:
+        sessions = db.query(UserSession).filter(UserSession.expires_at <= now).delete(synchronize_session=False)
+        tokens = db.query(RecoveryToken).filter(
+            (RecoveryToken.expires_at <= now) | RecoveryToken.used_at.isnot(None)
+        ).delete(synchronize_session=False)
+        db.commit()
+    return {'sessions': sessions, 'recovery_tokens': tokens}

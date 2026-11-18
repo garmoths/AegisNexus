@@ -38,7 +38,6 @@ class Settings(BaseSettings):
     # ── Application ───────────────────────────────────────────────────────
     demo_mode: bool = False
     cors_allow_origins: CsvList = ['http://localhost:8000', 'http://localhost:5173']
-    admin_api_key: str = ''
     log_level: str = 'INFO'
     log_format: str = Field('text', description='"text" for humans, "json" for log shippers')
 
@@ -150,11 +149,6 @@ class Settings(BaseSettings):
         return value
 
     # ── Derived values ────────────────────────────────────────────────────
-    @property
-    def admin_api_key_configured(self) -> bool:
-        key = self.admin_api_key.strip()
-        return bool(key) and not key.upper().startswith(('CHANGE_ME', 'YOUR_', 'REPLACE_ME'))
-
     @property
     def recovery_mail_enabled(self) -> bool:
         return bool(self.smtp_host and self.smtp_from)

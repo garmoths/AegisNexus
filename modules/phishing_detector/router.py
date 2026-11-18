@@ -12,10 +12,9 @@ from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from app import runtime_store as store
-from app.auth import resolve_api_key, resolve_optional_api_key
+from app.auth import require_admin, resolve_api_key, resolve_optional_api_key
 from app.models import APIKey, PhishingURL, PrivateScan
 from app.outbound import UnsafeTarget, validate_url
-from app.security import require_admin_api_key
 from shared.utils.db import get_db
 
 from .cache_db import (
@@ -60,7 +59,7 @@ class URLCheckResponse(BaseModel):
 def add_site(
     item: SiteAddRequest,
     db: Session = Depends(get_db),
-    _: None = Depends(require_admin_api_key),
+    _: APIKey = Depends(require_admin),
 ):
     """Yeni phishing sitesi ekle"""
     if not item.url or not item.target:
@@ -327,7 +326,7 @@ def search_urls(url: str, limit: int = 20, page: int = 1, db: Session = Depends(
 @router.post("/update-db")
 def update_phishtank_database(
     db: Session = Depends(get_db),
-    _: None = Depends(require_admin_api_key),
+    _: APIKey = Depends(require_admin),
 ):
     """Deprecated: Lokal PhishTank import kaldirildi."""
     return {
@@ -343,7 +342,7 @@ def update_phishtank_database(
 @router.post("/fetch-all")
 def fetch_all_phishing_data(
     db: Session = Depends(get_db),
-    _: None = Depends(require_admin_api_key),
+    _: APIKey = Depends(require_admin),
 ):
     """Tum kaynaklardan phishing verileri cek (GitHub, OpenPhish, URLHaus, Kaggle, CertStream, OTX)"""
     try:

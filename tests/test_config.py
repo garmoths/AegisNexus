@@ -47,8 +47,3 @@ def test_settings_follow_environment_changes(monkeypatch):
 def test_non_sqlite_database_is_rejected():
     with pytest.raises(ValidationError):
         Settings(_env_file=None, database_url='postgresql://localhost/aegis')
-
-
-@pytest.mark.parametrize('value, expected', [('', False), ('CHANGE_ME_LONG', False), ('s3cr3t-value', True)])
-def test_admin_key_placeholder_detection(value, expected):
-    assert Settings(_env_file=None, admin_api_key=value).admin_api_key_configured is expected

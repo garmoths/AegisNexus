@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
 
-from app.auth import _hash_key, generate_api_key, resolve_api_key
+from app.auth import generate_api_key, hash_secret, resolve_api_key
 from app.config import get_settings
 from app.database import get_db
 from app.models import APIKey, RecoveryToken, User, UserRole, UserSession
@@ -95,7 +95,7 @@ def login(body: LoginRequest, response: Response, request: Request, db: Session 
             detail="Kullanıcı bulunamadı veya hesap pasif.",
         )
 
-    key_hash = _hash_key(body.api_key)
+    key_hash = hash_secret(body.api_key)
     api_key = db.query(APIKey).filter_by(
         user_id=user.id, key_hash=key_hash, is_active=True
     ).first()
@@ -109,7 +109,7 @@ def login(body: LoginRequest, response: Response, request: Request, db: Session 
     db.commit()
 
     token = secrets.token_urlsafe(48)
-    db.add(UserSession(token_hash=_hash_key(token), api_key_id=api_key.id, expires_at=datetime.now(UTC) + timedelta(hours=24)))
+    db.add(UserSession(token_hash=hash_secret(token), api_key_id=api_key.id, expires_at=datetime.now(UTC) + timedelta(hours=24)))
     db.commit()
     response.set_cookie('aegis_session', token, httponly=True, secure=request.url.scheme == 'https', samesite='strict', max_age=86400, path='/')
     return LoginResponse(email=user.email, role=user.role.value, is_active=user.is_active)
@@ -143,7 +143,7 @@ def rotate_key(api_key: APIKey = Depends(resolve_api_key), db: Session = Depends
 def logout(request: Request, response: Response, api_key: APIKey = Depends(resolve_api_key), db: Session = Depends(get_db)):
     token = request.cookies.get('aegis_session')
     if token:
-        db.query(UserSession).filter_by(token_hash=_hash_key(token)).delete()
+        db.query(UserSession).filter_by(token_hash=hash_secret(token)).delete()
     else:
         api_key.is_active = False
     db.commit()
@@ -173,7 +173,7 @@ def recovery_request(body: RecoveryRequest, db: Session = Depends(get_db)):
     if user:
         from app.mailer import send_recovery
         token = secrets.token_urlsafe(48)
-        entry = RecoveryToken(user_id=user.id, token_hash=_hash_key(token), expires_at=datetime.now(UTC) + timedelta(minutes=15))
+        entry = RecoveryToken(user_id=user.id, token_hash=hash_secret(token), expires_at=datetime.now(UTC) + timedelta(minutes=15))
         db.add(entry)
         try:
             send_recovery(body.email, token)
@@ -187,7 +187,7 @@ def recovery_request(body: RecoveryRequest, db: Session = Depends(get_db)):
 @router.post('/recovery/complete')
 def recovery_complete(body: RecoveryComplete, db: Session = Depends(get_db)):
     now = datetime.now(UTC)
-    token = db.query(RecoveryToken).filter(RecoveryToken.token_hash == _hash_key(body.token), RecoveryToken.used_at.is_(None), RecoveryToken.expires_at > now).first()
+    token = db.query(RecoveryToken).filter(RecoveryToken.token_hash == hash_secret(body.token), RecoveryToken.used_at.is_(None), RecoveryToken.expires_at > now).first()
     if token is None:
         raise HTTPException(400, 'Kurtarma kodu geçersiz veya süresi dolmuş.')
     # Conditional UPDATE also makes simultaneous redemption single-use.
