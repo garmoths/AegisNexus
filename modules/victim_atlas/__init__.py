@@ -1,8 +1,1 @@
-"""
-07 - Victim Atlas Module
-Human-centered cyber victimization archive and defense guidance.
-"""
-
-from .router import router
-
-__all__ = ["router"]
+"""Olay bildirimi analizi (Gemini) ve rapor PDF görevi."""

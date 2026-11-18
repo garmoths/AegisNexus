@@ -1,154 +1,120 @@
-"""Kullanıcı rapor endpoint'leri — Gemini analiz, rapor listesi, PDF indirme.
-
-POST /api/v2/reports/analyze  — Kullanıcı metni → Gemini analiz
-GET  /api/v2/reports           — Kullanıcının kendi raporları
-GET  /api/v2/reports/{id}/pdf  — PDF indir (free: ayda 3, premium: sınırsız)
-"""
+"""Private reports, actionable cases and quota-accounted PDF exports."""
 from datetime import datetime, timezone
 from pathlib import Path
+import os
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import FileResponse
+from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlalchemy.orm import Session
-
-from app.auth import resolve_api_key, require_premium_or_above
+from app.auth import resolve_api_key
 from app.database import get_db
-from app.models import APIKey, UserReport, UserRole
+from app.models import APIKey, UserReport, UserRole, PDFDownload, EventOutbox
+from app import runtime_store as store
 
-router = APIRouter(tags=["reports"])
-
-
-class AnalyzeRequest(BaseModel):
-    description: str
-
-class AnalyzeResponse(BaseModel):
-    id: int
-    attack_type: str | None = None
-    risk_score: int | None = None
-    protection_plan: str | None = None
-    ai_analysis: dict | None = None
-    message: str
-
-
-# ── PDF quota ─────────────────────────────────────────────
-
+router = APIRouter(tags=['reports'])
 FREE_MONTHLY_PDF_QUOTA = 3
 
 
-def _check_pdf_quota(api_key: APIKey, db: Session) -> bool:
-    if api_key.role in (UserRole.premium, UserRole.corporate, UserRole.admin):
-        return True
-    now = datetime.now(timezone.utc)
-    month_key = f"{now.year}-{now.month:02d}"
-    used = (
-        db.query(func.count(UserReport.id))
-        .filter(
-            UserReport.user_id == api_key.user_id,
-            UserReport.report_quota_month == month_key,
-            UserReport.pdf_path.isnot(None),
-        )
-        .scalar()
-    )
-    return used < FREE_MONTHLY_PDF_QUOTA
+class AnalyzeRequest(BaseModel):
+    description: str = Field(min_length=10, max_length=20000)
 
 
-# ── Endpoint'ler ──────────────────────────────────────────
+class ReportPatch(BaseModel):
+    status: str = Field(pattern='^(open|in_progress|resolved)$')
+    completed_steps: list[int] = Field(default_factory=list, max_length=30)
 
-@router.post("/analyze", response_model=AnalyzeResponse, summary="Kullanıcı anlatımını Gemini ile analiz et")
+
+def serialize(report):
+    return {'id': report.id, 'user_description': report.user_description,
+            'attack_type': (report.ai_analysis or {}).get('attack_type'),
+            'risk_score': (report.ai_analysis or {}).get('risk_score'),
+            'protection_plan': report.protection_plan, 'ai_analysis': report.ai_analysis,
+            'status': report.status, 'action_steps': report.action_steps,
+            'pdf_status': report.pdf_status, 'has_pdf': bool(report.pdf_path),
+            'created_at': report.created_at.isoformat() if report.created_at else None}
+
+
+def owned(report_id, key, db):
+    report = db.query(UserReport).filter_by(id=report_id, user_id=key.user_id).first()
+    if report is None:
+        raise HTTPException(404, 'Rapor bulunamadı.')
+    return report
+
+
+@router.post('/analyze')
 def analyze_report(body: AnalyzeRequest, api_key: APIKey = Depends(resolve_api_key), db: Session = Depends(get_db)):
-    """Kullanıcının anlattığı olayı Gemini analiz eder, korunma planı üretir."""
     try:
         from modules.victim_atlas.gemini_service import analyze_user_report
         result = analyze_user_report(body.description)
-    except ImportError:
-        result = {
-            "attack_type": "unknown",
-            "risk_score": 50,
-            "protection_plan": "Gemini servisi henüz yapılandırılmadı. Lütfen daha sonra tekrar deneyin.",
-            "ai_analysis": {},
-        }
-    except Exception as e:
-        result = {
-            "attack_type": "error",
-            "risk_score": 0,
-            "protection_plan": f"Analiz sırasında hata oluştu: {str(e)[:200]}",
-            "ai_analysis": {"error": str(e)},
-        }
-
-    now = datetime.now(timezone.utc)
-    report = UserReport(
-        user_id=api_key.user_id,
-        user_description=body.description,
-        ai_analysis=result.get("ai_analysis"),
-        protection_plan=result.get("protection_plan"),
-        report_quota_month=f"{now.year}-{now.month:02d}",
-    )
+    except Exception:
+        raise HTTPException(503, 'Analiz kaynağı kullanılamıyor. Lütfen daha sonra tekrar deneyin.')
+    # Keep the structured fields as well as raw model evidence; list/detail use the same schema.
+    analysis = {**result.get('ai_analysis', {}), **{k: v for k, v in result.items() if k != 'ai_analysis'}}
+    steps = [line.strip() for line in (result.get('protection_plan') or '').splitlines() if line.strip()]
+    report = UserReport(user_id=api_key.user_id, user_description=body.description, ai_analysis=analysis,
+                        protection_plan=result.get('protection_plan'), action_steps=[{'text': step, 'done': False} for step in steps[:30]],
+                        pdf_status='pending')
     db.add(report)
+    db.flush()
+    db.add(EventOutbox(event='report.pdf_requested', payload={'report_id': report.id}))
     db.commit()
-
-    return AnalyzeResponse(
-        id=report.id,
-        attack_type=result.get("attack_type"),
-        risk_score=result.get("risk_score"),
-        protection_plan=result.get("protection_plan"),
-        ai_analysis=result.get("ai_analysis"),
-        message="Analiz tamamlandı.",
-    )
+    return {**serialize(report), 'message': 'Analiz kaydedildi. PDF hazırlanıyor.'}
 
 
-@router.get("/", summary="Kullanıcının raporlarını listele")
-def list_reports(page: int = 1, limit: int = 20, api_key: APIKey = Depends(resolve_api_key), db: Session = Depends(get_db)):
-    offset = (max(1, page) - 1) * min(limit, 100)
-    reports = (
-        db.query(UserReport)
-        .filter_by(user_id=api_key.user_id)
-        .order_by(UserReport.created_at.desc())
-        .offset(offset)
-        .limit(limit)
-        .all()
-    )
-    total = db.query(func.count(UserReport.id)).filter_by(user_id=api_key.user_id).scalar()
-    return {
-        "data": [
-            {
-                "id": r.id,
-                "user_description": r.user_description[:200],
-                "attack_type": (r.ai_analysis or {}).get("attack_type"),
-                "risk_score": (r.ai_analysis or {}).get("risk_score"),
-                "protection_plan": r.protection_plan[:200] if r.protection_plan else None,
-                "has_pdf": bool(r.pdf_path),
-                "created_at": r.created_at.isoformat() if r.created_at else None,
-            }
-            for r in reports
-        ],
-        "page": page,
-        "total": total,
-    }
+@router.get('/')
+def list_reports(page: int = Query(1, ge=1), limit: int = Query(20, ge=1, le=100), api_key: APIKey = Depends(resolve_api_key), db: Session = Depends(get_db)):
+    query = db.query(UserReport).filter_by(user_id=api_key.user_id)
+    return {'data': [serialize(r) for r in query.order_by(UserReport.created_at.desc()).offset((page-1)*limit).limit(limit).all()],
+            'total': query.count(), 'page': page}
 
 
-@router.get("/{report_id}/pdf", summary="Rapor PDF indir")
+@router.get('/{report_id}')
+def report_detail(report_id: int, api_key: APIKey = Depends(resolve_api_key), db: Session = Depends(get_db)):
+    return serialize(owned(report_id, api_key, db))
+
+
+@router.patch('/{report_id}')
+def update_report(report_id: int, body: ReportPatch, api_key: APIKey = Depends(resolve_api_key), db: Session = Depends(get_db)):
+    report = owned(report_id, api_key, db)
+    if any(i < 0 or i >= len(report.action_steps or []) for i in body.completed_steps):
+        raise HTTPException(422, 'Geçersiz aksiyon adımı.')
+    report.status = body.status
+    report.action_steps = [{**step, 'done': i in body.completed_steps} for i, step in enumerate(report.action_steps or [])]
+    db.commit()
+    return serialize(report)
+
+
+def _check_pdf_quota(api_key, db):
+    if api_key.role in (UserRole.premium, UserRole.corporate, UserRole.admin):
+        return True
+    month = datetime.now(timezone.utc).strftime('%Y-%m')
+    return db.query(PDFDownload).filter_by(user_id=api_key.user_id, month=month).count() < FREE_MONTHLY_PDF_QUOTA
+
+
+@router.get('/{report_id}/pdf')
 def download_pdf(report_id: int, api_key: APIKey = Depends(resolve_api_key), db: Session = Depends(get_db)):
-    report = db.query(UserReport).filter_by(id=report_id, user_id=api_key.user_id).first()
-    if not report:
-        raise HTTPException(status_code=404, detail="Rapor bulunamadı.")
-
-    if not _check_pdf_quota(api_key, db):
-        raise HTTPException(
-            status_code=429,
-            detail=f"Ücretsiz plan için aylık PDF limiti ({FREE_MONTHLY_PDF_QUOTA}) doldu. Premium'a geçin.",
-        )
-
-    if not report.pdf_path:
-        # PDF henüz üretilmemişse stub döner
-        raise HTTPException(
-            status_code=404,
-            detail="PDF henüz üretilmedi. Lütfen bir süre sonra tekrar deneyin.",
-        )
-
-    pdf_file = Path(report.pdf_path)
-    if not pdf_file.exists():
-        raise HTTPException(status_code=404, detail="PDF dosyası bulunamadı.")
-
-    from fastapi.responses import FileResponse
-    return FileResponse(pdf_file, media_type="application/pdf", filename=f"rapor_{report_id}.pdf")
+    report = owned(report_id, api_key, db)
+    # A short cross-process lease prevents concurrent free exports exceeding the quota.
+    lease = 'pdf-export:' + str(api_key.user_id)
+    if not store.claim(lease, True, 60):
+        raise HTTPException(409, 'Başka bir PDF işlemi sürüyor.')
+    try:
+        month = datetime.now(timezone.utc).strftime('%Y-%m')
+        previous = db.query(PDFDownload).filter_by(user_id=api_key.user_id, report_id=report_id, month=month).first()
+        if previous is None and not _check_pdf_quota(api_key, db):
+            raise HTTPException(429, 'Aylık 3 farklı PDF dışa aktarma sınırı doldu.')
+        directory = Path(os.getenv('PDF_OUTPUT_DIR', str(Path(__file__).resolve().parents[2] / 'data/reports'))).resolve()
+        path = Path(report.pdf_path).resolve() if report.pdf_path else None
+        if path is None or not path.is_relative_to(directory) or not path.exists() or path.read_bytes()[:5] != b'%PDF-':
+            from app.pdf_reports import generate_pdf
+            report.pdf_path = generate_pdf(report)
+            report.pdf_status = 'ready'
+            path = Path(report.pdf_path)
+        if previous is None:
+            db.add(PDFDownload(user_id=api_key.user_id, report_id=report_id, month=month))
+        db.commit()
+        return FileResponse(path, media_type='application/pdf', filename=f'rapor_{report_id}.pdf')
+    finally:
+        store.delete(lease)

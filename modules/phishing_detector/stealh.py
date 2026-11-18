@@ -20,6 +20,9 @@ DEFAULT_USER_AGENT = (
 CHROMIUM_LAUNCH_ARGS: tuple[str, ...] = (
     "--no-sandbox",
     "--disable-dev-shm-usage",
+    "--disable-quic",
+    "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
+    "--disable-features=WebTransport",
     "--disable-blink-features=AutomationControlled",
     "--disable-infobars",
     "--window-size=1280,800",
@@ -143,6 +146,7 @@ async def launch_chromium_for_takedown(
 ) -> AsyncBrowser:
     """Launch Chromium with anti-automation launch flags."""
     return await playwright.chromium.launch(
+        **_local_browser_options(),
         headless=headless,
         args=list(CHROMIUM_LAUNCH_ARGS),
         ignore_default_args=list(IGNORE_DEFAULT_ARGS),
@@ -152,10 +156,17 @@ async def launch_chromium_for_takedown(
 def launch_chromium_sync(playwright: SyncPlaywright, *, headless: bool) -> SyncBrowser:
     """Sync Chromium launch (screenshot pool)."""
     return playwright.chromium.launch(
+        **_local_browser_options(),
         headless=headless,
         args=list(CHROMIUM_LAUNCH_ARGS),
         ignore_default_args=list(IGNORE_DEFAULT_ARGS),
     )
+
+
+def _local_browser_options():
+    import os
+    executable = os.getenv('AEGIS_CHROMIUM_PATH')
+    return {'executable_path': executable} if executable else {}
 
 
 async def new_stealth_browser_context(
@@ -211,6 +222,7 @@ def new_stealth_browser_context_sync(
     fingerprint: bool = False,
     extra_init_scripts: Sequence[str] | None = None,
     ignore_https_errors: bool = False,
+    service_workers: str = "block",
 ) -> SyncBrowserContext:
     """Sync :func:`new_stealth_browser_context` — used by ``playwright_pool``."""
     vp = viewport or DEFAULT_VIEWPORT
@@ -225,6 +237,7 @@ def new_stealth_browser_context_sync(
         color_scheme="light",
         java_script_enabled=True,
         ignore_https_errors=ignore_https_errors,
+        service_workers=service_workers,
     )
     context.add_init_script(_STEALTH_INIT_SCRIPT)
     if fingerprint:

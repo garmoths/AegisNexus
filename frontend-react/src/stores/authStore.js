@@ -1,28 +1,11 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
 
-const useAuthStore = create(
-  persist(
-    (set, get) => ({
-      apiKey: null,
-      role: null,
-      email: null,
-      fullName: null,
-
-      setAuth: ({ apiKey, role, email, fullName }) =>
-        set({ apiKey, role, email, fullName }),
-
-      logout: () =>
-        set({ apiKey: null, role: null, email: null, fullName: null }),
-
-      isAuthenticated: () => !!get().apiKey,
-
-      isPremium: () => ['premium', 'corporate', 'admin'].includes(get().role),
-      isCorporate: () => ['corporate', 'admin'].includes(get().role),
-      isAdmin: () => get().role === 'admin',
-    }),
-    { name: 'aegis-auth' }
-  )
-)
-
+// Credentials live only in the server's HttpOnly cookie, never in browser storage.
+const useAuthStore = create((set, get) => ({
+  role: null, email: null, fullName: null, ready: false,
+  setAuth: ({role,email,fullName,full_name}) => set({role,email,fullName:fullName || full_name || '',ready:true}),
+  logout: () => set({role:null,email:null,fullName:null,ready:true}),
+  isAuthenticated: () => !!get().email,
+  isAdmin: () => get().role === 'admin',
+}))
 export default useAuthStore

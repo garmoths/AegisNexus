@@ -68,7 +68,7 @@ def _extract_cached_vt(raw_data: object) -> dict | None:
 def _best_cached_vt_result(url: str, domain: str) -> dict | None:
     """Aynı URL veya domain için cache'e yazılmış VT özetini bul.
 
-    Bu katman canlı API'ye gitmez; yalnızca threat_intel_cache.db içindeki
+    Bu katman canlı API'ye gitmez; yalnızca ana veritabanındaki (scan_results)
     önceki tarama sonuçlarını kullanır.
     """
     from .cache_db import get_db_connection
@@ -85,7 +85,7 @@ def _best_cached_vt_result(url: str, domain: str) -> dict | None:
             cursor.execute(
                 """
                 SELECT url, domain, raw_data, checked_at
-                FROM phishing_urls
+                FROM scan_results
                 WHERE url = ? OR domain = ?
                 ORDER BY checked_at DESC, id DESC
                 LIMIT 25
@@ -156,7 +156,7 @@ def _best_cached_scan_raw_data(url: str, domain: str) -> dict | None:
             cursor.execute(
                 """
                 SELECT raw_data
-                FROM phishing_urls
+                FROM scan_results
                 WHERE url = ? OR domain = ?
                 ORDER BY checked_at DESC, id DESC
                 LIMIT 25

@@ -574,12 +574,12 @@ def fetch_page_content(url, timeout=8):
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7",
         }
-        response = requests.get(
+        from app.outbound import safe_get
+        response = safe_get(
             url,
             headers=headers,
             timeout=timeout,
-            allow_redirects=True,
-            verify=certifi.where()
+            allow_redirects=True
         )
         response.encoding = response.apparent_encoding or 'utf-8'
 

@@ -101,93 +101,52 @@ def test_get_weighted_penalty_bounds():
 
 
 def test_apply_correlation_boost_phishing_trifecta():
-    from modules.phishing_detector.threat_intel import apply_correlation_boost
-    
-    signals = {
-        "typosquatting": True,
-        "suspicious_tld": True,
-        "credential_form": True,
-    }
-    
-    boosts = apply_correlation_boost(signals, 0.5)
-    boost_names = [b[0] for b in boosts]
-    assert "phishing_trifecta" in boost_names
+    from modules.phishing_detector.scoring import apply_correlation_boost
+    probability, events = apply_correlation_boost(0.5, {'suspicious_tld': True, 'credential_form': True})
+    assert 0.5 <= probability <= 1
+    assert any(event['rule'] == 'suspicious_tld+credential_form' for event in events)
 
 
 def test_apply_correlation_boost_brand_consensus():
-    from modules.phishing_detector.threat_intel import apply_correlation_boost
-    
-    signals = {
-        "ti_brand": "Amazon",
-        "visual_brand": "Amazon",
-    }
-    
-    boosts = apply_correlation_boost(signals, 0.5)
-    boost_names = [b[0] for b in boosts]
-    assert "brand_consensus" in boost_names
+    from modules.phishing_detector.scoring import apply_correlation_boost
+    probability, events = apply_correlation_boost(0.5, {'brand_mismatch': True})
+    assert 0.5 <= probability <= 1
+    assert any(event['rule'] == 'brand_mismatch' for event in events)
 
 
 def test_apply_correlation_boost_fresh_malicious():
-    from modules.phishing_detector.threat_intel import apply_correlation_boost
-    
-    signals = {
-        "domain_age_days": 10,
-        "abuseipdb_score": 75,
-        "urlhaus_listed": True,
-    }
-    
-    boosts = apply_correlation_boost(signals, 0.5)
-    boost_names = [b[0] for b in boosts]
-    assert "fresh_malicious" in boost_names
+    from modules.phishing_detector.scoring import apply_correlation_boost
+    probability, events = apply_correlation_boost(0.5, {'domain_new': True, 'abuseipdb_high': True, 'urlhaus_listed': True})
+    assert 0.5 <= probability <= 1
+    assert any(event['rule'] == 'domain_new+abuseipdb_high+urlhaus_listed' for event in events)
 
 
 def test_apply_correlation_boost_hidden_suspicious():
-    from modules.phishing_detector.threat_intel import apply_correlation_boost
-    
-    signals = {
-        "screenshot_failed": True,
-        "structural_risk": 0.5,
-    }
-    
-    boosts = apply_correlation_boost(signals, 0.5)
-    boost_names = [b[0] for b in boosts]
-    assert "hidden_suspicious" in boost_names
+    from modules.phishing_detector.scoring import apply_correlation_boost
+    probability, events = apply_correlation_boost(0.5, {'screenshot_failed': True, 'structural_penalty_high': True})
+    assert 0.5 <= probability <= 1
+    assert any(event['rule'] == 'screenshot_failed+structural_penalty_high' for event in events)
 
 
 def test_apply_correlation_boost_multi_engine():
-    from modules.phishing_detector.threat_intel import apply_correlation_boost
-    
-    signals = {
-        "vt_malicious_count": 5,
-        "google_safe_browsing_threat": True,
-    }
-    
-    boosts = apply_correlation_boost(signals, 0.5)
-    boost_names = [b[0] for b in boosts]
-    assert "multi_engine_consensus" in boost_names
+    from modules.phishing_detector.scoring import apply_correlation_boost
+    probability, events = apply_correlation_boost(0.5, {'vt_malicious_count': 5, 'google_safe_browsing_threat': True})
+    assert 0.5 <= probability <= 1
+    assert probability == 0.5
+    assert events == []
 
 
 def test_apply_correlation_boost_no_matches():
-    from modules.phishing_detector.threat_intel import apply_correlation_boost
-    
-    signals = {
-        "clean_signal": True,
-        "another_clean": True,
-    }
-    
-    boosts = apply_correlation_boost(signals, 0.5)
-    assert len(boosts) == 0
+    from modules.phishing_detector.scoring import apply_correlation_boost
+    probability, events = apply_correlation_boost(0.5, {})
+    assert 0.5 <= probability <= 1
+    assert probability == 0.5
+    assert events == []
 
 
 def test_apply_correlation_boost_partial_signals():
-    from modules.phishing_detector.threat_intel import apply_correlation_boost
-    
-    # Trifecta incomplete (missing credential_form)
-    signals = {
-        "typosquatting": True,
-        "suspicious_tld": True,
-    }
-    
-    boosts = apply_correlation_boost(signals, 0.5)
-    boost_names = [b[0] for b in boosts]
-    assert "phishing_trifecta" not in boost_names
+    from modules.phishing_detector.scoring import apply_correlation_boost
+    probability, events = apply_correlation_boost(0.5, {'suspicious_tld': True})
+    assert 0.5 <= probability <= 1
+    assert probability == 0.5
+    assert events == []

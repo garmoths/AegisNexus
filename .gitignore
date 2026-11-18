@@ -23,10 +23,15 @@ frontend-react/dist/
 # ── Çalışma-zamanı veri/cache dosyaları ──────────────────────────
 *.db
 *.db-journal
+*.db-wal
+*.db-shm
 *.sqlite
 *.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3
+*.sqlite3-*
 data/
-threat_intel_cache.db
 celerybeat-schedule
 celerybeat-schedule.*
 *.log
@@ -65,3 +70,9 @@ backup*.sql*
 *.part.*
 *.sql.gz*
 hibp_cache.db
+
+# Generated live-test reports
+tests/phishtank_results_*.json
+
+# Standalone discovery console build
+frontend-react/dist-crawler/

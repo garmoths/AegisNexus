@@ -4,12 +4,12 @@ from datetime import datetime, timedelta, timezone
 def test_screenshot_failed_penalty_thresholds():
     from modules.phishing_detector.threat_intel import _screenshot_failed_penalty
 
-    assert _screenshot_failed_penalty(0) == 0
-    assert _screenshot_failed_penalty(19) == 0
-    assert _screenshot_failed_penalty(20) == 8
-    assert _screenshot_failed_penalty(49) == 8
-    assert _screenshot_failed_penalty(50) == 18
-    assert _screenshot_failed_penalty(100) == 18
+    assert _screenshot_failed_penalty(0) == 10
+    assert _screenshot_failed_penalty(19) == 10
+    assert _screenshot_failed_penalty(20) == 15
+    assert _screenshot_failed_penalty(49) == 15
+    assert _screenshot_failed_penalty(50) == 20
+    assert _screenshot_failed_penalty(100) == 20
 
 
 def test_domain_age_penalty_very_new_domain(monkeypatch):

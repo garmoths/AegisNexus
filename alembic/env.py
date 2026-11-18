@@ -1,5 +1,4 @@
 from logging.config import fileConfig
-import os
 from dotenv import load_dotenv
 
 from sqlalchemy import engine_from_config
@@ -11,10 +10,8 @@ load_dotenv()
 
 config = context.config
 
-# Override sqlalchemy.url from DATABASE_URL env var
-db_url = os.getenv("VICTIM_ATLAS_DATABASE_URL") or os.getenv("DATABASE_URL")
-if db_url:
-    config.set_main_option("sqlalchemy.url", db_url)
+from app.database import SQLALCHEMY_DATABASE_URL  # noqa: E402 — tek kaynak: DATABASE_URL
+config.set_main_option("sqlalchemy.url", SQLALCHEMY_DATABASE_URL)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
@@ -48,6 +45,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        render_as_batch=True,
     )
 
     with context.begin_transaction():
@@ -69,7 +67,7 @@ def run_migrations_online() -> None:
 
     with connectable.connect() as connection:
         context.configure(
-            connection=connection, target_metadata=target_metadata
+            connection=connection, target_metadata=target_metadata, render_as_batch=True
         )
 
         with context.begin_transaction():

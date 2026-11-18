@@ -13,6 +13,7 @@ from contextlib import contextmanager
 from unittest.mock import MagicMock, patch, PropertyMock
 
 import pytest
+import threading
 
 
 # ── Yardımcı mock'lar ────────────────────────────────────────────────────────
@@ -52,46 +53,46 @@ class TestPlaywrightPool:
 
     def test_is_healthy_false_when_not_initialized(self, monkeypatch):
         import modules.phishing_detector.playwright_pool as pool
-        monkeypatch.setattr(pool, "_browser", None)
+        monkeypatch.setattr(pool, "_thread_resources", {})
         assert pool.is_healthy() is False
 
     def test_is_healthy_true_when_connected(self, monkeypatch):
         import modules.phishing_detector.playwright_pool as pool
         mock_browser = _make_mock_browser(healthy=True)
-        monkeypatch.setattr(pool, "_browser", mock_browser)
+        monkeypatch.setattr(pool, "_thread_resources", {threading.get_ident(): (MagicMock(), mock_browser)})
         assert pool.is_healthy() is True
 
     def test_is_healthy_false_when_disconnected(self, monkeypatch):
         import modules.phishing_detector.playwright_pool as pool
         mock_browser = _make_mock_browser(healthy=False)
-        monkeypatch.setattr(pool, "_browser", mock_browser)
+        monkeypatch.setattr(pool, "_thread_resources", {threading.get_ident(): (MagicMock(), mock_browser)})
         assert pool.is_healthy() is False
 
     def test_close_pool_clears_state(self, monkeypatch):
         import modules.phishing_detector.playwright_pool as pool
         mock_browser = _make_mock_browser()
         mock_pw = MagicMock()
-        monkeypatch.setattr(pool, "_browser", mock_browser)
-        monkeypatch.setattr(pool, "_playwright_handle", mock_pw)
+        monkeypatch.setattr(pool, "_thread_resources", {threading.get_ident(): (MagicMock(), mock_browser)})
+        pool._thread_resources[threading.get_ident()] = (mock_pw, mock_browser)
         monkeypatch.setattr(pool, "_initialized", True)
 
         pool.close_pool()
 
         mock_browser.close.assert_called_once()
         mock_pw.stop.assert_called_once()
-        assert pool._browser is None
-        assert pool._playwright_handle is None
+        assert threading.get_ident() not in pool._thread_resources
+        assert not pool._thread_resources
         assert pool._initialized is False
 
     def test_close_pool_tolerates_exception(self, monkeypatch):
         import modules.phishing_detector.playwright_pool as pool
         mock_browser = MagicMock()
         mock_browser.close.side_effect = Exception("crash")
-        monkeypatch.setattr(pool, "_browser", mock_browser)
-        monkeypatch.setattr(pool, "_playwright_handle", None)
+        monkeypatch.setattr(pool, "_thread_resources", {threading.get_ident(): (MagicMock(), mock_browser)})
+        pool._thread_resources[threading.get_ident()] = (None, mock_browser)
         # Hata fırlatmamalı
         pool.close_pool()
-        assert pool._browser is None
+        assert threading.get_ident() not in pool._thread_resources
 
     def test_init_pool_launches_browser(self, monkeypatch):
         import modules.phishing_detector.playwright_pool as pool
@@ -135,14 +136,14 @@ class TestPlaywrightPool:
         import modules.phishing_detector.playwright_pool as pool
         mock_browser = _make_mock_browser()
         mock_browser.new_context.side_effect = Exception("browser crashed")
-        monkeypatch.setattr(pool, "_browser", mock_browser)
+        monkeypatch.setattr(pool, "_thread_resources", {threading.get_ident(): (MagicMock(), mock_browser)})
         monkeypatch.setattr(pool, "_ensure_browser", lambda: mock_browser)
 
         with pytest.raises(Exception, match="browser crashed"):
             with pool.acquire_browser_context():
                 pass
 
-        assert pool._browser is None
+        assert threading.get_ident() not in pool._thread_resources
 
     def test_ensure_browser_relaunches_if_disconnected(self, monkeypatch):
         import modules.phishing_detector.playwright_pool as pool
@@ -154,9 +155,9 @@ class TestPlaywrightPool:
             launched.append(True)
             return new_browser
 
-        monkeypatch.setattr(pool, "_browser", dead_browser)
-        monkeypatch.setattr(pool, "_playwright_handle", None)
-        monkeypatch.setattr(pool, "_launch", fake_launch)
+        monkeypatch.setattr(pool, "_thread_resources", {threading.get_ident(): (MagicMock(), dead_browser)})
+        pool._thread_resources[threading.get_ident()] = (None, dead_browser)
+        monkeypatch.setattr(pool, "_launch_for_current_thread", fake_launch)
 
         result = pool._ensure_browser()
         assert result is new_browser
@@ -243,7 +244,7 @@ class TestCacheHealthPoolStatus:
             "redis_health": lambda: {"available": True},
         })
         import modules.phishing_detector.playwright_pool as pool
-        monkeypatch.setattr(pool, "_browser", _make_mock_browser(healthy=True))
+        monkeypatch.setattr(pool, "_thread_resources", {threading.get_ident(): (MagicMock(), _make_mock_browser(healthy=True))})
         try:
             result = rt.get_cache_health()
         finally:
@@ -257,7 +258,7 @@ class TestCacheHealthPoolStatus:
             "redis_health": lambda: {"available": True},
         })
         import modules.phishing_detector.playwright_pool as pool
-        monkeypatch.setattr(pool, "_browser", None)
+        monkeypatch.setattr(pool, "_thread_resources", {})
         try:
             result = rt.get_cache_health()
         finally:

@@ -5,6 +5,7 @@ import ssl
 import socket
 import logging
 import requests
+from app.outbound import safe_get, validate_url
 from urllib.parse import urlparse
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
@@ -433,7 +434,8 @@ def check_ssl_certificate(domain):
         ctx = ssl.create_default_context()
         with ctx.wrap_socket(socket.socket(), server_hostname=domain) as s:
             s.settimeout(8)
-            s.connect((domain, 443))
+            _, _, _, address = validate_url("https://" + domain)
+            s.connect((address, 443))
             cert = s.getpeercert()
 
             # Sertifika geçerlilik tarihi
@@ -457,7 +459,7 @@ def check_ssl_certificate(domain):
 def check_redirect_chain(url):
     """URL yönlendirme zincirini kontrol eder."""
     try:
-        resp = requests.get(url, timeout=8, allow_redirects=True)
+        resp = safe_get(url, timeout=8, allow_redirects=True)
         chain = resp.history
         final_url = resp.url
         return {
@@ -599,21 +601,6 @@ def run_quick_checks(input_url: str, db: Session = None) -> dict:
     if not raw_domain:
         raw_domain = domain
 
-    # ── Katman 0+: Resmi Türk TLD — anlık güven ─────────
-    _tr_tld = check_official_tr_tld(domain)
-    if _tr_tld:
-        return {
-            "url": input_url, "safety_score": 100, "score": 100,
-            "risk_level": "✅ Güvenli",
-            "details": [
-                f"✅ Resmi Türk devlet/kurum TLD'si tespit edildi: {_tr_tld['tld']}",
-                f"   {_tr_tld['label']}",
-                "   Bu TLD'ler BTK tarafından zorunlu kimlik doğrulamasıyla verilir.",
-            ],
-            "sources": [{"name": "Resmi TR TLD", "status": f"✅ {_tr_tld['label']}"}],
-            "risks": [], "definitive": True, "is_whitelisted": True,
-        }
-
     # ── Katman 1: Whitelist ──────────────────────────────
     is_whitelisted = False
     wl_info = check_whitelist(domain)
@@ -629,15 +616,6 @@ def run_quick_checks(input_url: str, db: Session = None) -> dict:
                     break
         if not is_whitelisted and "." not in raw_domain and raw_domain in WHITELIST_SHORT:
             is_whitelisted = True
-
-    if is_whitelisted:
-        return {
-            "url": input_url, "safety_score": 100, "score": 100,
-            "risk_level": "✅ Güvenli",
-            "details": ["✅ Güvenilir site listesinde mevcut."],
-            "sources": [{"name": "Whitelist", "status": "✅ Doğrulanmış"}],
-            "risks": [], "definitive": True, "is_whitelisted": True,
-        }
 
     # ── Katman 2: Internal DB ────────────────────────────
     if db:
@@ -706,7 +684,7 @@ def run_quick_checks(input_url: str, db: Session = None) -> dict:
         "risks": [],
         "definitive": False,
         "preliminary_score": preliminary_score,
-        "is_whitelisted": False,
+        "is_whitelisted": is_whitelisted,
     }
 
 
@@ -715,13 +693,14 @@ def run_quick_checks(input_url: str, db: Session = None) -> dict:
 # =========================================================
 def calculate_safety_score(input_url, db: Session = None):
     # 0. URL DÜZENLEME
-    input_url = (input_url or "").strip().lower()
+    input_url = (input_url or "").strip()
     if not input_url:
         raise ValueError("URL boş olamaz")
 
     if not input_url.startswith(("http://", "https://")):
         input_url = "https://" + input_url
 
+    validate_url(input_url, resolve=False)
     normalized_input = normalize_url_record(input_url)
     check_url = normalized_input.get("canonical_url", input_url)
     domain_norm = normalized_input.get("domain_norm")
@@ -729,25 +708,6 @@ def calculate_safety_score(input_url, db: Session = None):
     parsed = urlparse(check_url)
     domain = (parsed.netloc or parsed.path or "").replace("www.", "")
     raw_domain = domain_norm or domain
-
-    # ---------------------------------------------------------
-    # 0+. KATMAN: RESMİ TÜRK TLD — ANLIK GÜVEN
-    # ---------------------------------------------------------
-    _tr_tld = check_official_tr_tld(domain)
-    if _tr_tld:
-        return {
-            "url": input_url, "safety_score": 100, "score": 100,
-            "risk_level": "✅ Güvenli",
-            "details": [
-                f"✅ Resmi Türk devlet/kurum TLD'si tespit edildi: {_tr_tld['tld']}",
-                f"   {_tr_tld['label']}",
-                "   Bu TLD'ler BTK tarafından zorunlu kimlik doğrulamasıyla verilir.",
-            ],
-            "sources": [{"name": "Resmi TR TLD", "status": f"✅ {_tr_tld['label']}"}],
-            "risks": [], "threat_intel": None,
-            "confidence": "high", "score_range": [95, 100],
-            "signal_count": 1, "scoring_model": SCORING_MODEL,
-        }
 
     # ---------------------------------------------------------
     # 1. KATMAN: GLOBAL WHITELIST (DATABASE VE BUILTIN)
@@ -782,7 +742,8 @@ def calculate_safety_score(input_url, db: Session = None):
     whitelist_info = None
     is_whitelisted = False
     if is_safe:
-        is_whitelisted = True
+        # Known identity is a signal; a page can still be compromised.
+        is_whitelisted = False
         whitelist_info = whitelist_info or {"category": "Verified", "company_name": "Trusted Site"}
 
     # ---------------------------------------------------------
@@ -891,7 +852,7 @@ def calculate_safety_score(input_url, db: Session = None):
     response = None
     for candidate_url in candidates:
         try:
-            response = requests.get(candidate_url, timeout=8, allow_redirects=True, headers=request_headers)
+            response = safe_get(candidate_url, timeout=8, allow_redirects=True, headers=request_headers)
             check_url = candidate_url
             http_status = response.status_code
             site_is_up = True

@@ -136,8 +136,11 @@ def acquire_browser_context(
             browser,
             viewport=vp,
             fingerprint=fingerprint,
-            ignore_https_errors=True,
+            ignore_https_errors=False,
+            service_workers="block",
         )
+        from app.outbound import guard_browser_context
+        guard_browser_context(context)
         yield context
     except Exception:
         # Browser çöktüyse mevcut thread kaynağını sıfırla — bir sonraki çağrıda yeniden başlatılır

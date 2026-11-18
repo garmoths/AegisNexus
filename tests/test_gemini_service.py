@@ -10,9 +10,6 @@ from modules.victim_atlas.gemini_service import (
     _extract_json,
     _parse_analysis,
     analyze_user_report,
-    classify_case,
-    generate_protection_card,
-    generate_weekly_digest,
 )
 
 
@@ -131,58 +128,10 @@ class TestAnalyzeUserReport(unittest.TestCase):
         mock_call.assert_called_once()
 
 
-class TestClassifyCase(unittest.TestCase):
-    @patch("modules.victim_atlas.gemini_service._call_gemini")
-    def test_classify_json(self, mock_call):
-        mock_call.return_value = MOCK_CLASSIFY_RESPONSE
-        result = classify_case("Sahte banka SMS'i ile dolandırıcılık")
-        self.assertEqual(result["attack_method"], "smishing")
-        self.assertEqual(result["severity"], 80)
-        self.assertIn("tags", result)
-
-    @patch("modules.victim_atlas.gemini_service._call_gemini")
-    def test_classify_fallback(self, mock_call):
-        mock_call.return_value = "Bu bir JSON değil, sadece metin."
-        result = classify_case("Herhangi bir metin")
-        self.assertEqual(result["attack_method"], "other")
-        self.assertEqual(result["severity"], 50)
 
 
-class TestWeeklyDigest(unittest.TestCase):
-    @patch("modules.victim_atlas.gemini_service._call_gemini")
-    def test_digest(self, mock_call):
-        mock_call.return_value = MOCK_DIGEST_RESPONSE
-        cases = [{"title": "Smishing vaka", "method": "smishing", "severity": 80}]
-        result = generate_weekly_digest(cases)
-        self.assertIn("siber dolandırıcılık", result)
-        mock_call.assert_called_once()
-
-    @patch("modules.victim_atlas.gemini_service._call_gemini")
-    def test_digest_empty_cases(self, mock_call):
-        mock_call.return_value = "Bu hafta kayıtlı vaka yok."
-        result = generate_weekly_digest([])
-        self.assertIn("vaka", result)
 
 
-class TestProtectionCard(unittest.TestCase):
-    @patch("modules.victim_atlas.gemini_service._call_gemini")
-    def test_card(self, mock_call):
-        mock_call.return_value = MOCK_PROTECTION_CARD
-        case = {
-            "case_title": "Smishing ile banka dolandırıcılığı",
-            "attack_method": "smishing",
-            "loss_type": "bank_account",
-            "target_platform": "mobile",
-            "severity_score": 85,
-            "confidence_score": 80,
-            "narrative_summary": "Kullanıcıya sahte SMS gönderildi",
-            "critical_warning": "SMS linklerine tıklamayın",
-            "region": "İstanbul",
-        }
-        result = generate_protection_card(case)
-        self.assertIn("card_text", result)
-        self.assertIn("KORUNMA KARTI", result["card_text"])
-        self.assertEqual(result["attack_method"], "smishing")
 
 
 if __name__ == "__main__":

@@ -1,30 +1,11 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { BrowserRouter, Navigate, Routes, Route } from 'react-router-dom'
+import { MotionGlobalConfig } from 'framer-motion'
+import RuntimeApp from './RuntimeApp.jsx'
+import AppErrorBoundary from './components/AppErrorBoundary.jsx'
 import './index.css'
-import App from './App.jsx'
-import ModulesApp from './ModulesApp.jsx'
-import AnalyzePage from './pages/AnalyzePage.jsx'
 
-// Route based on hostname
-const host = window.location.hostname.toLowerCase()
-const isModules = host === 'modules.your-domain.com' || host.startsWith('modules.')
+// Sade arayüz: tüm framer-motion animasyonları anında son haline geçer.
+MotionGlobalConfig.skipAnimations = true
 
-createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    {isModules ? (
-      <ModulesApp />
-    ) : (
-      <BrowserRouter>
-        <Routes>
-          {/* Original landing page — default */}
-          <Route path="/" element={<App />} />
-          <Route path="/analyze" element={<AnalyzePage />} />
-          {/* Local dev shortcut: localhost:5173/modules */}
-          <Route path="/modules" element={<ModulesApp />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </BrowserRouter>
-    )}
-  </StrictMode>,
-)
+createRoot(document.getElementById('root')).render(<StrictMode><AppErrorBoundary><RuntimeApp/></AppErrorBoundary></StrictMode>)

@@ -1,44 +1,38 @@
-from sqlalchemy import create_engine
-from sqlalchemy.orm import declarative_base, sessionmaker
-import os
-from dotenv import load_dotenv
+"""Tek veritabanı: SQLite (varsayılan data/aegis.db).
 
-# .env dosyasını yükle
+Tüm uygulama verisi ve tarayıcı önbelleği bu dosyada tutulur; şema app/models.py'de,
+sürüm geçmişi alembic/versions altındadır. Kısa ömürlü önbellek ve iş kilitleri ayrı
+bir dosyada (app/runtime_store.py → data/runtime.db) durur.
+"""
+import os
+import pathlib
+
+from dotenv import load_dotenv
+from sqlalchemy import create_engine, event
+from sqlalchemy.orm import declarative_base, sessionmaker
+
 load_dotenv()
 
-# Veritabanı bağlantı adresi
-# Öncelik: VICTIM_ATLAS_DATABASE_URL → DATABASE_URL → SQLite fallback (kişisel proje)
-SQLALCHEMY_DATABASE_URL = os.getenv(
-    "VICTIM_ATLAS_DATABASE_URL",
-    os.getenv("DATABASE_URL", "sqlite:///./data/aegis.db"),
-)
+SQLALCHEMY_DATABASE_URL = os.getenv('DATABASE_URL') or 'sqlite:///./data/aegis.db'
+if not SQLALCHEMY_DATABASE_URL.startswith('sqlite:///'):
+    raise RuntimeError('DATABASE_URL bir SQLite dosyası olmalı (örn. sqlite:///./data/aegis.db).')
 
-_is_sqlite = SQLALCHEMY_DATABASE_URL.startswith("sqlite")
+DB_FILE = pathlib.Path(SQLALCHEMY_DATABASE_URL.replace('sqlite:///', '', 1)).resolve()
+DB_FILE.parent.mkdir(parents=True, exist_ok=True)
 
-if _is_sqlite:
-    # SQLite: pool parametreleri desteklenmez, thread paylaşımı için check_same_thread=False
-    import pathlib
-    # SQLite dosyasının dizininin var olduğundan emin ol
-    if SQLALCHEMY_DATABASE_URL.startswith("sqlite:///"):
-        db_file = SQLALCHEMY_DATABASE_URL.replace("sqlite:///", "", 1)
-        if db_file and db_file != ":memory:":
-            pathlib.Path(db_file).parent.mkdir(parents=True, exist_ok=True)
-    engine = create_engine(
-        SQLALCHEMY_DATABASE_URL,
-        connect_args={"check_same_thread": False},
-    )
-else:
-    _pool_size = int(os.getenv("DB_POOL_SIZE", "5"))
-    _max_overflow = int(os.getenv("DB_MAX_OVERFLOW", "2"))
-    engine = create_engine(
-        SQLALCHEMY_DATABASE_URL,
-        pool_pre_ping=True,
-        pool_size=_pool_size,
-        max_overflow=_max_overflow,
-    )
+engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={'check_same_thread': False, 'timeout': 30})
 
-# Oturum oluşturucu
+
+@event.listens_for(engine, 'connect')
+def sqlite_pragmas(connection, _):
+    connection.execute('PRAGMA foreign_keys=ON')
+    connection.execute('PRAGMA journal_mode=WAL')
+    connection.execute('PRAGMA busy_timeout=30000')
+    connection.execute('PRAGMA synchronous=NORMAL')
+
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
 
 
 def get_db():
@@ -48,7 +42,3 @@ def get_db():
         yield db
     finally:
         db.close()
-
-
-# Modeller için temel sınıf
-Base = declarative_base()

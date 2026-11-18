@@ -518,7 +518,7 @@ async def fetch_external_iocs(
                     "risk_score": ioc.risk_score,
                     "source": ioc.source or "honeypot",
                     "created_at": datetime.now(timezone.utc).isoformat(),
-                })
+                }, durable=True)
         except Exception as _ev_err:
             logger.warning(f"Event publish failed (non-critical): {_ev_err}")
 

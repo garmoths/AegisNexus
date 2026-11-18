@@ -1,10 +1,4 @@
-"""Gemini AI servis katmanı — Victim Atlas için 4 ana fonksiyon.
-
-Fonksiyonlar:
-1. analyze_user_report — Kullanıcı anlatımını analiz et
-2. classify_case — Ham vaka metnini sınıflandır
-3. generate_weekly_digest — Haftalık bülten üret
-4. generate_protection_card — Kişiselleştirilmiş korunma kartı
+"""Gemini AI servis katmanı — olay bildirimi analizi (analyze_user_report).
 
 Özellikler:
 - Retry mekanizması (3 deneme, üstel geri çekilme)
@@ -16,15 +10,12 @@ import json
 import logging
 import os
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
 from google import genai
 from google.genai import types
 
 from .prompts.analyze_report import ANALYZE_REPORT_SYSTEM, ANALYZE_REPORT_USER
-from .prompts.classify_case import CLASSIFY_CASE_SYSTEM, CLASSIFY_CASE_USER
-from .prompts.protection_card import PROTECTION_CARD_SYSTEM, PROTECTION_CARD_USER
-from .prompts.weekly_digest import WEEKLY_DIGEST_SYSTEM, WEEKLY_DIGEST_USER
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +54,8 @@ def _call_gemini(system: str, user: str) -> str:
 
     for attempt in range(1, MAX_RETRIES + 1):
         try:
+            from app.ai_budget import reserve_ai_call
+            reserve_ai_call()
             response = client.models.generate_content(
                 model=GEMINI_MODEL,
                 contents=user,
@@ -178,85 +171,3 @@ def analyze_user_report(user_text: str) -> Dict[str, Any]:
     raw = _call_gemini(ANALYZE_REPORT_SYSTEM, prompt)
     return _parse_analysis(raw)
 
-
-def classify_case(raw_text: str) -> Dict[str, Any]:
-    """Ham vaka metnini Gemini ile sınıflandır.
-
-    Returns:
-        dict: attack_method, loss_type, severity, confidence, tags, region, critical_warning, narrative_summary
-    """
-    prompt = CLASSIFY_CASE_USER.format(raw_text=raw_text)
-    raw = _call_gemini(CLASSIFY_CASE_SYSTEM, prompt)
-    result = _extract_json(raw)
-
-    # Fallback: JSON parse başarısızsa varsayılan değerler
-    if not result:
-        result = {
-            "attack_method": "other",
-            "loss_type": "other",
-            "severity": 50,
-            "confidence": 40,
-            "tags": [],
-            "region": None,
-            "critical_warning": "Sınıflandırma yapılamadı.",
-            "narrative_summary": raw_text[:200],
-        }
-
-    # Tip dönüşümleri
-    for int_key in ("severity", "confidence"):
-        if int_key in result:
-            try:
-                result[int_key] = int(result[int_key])
-            except (ValueError, TypeError):
-                result[int_key] = 50
-
-    return result
-
-
-def generate_weekly_digest(cases: List[Dict[str, Any]]) -> str:
-    """Son haftanın vakalarından haftalık bülten üret.
-
-    Args:
-        cases: [{"title": ..., "method": ..., "severity": ...}, ...]
-
-    Returns:
-        str: 3 paragraf Türkçe bülten metni
-    """
-    cases_text = "\n".join(
-        f"- {c.get('title', 'Başlıksız')} | {c.get('method', '?')} | Şiddet: {c.get('severity', '?')}"
-        for c in cases[:20]
-    )
-    if not cases_text:
-        cases_text = "Bu hafta kayıtlı vaka bulunmuyor."
-
-    prompt = WEEKLY_DIGEST_USER.format(cases_text=cases_text)
-    return _call_gemini(WEEKLY_DIGEST_SYSTEM, prompt)
-
-
-def generate_protection_card(case: Dict[str, Any]) -> Dict[str, Any]:
-    """Vaka için kişiselleştirilmiş korunma kartı üret.
-
-    Args:
-        case: Vaka detay dict (case_title, attack_method, vb.)
-
-    Returns:
-        dict: card_text, attack_method, severity
-    """
-    prompt = PROTECTION_CARD_USER.format(
-        case_title=case.get("case_title", ""),
-        attack_method=case.get("attack_method", ""),
-        loss_type=case.get("loss_type", ""),
-        target_platform=case.get("target_platform", ""),
-        severity_score=case.get("severity_score", 50),
-        confidence_score=case.get("confidence_score", 50),
-        narrative_summary=case.get("narrative_summary", ""),
-        critical_warning=case.get("critical_warning", ""),
-        region=case.get("region") or "Belirtilmemiş",
-    )
-    card_text = _call_gemini(PROTECTION_CARD_SYSTEM, prompt)
-
-    return {
-        "card_text": card_text,
-        "attack_method": case.get("attack_method"),
-        "severity": case.get("severity_score"),
-    }

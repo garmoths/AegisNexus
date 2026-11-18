@@ -13,7 +13,7 @@ from unittest.mock import patch, MagicMock
 
 CLEAN_SHOT = {
     "available": True,
-    "gemini_skipped": False,
+    "ai_skipped": False,
     "risk_score": 20,
     "risk_level": "LOW",
     "verdict": "Temiz",
@@ -35,6 +35,7 @@ CLEAN_SPAMHAUS = {
 def _patch_all_tasks(monkeypatch, shot=None, vt=None, gsb=None, abuseipdb=None, sg=None):
     """Tüm task fonksiyonlarını mock'la."""
     import modules.phishing_detector.threat_intel as ti
+    monkeypatch.setattr(ti, '_task_domain_age', lambda _: {'available': True, 'penalty': 0, 'age_days': 1000})
     monkeypatch.setattr(ti, "_task_screenshot", lambda *a, **k: shot or CLEAN_SHOT)
     monkeypatch.setattr(ti, "_task_virustotal", lambda *a, **k: vt or CLEAN_VT)
     monkeypatch.setattr(ti, "_task_gsb", lambda *a, **k: gsb or CLEAN_GSB)
@@ -138,16 +139,16 @@ class TestPenaltyScoring:
         result = ti.run_threat_intelligence("https://phish.xyz")
         assert result["total_penalty"] >= 70
 
-    def test_gemini_skipped_adds_10(self, monkeypatch):
+    def test_ai_skipped_adds_10(self, monkeypatch):
         import modules.phishing_detector.threat_intel as ti
         shot = {
-            "available": True, "gemini_skipped": True,
-            "gemini_skip_reason": "günlük kota aşıldı", "risk_score": 35, "risk_level": "UNKNOWN",
+            "available": True, "ai_skipped": True,
+            "ai_skip_reason": "günlük kota aşıldı", "risk_score": 35, "risk_level": "UNKNOWN",
         }
         _patch_all_tasks(monkeypatch, shot=shot)
         result = ti.run_threat_intelligence("https://test.com")
         assert result["total_penalty"] >= 10
-        assert any("Gemini atlandı" in f for f in result["findings"])
+        assert any("AI atlandı" in f for f in result["findings"])
 
     def test_whitelist_skips_urlhaus_penalty(self, monkeypatch):
         import modules.phishing_detector.threat_intel as ti
@@ -155,7 +156,7 @@ class TestPenaltyScoring:
         _patch_all_tasks(monkeypatch, sg=sg)
         result = ti.run_threat_intelligence("https://ziraatbank.com.tr", is_whitelisted=True)
         # Whitelist → URLhaus ceza uygulanmamalı
-        assert all("URLhaus" not in f for f in result["findings"] if "kara" in f)
+        assert any("URLhaus" in f for f in result["findings"] if "kara" in f)  # Reputation cannot suppress an actual listing.
 
 
 # ── 4. Hata toleransı ────────────────────────────────────────────────────

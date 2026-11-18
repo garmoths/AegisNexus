@@ -358,7 +358,7 @@ def fetch_certstream_data(session: Optional[requests.Session] = None) -> List[st
     if found:
         return list(found)
 
-    allow_generic = os.getenv("CERTSTREAM_ALLOW_GENERIC_DOMAINS", "1").strip().lower() in {"1", "true", "yes"}
+    allow_generic = os.getenv("CERTSTREAM_ALLOW_GENERIC_DOMAINS", "0").strip().lower() in {"1", "true", "yes"}
     if allow_generic and observed_domains:
         fallback = [f"http://{domain}" for domain in sorted(observed_domains)[:max_urls]]
         return fallback
@@ -510,8 +510,8 @@ def convert_to_phishtank_format(urls: List[str], source: str) -> List[Dict[str, 
                 "phish_id": f"{source}_{abs(hash(url)) % 1000000000}",
                 "url": url,
                 "phish_detail_url": url,
-                "status": "valid",
-                "online": True,
+                "status": "candidate",
+                "online": False,
                 "target": extract_target_from_url(url),
                 "submission_time": now,
                 "source": source,
@@ -570,6 +570,13 @@ def import_to_database(db: Session, entries: List[Dict[str, Any]], batch_size: i
                 continue
 
             url = entry.get("url", "")
+            if entry.get('status') == 'candidate':
+                from app.discovery.service import enqueue
+                _, created = enqueue(db, url, source=str(entry.get('source', 'feed')),
+                                     reason='Harici kaynak adayı; phishing olduğu doğrulanmadı')
+                added += int(created)
+                updated += int(not created)
+                continue
             if len(url) > _URL_MAX:
                 continue
 

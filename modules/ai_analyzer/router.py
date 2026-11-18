@@ -4,6 +4,8 @@ AI Analyzer API Router
 """
 import re
 from fastapi import APIRouter, Depends, HTTPException, Body
+from app.auth import resolve_api_key, resolve_optional_api_key
+from app.models import APIKey
 from pydantic import BaseModel, Field
 from typing import Optional, List, Literal
 from sqlalchemy.orm import Session
@@ -22,17 +24,17 @@ router = APIRouter(
 
 # Request/Response Models
 class MessageAnalysisRequest(BaseModel):
-    message: str = Field(..., description="Analiz edilecek mesaj/metin", min_length=10)
+    message: str = Field(..., description="Analiz edilecek mesaj/metin", min_length=10, max_length=20000)
     message_type: Literal["text", "email"] = Field("text", description="Mesaj tipi: text veya email")
     context: Optional[str] = Field(None, description="Geriye dönük uyumluluk için eski alan")
     sender: Optional[str] = Field(None, description="Geriye dönük uyumluluk için eski alan")
     subject: Optional[str] = Field(None, description="Geriye dönük uyumluluk için eski alan")
 
 class QuickScanRequest(BaseModel):
-    message: str = Field(..., description="Hızlı tarama için mesaj", min_length=5)
+    message: str = Field(..., description="Hızlı tarama için mesaj", min_length=5, max_length=20000)
 
 class URLCheckRequest(BaseModel):
-    url: str = Field(..., description="Kontrol edilecek URL")
+    url: str = Field(..., description="Kontrol edilecek URL", max_length=2048)
 
 class AnalysisResponse(BaseModel):
     analysis_id: str
@@ -54,7 +56,8 @@ def get_analyzer(db: Session = Depends(get_db)):
 @router.post("/analyze", response_model=AnalysisResponse)
 def analyze_message(
     request: MessageAnalysisRequest,
-    analyzer: AIAnalyzerEngine = Depends(get_analyzer)
+    analyzer: AIAnalyzerEngine = Depends(get_analyzer),
+    api_key: Optional[APIKey] = Depends(resolve_optional_api_key),
 ):
     """
     🔍 **Tam AI Analizi** (Advanced Hybrid Algorithm)
@@ -81,7 +84,7 @@ def analyze_message(
     logger = logging.getLogger(__name__)
 
     try:
-        logger.info(f"Analyzing message with advanced algorithm: {request.message[:50]}...")
+        logger.info("Analyzing message (%d characters, type=%s)", len(request.message), request.message_type)
 
         analysis_mode = request.message_type
         parsed_email = None
@@ -93,6 +96,7 @@ def analyze_message(
             analysis_message = parsed_email.body_text or request.message
             email_signals = parsed_email.email_signals
         
+        analyzer.url_checker.user_id = api_key.user_id if api_key else None
         # Extract URL from message if any
         url = None
         urls = re.findall(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', analysis_message)
@@ -202,7 +206,7 @@ def analyze_message(
                     "score": round(final_score, 2),
                     "source": "ai_analyzer",
                     "created_at": datetime.now(timezone.utc).isoformat(),
-                })
+                }, durable=True)
             except Exception as _ev_err:
                 logger.warning(f"Event publish failed (non-critical): {_ev_err}")
 
@@ -355,13 +359,14 @@ def get_analysis_examples():
 @router.get("/history")
 async def get_analiz_history(
     limit: int = 10,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    api_key: APIKey = Depends(resolve_api_key),
 ):
     """
     Son URL analizlerini getir.
     """
     try:
-        history = db.query(URLAnalizHistory).order_by(
+        history = db.query(URLAnalizHistory).filter(URLAnalizHistory.user_id == api_key.user_id).order_by(
             URLAnalizHistory.created_at.desc()
         ).limit(limit).all()
         
@@ -388,14 +393,16 @@ async def get_analiz_history(
 @router.get("/history/{history_id}")
 async def get_analiz_detail(
     history_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    api_key: APIKey = Depends(resolve_api_key),
 ):
     """
     Analiz detaylarını getir.
     """
     try:
         history = db.query(URLAnalizHistory).filter(
-            URLAnalizHistory.id == history_id
+            URLAnalizHistory.id == history_id,
+            URLAnalizHistory.user_id == api_key.user_id,
         ).first()
         
         if not history:

@@ -11,6 +11,9 @@ class TestAuthAPI(unittest.TestCase):
         from app.main import app
         cls.client = TestClient(app)
 
+    def setUp(self):
+        self.client.cookies.clear()
+
     def test_register_missing_email(self):
         r = self.client.post("/api/v2/auth/register", json={})
         self.assertEqual(r.status_code, 422)
@@ -84,34 +87,8 @@ class TestReportsAPI(unittest.TestCase):
         self.assertEqual(r.status_code, 401)
 
 
-class TestSubscriptionAPI(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        from app.main import app
-        cls.client = TestClient(app)
-
-    def test_me_without_key(self):
-        r = self.client.get("/api/v2/subscription/me")
-        self.assertEqual(r.status_code, 401)
-
-    def test_upgrade_without_key(self):
-        r = self.client.post("/api/v2/subscription/upgrade", json={"plan": "premium"})
-        self.assertEqual(r.status_code, 401)
 
 
-class TestCorporateAPI(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        from app.main import app
-        cls.client = TestClient(app)
-
-    def test_cases_without_key(self):
-        r = self.client.get("/api/v2/corporate/cases")
-        self.assertEqual(r.status_code, 401)
-
-    def test_stats_without_key(self):
-        r = self.client.get("/api/v2/corporate/stats")
-        self.assertEqual(r.status_code, 401)
 
 
 class TestAdminAPI(unittest.TestCase):

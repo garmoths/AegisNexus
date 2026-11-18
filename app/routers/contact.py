@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
@@ -17,9 +17,5 @@ class ContactForm(BaseModel):
 @router.post("/api/contact")
 @router.post("/api/v2/contact")
 def submit_contact(form: ContactForm):
-    """Mesaj sunucu günlüğüne yazılır; e-posta gönderimi yoktur (ileride SMTP eklenebilir)."""
-    logger.info("İletişim formu | %s <%s> | %s", form.name, form.email, form.message[:300])
-    return {
-        "ok": True,
-        "mesaj": "Mesajınız alındı. En kısa sürede size dönüş yapılır.",
-    }
+    """No delivery channel exists yet; never log private form content or claim delivery."""
+    raise HTTPException(503, 'İletişim kanalı henüz yapılandırılmadı. Mesajınız gönderilmedi veya kaydedilmedi.')

@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, Float, JSON, Index, BigInteger, ForeignKey, Enum as SAEnum
+from sqlalchemy import func
 from sqlalchemy.orm import relationship
 from app.database import Base
 from datetime import datetime, timezone
@@ -18,6 +19,37 @@ class PhishingURL(Base):
     target = Column(String)
     submission_time = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
+
+
+class ScanResult(Base):
+    """Tarayıcının yeniden kullanılabilir URL kararı (son tarama sonucu, sınırlı sayıda tutulur)."""
+    __tablename__ = "scan_results"
+
+    id = Column(Integer, primary_key=True)
+    url = Column(Text, unique=True, nullable=False)
+    domain = Column(String(512), index=True, nullable=False)
+    risk_score = Column(Integer, default=0, index=True)
+    risk_level = Column(String(20), default='unknown')
+    is_safe = Column(Boolean, default=False)
+    sources = Column(Text)  # JSON dizi
+    raw_data = Column(Text)  # Tam tarama sonucu JSON
+    checked_at = Column(DateTime, server_default=func.current_timestamp(), index=True)
+    created_at = Column(DateTime, server_default=func.current_timestamp())
+    last_updated = Column(DateTime, server_default=func.current_timestamp())
+
+
+class ScanEvent(Base):
+    """Kullanıcıların son taradığı URL'ler (geçmiş listesi, URL başına tek satır)."""
+    __tablename__ = "scan_events"
+
+    id = Column(Integer, primary_key=True)
+    url = Column(Text, unique=True, nullable=False)
+    domain = Column(String(512), index=True, nullable=False)
+    risk_score = Column(Integer, default=0)
+    risk_level = Column(String(20), default='unknown')
+    is_safe = Column(Boolean, default=False, index=True)
+    sources = Column(Text)
+    checked_at = Column(DateTime, server_default=func.current_timestamp(), index=True)
 
 class WhitelistDomain(Base):
     """Güvenilir şirketlerin domain whitelist'i"""
@@ -57,7 +89,7 @@ class IndicatorOfCompromise(Base):
     """
     __tablename__ = "indicators_of_compromise"
 
-    id = Column(BigInteger, primary_key=True, index=True)
+    id = Column(BigInteger().with_variant(Integer, 'sqlite'), primary_key=True, index=True)
     
     # Core IOC data
     ioc_type = Column(String(20), index=True, nullable=False)  # 'ip', 'domain', 'url', 'hash'
@@ -106,68 +138,14 @@ class IndicatorOfCompromise(Base):
     )
 
 
-class OperatorAPIKey(Base):
-    """
-    Operator credentials for receiving IOC alerts.
-    Used by Cyber Guardian SMS integration.
-    """
-    __tablename__ = "operator_api_keys"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    operator_name = Column(String(100), unique=True, index=True, nullable=False)  # 'Turk Telekom', 'Vodafone', 'Türkcell'
-    api_key = Column(String(255), unique=True, index=True, nullable=False)
-    
-    # Communication settings
-    webhook_url = Column(String(500), nullable=True)  # Push webhook for realtime alerts
-    email = Column(String(255), nullable=True)  # For daily reports
-    sms_number = Column(String(20), nullable=True)  # SMS notification number
-    
-    # Configuration
-    min_risk_score = Column(Integer, default=80)  # Only alert if >= this score
-    alert_frequency = Column(String(50), default='realtime')  # 'realtime', 'daily', 'weekly'
-    threat_types_filter = Column(JSON, nullable=True, default=[])  # ['phishing', 'malware'] or [] for all
-    
-    # Status
-    active = Column(Boolean, default=True, index=True)
-    is_verified = Column(Boolean, default=False)
-    
-    # Timestamps
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
-    last_alert_sent = Column(DateTime, nullable=True)
-
-
-class IOCOperatorAlert(Base):
-    """
-    Tracking which IOCs were sent to which operators.
-    Used for delivery confirmation, retry logic, and audit trail.
-    """
-    __tablename__ = "ioc_operator_alerts"
-    
-    id = Column(BigInteger, primary_key=True, index=True)
-    
-    # References
-    ioc_id = Column(BigInteger, index=True, nullable=False)  # Foreign key to IndicatorOfCompromise
-    operator_id = Column(Integer, index=True, nullable=False)  # Foreign key to OperatorAPIKey
-    
-    # Delivery tracking
-    alert_sent_at = Column(DateTime, index=True, nullable=False, default=lambda: datetime.now(timezone.utc))
-    delivery_status = Column(String(50), default='pending')  # 'sent', 'delivered', 'failed', 'bounced'
-    delivery_timestamp = Column(DateTime, nullable=True)
-    
-    # Response tracking
-    webhook_response_code = Column(Integer, nullable=True)  # HTTP status
-    webhook_response_body = Column(Text, nullable=True)  # Error message if failed
-    retry_count = Column(Integer, default=0)
-
-
 class URLAnalizHistory(Base):
     """
     URL Analiz Geçmişi - AI Analyzer tarafından yapılan analizlerin kaydı.
     """
     __tablename__ = "url_analiz_history"
     
-    id = Column(BigInteger, primary_key=True, index=True)
+    id = Column(BigInteger().with_variant(Integer, 'sqlite'), primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey('users.id'), index=True, nullable=True)
     
     # Analiz edilen URL
     url = Column(String(2000), index=True, nullable=False)
@@ -188,7 +166,7 @@ class URLAnalizHistory(Base):
 
 
 # =========================================================
-# SİBER MAĞDURİYET ATLASI — YENİ MODELLER
+# KULLANICI, RAPOR VE İŞ AKIŞI MODELLERİ
 # =========================================================
 
 
@@ -197,30 +175,6 @@ class UserRole(str, enum.Enum):
     premium = "premium"
     corporate = "corporate"
     admin = "admin"
-
-
-class AttackMethod(str, enum.Enum):
-    phishing = "phishing"
-    smishing = "smishing"
-    vishing = "vishing"
-    fake_app = "fake_app"
-    social_engineering = "social_engineering"
-    sahte_mobil_uygulama = "sahte_mobil_uygulama"
-    banka_taklit = "banka_taklit"
-    malware_assisted = "malware_assisted"
-    other = "other"
-
-
-class LossType(str, enum.Enum):
-    bank_account = "bank_account"
-    identity = "identity"
-    credit_card = "credit_card"
-    crypto_wallet = "crypto_wallet"
-    social_media = "social_media"
-    device_compromise = "device_compromise"
-    corporate_account = "corporate_account"
-    ecommerce = "ecommerce"
-    other = "other"
 
 
 class User(Base):
@@ -237,8 +191,6 @@ class User(Base):
     # Relationships
     api_keys = relationship("APIKey", back_populates="user", lazy="dynamic")
     reports = relationship("UserReport", back_populates="user", lazy="dynamic")
-    subscriptions = relationship("Subscription", back_populates="user", lazy="dynamic")
-    alert_subscriptions = relationship("AlertSubscription", back_populates="user", lazy="dynamic")
 
 
 class APIKey(Base):
@@ -260,30 +212,20 @@ class APIKey(Base):
     user = relationship("User", back_populates="api_keys")
 
 
-class CaseTag(Base):
-    """Vaka etiketleri — çoktan çoğa ilişki."""
-    __tablename__ = "case_tags"
-
-    id = Column(Integer, primary_key=True, index=True)
-    case_id = Column(Integer, ForeignKey("victim_cases.id"), index=True, nullable=False)
-    tag = Column(String(100), index=True, nullable=False)
-
-    __table_args__ = (
-        Index('ix_case_tag_unique', 'case_id', 'tag', unique=True),
-    )
-
-
 class UserReport(Base):
     """Kullanıcının kendi anlattığı olayın Gemini analiz sonucu."""
     __tablename__ = "user_reports"
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), index=True, nullable=False)
-    case_id = Column(Integer, ForeignKey("victim_cases.id"), index=True, nullable=True)
     user_description = Column(Text, nullable=False)
     ai_analysis = Column(JSON, nullable=True)  # Gemini analiz sonucu
     protection_plan = Column(Text, nullable=True)  # 5 maddelik korunma planı
     pdf_path = Column(String(500), nullable=True)
+    pdf_status = Column(String(20), nullable=False, default='pending')
+    status = Column(String(20), nullable=False, default='open')
+    action_steps = Column(JSON, nullable=False, default=list)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     report_quota_month = Column(String(7), nullable=True)  # "2026-04" gibi, quota takibi için
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
@@ -291,179 +233,166 @@ class UserReport(Base):
     user = relationship("User", back_populates="reports")
 
 
-class Subscription(Base):
-    """Kullanıcı abonelik durumu."""
-    __tablename__ = "subscriptions"
-
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), index=True, nullable=False)
-    plan = Column(SAEnum(UserRole), default=UserRole.free, nullable=False)
-    started_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    expires_at = Column(DateTime, nullable=True)
-    is_active = Column(Boolean, default=True, index=True)
-    payment_ref = Column(String(255), nullable=True)  # İyzico reference (stub)
-
-    # Relationships
-    user = relationship("User", back_populates="subscriptions")
-
-
-class AlertSubscription(Base):
-    """Kullanıcının uyarı abonelik tercihleri."""
-    __tablename__ = "alert_subscriptions"
-
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), index=True, nullable=False)
-    region = Column(String(100), index=True, nullable=True)  # Türkiye ili
-    attack_method = Column(String(50), index=True, nullable=True)
-    is_active = Column(Boolean, default=True, index=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-
-    # Relationships
-    user = relationship("User", back_populates="alert_subscriptions")
-
-
 # =========================================================
 # VICTIM ATLAS — POSTGRESQL ORM (SQLite'dan taşındı)
 # =========================================================
 
 
-class SourceRegistry(Base):
-    """Victim Atlas veri kaynakları kayıt defteri."""
-    __tablename__ = "sources_registry"
+class UserSession(Base):
+    __tablename__ = 'user_sessions'
+    id = Column(Integer, primary_key=True)
+    token_hash = Column(String(64), unique=True, nullable=False, index=True)
+    api_key_id = Column(Integer, ForeignKey('api_keys.id'), nullable=False)
+    expires_at = Column(DateTime, nullable=False)
 
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(200), unique=True, index=True, nullable=False)
-    base_url = Column(String(500), nullable=False)
-    trust_tier = Column(String(20), nullable=False)  # tier1, tier2
-    enabled = Column(Boolean, default=True, index=True)
-    last_success_at = Column(DateTime, nullable=True)
-    last_error = Column(Text, nullable=True)
+
+class RecoveryToken(Base):
+    __tablename__ = 'recovery_tokens'
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    token_hash = Column(String(64), unique=True, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    used_at = Column(DateTime, nullable=True)
+
+
+class PDFDownload(Base):
+    __tablename__ = 'pdf_downloads'
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
+    report_id = Column(Integer, ForeignKey('user_reports.id'), nullable=False)
+    month = Column(String(7), nullable=False, index=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    __table_args__ = (Index('ix_pdf_month_unique', 'user_id', 'report_id', 'month', unique=True),)
 
 
-class RawDocument(Base):
-    """Victim Atlas ham belge deposu — RSS/scrape kaynaklarından çekilen metinler."""
-    __tablename__ = "raw_documents"
-
-    id = Column(Integer, primary_key=True, index=True)
-    source_id = Column(Integer, ForeignKey("sources_registry.id"), index=True, nullable=False)
-    external_id = Column(String(2000), nullable=False)
-    url = Column(String(2000), nullable=False)
-    title = Column(String(500), nullable=False)
-    published_at = Column(DateTime, nullable=True)
-    fetched_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    raw_text = Column(Text, nullable=False)
-    lang = Column(String(10), default="unknown")
-    hash = Column(String(64), unique=True, index=True, nullable=False)
-
-    __table_args__ = (
-        Index('ix_raw_source_external', 'source_id', 'external_id', unique=True),
-        Index('ix_raw_source_published', 'source_id', 'published_at'),
-    )
-
-
-class VictimCase(Base):
-    """Victim Atlas vaka kayıtları — Gemini ile sınıflandırılmış dolandırıcılık vakaları."""
-    __tablename__ = "victim_cases"
-
-    id = Column(Integer, primary_key=True, index=True)
-    case_slug = Column(String(200), unique=True, index=True, nullable=False)
-    case_title = Column(String(500), nullable=False)
-    incident_period_start = Column(DateTime, nullable=True)
-    incident_period_end = Column(DateTime, nullable=True)
-    attack_method = Column(String(50), index=True, nullable=False)
-    loss_type = Column(String(50), index=True, nullable=False)
-    target_platform = Column(String(50), nullable=False)
-    critical_warning = Column(Text, nullable=False)
-    narrative_summary = Column(Text, nullable=False)
-    defense_steps_json = Column(JSON, nullable=False)
-    confidence_score = Column(Integer, nullable=False)
-    severity_score = Column(Integer, nullable=False)
-    region = Column(String(100), index=True, nullable=True)  # Türkiye ili
-    is_hot = Column(Boolean, default=True, index=True)
-    is_published = Column(Boolean, default=True, index=True)
-    first_seen = Column(DateTime, nullable=False)
-    last_seen = Column(DateTime, index=True, nullable=False)
+class EventOutbox(Base):
+    __tablename__ = 'event_outbox'
+    id = Column(Integer, primary_key=True)
+    event = Column(String(100), nullable=False)
+    payload = Column(JSON, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
-
-    # Relationships
-    tags = relationship("CaseTag", backref="case", lazy="dynamic")
-    evidence = relationship("VictimCaseEvidence", backref="case", lazy="dynamic")
-    reports = relationship("UserReport", backref="case", lazy="dynamic")
-
-    __table_args__ = (
-        Index('ix_cases_attack_method', 'attack_method'),
-        Index('ix_cases_loss_type', 'loss_type'),
-        Index('ix_cases_last_seen', 'last_seen'),
-        Index('ix_cases_hot', 'is_hot'),
-    )
+    processed_at = Column(DateTime, nullable=True)
+    attempts = Column(Integer, default=0, nullable=False)
+    last_error = Column(String(250), nullable=True)
 
 
-class VictimCaseEvidence(Base):
-    """Vaka-delil ilişkisi — hangi ham belge hangi vakayı destekliyor."""
-    __tablename__ = "victim_case_evidence"
-
-    id = Column(Integer, primary_key=True, index=True)
-    case_id = Column(Integer, ForeignKey("victim_cases.id"), index=True, nullable=False)
-    raw_document_id = Column(Integer, ForeignKey("raw_documents.id"), index=True, nullable=False)
-    evidence_snippet = Column(Text, nullable=False)
-    evidence_weight = Column(Float, default=1.0)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-
-    __table_args__ = (
-        Index('ix_evidence_unique', 'case_id', 'raw_document_id', unique=True),
-    )
-
-
-class IngestRun(Base):
-    """Victim Atlas ingest çalışma geçmişi."""
-    __tablename__ = "ingest_runs"
-
-    id = Column(Integer, primary_key=True, index=True)
-    started_at = Column(DateTime, nullable=False)
-    finished_at = Column(DateTime, nullable=True)
-    status = Column(String(20), nullable=False)  # running, success, error
-    documents_fetched = Column(Integer, default=0)
-    cases_created = Column(Integer, default=0)
-    cases_updated = Column(Integer, default=0)
-    errors_json = Column(JSON, nullable=True)
+class AnalysisFeedback(Base):
+    __tablename__ = 'analysis_feedback'
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'), index=True, nullable=False)
+    report_id = Column(Integer, ForeignKey('user_reports.id'), nullable=True)
+    url = Column(String(2000), nullable=True)
+    expected_verdict = Column(String(30), nullable=False)
+    reason = Column(String(2000), nullable=False)
+    status = Column(String(20), default='pending', nullable=False)
+    review_note = Column(String(2000), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
-class CaseComment(Base):
-    """Victim Atlas vaka yorumları — anonim kullanıcı deneyimleri."""
-    __tablename__ = "case_comments"
+class WatchItem(Base):
+    __tablename__ = 'watch_items'
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'), index=True, nullable=False)
+    kind = Column(String(20), nullable=False)
+    value = Column(String(2000), nullable=False)
+    last_fingerprint = Column(String(64), nullable=True)
+    last_result = Column(JSON, nullable=True)
+    last_checked_at = Column(DateTime, nullable=True)
+    last_error = Column(String(250), nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+    __table_args__ = (Index('ix_watch_owner_value', 'user_id', 'kind', 'value', unique=True),)
 
-    id = Column(Integer, primary_key=True, index=True)
-    case_id = Column(Integer, ForeignKey("victim_cases.id"), index=True, nullable=False)
-    nickname = Column(String(60), nullable=False)
-    text = Column(Text, nullable=False)
-    upvotes = Column(Integer, default=0, nullable=False)
-    ip_hash = Column(String(64), nullable=True)
+
+class UserNotification(Base):
+    __tablename__ = 'user_notifications'
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'), index=True, nullable=False)
+    watch_id = Column(Integer, ForeignKey('watch_items.id'), nullable=True)
+    title = Column(String(250), nullable=False)
+    detail = Column(JSON, nullable=True)
+    read_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
-    __table_args__ = (
-        Index('ix_comment_case_created', 'case_id', 'created_at'),
-    )
+
+class PrivateScan(Base):
+    __tablename__ = 'private_scans'
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'), index=True, nullable=False)
+    job_id = Column(String(64), nullable=False)
+    url = Column(String(2048), nullable=False)
+    risk_score = Column(Integer, nullable=False)
+    risk_level = Column(String(100), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    __table_args__ = (Index('ix_private_scan_job', 'user_id', 'job_id', unique=True),)
 
 
-class FraudProfile(Base):
-    """Bilinen dolandırıcılık profilleri — statik seed + Victim Atlas'tan dinamik istatistik."""
-    __tablename__ = "fraud_profiles"
+class CrawlCandidate(Base):
+    __tablename__ = 'crawl_candidates'
+    id = Column(Integer, primary_key=True)
+    url = Column(String(4096), nullable=False)
+    url_hash = Column(String(64), nullable=False, unique=True)
+    host = Column(String(253), nullable=False, index=True)
+    source = Column(String(120), nullable=False)
+    reason = Column(String(500), nullable=False)
+    state = Column(String(24), default='pending', nullable=False, index=True)
+    depth = Column(Integer, default=0, nullable=False)
+    root_id = Column(Integer, nullable=True, index=True)
+    attempts = Column(Integer, default=0, nullable=False)
+    lease_token = Column(String(64), nullable=True)
+    lease_until = Column(DateTime, nullable=True)
+    next_attempt_at = Column(DateTime, nullable=True, index=True)
+    risk = Column(Integer, nullable=True)
+    coverage = Column(String(24), default='unknown', nullable=False)
+    last_error = Column(String(120), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
-    id            = Column(Integer, primary_key=True, index=True)
-    slug          = Column(String(80), unique=True, index=True, nullable=False)
-    name_tr       = Column(String(200), nullable=False)
-    description   = Column(Text, nullable=False)
-    attack_method = Column(String(50), index=True, nullable=True)
-    keywords      = Column(JSON, nullable=False, default=list)
-    indicators    = Column(JSON, nullable=False, default=list)
-    is_static     = Column(Boolean, default=True)
-    case_count    = Column(Integer, default=0)
-    avg_loss_try  = Column(Float, nullable=True)
-    severity      = Column(String(20), default="high")
-    created_at    = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at    = Column(DateTime, default=lambda: datetime.now(timezone.utc),
-                           onupdate=lambda: datetime.now(timezone.utc))
+
+class CrawlObservation(Base):
+    __tablename__ = 'crawl_observations'
+    id = Column(Integer, primary_key=True)
+    candidate_id = Column(Integer, ForeignKey('crawl_candidates.id'), nullable=False, index=True)
+    attempt_token = Column(String(64), nullable=False, unique=True)
+    final_url = Column(String(4096), nullable=False)
+    http_status = Column(Integer, nullable=False)
+    live = Column(Boolean, default=True, nullable=False)
+    truncated = Column(Boolean, default=False, nullable=False)
+    content_hash = Column(String(64), nullable=False, index=True)
+    html_path = Column(String(250), nullable=True)
+    screenshot_path = Column(String(250), nullable=True)
+    features = Column(JSON, nullable=False)
+    assessment = Column(JSON, nullable=False)
+    fetched_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class CrawlReview(Base):
+    __tablename__ = 'crawl_reviews'
+    id = Column(Integer, primary_key=True)
+    candidate_id = Column(Integer, ForeignKey('crawl_candidates.id'), nullable=False, index=True)
+    observation_id = Column(Integer, ForeignKey('crawl_observations.id'), nullable=True)
+    decision = Column(String(24), nullable=False)
+    note = Column(String(2000), nullable=False)
+    actor = Column(String(120), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class CrawlSource(Base):
+    __tablename__ = 'crawl_sources'
+    id = Column(Integer, primary_key=True)
+    name = Column(String(120), nullable=False)
+    url = Column(String(4096), nullable=False)
+    kind = Column(String(24), nullable=False)
+    enabled = Column(Boolean, default=True, nullable=False)
+    last_checked_at = Column(DateTime, nullable=True)
+    last_error = Column(String(120), nullable=True)
+    added_count = Column(Integer, default=0, nullable=False)
+
+
+class CrawlSettings(Base):
+    __tablename__ = 'crawl_settings'
+    id = Column(Integer, primary_key=True)
+    enabled = Column(Boolean, default=False, nullable=False)
+    browser_enabled = Column(Boolean, default=False, nullable=False)
+    daily_limit = Column(Integer, default=1000, nullable=False)
+    browser_limit = Column(Integer, default=100, nullable=False)
+    excluded_hosts = Column(JSON, default=list, nullable=False)

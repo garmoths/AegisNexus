@@ -4,7 +4,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -14,23 +14,19 @@ from app.routers.contact import router as contact_router
 from app.routers.auth import router as auth_router
 from app.routers.reports import router as reports_router
 # Stats routes victim atlas router altında mount ediliyor
-from app.routers.subscription import router as subscription_router
-from app.routers.corporate import router as corporate_router
 from app.routers.admin import router as admin_router
 from app.middleware.rate_limit import RateLimitMiddleware
+from app.routers.workspace import router as workspace_router
+from app.discovery.router import router as discovery_router
 
 # Load environment variables
 load_dotenv()
-# Modüler yapı - 6 Katmanlı Güvenlik Kalkanı
+# Çekirdek modüller
 from modules import (
     phishing_detector_router,    # 01 - Phishing Detector
     honeypot_router,             # 02 - IP Avcısı
-    breach_intel_router,         # 03 - Veri Radarı
-    password_shield_router,      # 04 - Kriptografik Kalkan
     ai_analyzer_router,          # 05 - AI Güvenlik Asistanı
-    victim_atlas_router,         # 06 - Magduriyet Atlasi
     sms_guard_router,            # 07 - SMS Guard
-    risk_dashboard_router,       # 08 - Risk Dashboard
 )
 from modules.honeypot.ioc_api import router as honeypot_ioc_router
 
@@ -42,9 +38,10 @@ logger = logging.getLogger("aegis")
 async def lifespan(_app: FastAPI):
     try:
         Base.metadata.create_all(bind=engine)
-        logger.info("Aegis Nexus - 8 Modüllü Güvenlik Platformu hazır")
+        logger.info("Aegis Nexus - Güvenlik Platformu hazır")
     except Exception as e:
-        logger.warning("Veritabanı tabloları oluşturulamadı (devam ediliyor): %s", e)
+        logger.error("Veritabanı başlatılamadı: %s", e)
+        raise
 
     # Event Bus: Modüller arası listener'ları kaydet
     try:
@@ -52,25 +49,6 @@ async def lifespan(_app: FastAPI):
         register_event_listeners()
     except Exception as e:
         logger.warning(f"[Lifespan] Event listener kayıt başarısız (devam ediliyor): {e}")
-
-    # Fraud Profiles + Demo Cases seed
-    try:
-        from app.database import SessionLocal
-        from modules.victim_atlas.fraud_profile_matcher import seed_profiles, seed_demo_cases
-        _db = SessionLocal()
-        seed_profiles(_db)
-        seed_demo_cases(_db)
-        _db.close()
-    except Exception as e:
-        logger.warning(f"[Lifespan] Fraud profil seed başarısız (devam ediliyor): {e}")
-
-    # A1: Sync path için EasyOCR + IP blacklist preload (opsiyonel, hata tolere edilir)
-    try:
-        from modules.phishing_detector.threat_intel_local import preload_models
-        result = preload_models()
-        logger.info(f"[Lifespan] Preload modeller tamam: OCR={result['ocr_loaded']}, IP={result['ip_loaded']}, PW={result['playwright_loaded']}")
-    except Exception as e:
-        logger.warning(f"[Lifespan] Preload modeller başarısız (lazy init devreye girer): {e}")
 
     yield
 
@@ -81,15 +59,11 @@ app = FastAPI(
     Bireylerin dijital tehlikelere karşı proaktif korunmasını sağlayan
     yapay zeka ve istihbarat destekli güvenlik platformu.
 
-    8 Modül:
-    01. Phishing Detector  — URL tarama, tehdit veritabanı, SSL/domain analizi
-    02. Honeypot (IP Avcısı) — Dolandırıcıları tersine mühendislik ile avlama
-    03. Breach Intel        — Veri sızıntısı istihbaratı (bakımda)
-    04. Password Shield     — Kriptografik güçlü şifre üretimi
-    05. AI Analyzer         — Yapay zeka destekli güvenlik asistanı
-    06. Victim Atlas        — Siber mağduriyet vakalarının analizi
-    07. SMS Guard           — Türkçe SMS smishing/phishing tespiti
-    08. Risk Dashboard      — Birleşik dijital risk skoru
+    Çekirdek:
+    - Phishing Tarayıcı — URL tarama, tehdit veritabanı, SSL/domain analizi
+    - İçerik Analizi    — SMS, e-posta (AI) ve olay bildirimi analizi
+    - IOC / Tuzak       — Zararlı IP, alan adı ve URL göstergeleri
+    - Keşif             — CertStream ile otomatik phishing adayı toplama
     """,
     lifespan=lifespan,
     version="2.0.0",
@@ -128,18 +102,33 @@ else:
 app.include_router(phishing_detector_router, prefix="/api/v2/phishing")
 app.include_router(honeypot_router, prefix="/api/v2/honeypot")
 app.include_router(honeypot_ioc_router, prefix="/api/v2/ioc")
-app.include_router(breach_intel_router, prefix="/api/v2/breach")
-app.include_router(password_shield_router, prefix="/api/v2/shield")
 app.include_router(ai_analyzer_router, prefix="/api/v2/ai-analyzer")
-app.include_router(victim_atlas_router, prefix="/api/v2/victim-atlas")
 app.include_router(auth_router, prefix="/api/v2/auth")
 app.include_router(reports_router, prefix="/api/v2/reports")
-app.include_router(subscription_router, prefix="/api/v2/subscription")
-app.include_router(corporate_router, prefix="/api/v2/corporate")
 app.include_router(admin_router, prefix="/api/v2/admin")
 app.include_router(sms_guard_router, prefix="/api/v2/sms")
-app.include_router(risk_dashboard_router, prefix="/api/v2/risk-dashboard")
 app.include_router(contact_router)
+app.include_router(workspace_router, prefix="/api/v2")
+app.include_router(discovery_router)
+
+
+@app.get('/health')
+def health():
+    return {'status': 'ok', 'service': 'AegisNexus'}
+
+
+@app.get('/ready')
+def ready():
+    from sqlalchemy import text
+    from app import runtime_store
+    try:
+        with engine.connect() as connection:
+            connection.execute(text('SELECT id FROM users LIMIT 1'))
+        with runtime_store.connection() as connection:
+            connection.execute('SELECT 1')
+    except Exception:
+        raise HTTPException(503, 'Veri deposu hazır değil.')
+    return {'status': 'ready', 'database': True, 'runtime_store': True}
 
 
 @app.get("/app")
@@ -178,7 +167,9 @@ async def read_root():
 @app.get("/{full_path:path}")
 async def spa_catch_all(full_path: str):
     """React SPA catch-all: /modules, /app gibi client-side route'ları yakalar."""
-    react_index = REACT_BUILD_DIR / "index.html"
+    if full_path == 'api' or full_path.startswith(('api/', 'assets/')):
+        raise HTTPException(404, 'Endpoint bulunamadı.')
+    react_index = REACT_BUILD_DIR / 'index.html'
     if react_index.exists():
         return FileResponse(react_index)
-    return {"Hata": "React build bulunamadı.", "path": full_path}
+    raise HTTPException(503, 'Frontend henüz derlenmedi.')

@@ -2,7 +2,7 @@
 A2 — Phishing Detector Celery Async Pipeline
 ==============================================
 Ağır analizi (Playwright + Gemini + threat intel) asenkron kuyruğa taşır.
-Broker: RabbitMQ (app.celery_app üzerinden, RABBITMQ_URL env var).
+Broker: Yerel Redis (run.sh ve app.celery_app üzerinden).
 
 Worker başlatmak için (systemd servisi tercih edilir):
     celery -A app.celery_app:celery_app worker -Q phishing -P solo -c 1 --loglevel=info
@@ -40,7 +40,7 @@ def _preload_worker_models(**kwargs):
     SADECE phishing worker'da çalışır (CELERY_WORKER_TYPE=phishing).
     Default worker Playwright başlatmamalı — gereksiz RAM israfı.
     """
-    if os.getenv("CELERY_WORKER_TYPE") != "phishing":
+    if os.getenv("CELERY_WORKER_TYPE") != "phishing" or os.getenv("CELERY_PRELOAD_MODELS", "0") != "1":
         return
 
     # 1. Playwright pool pre-warm
@@ -104,7 +104,7 @@ def sync_phishtank_db():
     else:
         url = "http://data.phishtank.com/data/online-valid.json.bz2"
 
-    # ── 1. ETag kontrolü (SQLite threat_intel_cache — Redis yok) ────────────
+    # ── 1. ETag kontrolü (runtime_store önbelleği) ────────────
     from .cache_db import read_threat_cache, write_threat_cache
     cached_etag_entry = read_threat_cache("phishtank:etag")
     cached_etag = cached_etag_entry.get("etag", "") if cached_etag_entry else ""
@@ -184,64 +184,56 @@ def sync_phishtank_db():
     return {"status": "ok", "total": total, "added": added, "updated": result.get("updated", 0)}
 
 
-@app.task(
-    bind=True,
-    max_retries=2,
-    name="modules.phishing_detector.celery_tasks.run_heavy_analysis",
-)
+@app.task(bind=True, max_retries=2, acks_late=True, reject_on_worker_lost=True,
+          name="modules.phishing_detector.celery_tasks.run_heavy_analysis")
 def run_heavy_analysis(self, url: str, job_id: str):
-    """
-    Playwright screenshot + Gemini + paralel threat intel + HTML derin analizi.
-    Sonuç Redis'e `job:{job_id}` ve `scan:{url_hash}` olarak yazılır.
-    """
     from app.database import SessionLocal
+    from app import runtime_store as store
     from .scanner import calculate_safety_score
-
+    from .cache_db import get_celery_job, persist_scan_result
+    from datetime import datetime, timedelta
+    norm = normalize_url_record(url)
+    lock_key = 'analyzing:' + norm.get('url_hash', '')
+    previous = get_celery_job('job:' + job_id) or {}
+    if previous.get('status') == 'complete':
+        store.delete(lock_key)
+        return previous
+    deadline = previous.get('deadline') or (datetime.utcnow() + timedelta(minutes=10)).isoformat()
+    if datetime.utcnow() > datetime.fromisoformat(deadline):
+        payload = {'job_id': job_id, 'status': 'timeout', 'error': 'job_deadline_exceeded'}
+        set_celery_job('job:' + job_id, payload)
+        store.delete(lock_key)
+        return payload
+    base = {'job_id': job_id, 'url': url, 'deadline': deadline, 'module': '01_phishing_detector'}
+    if not set_celery_job('job:' + job_id, {**base, 'status': 'running'}):
+        raise self.retry(countdown=10)
     db = SessionLocal()
+    terminal = False
     try:
-        logger.info(f"[Celery] Ağır analiz başladı: {url} (job={job_id})")
         result = calculate_safety_score(url, db)
-        result["job_id"] = job_id
-        result["status"] = "complete"
-        result["module"] = "01_phishing_detector"
-
-        # 1. job:{job_id} → polling için (TTL: 1 saat, SQLite cross-process)
-        set_celery_job(f"job:{job_id}", result, ttl_seconds=_JOB_TTL)
-
-        # 2. scan:{url_hash} → sonraki istekler için kalıcı cache (in-memory, process-local)
-        norm = normalize_url_record(url)
-        url_hash = norm.get("url_hash", "")
-        if url_hash:
-            redis_set_scan(url_hash, result)
-
-        logger.info(f"[Celery] Analiz tamamlandı: {url} (job={job_id})")
+        result.update(base, status='complete')
+        if not persist_scan_result(url, result):
+            raise RuntimeError('Final scan persistence failed')
+        if not set_celery_job('job:' + job_id, result):
+            raise RuntimeError('Job persistence failed')
+        redis_set_scan(norm.get('url_hash', ''), result)
+        terminal = True
         return result
-
-    except SoftTimeLimitExceeded as exc:
-        logger.error(f"[Celery] Soft time limit aşıldı: {url} (job={job_id}) - {exc}")
-        timeout_payload = {
-            "status": "timeout",
-            "job_id": job_id,
-            "url": url,
-            "risk_level": "unknown",
-            "module": "01_phishing_detector",
-            "error": "soft_time_limit_exceeded",
-        }
-        try:
-            set_celery_job(f"job:{job_id}", timeout_payload, ttl_seconds=_JOB_TTL)
-        except Exception as job_exc:
-            logger.error(f"[Celery] Timeout sonucu yazılamadı (job={job_id}): {job_exc}")
-        return timeout_payload
+    except SoftTimeLimitExceeded:
+        terminal = True
+        payload = {**base, 'status': 'timeout', 'risk_level': 'unknown', 'error': 'soft_time_limit_exceeded'}
+        set_celery_job('job:' + job_id, payload)
+        return payload
     except Exception as exc:
-        logger.error(f"[Celery] Analiz hatası {url}: {exc}")
-        try:
-            set_celery_job(
-                f"job:{job_id}",
-                {"status": "error", "job_id": job_id, "error": str(exc)},
-                ttl_seconds=_JOB_TTL,
-            )
-        except Exception as job_exc:
-            logger.error(f"[Celery] Hata sonucu yazılamadı (job={job_id}): {job_exc}")
+        retries = self.request.retries or 0
+        terminal = retries >= self.max_retries
+        payload = {**base, 'status': 'failed' if terminal else 'retrying',
+                   'attempt': retries + 1, 'error': 'analysis_failed'}
+        set_celery_job('job:' + job_id, payload)
+        if terminal:
+            raise
         raise self.retry(exc=exc, countdown=10)
     finally:
         db.close()
+        if terminal:
+            store.delete(lock_key)

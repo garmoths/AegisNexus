@@ -1,290 +1,108 @@
-import { useState } from 'react'
-import { Search, BrainCircuit, AlertTriangle, Shield, CheckCircle, Smartphone } from 'lucide-react'
-import { motion } from 'framer-motion'
-import { theme } from '../theme'
-import { reportsAPI, smsGuardAPI } from '../lib/endpoints'
-import GeminiLoader from '../components/GeminiLoader'
-import RiskBadge from '../components/RiskBadge'
+import { useEffect, useRef, useState } from 'react'
+import { Link, useParams } from 'react-router-dom'
+import api from '../lib/api'
+import useAuthStore from '../stores/authStore'
 
-export default function AnalyzePage() {
-  const [description, setDescription] = useState('')
-  const [result, setResult] = useState(null)
-  const [loading, setLoading] = useState(false)
+function errorText(error) {
+  const detail = error.response?.data?.detail
+  if (typeof detail === 'string') return detail
+  if (Array.isArray(detail)) return detail.map(item => item.msg || 'Geçersiz alan').join(' · ')
+  return error.message || 'İşlem tamamlanamadı.'
+}
 
-  // SMS Widget state
-  const [smsText, setSmsText] = useState('')
-  const [smsSender, setSmsSender] = useState('')
-  const [smsResult, setSmsResult] = useState(null)
-  const [smsLoading, setSmsLoading] = useState(false)
-
-  const analyze = async () => {
-    if (!description.trim()) return
-    setLoading(true)
-    setResult(null)
-    try {
-      const res = await reportsAPI.analyze(description)
-      setResult(res.data)
-    } catch (error) {
-      if (error.response?.status === 401) {
-        setResult({ error: 'Analiz için giriş yapmanız gerekiyor.' })
-      } else {
-        setResult({ error: 'Analiz sırasında hata oluştu.' })
-      }
-    }
-    setLoading(false)
+function detect(text) {
+  if (/^(https?:\/\/|www\.)\S+$/i.test(text.trim()) || /^[\w.-]+\.[a-z]{2,}(\/\S*)?$/i.test(text.trim())) return 'url'
+  if (/^(from|subject|to):/im.test(text)) return 'email'
+  return text.length<=1600?'sms':'incident'
+}
+export default function AnalyzePage({ onNavigate } = {}){
+  // Modül kabuğunun içinde (onNavigate verilir) başlığı kabuk gösterir.
+  const embedded = typeof onNavigate === 'function'
+  const {module}=useParams()
+  const [mode,setMode]=useState(module==='sms'?'sms':'auto')
+  const [text,setText]=useState('')
+  const [result,setResult]=useState(null)
+  const [error,setError]=useState('')
+  const [busy,setBusy]=useState(false)
+  const [job,setJob]=useState(null)
+  const [reason,setReason]=useState('')
+  const [feedback,setFeedback]=useState('')
+  const generation=useRef(0)
+  const email=useAuthStore(s=>s.email)
+  const resetAnalysis=()=>{
+    generation.current+=1
+    setResult(null);setError('');setJob(null);setBusy(false);setFeedback('');setReason('')
   }
+  useEffect(()=>()=>{generation.current+=1},[])
 
-  const analyzeSMS = async () => {
-    if (!smsText.trim()) return
-    setSmsLoading(true)
-    setSmsResult(null)
-    try {
-      const res = await smsGuardAPI.analyze(smsText, smsSender)
-      setSmsResult(res.data)
-    } catch {
-      setSmsResult({ error: 'SMS analizi sırasında hata oluştu.' })
+  useEffect(()=>{
+    if(!job)return
+    let cancelled=false
+    const current=generation.current
+    const started=Date.now()
+    let timer
+    const poll=async()=>{
+      try{
+        const {data}=await api.get('/phishing/result/'+job)
+        if(cancelled||current!==generation.current)return
+        if(data.status==='complete'){setResult(data);setJob(null);setBusy(false);return}
+        if(['failed','error','timeout','expired'].includes(data.status))throw new Error('Analiz tamamlanamadı. Bu bir güvenlik kararı değildir.')
+        if(Date.now()-started>930000)throw new Error('Analiz bekleme süresi doldu.')
+        timer=setTimeout(poll,3000)
+      }catch(e){if(!cancelled&&current===generation.current){setError(errorText(e));setBusy(false);setJob(null)}}
     }
-    setSmsLoading(false)
+    timer=setTimeout(poll,1500)
+    return ()=>{cancelled=true;clearTimeout(timer)}
+  },[job])
+  const analyze=async(e)=>{
+    e.preventDefault()
+    const current=++generation.current
+    setBusy(true);setError('');setResult(null);setFeedback('');setJob(null)
+    const selected=mode==='auto'?detect(text):mode
+    try{
+      let data
+      if(selected==='url')({data}=await api.post('/phishing/check-url',{url:text.trim()}))
+      else if(selected==='sms')({data}=await api.post('/sms/analyze',{text}))
+      else if(selected==='email')({data}=await api.post('/ai-analyzer/analyze',{message:text,message_type:'email'}))
+      else ({data}=await api.post('/reports/analyze',{description:text}))
+      if(current!==generation.current)return
+      if(data.status==='analyzing'){setJob(data.job_id);return}
+      setResult(data)
+    }catch(e){if(current===generation.current)setError(errorText(e))}
+    if(current===generation.current)setBusy(false)
   }
-
-  return (
-    <div style={{ minHeight: '100vh', background: theme.bg }}>
-      <section style={{
-        background: theme.gradientHero,
-        padding: '60px 24px 30px',
-        textAlign: 'center',
-      }}>
-        <h1 style={{ fontSize: 36, fontWeight: 800, color: theme.text, margin: '0 0 8px' }}>
-          <Search size={28} style={{marginBottom:4}}/> Analiz Aracı
-        </h1>
-        <p style={{ color: theme.textMuted, fontSize: 15, margin: 0, maxWidth: 500, marginLeft: 'auto', marginRight: 'auto' }}>
-          Yaşadığınız siber olayı anlatın, AI size özel korunma planı üretsin.
-        </p>
-      </section>
-
-      <section style={{ maxWidth: 700, margin: '0 auto', padding: '30px 24px' }}>
-        {/* Input */}
-        <div style={{
-          background: theme.gradientSurface,
-          border: `1px solid ${theme.border}`,
-          borderRadius: theme.radius.lg,
-          padding: 24,
-        }}>
-          <textarea
-            value={description}
-            onChange={e => setDescription(e.target.value)}
-            placeholder="Örnek: Dün telefonuma 'Şüpheli işlem tespit edildi, hesabınızı doğrulamak için tıklayın' diye bir SMS geldi. Linke tıkladım ve banka bilgilerimi girdim..."
-            rows={6}
-            style={{
-              width: '100%', padding: 14, background: theme.surface,
-              border: `1px solid ${theme.border}`, borderRadius: theme.radius.sm,
-              color: theme.text, fontSize: 14, lineHeight: 1.6,
-              resize: 'vertical', outline: 'none', fontFamily: 'inherit',
-            }}
-          />
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
-            <button
-              onClick={analyze}
-              disabled={loading || !description.trim()}
-              style={{
-                padding: '12px 32px',
-                background: loading || !description.trim() ? theme.surface : theme.gradientPrimary,
-                color: loading || !description.trim() ? theme.textMuted : theme.bgDeep,
-                fontWeight: 700, border: 'none',
-                borderRadius: theme.radius.sm, cursor: loading ? 'wait' : 'pointer',
-                fontSize: 14,
-              }}
-            >
-              {loading ? 'Analiz Ediliyor...' : <><BrainCircuit size={15} style={{marginRight:6}}/>AI ile Analiz Et</>}
-            </button>
-          </div>
-        </div>
-
-        {/* Loading */}
-        {loading && <GeminiLoader text="AI olayınızı analiz ediyor..." />}
-
-        {/* Result */}
-        {result && !result.error && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            style={{
-              marginTop: 24, background: theme.gradientSurface,
-              border: `1px solid ${theme.border}`,
-              borderRadius: theme.radius.lg, padding: 24,
-            }}
-          >
-            <div style={{ display: 'flex', gap: 20, alignItems: 'center', marginBottom: 20 }}>
-              <RiskBadge score={result.risk_score || 50} type="severity" size="md" />
-              <div>
-                <h3 style={{ color: theme.text, fontSize: 18, fontWeight: 600, margin: '0 0 4px' }}>
-                  Saldırı Tipi: {result.attack_type || 'Bilinmiyor'}
-                </h3>
-                <p style={{ color: theme.textMuted, fontSize: 13, margin: 0 }}>
-                  Rapor ID: {result.id}
-                </p>
-              </div>
-            </div>
-
-            {result.critical_warning && (
-              <div style={{
-                padding: '12px 16px', marginBottom: 16,
-                background: `${theme.danger}12`, border: `1px solid ${theme.danger}30`,
-                borderRadius: theme.radius.sm, color: theme.text, fontSize: 14,
-              }}>
-                <span style={{display:'flex',gap:8,alignItems:'flex-start'}}><AlertTriangle size={14} style={{marginTop:2,flexShrink:0}}/>{result.critical_warning}</span>
-              </div>
-            )}
-
-            {result.protection_plan && (
-              <div>
-                <h4 style={{ color: theme.primary, fontSize: 15, fontWeight: 600, margin: '0 0 12px' }}>
-                  <Shield size={15} style={{marginRight:6}}/> Korunma Planı
-                </h4>
-                <div style={{
-                  whiteSpace: 'pre-wrap', color: theme.text, fontSize: 14,
-                  lineHeight: 1.7, background: `${theme.primary}08`,
-                  padding: 16, borderRadius: theme.radius.sm,
-                  border: `1px solid ${theme.primarySoft}`,
-                }}>
-                  {result.protection_plan}
-                </div>
-              </div>
-            )}
-
-            <p style={{ color: theme.success, fontSize: 13, marginTop: 16, fontWeight: 500 }}>
-              <span style={{display:'flex',gap:6,alignItems:'center'}}><CheckCircle size={13}/>{result.message}</span>
-            </p>
-          </motion.div>
-        )}
-
-        {result?.error && (
-          <div style={{
-            marginTop: 24, padding: 16, background: `${theme.danger}12`,
-            border: `1px solid ${theme.danger}30`, borderRadius: theme.radius.sm,
-            color: theme.danger, fontSize: 14,
-          }}>
-            {result.error}
-          </div>
-        )}
-      </section>
-
-      {/* SMS Guard Widget */}
-      <section style={{ maxWidth: 700, margin: '0 auto', padding: '30px 24px' }}>
-        <div style={{
-          background: theme.gradientSurface,
-          border: `1px solid ${theme.border}`,
-          borderRadius: theme.radius.lg,
-          padding: 24,
-        }}>
-          <h3 style={{ color: theme.text, fontSize: 16, fontWeight: 600, margin: '0 0 16px' }}>
-            <span style={{display:'flex',alignItems:'center',gap:8}}><Smartphone size={16}/> SMS Güvenlik Analizi (Demo)</span>
-          </h3>
-
-          <input
-            value={smsSender}
-            onChange={e => setSmsSender(e.target.value)}
-            placeholder="Gönderen numara/başlık (opsiyonel)"
-            style={{
-              width: '100%', padding: '12px 14px', marginBottom: 12,
-              background: theme.surface, border: `1px solid ${theme.border}`,
-              borderRadius: theme.radius.sm, color: theme.text, fontSize: 14,
-              outline: 'none',
-            }}
-          />
-
-          <textarea
-            value={smsText}
-            onChange={e => setSmsText(e.target.value)}
-            placeholder="SMS içeriğini yapıştırın..."
-            rows={4}
-            style={{
-              width: '100%', padding: '14px', background: theme.surface,
-              border: `1px solid ${theme.border}`, borderRadius: theme.radius.sm,
-              color: theme.text, fontSize: 14, lineHeight: 1.6,
-              resize: 'vertical', outline: 'none', fontFamily: 'inherit',
-            }}
-          />
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
-            <button
-              onClick={analyzeSMS}
-              disabled={smsLoading || !smsText.trim()}
-              style={{
-                padding: '12px 32px',
-                background: smsLoading || !smsText.trim() ? theme.surface : theme.gradientPrimary,
-                color: smsLoading || !smsText.trim() ? theme.textMuted : theme.bgDeep,
-                fontWeight: 700, border: 'none',
-                borderRadius: theme.radius.sm, cursor: smsLoading ? 'wait' : 'pointer',
-                fontSize: 14,
-              }}
-            >
-              {smsLoading ? 'Analiz Ediliyor...' : <><Search size={14} style={{marginRight:6}}/>SMS Analizi</>}
-            </button>
-          </div>
-
-          {smsResult && !smsResult.error && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              style={{
-                marginTop: 20, background: theme.bg,
-                border: `1px solid ${theme.border}`,
-                borderRadius: theme.radius.md, padding: 16,
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <span style={{
-                  padding: '4px 12px', borderRadius: 12, fontSize: 11, fontWeight: 700,
-                  background: smsResult.action === 'BLOCK' ? `${theme.danger}20` : smsResult.action === 'WARN' ? `${theme.warning}20` : `${theme.success}20`,
-                  color: smsResult.action === 'BLOCK' ? theme.danger : smsResult.action === 'WARN' ? theme.warning : theme.success,
-                }}>
-                  {smsResult.action}: {smsResult.category}
-                </span>
-                <span style={{ fontSize: 20, fontWeight: 800, color: smsResult.risk_score >= 75 ? theme.danger : smsResult.risk_score >= 45 ? theme.warning : theme.success }}>
-                  {smsResult.risk_score}
-                </span>
-              </div>
-              <p style={{ color: theme.text, fontSize: 13, lineHeight: 1.6, margin: '0 0 12px' }}>
-                {smsResult.explanation}
-              </p>
-              {smsResult.urls && smsResult.urls.length > 0 && (
-                <div>
-                  <p style={{ color: theme.textMuted, fontSize: 11, margin: '0 0 8px', fontWeight: 600 }}>
-                    Tespit edilen URL'ler:
-                  </p>
-                  {smsResult.urls.map((u, i) => (
-                    <div key={i} style={{
-                      padding: '8px 12px', marginBottom: 6,
-                      background: u.is_suspicious ? `${theme.danger}10` : `${theme.success}08`,
-                      border: `1px solid ${u.is_suspicious ? `${theme.danger}20` : `${theme.success}20`}`,
-                      borderRadius: theme.radius.sm, fontSize: 12,
-                    }}>
-                      <div style={{ color: theme.primary, fontFamily: 'monospace', marginBottom: 4 }}>
-                        {u.url}
-                      </div>
-                      <div style={{ color: theme.textMuted, fontSize: 11 }}>
-                        {u.reason}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </motion.div>
-          )}
-
-          {smsResult?.error && (
-            <div style={{
-              marginTop: 20, padding: 12, background: `${theme.danger}12`,
-              border: `1px solid ${theme.danger}30`, borderRadius: theme.radius.sm,
-              color: theme.danger, fontSize: 13,
-            }}>
-              {smsResult.error}
-            </div>
-          )}
-        </div>
-      </section>
-    </div>
-  )
+  const risk=result?.risk_score ?? result?.security_assessment?.score ?? result?.security_assessment?.overall_risk_score
+  const uncertain=result && (result.status==='degraded'||result.status==='unknown')
+  const save=async()=>{
+    try{const {data}=await api.post('/reports/analyze',{description:text});setFeedback('Vaka kaydedildi: #'+data.id)}catch(e){setFeedback(errorText(e))}
+  }
+  const sendFeedback=async()=>{
+    try{await api.post('/feedback',{report_id:result?.id||null,url:detect(text)==='url'?text.trim():null,expected_verdict:'uncertain',reason});setFeedback('Geri bildiriminiz inceleme kuyruğuna alındı.')}
+    catch(e){setFeedback(errorText(e))}
+  }
+  return <section style={{maxWidth:850,margin:embedded?'0':'auto',padding:embedded?0:24}}>
+    {!embedded && <><h1>Şüpheli içeriği kontrol et</h1><p style={{margin:'12px 0',color:'#a1a1aa'}}>URL, SMS veya e-posta yapıştırın. Kararı, gerekçeyi ve sonraki adımı görün.</p></>}
+    <form className="workspace-card" onSubmit={analyze}>
+      <label>İçerik türü <select aria-label="İçerik türü" value={mode} onChange={e=>{resetAnalysis();setMode(e.target.value)}}><option value="auto">Otomatik algıla</option><option value="url">URL</option><option value="sms">SMS</option><option value="email">E-posta</option><option value="incident">Yaşadığım olay</option></select></label>
+      <label htmlFor="analysis-input">İncelenecek içerik</label>
+      <textarea id="analysis-input" rows={7} maxLength={20000} required value={text} onChange={e=>{resetAnalysis();setText(e.target.value)}} placeholder="Şüpheli bağlantı veya mesajı buraya yapıştırın…" style={{width:'100%'}}/>
+      <p style={{margin:'12px 0',fontSize:13,color:'#a1a1aa'}}>Parola, kart numarası ve doğrulama kodlarını paylaşmayın. Olay raporları için giriş gerekir.</p>
+      <button disabled={busy||!text.trim()}>{busy?'Analiz sürüyor…':'Analiz et'}</button>
+      {job&&<p role="status" style={{marginTop:12}}>Derin analiz kuyruğunda; sonucu bekliyoruz. Yeniden denemeler otomatik takip edilir.</p>}
+      {error&&<p role="alert" className="error-message">{error}</p>}
+    </form>
+    {result&&<article className="workspace-card" aria-live="polite">
+      <h2>{uncertain?'Kesin karar verilemiyor':result.risk_level||result.category||result.attack_type||result.security_assessment?.threat_level||'Analiz sonucu'}</h2>
+      {risk!=null&&<p style={{margin:'12px 0'}}>Risk: <strong>{risk}/100</strong> · Yüksek puan daha yüksek risk demektir.</p>}
+      <p>{result.explanation||result.summary||result.protection_plan}</p>
+      {(result.details||result.indicators)?.length>0&&<ul style={{paddingLeft:24,marginTop:12}}>{(result.details||result.indicators).slice(0,5).map((d,i)=><li key={i}>{d}</li>)}</ul>}
+      <h3 style={{marginTop:20}}>Şimdi ne yapmalıyım?</h3>
+      <ol style={{paddingLeft:24,lineHeight:1.8}}><li>Kaynağı kurumun resmî uygulamasından veya bilinen numarasından doğrulayın.</li><li>Doğrulamadan bağlantıya bilgi girmeyin; mevcut oturumlarınızı kontrol edin.</li><li>Bilgi paylaştıysanız ilgili hesabı güvene alın ve olay kaydı oluşturun.</li></ol>
+      {email?<div style={{marginTop:20}}><button onClick={save}>Vakalarıma kaydet</button>
+        <label>Sonuçta hata mı var?<textarea value={reason} onChange={e=>setReason(e.target.value)} maxLength={2000} placeholder="Neden yanlış olduğunu açıklayın…"/></label>
+        <button disabled={reason.length<5||(!result.id&&detect(text)!=='url')} onClick={sendFeedback}>İncelemeye gönder</button>
+      </div>:<p style={{marginTop:20}}><Link to="/login">Giriş yaparak</Link> vaka oluşturabilir ve sonucu takip edebilirsiniz.</p>}
+      {feedback&&<p role="status" style={{marginTop:12}}>{feedback}</p>}
+    </article>}
+  </section>
 }

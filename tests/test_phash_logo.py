@@ -198,7 +198,7 @@ class TestScreenshotAnalyzerPhashIntegration:
         import modules.phishing_detector.screenshot_analyzer as sa
         b64 = base64.b64encode(screenshot_bytes).decode()
         monkeypatch.setattr(sa, "_capture_screenshot_base64",
-                            lambda url, text: (b64, "page content"))
+                            lambda url, text: (b64, "page content", False))
 
     def test_phash_match_skips_gemini(self, monkeypatch):
         """pHash eşleşmesi Gemini çağrısını engellemelidir."""
@@ -212,13 +212,13 @@ class TestScreenshotAnalyzerPhashIntegration:
         self._fake_screenshot(monkeypatch, logo_bytes)
 
         gemini_called = []
-        monkeypatch.setattr(sa, "_call_gemini", lambda **k: gemini_called.append(1) or {})
-        monkeypatch.setattr(sa, "redis_get_gemini_count", lambda: 0)
-        monkeypatch.setattr(sa, "redis_incr_gemini_counter", lambda: 1)
+        monkeypatch.setattr(sa, "_call_groq", lambda **k: gemini_called.append(1) or {})
+        monkeypatch.setattr(sa, "redis_get_ai_count", lambda: 0)
+        monkeypatch.setattr(sa, "redis_incr_ai_counter", lambda: 1)
 
         result = sa.analyze("https://attacker.tk")
         assert gemini_called == [], "Gemini çağrılmamalıydı!"
-        assert result.get("risk_score") == 85 or result.get("gemini_skipped") is True
+        assert result.get("risk_score") == 85 or result.get("ai_skipped") is True
 
     def test_empty_logo_db_falls_through_to_gemini_logic(self, monkeypatch):
         """Logo DB boşsa pHash kontrolü atlanır, normal akış devam eder."""
@@ -230,13 +230,13 @@ class TestScreenshotAnalyzerPhashIntegration:
         self._fake_screenshot(monkeypatch, logo_bytes)
 
         gemini_called = []
-        monkeypatch.setattr(sa, "_call_gemini",
+        monkeypatch.setattr(sa, "_call_groq",
                             lambda **k: gemini_called.append(1) or
                             {"risk_score": 20, "risk_level": "LOW", "verdict": "ok",
                              "screenshot_analysis": "", "recommendation": "", "threat_indicators": []})
-        monkeypatch.setattr(sa, "redis_get_gemini_count", lambda: 0)
-        monkeypatch.setattr(sa, "redis_incr_gemini_counter", lambda: 1)
-        monkeypatch.setattr(sa, "_should_skip_gemini", lambda p: (False, ""))
+        monkeypatch.setattr(sa, "redis_get_ai_count", lambda: 0)
+        monkeypatch.setattr(sa, "redis_incr_ai_counter", lambda: 1)
+        monkeypatch.setattr(sa, "_should_skip_ai", lambda p: (False, ""))
 
         result = sa.analyze("https://unknown-site.xyz")
         assert result.get("available") is True

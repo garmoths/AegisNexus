@@ -2,15 +2,18 @@
 
 Tüm endpoint'ler /api/v2/auth altında.
 """
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+import os
+import secrets
+from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, EmailStr
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
 
 from app.auth import generate_api_key, _hash_key, resolve_api_key, require_admin
 from app.database import SessionLocal, get_db
-from app.models import APIKey, User, UserRole
+from app.models import APIKey, User, UserRole, UserSession, RecoveryToken
 
 router = APIRouter(tags=["auth"])
 
@@ -20,7 +23,8 @@ router = APIRouter(tags=["auth"])
 class RegisterRequest(BaseModel):
     email: EmailStr
     full_name: str | None = None
-    role: UserRole = UserRole.free
+    # Public registration must never grant paid or administrative privileges.
+    role: Literal[UserRole.free] = UserRole.free
 
 class RegisterResponse(BaseModel):
     email: str
@@ -82,7 +86,7 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=LoginResponse, summary="API key ile giriş")
-def login(body: LoginRequest, db: Session = Depends(get_db)):
+def login(body: LoginRequest, response: Response, request: Request, db: Session = Depends(get_db)):
     """Email + API key doğrula, rol döner."""
     user = db.query(User).filter_by(email=body.email, is_active=True).first()
     if not user:
@@ -104,6 +108,10 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
     api_key.last_used_at = datetime.now(timezone.utc)
     db.commit()
 
+    token = secrets.token_urlsafe(48)
+    db.add(UserSession(token_hash=_hash_key(token), api_key_id=api_key.id, expires_at=datetime.now(timezone.utc) + timedelta(hours=24)))
+    db.commit()
+    response.set_cookie('aegis_session', token, httponly=True, secure=request.url.scheme == 'https', samesite='strict', max_age=86400, path='/')
     return LoginResponse(email=user.email, role=user.role.value, is_active=user.is_active)
 
 
@@ -122,6 +130,7 @@ def rotate_key(api_key: APIKey = Depends(resolve_api_key), db: Session = Depends
     db.add(new_key)
 
     api_key.is_active = False
+    db.query(UserSession).filter_by(api_key_id=api_key.id).delete()
     db.commit()
 
     return RotateKeyResponse(
@@ -130,9 +139,71 @@ def rotate_key(api_key: APIKey = Depends(resolve_api_key), db: Session = Depends
     )
 
 
-@router.post("/logout", response_model=MessageResponse, summary="API anahtarını devre dışı bırak")
-def logout(api_key: APIKey = Depends(resolve_api_key), db: Session = Depends(get_db)):
-    """Aktif API key'i deaktif et."""
-    api_key.is_active = False
+@router.post("/logout", response_model=MessageResponse)
+def logout(request: Request, response: Response, api_key: APIKey = Depends(resolve_api_key), db: Session = Depends(get_db)):
+    token = request.cookies.get('aegis_session')
+    if token:
+        db.query(UserSession).filter_by(token_hash=_hash_key(token)).delete()
+    else:
+        api_key.is_active = False
     db.commit()
-    return MessageResponse(message="API anahtarı devre dışı bırakıldı.")
+    response.delete_cookie('aegis_session', path='/')
+    return MessageResponse(message='Oturum kapatıldı.')
+
+
+@router.get('/me')
+def me(api_key: APIKey = Depends(resolve_api_key), db: Session = Depends(get_db)):
+    user = db.get(User, api_key.user_id)
+    return {'email': user.email, 'full_name': user.full_name, 'role': user.role.value}
+
+
+class RecoveryRequest(BaseModel):
+    email: EmailStr
+
+
+class RecoveryComplete(BaseModel):
+    token: str = Field(min_length=32, max_length=200)
+
+
+@router.post('/recovery/request')
+def recovery_request(body: RecoveryRequest, db: Session = Depends(get_db)):
+    if not os.getenv('SMTP_HOST') or not os.getenv('SMTP_FROM'):
+        raise HTTPException(503, 'E-posta kurtarma servisi yapılandırılmadı. Yöneticiyle iletişime geçin.')
+    user = db.query(User).filter_by(email=body.email, is_active=True).first()
+    if user:
+        from app.mailer import send_recovery
+        token = secrets.token_urlsafe(48)
+        entry = RecoveryToken(user_id=user.id, token_hash=_hash_key(token), expires_at=datetime.now(timezone.utc) + timedelta(minutes=15))
+        db.add(entry)
+        try:
+            send_recovery(body.email, token)
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise HTTPException(503, 'Kurtarma e-postası gönderilemedi.')
+    return {'message': 'Adres kayıtlıysa kurtarma kodu e-posta ile gönderildi.'}
+
+
+@router.post('/recovery/complete')
+def recovery_complete(body: RecoveryComplete, db: Session = Depends(get_db)):
+    now = datetime.now(timezone.utc)
+    token = db.query(RecoveryToken).filter(RecoveryToken.token_hash == _hash_key(body.token), RecoveryToken.used_at.is_(None), RecoveryToken.expires_at > now).first()
+    if token is None:
+        raise HTTPException(400, 'Kurtarma kodu geçersiz veya süresi dolmuş.')
+    # Conditional UPDATE also makes simultaneous redemption single-use.
+    if db.query(RecoveryToken).filter_by(id=token.id, used_at=None).update({'used_at': now}) != 1:
+        db.rollback()
+        raise HTTPException(400, 'Kod zaten kullanıldı.')
+    user = db.get(User, token.user_id)
+    if not user.is_active:
+        raise HTTPException(403, 'Hesap pasif.')
+    keys = db.query(APIKey).filter_by(user_id=user.id).all()
+    ids = [key.id for key in keys]
+    if ids:
+        db.query(UserSession).filter(UserSession.api_key_id.in_(ids)).delete(synchronize_session=False)
+    for key in keys:
+        key.is_active = False
+    raw, hashed, prefix = generate_api_key()
+    db.add(APIKey(user_id=user.id, key_hash=hashed, key_prefix=prefix, role=user.role, rate_limit_tier=user.role.value))
+    db.commit()
+    return {'api_key': raw, 'message': 'Yeni anahtarı kaydedin. Eski anahtarlar iptal edildi.'}

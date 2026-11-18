@@ -8,11 +8,11 @@ import secrets
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Cookie, Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal, get_db
-from app.models import APIKey, User, UserRole
+from app.models import APIKey, User, UserRole, UserSession
 
 
 # ── Yardımcı ──────────────────────────────────────────────
@@ -21,7 +21,7 @@ def _hash_key(raw_key: str) -> str:
     return hashlib.sha256(raw_key.encode()).hexdigest()
 
 
-def generate_api_key() -> tuple[str, str]:
+def generate_api_key() -> tuple[str, str, str]:
     """Ham API key ve hash'ini üretir. (raw_key, key_hash, key_prefix)"""
     raw = f"aeg_{secrets.token_urlsafe(32)}"
     return raw, _hash_key(raw), raw[:8]
@@ -29,40 +29,36 @@ def generate_api_key() -> tuple[str, str]:
 
 # ── API Key çözümleme ────────────────────────────────────
 
+def _resolve(db, raw_key=None, session_token=None):
+    query = db.query(APIKey).join(User, APIKey.user_id == User.id).filter(APIKey.is_active.is_(True), User.is_active.is_(True))
+    if raw_key:
+        return query.filter(APIKey.key_hash == _hash_key(raw_key)).first()
+    if session_token:
+        return (query.join(UserSession, UserSession.api_key_id == APIKey.id)
+                .filter(UserSession.token_hash == _hash_key(session_token),
+                        UserSession.expires_at > datetime.now(timezone.utc)).first())
+    return None
+
+
 def resolve_api_key(
     x_api_key: Optional[str] = Header(default=None, alias="X-API-Key"),
+    aegis_session: Optional[str] = Cookie(default=None),
     db: Session = Depends(get_db),
 ) -> APIKey:
-    """X-API-Key header'ından APIKey objesini çöz.
-    401 dönerse key yok/yanlış/pasif demektir.
-    """
-    if not x_api_key:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="X-API-Key header gerekli.",
-        )
-    key_hash = _hash_key(x_api_key)
-    api_key = db.query(APIKey).filter_by(key_hash=key_hash, is_active=True).first()
-    if not api_key:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Geçersiz veya devre dışı API anahtarı.",
-        )
-    # last_used_at güncelle
-    api_key.last_used_at = datetime.now(timezone.utc)
+    key = _resolve(db, x_api_key, aegis_session)
+    if key is None:
+        raise HTTPException(status_code=401, detail="Geçerli bir oturum veya API anahtarı gerekli.")
+    key.last_used_at = datetime.now(timezone.utc)
     db.commit()
-    return api_key
+    return key
 
 
 def resolve_optional_api_key(
     x_api_key: Optional[str] = Header(default=None, alias="X-API-Key"),
+    aegis_session: Optional[str] = Cookie(default=None),
     db: Session = Depends(get_db),
 ) -> Optional[APIKey]:
-    """Opsiyonel — key varsa çöz, yoksa None döner."""
-    if not x_api_key:
-        return None
-    key_hash = _hash_key(x_api_key)
-    return db.query(APIKey).filter_by(key_hash=key_hash, is_active=True).first()
+    return _resolve(db, x_api_key, aegis_session)
 
 
 # ── Rol bazlı yetki ──────────────────────────────────────

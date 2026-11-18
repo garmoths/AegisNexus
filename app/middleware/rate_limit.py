@@ -1,71 +1,58 @@
-"""API rate limiting middleware — rol bazlı istek sınırlaması.
+"""Shared per-client request and expensive-operation budgets."""
+import hashlib
+import os
+from urllib.parse import urlsplit
 
-Her API key için dakikada izin verilen istek sayısı:
-  free:       10/dk
-  premium:    60/dk
-  corporate: 300/dk
-  admin:    sınırsız
-"""
-import time
-from collections import defaultdict
-from typing import Dict, Tuple
-
-from fastapi import Request, Response
-from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
-
+from fastapi import Request
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import JSONResponse
+from starlette.concurrency import run_in_threadpool
+from app import runtime_store as store
+from app.auth import _resolve
 from app.database import SessionLocal
-from app.models import APIKey, UserRole
 
-RATE_LIMITS: Dict[str, int] = {
-    "free": 10,
-    "premium": 60,
-    "corporate": 300,
-    "admin": 0,  # sınırsız
-}
-
-# key_prefix → (window_start, count)
-_windows: Dict[str, Tuple[float, int]] = defaultdict(lambda: (0.0, 0))
+RATE_LIMITS = {'free': 10, 'premium': 60, 'corporate': 300, 'admin': 0}
 WINDOW_SECONDS = 60
 
 
-class RateLimitMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        raw_key = request.headers.get("x-api-key") or request.headers.get("X-API-Key")
-        if not raw_key:
-            # Key yoksa rate limit uygulanmaz (public endpoint'ler)
-            return await call_next(request)
-
-        import hashlib
-        key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
-
+def consume(request):
+    raw_key = request.headers.get('x-api-key')
+    session = request.cookies.get('aegis_session')
+    client = request.client.host if request.client else 'unknown'
+    identity, tier = 'ip:' + client, 'free'
+    if raw_key or session:
         with SessionLocal() as db:
-            api_key = db.query(APIKey).filter_by(key_hash=key_hash, is_active=True).first()
-            if not api_key:
-                return await call_next(request)
+            key = _resolve(db, raw_key, session)
+            if key:
+                identity, tier = 'user:' + str(key.user_id), key.role.value
+    # IP cap also applies when an attacker rotates keys or submits invalid credentials.
+    _, accepted = store.increment('rate:ip:' + hashlib.sha256(client.encode()).hexdigest(), ttl=60, limit=300)
+    if not accepted:
+        return False
+    if request.method not in ('POST', 'PATCH', 'DELETE'):
+        return True
+    limit = RATE_LIMITS.get(tier, 10)
+    if request.url.path.startswith('/api/v2/auth/recovery'):
+        limit = 3
+    if not limit:
+        return True
+    return store.increment('rate:cost:' + identity, ttl=60, limit=limit)[1]
 
-            tier = api_key.rate_limit_tier or api_key.role.value
-            limit = RATE_LIMITS.get(tier, 10)
 
-            if limit == 0:
-                # Admin — sınırsız
-                return await call_next(request)
-
-            prefix = api_key.key_prefix
-            now = time.time()
-            window_start, count = _windows[prefix]
-
-            if now - window_start > WINDOW_SECONDS:
-                _windows[prefix] = (now, 1)
-            else:
-                count += 1
-                _windows[prefix] = (window_start, count)
-
-                if count > limit:
-                    return Response(
-                        content='{"detail":"Dakikalık istek limitini aştınız. Lütfen bekleyin.","error":"rate_limit"}',
-                        status_code=429,
-                        media_type="application/json",
-                        headers={"Retry-After": str(WINDOW_SECONDS)},
-                    )
-
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        if not request.url.path.startswith('/api/'):
+            return await call_next(request)
+        if request.cookies.get('aegis_session') and not request.headers.get('x-api-key') and request.method in ('POST', 'PATCH', 'DELETE'):
+            origin = request.headers.get('origin')
+            allowed = {x.strip() for x in os.getenv('CORS_ALLOW_ORIGINS', '').split(',') if x.strip()}
+            if origin and urlsplit(origin).netloc != request.headers.get('host') and origin not in allowed:
+                return JSONResponse({'detail': 'İstek kaynağına izin verilmedi.'}, status_code=403)
+        try:
+            accepted = await run_in_threadpool(consume, request)
+        except Exception:
+            return JSONResponse({'detail': 'İstek bütçesi doğrulanamadı.'}, status_code=503)
+        if not accepted:
+            return JSONResponse({'detail': 'Dakikalık işlem sınırına ulaştınız.', 'error': 'rate_limit'},
+                                status_code=429, headers={'Retry-After': '60'})
         return await call_next(request)

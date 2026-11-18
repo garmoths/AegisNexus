@@ -395,14 +395,15 @@ def analyze(
         return result
 
     try:
+        # Reserve before the request so concurrent workers cannot overspend.
+        new_count = redis_incr_ai_counter()
         groq_result = _call_groq(
             url=normalized_url,
             screenshot_b64=screenshot_b64,
             http_meta=http_meta or {},
             page_text=captured_text,
         )
-        # Başarılı Groq çağrısı → sayacı artır
-        new_count = redis_incr_ai_counter()
+        # Budget accounts for provider attempts, including failed requests.
         logger.debug(f"Groq çağrıldı ({normalized_url}), günlük toplam: {new_count}/{AI_DAILY_LIMIT}")
         result = _normalize_result(groq_result)
         if screenshot_b64:

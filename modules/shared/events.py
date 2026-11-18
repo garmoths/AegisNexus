@@ -27,17 +27,27 @@ _listeners: Dict[str, List[Callable[[Dict[str, Any]], None]]] = {}
 
 def subscribe(event: str, fn: Callable[[Dict[str, Any]], None]) -> None:
     """Bir event'e handler kaydet."""
-    _listeners.setdefault(event, []).append(fn)
+    if fn not in _listeners.setdefault(event, []):
+        _listeners[event].append(fn)
     logger.debug(f"[EventBus] subscribed: {event} → {fn.__module__}.{fn.__name__}")
 
 
-def publish(event: str, payload: Dict[str, Any]) -> None:
+def publish(event: str, payload: Dict[str, Any], *, durable=False, strict=False) -> None:
     """
     Event yayınla. Kayıtlı tüm handler'ları sırayla çağırır.
     Bir handler exception fırlatırsa log alınır ama akış kesilmez.
     """
+    if durable:
+        from app.database import SessionLocal
+        from app.models import EventOutbox
+        with SessionLocal() as db:
+            db.add(EventOutbox(event=event, payload=payload))
+            db.commit()
+        return
     handlers = _listeners.get(event, [])
     if not handlers:
+        if strict:
+            raise RuntimeError("No registered event handler")
         logger.debug(f"[EventBus] no listeners for: {event}")
         return
 
@@ -51,6 +61,8 @@ def publish(event: str, payload: Dict[str, Any]) -> None:
                 f"failed for '{event}': {exc}",
                 exc_info=True,
             )
+            if strict:
+                raise
 
 
 def clear_all() -> None:

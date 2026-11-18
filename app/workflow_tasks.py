@@ -1,0 +1,117 @@
+"""Durable event delivery and user watch checks."""
+import hashlib
+import json
+from datetime import datetime, timedelta, timezone
+
+from celery.signals import task_prerun, task_postrun, task_failure, heartbeat_sent
+from app.celery_app import celery_app
+from app.database import SessionLocal
+from app.models import EventOutbox, WatchItem, UserNotification, IndicatorOfCompromise
+from app import runtime_store as store
+
+
+@celery_app.task(name='app.workflow_tasks.runtime_probe')
+def runtime_probe():
+    """Side-effect-free end-to-end queue probe for the local launcher."""
+    return {'ok': True}
+
+
+@task_prerun.connect
+def task_started(sender=None, task_id=None, **kwargs):
+    store.put('task:' + sender.name, {'state': 'running', 'task_id': task_id, 'started_at': datetime.now(timezone.utc).isoformat()}, 604800)
+
+
+@task_postrun.connect
+def task_finished(sender=None, state=None, retval=None, **kwargs):
+    value = store.get('task:' + sender.name, {})
+    reported_error = isinstance(retval, dict) and retval.get('status') in ('error', 'failed')
+    value.update(state='FAILURE' if reported_error else state, finished_at=datetime.now(timezone.utc).isoformat())
+    if state == 'SUCCESS' and not reported_error:
+        value['last_success_at'] = value['finished_at']
+    store.put('task:' + sender.name, value, 604800)
+
+
+@task_failure.connect
+def task_failed(sender=None, **kwargs):
+    value = store.get('task:' + sender.name, {})
+    value.update(state='FAILURE', last_error='task_failed', finished_at=datetime.now(timezone.utc).isoformat())
+    store.put('task:' + sender.name, value, 604800)
+
+
+@heartbeat_sent.connect
+def worker_heartbeat(sender=None, **kwargs):
+    hostname = getattr(getattr(sender, 'eventer', None), 'hostname', 'worker')
+    store.put('worker:' + str(hostname), {'hostname': hostname, 'seen_at': datetime.now(timezone.utc).isoformat()}, 60)
+
+
+@celery_app.task(name='app.workflow_tasks.deliver_outbox', acks_late=True)
+def deliver_outbox():
+    from modules.shared.event_listeners import register_event_listeners
+    from modules.shared.events import publish
+    register_event_listeners()
+    processed = 0
+    with SessionLocal() as db:
+        ids = [r.id for r in db.query(EventOutbox).filter(EventOutbox.processed_at.is_(None), EventOutbox.attempts < 10).order_by(EventOutbox.id).limit(50)]
+    for event_id in ids:
+        lease = 'outbox:' + str(event_id)
+        if not store.claim(lease, True, 120):
+            continue
+        try:
+            with SessionLocal() as db:
+                entry = db.get(EventOutbox, event_id)
+                if entry.processed_at:
+                    continue
+                try:
+                    publish(entry.event, entry.payload, strict=True)
+                    entry.processed_at = datetime.now(timezone.utc)
+                    entry.last_error = None
+                    processed += 1
+                except Exception:
+                    entry.last_error = 'delivery_failed'
+                entry.attempts += 1
+                db.commit()
+        finally:
+            store.delete(lease)
+    return {'processed': processed}
+
+
+@celery_app.task(name='app.workflow_tasks.check_watchlist', acks_late=True)
+def check_watchlist():
+    from urllib.parse import urlsplit
+    with SessionLocal() as db:
+        ids = [r.id for r in db.query(WatchItem).filter_by(is_active=True).limit(1000)]
+    checked = 0
+    for item_id in ids:
+        lease = 'watch:' + str(item_id)
+        if not store.claim(lease, True, 120):
+            continue
+        try:
+            with SessionLocal() as db:
+                item = db.get(WatchItem, item_id)
+                try:
+                    if item.kind != 'domain':
+                        raise ValueError('source_unavailable')
+                    else:
+                        candidates = db.query(IndicatorOfCompromise).filter(IndicatorOfCompromise.status == 'active',
+                            IndicatorOfCompromise.ioc_type.in_(['domain', 'url']),
+                            IndicatorOfCompromise.ioc_value.contains(item.value)).limit(2000).all()
+                        hits = [c for c in candidates if (urlsplit(c.ioc_value if '://' in c.ioc_value else 'https://' + c.ioc_value).hostname or '').lower().rstrip('.') == item.value]
+                        result = {'risk_score': max([c.risk_score for c in hits], default=0), 'indicators': sorted(c.ioc_value_hash or str(c.id) for c in hits)}
+                        # No feed observation is unknown, not a clean domain.
+                        if db.query(IndicatorOfCompromise.id).filter(
+                            IndicatorOfCompromise.last_seen >= datetime.now(timezone.utc) - timedelta(hours=48)
+                        ).first() is None:
+                            raise ValueError('no_feed_data')
+                    fingerprint = hashlib.sha256(json.dumps(result, sort_keys=True).encode()).hexdigest()
+                    changed = item.last_fingerprint and item.last_fingerprint != fingerprint
+                    if changed or (item.last_fingerprint is None and result['risk_score'] >= 60):
+                        db.add(UserNotification(user_id=item.user_id, watch_id=item.id, title='Takip ettiğiniz göstergenin durumu değişti', detail={'value': item.value, **result}))
+                    item.last_fingerprint, item.last_result, item.last_error = fingerprint, result, None
+                    checked += 1
+                except Exception:
+                    item.last_error = 'source_unavailable'
+                item.last_checked_at = datetime.now(timezone.utc)
+                db.commit()
+        finally:
+            store.delete(lease)
+    return {'checked': checked}

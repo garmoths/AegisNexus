@@ -24,7 +24,7 @@ import socket
 import logging
 from typing import Dict, List, Tuple, Optional
 from urllib.parse import urlparse
-from datetime import datetime
+from datetime import datetime, timezone
 from dataclasses import dataclass
 
 # Load .env file
@@ -95,12 +95,13 @@ class AdvancedPhishingDetector:
         try:
             with get_db_connection() as conn:
                 cursor = conn.cursor()
-                # Get recent phishing URLs from cache (reduced from 100K to 10K)
+                # Riskli tarama sonuçları + bilinen phishing listesi (feed ve Keşif yayınları)
                 cursor.execute("""
-                    SELECT DISTINCT url FROM phishing_urls
-                    WHERE risk_score > 50
-                    ORDER BY checked_at DESC
-                    LIMIT 10000
+                    SELECT url FROM (
+                        SELECT url, checked_at AS seen FROM scan_results WHERE risk_score > 50
+                        UNION
+                        SELECT url, submission_time AS seen FROM phishing_urls WHERE url IS NOT NULL
+                    ) ORDER BY seen DESC LIMIT 10000
                 """)
                 self.phishing_urls = [row[0] for row in cursor.fetchall()]
                 self._db_loaded = True
@@ -399,7 +400,7 @@ class AdvancedPhishingDetector:
         try:
             from urllib.parse import urlparse
             parsed = urlparse(url)
-            domain = parsed.netloc.lower()
+            domain = (parsed.hostname or '').lower().rstrip('.')
             path = parsed.path.lower()
 
             # Suspicious TLDs
@@ -499,7 +500,7 @@ class AdvancedPhishingDetector:
             has_brand = False
             brand_count = 0
             for brand, official in (global_brands + tr_brands):
-                if brand in domain and official not in domain:
+                if (brand in re.split(r'[.-]', domain) if len(brand) <= 3 else brand in domain) and not (domain == official or domain.endswith('.' + official)):
                     risk_score += 0.40
                     has_brand = True
                     brand_count += 1
@@ -572,19 +573,14 @@ class AdvancedPhishingDetector:
         Returns: 0.0 (valid), 0.6 (no SSL), 0.8 (expired), 0.5 (error)
         """
         try:
-            parsed = urlparse(url)
-            hostname = parsed.netloc
-            
-            if not hostname:
-                return 0.5
-            
-            # HTTP (no SSL)
-            if url.startswith("http://"):
+            from app.outbound import validate_url
+            normalized, hostname, port, address = validate_url(url)
+            if normalized.startswith('http://'):
                 return 0.6
-            
+
             # HTTPS - check certificate
             context = ssl.create_default_context()
-            with socket.create_connection((hostname, 443), timeout=5) as sock:
+            with socket.create_connection((address, port), timeout=5) as sock:
                 with context.wrap_socket(sock, server_hostname=hostname) as ssock:
                     cert = ssock.getpeercert()
                     
@@ -594,8 +590,8 @@ class AdvancedPhishingDetector:
                     # Check expiration
                     not_after = cert.get("notAfter")
                     if not_after:
-                        expire_date = datetime.strptime(not_after, "%b %d %H:%M:%S %Y %Z")
-                        if expire_date < datetime.now():
+                        expire_date = datetime.strptime(not_after, "%b %d %H:%M:%S %Y %Z").replace(tzinfo=timezone.utc)
+                        if expire_date < datetime.now(timezone.utc):
                             return 0.8
                     
                     return 0.0  # Valid
@@ -647,6 +643,8 @@ class AdvancedPhishingDetector:
             return 0.5, "LLM not available", 0.0
         
         try:
+            from app.ai_budget import reserve_ai_call
+            reserve_ai_call()
             response = self.llm_client.chat.completions.create(
                 model=GROQ_MODEL,
                 messages=[

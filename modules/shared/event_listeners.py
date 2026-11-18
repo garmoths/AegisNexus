@@ -50,6 +50,7 @@ def _on_url_phishing_confirmed(payload: Dict[str, Any]) -> None:
             db.close()
     except Exception as exc:
         logger.error(f"[EventBus] _on_url_phishing_confirmed error: {exc}", exc_info=True)
+        raise
 
 
 # ─────────────────────────────────────────────
@@ -102,29 +103,7 @@ def _on_honeypot_ioc_collected(payload: Dict[str, Any]) -> None:
             db.close()
     except Exception as exc:
         logger.error(f"[EventBus] _on_honeypot_ioc_collected error: {exc}", exc_info=True)
-
-
-# ─────────────────────────────────────────────
-# SUBSCRIBER: victim_atlas.case_ingested
-# Publisher: victim_atlas/ingest.py
-# Action: AI Analyzer extra hints güncelleme (in-memory)
-# ─────────────────────────────────────────────
-
-def _on_victim_atlas_case_ingested(payload: Dict[str, Any]) -> None:
-    attack_methods = payload.get("attack_methods", [])
-    if not attack_methods:
-        return
-    try:
-        from modules.ai_analyzer.advanced_phishing_detector import update_extra_hints
-
-        update_extra_hints(attack_methods)
-        logger.info(
-            f"[EventBus] victim_atlas.case_ingested → extra_hints updated: {attack_methods[:5]}"
-        )
-    except ImportError:
-        logger.debug("[EventBus] update_extra_hints not available, skipping hint update")
-    except Exception as exc:
-        logger.error(f"[EventBus] _on_victim_atlas_case_ingested error: {exc}", exc_info=True)
+        raise
 
 
 # ─────────────────────────────────────────────
@@ -135,8 +114,14 @@ def register_event_listeners() -> None:
     """Tüm subscriber'ları event bus'a kaydet. app/main.py lifespan'ında çağrılır."""
     from modules.shared.events import subscribe
 
+    subscribe("report.pdf_requested", _on_pdf_requested)
     subscribe("url.phishing_confirmed", _on_url_phishing_confirmed)
     subscribe("honeypot.ioc_collected", _on_honeypot_ioc_collected)
-    subscribe("victim_atlas.case_ingested", _on_victim_atlas_case_ingested)
 
-    logger.info("[EventBus] Tüm event listener'lar kayıt edildi (3 event, 3 handler)")
+    logger.info("[EventBus] Tüm event listener'lar kayıt edildi")
+
+
+def _on_pdf_requested(payload):
+    from modules.victim_atlas.celery_tasks import generate_report_pdf
+    generate_report_pdf.run(payload['report_id'])
+

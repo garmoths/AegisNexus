@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.auth import require_admin
 from app.database import get_db
-from app.models import APIKey, User, UserRole, VictimCase
+from app.models import APIKey, User, UserRole
 
 router = APIRouter(tags=["admin"])
 
@@ -20,61 +20,9 @@ class RoleChangeRequest(BaseModel):
     role: UserRole
 
 
-@router.post("/classify", summary="Gemini ile toplu sınıflandırma (admin)")
-def classify_pending_cases(api_key: APIKey = Depends(require_admin), db: Session = Depends(get_db)):
-    """Sınıflandırılmamış veya güncellenmesi gereken vakaları Gemini ile sınıflandır."""
-    pending = (
-        db.query(VictimCase)
-        .filter_by(is_published=False)
-        .order_by(VictimCase.id.desc())
-        .limit(50)
-        .all()
-    )
-
-    classified = 0
-    errors = 0
-
-    try:
-        from modules.victim_atlas.gemini_service import classify_case
-        for case in pending:
-            try:
-                result = classify_case(case.narrative_summary)
-                if result.get("attack_method"):
-                    case.attack_method = result["attack_method"]
-                if result.get("loss_type"):
-                    case.loss_type = result["loss_type"]
-                if result.get("severity"):
-                    case.severity_score = int(result["severity"])
-                if result.get("confidence"):
-                    case.confidence_score = int(result["confidence"])
-                if result.get("tags"):
-                    from app.models import CaseTag
-                    for tag in result["tags"][:5]:
-                        db.add(CaseTag(case_id=case.id, tag=tag))
-                if result.get("region"):
-                    case.region = result["region"]
-                case.is_published = True
-                classified += 1
-            except Exception:
-                errors += 1
-        db.commit()
-    except ImportError:
-        return {
-            "classified": 0,
-            "errors": 0,
-            "message": "Gemini servisi henüz yapılandırılmadı.",
-        }
-
-    return {
-        "classified": classified,
-        "errors": errors,
-        "total_pending": len(pending),
-    }
-
-
 @router.get("/users", summary="Kullanıcı listesi (admin)")
 def list_users(page: int = 1, limit: int = 50, api_key: APIKey = Depends(require_admin), db: Session = Depends(get_db)):
-    limit = min(limit, 100)
+    limit = max(1, min(limit, 100))
     offset = (max(1, page) - 1) * limit
 
     users = db.query(User).order_by(User.id.asc()).offset(offset).limit(limit).all()

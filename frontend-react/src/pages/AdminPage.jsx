@@ -1,40 +1,28 @@
 import { useEffect, useState } from 'react'
 import { theme } from '../theme'
-import { Settings, BrainCircuit, CheckCircle, Users } from 'lucide-react'
+import { Settings, Users } from 'lucide-react'
 import { adminAPI } from '../lib/endpoints'
 import useAuthStore from '../stores/authStore'
 import PrivateRoute from '../components/PrivateRoute'
+import OperationsPanel from '../components/OperationsPanel'
 
 export default function AdminPage() {
   const [users, setUsers] = useState([])
-  const [classifyResult, setClassifyResult] = useState(null)
-  const [classifyLoading, setClassifyLoading] = useState(false)
+  const [error, setError] = useState('')
   const isAdmin = useAuthStore(s => s.isAdmin)
 
   useEffect(() => {
     if (isAdmin()) {
-      adminAPI.users().then(r => setUsers(r.data?.data || [])).catch(() => { void 0 })
+      adminAPI.users().then(r => setUsers(r.data?.data || [])).catch(() => setError('Kullanıcılar yüklenemedi.'))
     }
   }, [isAdmin])
-
-  const handleClassify = async () => {
-    setClassifyLoading(true)
-    try {
-      const res = await adminAPI.classify()
-      setClassifyResult(res.data)
-    } catch {
-      void 0
-    } finally {
-      setClassifyLoading(false)
-    }
-  }
 
   const handleRoleChange = async (userId, newRole) => {
     try {
       await adminAPI.changeRole(userId, newRole)
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u))
     } catch {
-      void 0
+      setError('Rol değiştirilemedi.')
     }
   }
 
@@ -50,53 +38,13 @@ export default function AdminPage() {
             <Settings size={28} style={{marginBottom:4}}/> Admin Paneli
           </h1>
           <p style={{ color: theme.textMuted, fontSize: 15, margin: 0 }}>
-            Kullanıcı yönetimi ve toplu işlemler
+            Kullanıcı yönetimi ve sistem durumu
           </p>
         </section>
 
         <section style={{ maxWidth: 1000, margin: '0 auto', padding: '30px 24px' }}>
-          {/* Classify */}
-          <div style={{
-            background: theme.gradientSurface,
-            border: `1px solid ${theme.border}`,
-            borderRadius: theme.radius.lg, padding: 24,
-            marginBottom: 24,
-          }}>
-            <h2 style={{ color: theme.primary, fontSize: 18, fontWeight: 600, margin: '0 0 12px' }}>
-              <span style={{display:'flex',alignItems:'center',gap:7}}><BrainCircuit size={16}/> AI Toplu Sınıflandırma</span>
-    </h2>
-    <p style={{ color: theme.textMuted, fontSize: 14, margin: '0 0 16px' }}>
-              Yayınlanmamış vakaları AI ile otomatik sınıflandır.
-            </p>
-            <button
-              onClick={handleClassify}
-              disabled={classifyLoading}
-              style={{
-                padding: '10px 24px',
-                background: classifyLoading ? theme.surface : theme.gradientPrimary,
-                color: classifyLoading ? theme.textMuted : theme.bgDeep,
-                fontWeight: 700, border: 'none',
-                borderRadius: theme.radius.sm, cursor: classifyLoading ? 'wait' : 'pointer',
-                fontSize: 14,
-              }}
-            >
-              {classifyLoading ? 'Sınıflandırılıyor...' : 'Sınıflandırmayı Başlat'}
-            </button>
-
-            {classifyResult && (
-              <div style={{
-                marginTop: 16, padding: 14,
-                background: `${theme.success}12`,
-                border: `1px solid ${theme.success}30`,
-                borderRadius: theme.radius.sm,
-                color: theme.text, fontSize: 14,
-              }}>
-                <span style={{display:'flex',alignItems:'center',gap:6}}><CheckCircle size={13}/> {classifyResult.classified} vaka sınıflandırıldı</span>
-                {classifyResult.errors > 0 && ` · ${classifyResult.errors} hata`}
-              </div>
-            )}
-          </div>
-
+          <OperationsPanel/>
+          {error&&<p role="alert" className="error-message">{error}</p>}
           {/* Users */}
           <div style={{
             background: theme.gradientSurface,

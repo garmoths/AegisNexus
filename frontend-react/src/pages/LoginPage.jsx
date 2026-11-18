@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { theme } from '../theme'
 import { Shield } from 'lucide-react'
@@ -40,11 +40,11 @@ export default function LoginPage() {
       const res = await authAPI.login(email, apiKey)
       const data = res.data
       setAuth({
-        apiKey,
         role: data.role,
         email: data.email || email,
         fullName: data.full_name || '',
       })
+      setApiKey('')
       nav('/dashboard')
     } catch (err) {
       setError(err.response?.data?.detail || 'Giriş sırasında hata oluştu.')
@@ -72,7 +72,7 @@ export default function LoginPage() {
           <Shield size={20} style={{marginRight:6}}/> AegisNexus
         </h1>
         <p style={{ color: theme.textMuted, fontSize: 14, margin: '0 0 24px', textAlign: 'center' }}>
-          Siber Mağduriyet Atlası
+          Phishing keşif ve analiz platformu
         </p>
 
         {/* Mode toggle */}
@@ -188,6 +188,7 @@ export default function LoginPage() {
             </button>
           </form>
         )}
+        <p style={{marginTop:20}}><Link to="/recovery" style={{color:theme.primary}}>Anahtarımı kaybettim</Link></p>
       </motion.div>
     </div>
   )

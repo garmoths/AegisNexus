@@ -1172,6 +1172,8 @@ def run_threat_intelligence(url, http_meta=None, page_text: str = "", is_whiteli
     validated=True ise: TÜM kontroller başarılı
     validated=False ise: En az bir kontrol başarısız
     """
+    # Reputation never exempts a page from threat checks.
+    is_whitelisted = False
     results = {
         "screenshot_analysis": None,
         "domain_age": None,

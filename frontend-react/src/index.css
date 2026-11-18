@@ -1,3 +1,77 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* shadcn/ui "zinc" koyu teması — siyah-beyaz, renk yalnızca anlam taşır
+   (tehlike/uyarı/başarı). */
+:root {
+  --radius: 0.5rem;
+  --background: #09090b;
+  --foreground: #fafafa;
+  --card: #09090b;
+  --card-foreground: #fafafa;
+  --popover: #09090b;
+  --popover-foreground: #fafafa;
+  --primary: #fafafa;
+  --primary-foreground: #18181b;
+  --secondary: #27272a;
+  --secondary-foreground: #fafafa;
+  --muted: #27272a;
+  --muted-foreground: #a1a1aa;
+  --accent: #27272a;
+  --accent-foreground: #fafafa;
+  --destructive: #ef4444;
+  --destructive-foreground: #fafafa;
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --border: #27272a;
+  --input: #27272a;
+  --ring: #d4d4d8;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --font-sans: 'Geist', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'Geist Mono', 'JetBrains Mono', 'Consolas', monospace;
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+}
+
+/* Eski global stiller @layer base içinde: Tailwind yardımcı sınıfları
+   (p-*, m-*, gap-* ...) bunları ezebilsin. Katmansız bırakılırsa tüm
+   boşluk sınıflarını iptal ediyordu. */
+@layer base {
+/* ============================================================
+   Aşağısı mevcut (eski) global stiller — inline-stilli sayfalar
+   shadcn'e taşınana dek korunur. Kademeli göç içindir.
+   ============================================================ */
 *,
 *::before,
 *::after {
@@ -11,9 +85,9 @@ html {
 }
 
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  background: #080c14;
-  color: #e2e8f0;
+  font-family: var(--font-sans);
+  background: #09090b;
+  color: #fafafa;
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -31,28 +105,22 @@ pre {
 }
 
 ::selection {
-  background: rgba(0, 212, 255, 0.35);
+  background: rgba(250,250,250,0.175);
   color: #fff;
 }
 
 :focus-visible {
-  outline: 2px solid #00d4ff;
+  outline: 2px solid #fafafa;
   outline-offset: 3px;
   border-radius: 6px;
 }
 
-button:focus,
-a:focus,
-input:focus,
-textarea:focus {
-  outline: none;
-}
 
 button:focus-visible,
 a:focus-visible,
 input:focus-visible,
 textarea:focus-visible {
-  outline: 2px solid #00d4ff;
+  outline: 2px solid #fafafa;
   outline-offset: 3px;
 }
 
@@ -61,14 +129,14 @@ textarea:focus-visible {
   height: 10px;
 }
 ::-webkit-scrollbar-track {
-  background: #080c14;
+  background: #09090b;
 }
 ::-webkit-scrollbar-thumb {
-  background: #1e2a4a;
+  background: #27272a;
   border-radius: 999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #2a3b6b;
+  background: #3f3f46;
 }
 
 @keyframes fadeInUp {
@@ -93,12 +161,12 @@ textarea:focus-visible {
 }
 
 .glow {
-  text-shadow: 0 0 18px rgba(0, 212, 255, 0.45);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
 }
 
 .grid-bg {
-  background-image: linear-gradient(rgba(0, 212, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 212, 255, 0.04) 1px, transparent 1px);
+  background-image: linear-gradient(rgba(250,250,250,0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(250,250,250,0.02) 1px, transparent 1px);
   background-size: 48px 48px;
 }
 
@@ -121,4 +189,32 @@ textarea:focus-visible {
   html {
     scroll-behavior: auto;
   }
+}
+
+.module-shell { min-height:100vh; }
+.module-header { position:sticky; top:0; z-index:40; display:flex; flex-wrap:wrap; align-items:center; gap:18px; padding:14px 24px; border-bottom:1px solid #27272a; background:#09090bf5; }
+.module-brand { display:flex; align-items:center; gap:10px; font-weight:800; color:#fff; text-decoration:none; }
+.module-nav { display:flex; align-items:center; flex-wrap:wrap; gap:6px; flex:1; }
+.module-nav a { color:#a1a1aa; text-decoration:none; padding:9px 12px; border-radius:8px; font-size:13px; }
+.module-nav a[aria-current="page"] { background:#fafafa; color:#18181b; font-weight:700; }
+.module-menu-toggle { display:none; margin-left:auto; border:1px solid #3f3f46; border-radius:8px; background:#18181b; color:#fff; padding:8px; }
+.module-content { max-width:1440px; margin:auto; }
+.module-content > div > div:first-of-type h1 { font-size:clamp(28px,4vw,44px); }
+.account-layout { max-width:1120px; margin:0 auto; padding:24px; }
+.account-nav { display:flex; flex-wrap:wrap; gap:16px; align-items:center; margin-bottom:24px; }
+.account-nav a, .module-shell footer a { color:#e4e4e7; }
+.workspace-card { padding:24px; margin:18px 0; background:#09090b; border:1px solid #27272a; border-radius:16px; }
+.workspace-card input, .workspace-card textarea, .workspace-card select { background:#09090b; border:1px solid #52525b; color:#fafafa; border-radius:8px; padding:12px; font:inherit; max-width:100%; }
+.workspace-card button, .action-button { background:#fafafa; color:#18181b; border:0; border-radius:8px; padding:11px 18px; cursor:pointer; font:inherit; font-weight:600; }
+.workspace-card button:disabled { opacity:.55; cursor:wait; }
+.workspace-card label { display:block; margin:12px 0; }
+.workspace-row { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+.error-message { color:#fda4af; padding:12px 0; }
+@media(max-width:900px) { .module-header { padding:12px 16px; } .module-menu-toggle { display:block; } .module-nav { display:none; flex-basis:100%; align-items:stretch; flex-direction:column; } .module-nav.is-open { display:flex; max-height:65vh; overflow-y:auto; } .module-nav a { font-size:15px; padding:12px; } .account-layout {padding:16px;} }
+}
+
+/* Sade arayüz: dekoratif CSS animasyonları kapalı. Yalnızca yükleniyor
+   göstergeleri (spin) döner. !important, satır içi animation stillerini de ezer. */
+*:not(.animate-spin):not([style*="spin"]) {
+  animation: none !important;
 }

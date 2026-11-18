@@ -2,13 +2,15 @@
 SMS Guard — Türkçe SMS smishing/phishing analiz modülü.
 
 POST /api/v2/sms/analyze
-  Gelen SMS metnini ML modeli + IOC çapraz kontrol ile analiz eder.
+  Gelen SMS metnini açıklanabilir kurallar + IOC çapraz kontrol ile analiz eder.
   Operatörler (Turkcell, TT, Vodafone) bu endpoint'i kendi SMS
   filtreleme pipeline'larına entegre edebilir.
 """
 from __future__ import annotations
 
 import re
+import unicodedata
+from urllib.parse import urlsplit
 from datetime import datetime, timezone
 from typing import List, Optional
 
@@ -64,12 +66,16 @@ class SMSAnalyzeResponse(BaseModel):
 # ── Analyzer logic ─────────────────────────────────────────
 
 def _extract_domain(url: str) -> str:
-    url = re.sub(r"^https?://", "", url, flags=re.IGNORECASE)
-    return url.split("/")[0].split("?")[0].lower()
+    return (urlsplit(url if '://' in url else 'https://' + url).hostname or '').lower().rstrip('.')
+
+
+def _normalized(text: str) -> str:
+    return ''.join(c for c in unicodedata.normalize('NFKD', text.lower().replace('ı', 'i')) if not unicodedata.combining(c))
+
 
 
 def _analyze_sms(text: str, sender: Optional[str], db: Session) -> SMSAnalyzeResponse:
-    text_lower = text.lower()
+    text_lower = _normalized(text)
     score = 0
     indicators: List[str] = []
 
@@ -78,7 +84,16 @@ def _analyze_sms(text: str, sender: Optional[str], db: Session) -> SMSAnalyzeRes
     url_results: List[URLIndicator] = []
 
     for raw_url in raw_urls[:5]:
-        domain = _extract_domain(raw_url)
+        raw_url = raw_url.rstrip('.,;!?)')
+        try:
+            domain = _extract_domain(raw_url)
+            if not domain:
+                raise ValueError('Missing host')
+        except ValueError:
+            score += 20
+            url_results.append(URLIndicator(url=raw_url[:120], is_suspicious=True,
+                                            reason='Geçersiz bağlantı yapısı; hedef doğrulanamadı'))
+            continue
         reasons = []
         is_susp = False
 
@@ -117,20 +132,20 @@ def _analyze_sms(text: str, sender: Optional[str], db: Session) -> SMSAnalyzeRes
         if ioc_hit:
             in_ioc_db = True
             ioc_risk = ioc_hit.risk_score
-            score += min(ioc_risk, 40)
+            score = max(score, min(100, ioc_risk))
             reasons.append(f"IOC veritabanında kayıtlı (risk: {ioc_risk})")
             is_susp = True
 
         url_results.append(URLIndicator(
             url=raw_url[:120],
             is_suspicious=is_susp,
-            reason="; ".join(reasons) if reasons else "Normal görünümlü URL",
+            reason="; ".join(reasons) if reasons else "Yalnızca yerel kurallar kontrol edildi; güvenliği doğrulanmadı",
             in_ioc_db=in_ioc_db,
             ioc_risk_score=ioc_risk,
         ))
 
     # 2. Türkçe phishing kelimesi analizi
-    kw_hits = [kw for kw in _PHISHING_KEYWORDS_TR if kw in text_lower]
+    kw_hits = [kw for kw in _PHISHING_KEYWORDS_TR if _normalized(kw) in text_lower]
     if len(kw_hits) >= 3:
         score += 25
         indicators.append(f"Phishing anahtar kelimeler: {', '.join(kw_hits[:4])}")
@@ -139,10 +154,28 @@ def _analyze_sms(text: str, sender: Optional[str], db: Session) -> SMSAnalyzeRes
         indicators.append(f"Şüpheli kelimeler: {', '.join(kw_hits[:3])}")
 
     # 3. Aciliyet / baskı taktikleri
-    urg_hits = [w for w in _URGENCY_WORDS if w in text_lower]
+    urg_hits = [w for w in _URGENCY_WORDS if re.search(r'\b' + re.escape(_normalized(w)) + r'\b', text_lower)]
+    if re.search(r'\b\d+\s*(dakika|saat)\s*(icinde|kaldi)', text_lower):
+        urg_hits.append('kısa süre baskısı')
     if len(urg_hits) >= 2:
         score += 15
         indicators.append(f"Aciliyet baskısı: {', '.join(urg_hits)}")
+
+    # Combine requested actions with pressure; ordinary delivery/OTP notices are not proof of fraud.
+    sensitive_request = re.search(r'(kart\s*bilgi|sifre|parola|dogrulama\s*kodu).{0,45}\b(gir(?:in|iniz)?|paylas(?:in|iniz)?|gonder(?:in|iniz)?|ilet(?:in|iniz)?|dogrula(?:yin|yiniz)?)\b', text_lower)
+    payment_request = re.search(r'(odeme|ucret|borc).{0,35}(yap|gir|tamamla|ode)|\bodeyin', text_lower)
+    account_threat = re.search(r'hesab.{0,20}(kapan|aski|bloke|kisit)', text_lower)
+    if sensitive_request:
+        score += 45
+        indicators.append('Hassas bilgi girme veya paylaşma talebi')
+        if urg_hits:
+            score += 15
+    if payment_request and (urg_hits or account_threat):
+        score += 30
+        indicators.append('Baskı altında ödeme talebi')
+    if account_threat:
+        score += 20
+        indicators.append('Hesap kapatma veya kısıtlama tehdidi')
 
     # 4. Gönderen analizi (resmi kurum taklidi)
     if sender:
@@ -182,7 +215,7 @@ def _analyze_sms(text: str, sender: Optional[str], db: Session) -> SMSAnalyzeRes
     elif action == "MONITOR":
         explanation = f"SMS düşük riskli ama takip edilmeli (risk: {score}/100)."
     else:
-        explanation = f"SMS temiz görünüyor (risk: {score}/100). İşlem gerekmiyor."
+        explanation = f"Yerel kurallarda belirgin tehdit sinyali bulunmadı (risk: {score}/100). Göndereni bağımsız olarak doğrulayın; bu sonuç güvenlik garantisi değildir."
 
     return SMSAnalyzeResponse(
         risk_score=score,
@@ -204,7 +237,7 @@ def _analyze_sms(text: str, sender: Optional[str], db: Session) -> SMSAnalyzeRes
     summary="SMS güvenlik analizi",
     description=(
         "Gelen SMS metnini smishing/phishing açısından analiz eder. "
-        "ML tabanlı skor + IOC veritabanı çapraz kontrolü + Türkçe keyword analizi. "
+        "Açıklanabilir kural skoru + IOC veritabanı çapraz kontrolü + Türkçe keyword analizi. "
         "Operatör entegrasyonu için: SMS içeriğini POST edin, risk skoru + aksiyon alın."
     ),
 )

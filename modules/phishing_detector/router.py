@@ -9,16 +9,19 @@ import logging
 from datetime import datetime, timedelta
 from functools import wraps
 
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import case, func
 
 from shared.utils.db import get_db
-from app.models import PhishingURL
+from app.models import PhishingURL, APIKey, PrivateScan
+from app.auth import resolve_api_key, resolve_optional_api_key
 from app.security import require_admin_api_key
 from urllib.parse import urlparse as _urlparse
-from .scanner import calculate_safety_score, run_quick_checks, check_official_tr_tld
+from .scanner import calculate_safety_score, run_quick_checks
+from app.outbound import validate_url, UnsafeTarget
+from app import runtime_store as store
 from .url_normalize import normalize_url_record
 from .fetch_all_sources import fetch_all_sources
 from .cache_db import (
@@ -29,6 +32,7 @@ from .cache_db import (
     get_phishing_stats,
     get_scan_history,
     write_phishing_url,
+    persist_scan_result,
 )
 from .redis_cache import (
     redis_get_scan,
@@ -52,7 +56,7 @@ class SiteAddRequest(BaseModel):
 
 
 class URLCheckRequest(BaseModel):
-    url: str
+    url: str = Field(min_length=1, max_length=2048)
     force_fresh: bool = False
 
 
@@ -61,38 +65,6 @@ class URLCheckResponse(BaseModel):
     score: float
     threat_level: str
     details: dict
-
-
-# Rate limiting decorator
-def rate_limit(max_requests: int, time_window: int):
-    """Rate limiting decorator (requests per time_window seconds)"""
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            now = datetime.now()
-            client_id = kwargs.get('db').__hash__() if 'db' in kwargs else str(args)
-            
-            if client_id not in RATE_LIMIT_STORAGE:
-                RATE_LIMIT_STORAGE[client_id] = []
-            
-            # Eski requests'i temizle
-            cutoff_time = now - timedelta(seconds=time_window)
-            RATE_LIMIT_STORAGE[client_id] = [
-                req_time for req_time in RATE_LIMIT_STORAGE[client_id]
-                if req_time > cutoff_time
-            ]
-            
-            # Limiti kontrol et
-            if len(RATE_LIMIT_STORAGE[client_id]) >= max_requests:
-                raise HTTPException(
-                    status_code=429,
-                    detail=f"Rate limit exceeded: {max_requests} requests per {time_window}s"
-                )
-            
-            RATE_LIMIT_STORAGE[client_id].append(now)
-            return func(*args, **kwargs)
-        return wrapper
-    return decorator
 
 
 @router.post("/add-site")
@@ -138,199 +110,88 @@ def add_site(
 
 
 @router.post("/check-url")
-@rate_limit(max_requests=60, time_window=60)
-def check_url(request: URLCheckRequest, db: Session = Depends(get_db)):
-    """URL güvenlik skorunu hesapla"""
-    if not request.url:
-        raise HTTPException(status_code=400, detail="URL boş olamaz")
+def check_url(request: URLCheckRequest, db: Session = Depends(get_db), api_key: APIKey | None = Depends(resolve_optional_api_key)):
     try:
-        requested_url = request.url.strip()
-
-        # ── Resmi Türk TLD: cache/analiz atla, direkt 100 dön ──
-        _u = requested_url if "://" in requested_url else "https://" + requested_url
-        _parsed_domain = _urlparse(_u).netloc.lower().replace("www.", "", 1).split(":")[0]
-        _tr_tld_hit = check_official_tr_tld(_parsed_domain)
-        if _tr_tld_hit:
-            _r = {
-                "url": requested_url, "safety_score": 100, "score": 100,
-                "status": "complete", "risk_level": "✅ Güvenli",
-                "details": [
-                    f"✅ Resmi Türk devlet/kurum TLD'si tespit edildi: {_tr_tld_hit['tld']}",
-                    f"   {_tr_tld_hit['label']}",
-                    "   Bu TLD'ler BTK tarafından zorunlu kimlik doğrulamasıyla verilir.",
-                ],
-                "sources": [{"name": "Resmi TR TLD", "status": f"✅ {_tr_tld_hit['label']}"}],
-                "risks": [], "module": "01_phishing_detector", "cache": "tld-bypass",
-            }
-            logger.info(f"Resmi TR TLD bypass: {requested_url} ({_tr_tld_hit['tld']})")
-            return _r
-
-        # Cache kontrolü - force_fresh ise bypass et
-        norm = normalize_url_record(requested_url)
-        url_hash = norm.get("url_hash", "")
-
-        if request.force_fresh and url_hash:
-            redis_invalidate_scan(url_hash)
-
-        if not request.force_fresh:
-            # 1. Redis cache (~0.3ms)
-            cached_result = redis_get_scan(url_hash) if url_hash else None
-            if cached_result:
-                if cached_result.get("threat_intel") is None:
-                    # Eski/bozuk cache (threat_intel eksik) — geçersiz kıl, yeniden tara
-                    logger.info(f"Redis cache geçersiz (threat_intel yok), yeniden taranacak: {requested_url}")
-                    redis_invalidate_scan(url_hash)
-                    cached_result = None
-                else:
-                    cached_result["module"] = "01_phishing_detector"
-                    cached_result["cache"] = "redis-hit"
-                    logger.info(f"Redis cache hit: {requested_url}")
-                    write_phishing_url(
-                        url=requested_url,
-                        risk_score=int(cached_result.get("safety_score", cached_result.get("score", 0))),
-                        risk_level=str(cached_result.get("risk_level", "unknown")),
-                        is_safe=bool(cached_result.get("safety_score", cached_result.get("score", 0)) >= 80),
-                        sources=[s.get("name") if isinstance(s, dict) else s for s in cached_result.get("sources", []) if s],
-                        raw_data=cached_result,
-                        track_event=True,
-                    )
-                    return cached_result
-
-            # 2. SQLite cache fallback
-            cached_result = get_cached_scan_result(requested_url, days=30)
-            if cached_result and cached_result.get("threat_intel") is None:
-                # Eski/bozuk SQLite cache — atla, yeniden tara
-                logger.info(f"SQLite cache geçersiz (threat_intel yok), yeniden taranacak: {requested_url}")
-                cached_result = None
-            if cached_result:
-                sources = []
-                for src in cached_result.get("sources", []):
-                    if isinstance(src, dict):
-                        name = src.get("name")
-                        if name:
-                            sources.append(str(name))
-                    elif isinstance(src, str):
-                        sources.append(src)
-                write_phishing_url(
-                    url=requested_url,
-                    risk_score=int(cached_result.get("safety_score", cached_result.get("score", 0))),
-                    risk_level=str(cached_result.get("risk_level", "unknown")),
-                    is_safe=bool(cached_result.get("safety_score", cached_result.get("score", 0)) >= 80),
-                    sources=sources,
-                    raw_data=cached_result,
-                    track_event=True,
-                )
-                cached_result["module"] = "01_phishing_detector"
-                cached_result["cache"] = "sqlite-hit"
-                logger.info(f"SQLite cache hit: {requested_url}")
-                # SQLite hit'i Redis'e de yaz (sonraki istek Redis'ten gelsin)
-                if url_hash:
-                    redis_set_scan(url_hash, cached_result)
-                return cached_result
-
-        # ── A2: Hızlı katmanlar (~200ms) ──────────────────────────────
-        quick = run_quick_checks(requested_url, db)
-
-        if quick.get("definitive"):
-            # Kesin sonuç → direkt dön, Celery gerekmez
-            sources = [s.get("name", "") if isinstance(s, dict) else s for s in quick.get("sources", []) if s]
-            write_phishing_url(
-                url=requested_url,
-                risk_score=int(quick.get("safety_score", 0)),
-                risk_level=str(quick.get("risk_level", "unknown")),
-                is_safe=bool(quick.get("safety_score", 0) >= 80),
-                sources=sources,
-                raw_data=quick,
-                track_event=True,
-            )
-            if url_hash:
-                redis_set_scan(url_hash, quick)
-            quick["module"] = "01_phishing_detector"
-            logger.info(f"Hızlı sonuç (definitive): {requested_url}")
-            return quick
-
-        # ── A2: Belirsiz → ağır analizi Celery kuyruğuna at ─────────────
-        try:
-            from .celery_tasks import run_heavy_analysis
-            job_id = str(uuid.uuid4())
-            # Opsiyonel Redis dedup: varsa kullan, yoksa atla
-            try:
-                import redis as _redis_dedup
-                _r = _redis_dedup.Redis(host=os.getenv("REDIS_HOST", "127.0.0.1"), port=int(os.getenv("REDIS_PORT", "6379")), db=1, decode_responses=True, socket_connect_timeout=1, socket_timeout=1)
-                _lock_key = f"analyzing:{url_hash}" if url_hash else None
-                _existing_job = _r.get(_lock_key) if _lock_key else None
-                if _existing_job:
-                    logger.info(f"Dedup: {requested_url} zaten analiz ediliyor (job={_existing_job})")
-                    return {**quick, "status": "analyzing", "job_id": _existing_job, "cache": "dedup", "module": "01_phishing_detector", "message": "Analiz zaten devam ediyor."}
-                if _lock_key:
-                    _r.setex(_lock_key, 180, job_id)
-            except Exception:
-                pass  # Redis yoksa dedup atlanır, normal devam
-            run_heavy_analysis.apply_async((requested_url, job_id), queue="phishing")
-            logger.info(f"Celery kuyruğuna alındı: {requested_url} job={job_id}")
-            return {
-                **quick,
-                "status": "analyzing",
-                "job_id": job_id,
-                "cache": "none",
-                "module": "01_phishing_detector",
-                "message": "Derin analiz kuyruğa alındı. /result/{job_id} ile sonucu sorgulayabilirsiniz.",
-            }
-        except Exception as celery_err:
-            # Celery erişilemiyorsa senkron fallback
-            logger.warning(f"Celery kullanılamıyor, senkron fallback: {celery_err}")
-            result = calculate_safety_score(requested_url, db)
-            sources = [s.get("name", "") if isinstance(s, dict) else s for s in result.get("sources", []) if s]
-            write_phishing_url(
-                url=requested_url,
-                risk_score=int(result.get("safety_score", result.get("score", 0))),
-                risk_level=str(result.get("risk_level", "unknown")),
-                is_safe=bool(result.get("safety_score", result.get("score", 0)) >= 80),
-                sources=sources,
-                raw_data=result,
-                track_event=True,
-            )
-            result["module"] = "01_phishing_detector"
-            if url_hash:
-                redis_set_scan(url_hash, result)
-            logger.info(f"Senkron fallback tamamlandı: {requested_url}")
-            return result
-    except Exception as e:
-        logger.error(f"URL kontrol hatası: {str(e)}")
-        write_phishing_url(
-            url=request.url.strip(),
-            risk_score=50,
-            risk_level="degraded",
-            is_safe=False,
-            sources=["degraded"],
-            raw_data={"error": str(e)},
-            track_event=True,
-        )
-        # Fail-soft: UI'nin tamamen kırılmasını engellemek için degrade yanıt döndür.
-        return {
-            "status": "degraded",
-            "url": request.url,
-            "score": 50,
-            "risk_level": "medium",
-            "details": ["Harici kaynak hatası veya gecikmesi nedeniyle kısmi sonuç döndürüldü."],
-            "sources": [],
-            "module": "01_phishing_detector",
-        }
+        requested_url, _, _, _ = validate_url(request.url, resolve=False)
+    except UnsafeTarget as exc:
+        raise HTTPException(422, str(exc))
+    norm = normalize_url_record(requested_url)
+    url_hash = norm.get('url_hash', '')
+    if request.force_fresh:
+        redis_invalidate_scan(url_hash)
+    else:
+        cached = redis_get_scan(url_hash)
+        if cached and cached.get('score_version') == 2:
+            cached['cache'] = 'shared-hit'
+            record_private_scan(db, api_key, requested_url, cached)
+            return cached
+    quick = run_quick_checks(requested_url, db)
+    if quick.get('definitive'):
+        quick.update(status='complete', module='01_phishing_detector')
+        if not persist_scan_result(requested_url, quick):
+            raise HTTPException(503, 'Tarama sonucu kaydedilemedi.')
+        redis_set_scan(url_hash, quick)
+        record_private_scan(db, api_key, requested_url, quick)
+        return quick
+    # The lease covers queue wait plus the hard task deadline, not just browser time.
+    existing = store.get('analyzing:' + url_hash)
+    if existing:
+        state = get_job_result(existing, None, db)
+        if state.get('status') in ('queued', 'running', 'retrying'):
+            return {**quick, 'status': 'analyzing', 'job_state': state['status'], 'job_id': existing}
+        store.delete('analyzing:' + url_hash)
+    job_id = str(uuid.uuid4())
+    if not store.claim('analyzing:' + url_hash, job_id, 900):
+        return {**quick, 'status': 'analyzing', 'job_id': store.get('analyzing:' + url_hash)}
+    from .cache_db import set_celery_job
+    stored = set_celery_job('job:' + job_id, {'status': 'queued', 'job_id': job_id, 'url': requested_url,
+                                  'updated_at': datetime.utcnow().isoformat(), 'deadline': (datetime.utcnow() + timedelta(minutes=15)).isoformat()})
+    if not stored:
+        store.delete('analyzing:' + url_hash)
+        raise HTTPException(503, 'İş kaydedilemedi.')
+    try:
+        from .celery_tasks import run_heavy_analysis
+        run_heavy_analysis.apply_async((requested_url, job_id), queue='phishing', task_id=job_id,
+                                      expires=900, retry=False)
+    except Exception:
+        store.delete('analyzing:' + url_hash)
+        set_celery_job('job:' + job_id, {'status': 'failed', 'job_id': job_id, 'error': 'queue_unavailable'})
+        # Do not run an unbounded scan inside the request when the worker is unavailable.
+        raise HTTPException(503, 'Analiz kuyruğu kullanılamıyor. Lütfen daha sonra tekrar deneyin.')
+    return {**quick, 'status': 'analyzing', 'job_state': 'queued', 'job_id': job_id, 'module': '01_phishing_detector'}
 
 
 @router.get("/result/{job_id}")
-def get_job_result(job_id: str):
-    """A2: Celery job sonucunu sorgula. status='pending' ise analiz devam ediyor."""
-    from .cache_db import get_celery_job
+def get_job_result(job_id: str, api_key: APIKey | None = Depends(resolve_optional_api_key), db: Session = Depends(get_db)):
+    from .cache_db import get_celery_job, set_celery_job
     try:
-        result = get_celery_job(f"job:{job_id}")
-        if result:
-            result.setdefault("status", "complete")
-            return result
-        return {"status": "pending", "job_id": job_id, "module": "01_phishing_detector"}
-    except Exception as e:
-        logger.warning(f"Job result sorgu hatası: {e}")
-        return {"status": "pending", "job_id": job_id, "module": "01_phishing_detector"}
+        uuid.UUID(job_id)
+    except ValueError:
+        raise HTTPException(422, 'Geçersiz iş kimliği.')
+    result = get_celery_job('job:' + job_id)
+    if result is None:
+        return {'status': 'expired', 'job_id': job_id, 'message': 'İş bulunamadı veya saklama süresi doldu.'}
+    if result.get('status') in ('queued', 'running', 'retrying'):
+        deadline = result.get('deadline')
+        if deadline and datetime.utcnow() > datetime.fromisoformat(deadline):
+            result.update(status='timeout', error='job_deadline_exceeded')
+            set_celery_job('job:' + job_id, result)
+            if result.get('url'):
+                store.delete('analyzing:' + normalize_url_record(result['url']).get('url_hash', ''))
+    if result.get('status') == 'complete' and isinstance(api_key, APIKey):
+        record_private_scan(db, api_key, result['url'], result, job_id)
+    return result
+
+
+def record_private_scan(db, api_key, url, result, job_id=None):
+    if not isinstance(api_key, APIKey):
+        return
+    job_id = job_id or str(uuid.uuid4())
+    if db.query(PrivateScan).filter_by(user_id=api_key.user_id, job_id=job_id).first():
+        return
+    risk = int(result.get('risk_score', 100-int(result.get('safety_score', result.get('score', 50)))))
+    db.add(PrivateScan(user_id=api_key.user_id, job_id=job_id, url=url, risk_score=risk, risk_level=str(result.get('risk_level', 'unknown'))))
+    db.commit()
 
 
 @router.get("/cache-health")
@@ -340,7 +201,7 @@ def get_cache_health():
     sqlite_stats = get_phishing_stats()
     from .playwright_pool import is_healthy as pw_healthy
     return {
-        "redis": redis_health(),
+        "cache": redis_health(),
         "sqlite": {
             "available": True,
             "total_urls": sqlite_stats.get("total_urls", 0),
@@ -512,55 +373,16 @@ def fetch_all_phishing_data(
         }
 
 
-@router.get("/history")
-def get_phishing_scan_history(limit: int = 50, days: int = 30, db: Session = Depends(get_db)):
-    """URL tarama geçmişini getir (threat_intel_cache.db)."""
-    try:
-        history_page = get_scan_history(limit=limit, page=1, days=days)
-        return {
-            "history": history_page["data"],
-            "limit": limit,
-            "days": days,
-            "total": history_page["total"],
-            "module": "01_phishing_detector"
-        }
-    except Exception as e:
-        logger.error(f"History fetch error: {e}")
-        # Fallback to cache if main DB fails
-        try:
-            history = get_phishing_history(limit=limit, days=days)
-            return {
-                "history": history,
-                "limit": limit,
-                "days": days,
-                "module": "01_phishing_detector"
-            }
-        except:
-            return {
-                "history": [],
-                "limit": limit,
-                "days": days,
-                "module": "01_phishing_detector"
-            }
-
-
-@router.get("/scan-history")
-def get_scan_history_paged(limit: int = 20, page: int = 1, days: int = 30):
-    """Paginated URL scan history for frontend chips/list."""
-    try:
-        result = get_scan_history(limit=limit, page=page, days=days)
-        result["module"] = "01_phishing_detector"
-        return result
-    except Exception as e:
-        logger.error(f"Scan history fetch error: {e}")
-        return {
-            "data": [],
-            "page": 1,
-            "total_pages": 0,
-            "total": 0,
-            "limit": limit,
-            "module": "01_phishing_detector",
-        }
+@router.get('/history')
+@router.get('/scan-history')
+def get_scan_history_paged(limit: int = Query(20, ge=1, le=100), page: int = Query(1, ge=1), days: int = Query(30, ge=1, le=365),
+                           api_key: APIKey = Depends(resolve_api_key), db: Session = Depends(get_db)):
+    query = db.query(PrivateScan).filter(PrivateScan.user_id == api_key.user_id, PrivateScan.created_at >= datetime.utcnow()-timedelta(days=days))
+    total = query.count()
+    rows = query.order_by(PrivateScan.created_at.desc()).offset((page-1)*limit).limit(limit).all()
+    data = [{'url': r.url, 'risk_score': r.risk_score, 'safety_score': 100-r.risk_score, 'risk_level': r.risk_level,
+             'checked_at': r.created_at.isoformat(), 'is_safe': r.risk_score <= 20} for r in rows]
+    return {'data': data, 'history': data, 'total': total, 'page': page, 'total_pages': max(1,(total+limit-1)//limit)}
 
 
 @router.get("/latest")

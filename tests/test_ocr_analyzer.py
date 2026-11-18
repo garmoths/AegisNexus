@@ -38,6 +38,8 @@ class TestGetOcrReader:
         import modules.phishing_detector.visual_analyzer as va
         fake_reader = MagicMock()
         monkeypatch.setattr(va, "_ocr_reader", None)
+        import sys
+        monkeypatch.setitem(sys.modules, "easyocr", MagicMock(Reader=MagicMock(return_value=fake_reader)))
         with patch("easyocr.Reader", return_value=fake_reader):
             r1 = va.get_ocr_reader()
             r2 = va.get_ocr_reader()
@@ -175,26 +177,26 @@ class TestScreenshotAnalyzerOcrIntegration:
         """OCR kesin sonuç → Gemini çağrılmaz."""
         sa, va = self._setup(monkeypatch,
                              ["Ziraat Bankası giriş şifre kart numarası"])
-        monkeypatch.setattr(sa, "redis_get_gemini_count", lambda: 0)
-        monkeypatch.setattr(sa, "redis_incr_gemini_counter", lambda: 1)
+        monkeypatch.setattr(sa, "redis_get_ai_count", lambda: 0)
+        monkeypatch.setattr(sa, "redis_incr_ai_counter", lambda: 1)
 
         gemini_calls = []
-        monkeypatch.setattr(sa, "_call_gemini",
+        monkeypatch.setattr(sa, "_call_groq",
                             lambda **k: gemini_calls.append(1) or {})
 
         result = sa.analyze("https://evil-ziraat.ru")
         assert gemini_calls == [], "Gemini çağrılmamalıydı!"
-        assert result.get("gemini_skipped") is True
+        assert result.get("ai_skipped") is True
 
     def test_no_ocr_match_falls_through_to_gemini(self, monkeypatch):
         """OCR eşleşme yok → Gemini normal çalışır."""
         sa, va = self._setup(monkeypatch, ["hello world benign text"])
-        monkeypatch.setattr(sa, "redis_get_gemini_count", lambda: 0)
-        monkeypatch.setattr(sa, "redis_incr_gemini_counter", lambda: 1)
-        monkeypatch.setattr(sa, "_should_skip_gemini", lambda p: (False, ""))
+        monkeypatch.setattr(sa, "redis_get_ai_count", lambda: 0)
+        monkeypatch.setattr(sa, "redis_incr_ai_counter", lambda: 1)
+        monkeypatch.setattr(sa, "_should_skip_ai", lambda p: (False, ""))
 
         gemini_calls = []
-        monkeypatch.setattr(sa, "_call_gemini",
+        monkeypatch.setattr(sa, "_call_groq",
                             lambda **k: gemini_calls.append(1) or
                             {"risk_score": 10, "risk_level": "LOW", "verdict": "safe",
                              "screenshot_analysis": "", "recommendation": "",
@@ -204,18 +206,18 @@ class TestScreenshotAnalyzerOcrIntegration:
         assert len(gemini_calls) == 1
 
     def test_ocr_penalty_accumulates_into_pre_penalty(self, monkeypatch):
-        """OCR partial penalty → pre_penalty yükselir, _should_skip_gemini etkilenir."""
+        """OCR partial penalty → pre_penalty yükselir, _should_skip_ai etkilenir."""
         sa, va = self._setup(monkeypatch, ["akbank giriş sayfası"])
-        monkeypatch.setattr(sa, "redis_get_gemini_count", lambda: 0)
-        monkeypatch.setattr(sa, "redis_incr_gemini_counter", lambda: 1)
+        monkeypatch.setattr(sa, "redis_get_ai_count", lambda: 0)
+        monkeypatch.setattr(sa, "redis_incr_ai_counter", lambda: 1)
 
         skip_calls = []
         def _fake_skip(pre_penalty):
             skip_calls.append(pre_penalty)
             return (False, "")
 
-        monkeypatch.setattr(sa, "_should_skip_gemini", _fake_skip)
-        monkeypatch.setattr(sa, "_call_gemini",
+        monkeypatch.setattr(sa, "_should_skip_ai", _fake_skip)
+        monkeypatch.setattr(sa, "_call_groq",
                             lambda **k: {"risk_score": 10, "risk_level": "LOW",
                                          "verdict": "ok", "screenshot_analysis": "",
                                          "recommendation": "", "threat_indicators": []})

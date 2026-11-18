@@ -1,0 +1,18 @@
+[Unit]
+Description=AegisNexus local runtime (API, Redis, Celery and Beat)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/var/www/aegis_nexus
+ExecStart=/var/www/aegis_nexus/run.sh --no-install
+Restart=on-failure
+RestartSec=5
+KillMode=mixed
+TimeoutStopSec=50
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
