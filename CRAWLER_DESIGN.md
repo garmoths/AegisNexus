@@ -12,7 +12,7 @@ Konsol: http://127.0.0.1:8010. İlk açılışta keşif kapalıdır. Adres ekley
 
 Python sanal ortamı ve Node/npm gerekir; ilk kurulum bağımlılıkları indirmek için internet kullanır. Keşif API anahtarı, ücretli servis, LLM, Redis veya ViewSrc gerektirmez. Canlı sayfaları ve kaynakları toplamak internet gerektirir; HTML içe aktarma ağsızdır.
 
-Yerel konsol yalnızca loopback adresinde açılır; uzaktan erişim için tasarlanmamıştır. Bağlı uygulamada `/crawler` yönetici ekranıdır; API yönetici yetkisi ister. Bağlı kurulumda `alembic upgrade head` uygulanmalı, Celery beat ve phishing kuyruğunu tüketen worker çalışmalıdır. Yerel konsol tabloları oluşturur ve kendi işçisini çalıştırır.
+Yerel konsol yalnızca loopback adresinde açılır; uzaktan erişim için tasarlanmamıştır. Bağlı uygulamada `/crawler` yönetici ekranıdır; API yönetici yetkisi ister. Bağlı kurulumda `alembic upgrade head` uygulanmalı, Celery beat ve phishing kuyruğunu tüketen worker çalışmalıdır. Yerel konsol aynı Alembic migration'larıyla şemayı günceller ve kendi işçisini çalıştırır.
 
 ## Akış
 
