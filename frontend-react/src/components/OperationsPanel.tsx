@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import api from '../lib/api'
+import type { Feedback, Operations } from '../lib/types'
 
 export default function OperationsPanel(){
-  const [data,setData]=useState(null),[feedback,setFeedback]=useState([]),[error,setError]=useState('')
-  const load=useCallback(()=>Promise.all([api.get('/system/operations'),api.get('/admin/feedback')]).then(([a,b])=>{setData(a.data);setFeedback(b.data.data);setError('')}).catch(()=>setError('Operasyon verileri alınamadı.')),[])
+  const [data,setData]=useState<Operations | null>(null),[feedback,setFeedback]=useState<Feedback[]>([]),[error,setError]=useState('')
+  const load=useCallback(()=>Promise.all([api.get<Operations>('/system/operations'),api.get<{ data: Feedback[] }>('/admin/feedback')]).then(([a,b])=>{setData(a.data);setFeedback(b.data.data);setError('')}).catch(()=>setError('Operasyon verileri alınamadı.')),[])
   useEffect(()=>{void load();const timer=setInterval(load,30000);return()=>clearInterval(timer)},[load])
-  const review=async(id,status)=>{const note=window.prompt('İnceleme gerekçesi (en az 5 karakter)');if(!note||note.length<5)return;try{await api.patch('/admin/feedback/'+id,{status,note});await load()}catch{setError('İnceleme kaydedilemedi.')}}
+  const review=async(id: number,status: 'resolved' | 'rejected')=>{const note=window.prompt('İnceleme gerekçesi (en az 5 karakter)');if(!note||note.length<5)return;try{await api.patch('/admin/feedback/'+id,{status,note});await load()}catch{setError('İnceleme kaydedilemedi.')}}
   return <section><article className="workspace-card"><h2>Sistem ve kaynak sağlığı</h2>{error&&<p role="alert">{error}</p>}
     {!data?<p>Yükleniyor…</p>:<><p>Broker: {data.broker.available?'Bağlı':'Kullanılamıyor'} · Canlı worker: {data.workers.length} · Bekleyen kalıcı olay: {data.outbox_pending}</p>
       <div className="workspace-row" style={{marginTop:16}}>{Object.entries(data.broker.queues||{}).map(([queue,value])=><div key={queue}><strong>{queue}</strong><p>{value.waiting} bekleyen · {value.consumers} tüketici</p></div>)}</div>

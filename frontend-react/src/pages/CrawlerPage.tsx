@@ -10,29 +10,32 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
+import type { CrawlCandidate, CrawlConfig, CrawlDetail, CrawlOverview, CrawlRelated, CrawlSource } from '@/lib/types'
 
-const labels = { pending:'Sırada', running:'Taranıyor', retry:'Tekrar denenecek', review:'İnceleme bekliyor', confirmed:'Onaylandı', dismissed:'Geri çekildi / elendi', blocked:'Taranamadı', failed:'Başarısız', suggested:'Öneri' }
-const errorLabels = { robots_denied:'Site taramaya izin vermiyor', excluded_host:'Hariç tutulan alan', daily_budget:'Günlük sınıra ulaşıldı', fetch_failed:'Sayfa alınamadı', access_denied:'Erişim engellendi', host_busy:'Aynı site taranıyor', host_cooldown:'Site için bekleme aralığı', source_unavailable:'Kaynak okunamadı', not_html:'HTML sayfası değil', worker_timeout:'İşçi süresi doldu' }
-const coverageLabels = { unknown:'Henüz incelenmedi', static:'Kaynak kodu', rendered:'Tarayıcı ile', partial:'Kısmi inceleme' }
-const workerLabels = { paused:'Duraklatıldı', idle:'Hazır', running:'Çalışıyor', review:'İncelemeye hazır', retry:'Yeniden deniyor', blocked:'Erişilemedi', budget:'Günlük sınırda', busy:'Çalışıyor', deferred:'Bekliyor', worker_error:'İşçi hatası' }
-const sourceLabels = { manual:'Elle eklendi', snapshot:'İçe aktarıldı', link:'Bağlantı keşfi', certstream:'CertStream (CT akışı)' }
-const date = value => value ? new Date(value.endsWith('Z') ? value : value + 'Z').toLocaleString('tr-TR') : 'Henüz yok'
+type Perform = (action: () => Promise<unknown>, success: string) => Promise<unknown>
+
+const labels: Record<string, string> = { pending:'Sırada', running:'Taranıyor', retry:'Tekrar denenecek', review:'İnceleme bekliyor', confirmed:'Onaylandı', dismissed:'Geri çekildi / elendi', blocked:'Taranamadı', failed:'Başarısız', suggested:'Öneri' }
+const errorLabels: Record<string, string> = { robots_denied:'Site taramaya izin vermiyor', excluded_host:'Hariç tutulan alan', daily_budget:'Günlük sınıra ulaşıldı', fetch_failed:'Sayfa alınamadı', access_denied:'Erişim engellendi', host_busy:'Aynı site taranıyor', host_cooldown:'Site için bekleme aralığı', source_unavailable:'Kaynak okunamadı', not_html:'HTML sayfası değil', worker_timeout:'İşçi süresi doldu' }
+const coverageLabels: Record<string, string> = { unknown:'Henüz incelenmedi', static:'Kaynak kodu', rendered:'Tarayıcı ile', partial:'Kısmi inceleme' }
+const workerLabels: Record<string, string> = { paused:'Duraklatıldı', idle:'Hazır', running:'Çalışıyor', review:'İncelemeye hazır', retry:'Yeniden deniyor', blocked:'Erişilemedi', budget:'Günlük sınırda', busy:'Çalışıyor', deferred:'Bekliyor', worker_error:'İşçi hatası' }
+const sourceLabels: Record<string, string> = { manual:'Elle eklendi', snapshot:'İçe aktarıldı', link:'Bağlantı keşfi', certstream:'CertStream (CT akışı)' }
+const date = (value: string | null | undefined) => value ? new Date(value.endsWith('Z') ? value : value + 'Z').toLocaleString('tr-TR') : 'Henüz yok'
 
 const selectCls = 'h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
-async function request(path, body, method = 'POST') {
-  let response
+async function request<T = unknown>(path: string, body?: unknown, method = 'POST'): Promise<T> {
+  let response: Response
   try { response = await fetch('/api/v2/crawler' + path, { method: body === undefined ? 'GET' : method, credentials:'same-origin', headers:{'Content-Type':'application/json', 'X-Aegis-Local':'1'}, ...(body === undefined ? {} : {body:JSON.stringify(body)}) }) }
   catch { throw new Error('Keşif sunucusuna ulaşılamadı. Yerel konsolu ./run.sh --crawler ile açın.') }
   const data = await response.json().catch(() => ({}))
   if (!response.ok) {
     if (response.status === 401 || response.status === 403) throw new Error('Bu ekran yönetici erişimi gerektirir. Hesabınızla giriş yapın veya yerel keşif konsolunu açın.')
-    throw new Error(typeof data.detail === 'string' ? data.detail : Array.isArray(data.detail) ? data.detail.map(item=>item.msg).join(' · ') : 'İşlem tamamlanamadı.')
+    throw new Error(typeof data.detail === 'string' ? data.detail : Array.isArray(data.detail) ? data.detail.map((item: { msg: string })=>item.msg).join(' · ') : 'İşlem tamamlanamadı.')
   }
   return data
 }
 
-function stateBadgeVariant(state) {
+function stateBadgeVariant(state: string): 'success' | 'warning' | 'destructive' | 'muted' {
   if (state === 'confirmed') return 'success'
   if (state === 'review') return 'warning'
   if (state === 'failed' || state === 'blocked') return 'destructive'
@@ -41,14 +44,14 @@ function stateBadgeVariant(state) {
 
 export default function CrawlerPage() {
   const [tab,setTab]=useState('queue')
-  const [overview,setOverview]=useState(null)
-  const [rows,setRows]=useState({data:[],total:0})
-  const [sources,setSources]=useState([])
+  const [overview,setOverview]=useState<CrawlOverview | null>(null)
+  const [rows,setRows]=useState<{ data: CrawlCandidate[]; total: number }>({data:[],total:0})
+  const [sources,setSources]=useState<CrawlSource[]>([])
   const [filter,setFilter]=useState('')
   const [page,setPage]=useState(1)
-  const [selected,setSelected]=useState(null)
-  const [detail,setDetail]=useState(null)
-  const [related,setRelated]=useState([])
+  const [selected,setSelected]=useState<number | null>(null)
+  const [detail,setDetail]=useState<CrawlDetail | null>(null)
+  const [related,setRelated]=useState<CrawlRelated[]>([])
   const [urls,setUrls]=useState('')
   const [note,setNote]=useState('')
   const [busy,setBusy]=useState(false)
@@ -59,9 +62,9 @@ export default function CrawlerPage() {
     let cancelled=false
     async function refresh(){
       try{
-        const [summary,list,feeds]=await Promise.all([request('/overview'),request(`/candidates?page=${page}&state=${encodeURIComponent(filter)}`),request('/sources')])
+        const [summary,list,feeds]=await Promise.all([request<CrawlOverview>('/overview'),request<{ data: CrawlCandidate[]; total: number }>(`/candidates?page=${page}&state=${encodeURIComponent(filter)}`),request<{ data: CrawlSource[] }>('/sources')])
         if(!cancelled){setOverview(summary);setRows(list);setSources(feeds.data)}
-      }catch(e){if(!cancelled)setError(e.message)}
+      }catch(e){if(!cancelled)setError(e instanceof Error?e.message:String(e))}
     }
     refresh()
     const timer=setInterval(refresh,5000)
@@ -72,25 +75,25 @@ export default function CrawlerPage() {
     let cancelled=false
     async function load(){
       try{
-        const [item,matches]=await Promise.all([request(`/candidates/${selected}`),request(`/candidates/${selected}/related`)])
+        const [item,matches]=await Promise.all([request<CrawlDetail>(`/candidates/${selected}`),request<{ data: CrawlRelated[] }>(`/candidates/${selected}/related`)])
         if(!cancelled){setDetail({...item,fresh:Date.now()-new Date((item.observations?.[0]?.fetched_at||'')+'Z').getTime()<48*3600000});setRelated(matches.data)}
-      }catch(e){if(!cancelled)setError(e.message)}
+      }catch(e){if(!cancelled)setError(e instanceof Error?e.message:String(e))}
     }
     load()
     const timer=setInterval(load,5000)
     return()=>{cancelled=true;clearInterval(timer)}
   },[selected,revision])
-  const perform=async(action,success)=>{
+  const perform: Perform=async(action,success)=>{
     if(busy)return
     setBusy(true);setError('');setNotice('')
-    try{await action();setNotice(success);setRevision(v=>v+1)}catch(e){setError(e.message)}finally{setBusy(false)}
+    try{await action();setNotice(success);setRevision(v=>v+1)}catch(e){setError(e instanceof Error?e.message:String(e))}finally{setBusy(false)}
   }
-  const open=id=>{setSelected(id);setDetail(null);setNote('')}
+  const open=(id: number)=>{setSelected(id);setDetail(null);setNote('')}
   const config=overview?.settings
   const latest=detail?.observations?.[0]
-  const eligible=latest?.live && !latest?.truncated && detail.fresh && latest?.assessment?.coverage!=='unknown' && latest?.http_status>=200 && latest?.http_status<300 && ['review','confirmed','dismissed'].includes(detail?.state)
+  const eligible=latest?.live && !latest?.truncated && detail?.fresh && latest?.assessment?.coverage!=='unknown' && (latest?.http_status??0)>=200 && (latest?.http_status??0)<300 && ['review','confirmed','dismissed'].includes(detail?.state??'')
   const stats=[
-    ['Adaylar',Object.values(overview?.counts||{}).reduce((a,b)=>a+b,0)],
+    ['Adaylar',Object.values(overview?.counts||{}).reduce((a: number,b: number)=>a+b,0)],
     ['İnceleme bekleyen',overview?.counts?.review||0],
     ['Onaylanan',overview?.counts?.confirmed||0],
     ['Bugünkü tarama',`${overview?.today_crawled||0} / ${config?.daily_limit||'—'}`],
@@ -112,7 +115,7 @@ export default function CrawlerPage() {
           <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Web'i incele. Kanıtı gör.</h1>
           <p className="mt-2 max-w-xl text-sm text-muted-foreground">Şüpheli adresleri toplayın, kaynak kodunu inceleyin ve doğrulanmış bulguları ayırın.</p>
         </div>
-        <Button size="lg" disabled={busy||!config} onClick={()=>perform(()=>request('/settings',{...config,enabled:!config.enabled},'PATCH'),config.enabled?'Yeni taramalar duraklatıldı. Devam eden iş tamamlanır.':'Keşif başlatıldı.')} variant={config?.enabled?'secondary':'default'}>
+        <Button size="lg" disabled={busy||!config} onClick={()=>config&&perform(()=>request('/settings',{...config,enabled:!config.enabled},'PATCH'),config.enabled?'Yeni taramalar duraklatıldı. Devam eden iş tamamlanır.':'Keşif başlatıldı.')} variant={config?.enabled?'secondary':'default'}>
           {config?.enabled?<Pause/>:<Play/>} {config?.enabled?'Duraklat':'Keşfi başlat'}
         </Button>
       </div>
@@ -137,14 +140,14 @@ export default function CrawlerPage() {
             <TabsTrigger value="import"><FileCode className="size-4"/>Kaynak kodu incele</TabsTrigger>
             <TabsTrigger value="settings"><Settings2 className="size-4"/>Ayarlar</TabsTrigger>
           </TabsList>
-          <span className="text-xs text-muted-foreground">{config?.enabled?'Keşif açık':'Keşif duraklatıldı'} · İşçi: {workerLabels[overview?.worker?.state]||'Bekleniyor'}</span>
+          <span className="text-xs text-muted-foreground">{config?.enabled?'Keşif açık':'Keşif duraklatıldı'} · İşçi: {workerLabels[overview?.worker?.state ?? '']||'Bekleniyor'}</span>
         </div>
 
         <TabsContent value="queue">
           {!selected ? <>
             <Card className="mb-5">
               <CardContent className="p-6">
-                <form className="grid items-end gap-5 md:grid-cols-[1fr_1.3fr_auto]" onSubmit={e=>{e.preventDefault();perform(async()=>{const result=await request('/candidates',{urls:urls.split('\n').map(v=>v.trim()).filter(Boolean)});if(result.rejected.length)throw new Error(`${result.added} eklendi, ${result.existing} zaten var. ${result.rejected.length} adres reddedildi: ${result.rejected[0].reason}`);setUrls('')},'Adresler kuyruğa alındı. Tekrarlanan adresler korunur.')}}>
+                <form className="grid items-end gap-5 md:grid-cols-[1fr_1.3fr_auto]" onSubmit={e=>{e.preventDefault();perform(async()=>{const result=await request<{ added: number; existing: number; rejected: { index: number; reason: string }[] }>('/candidates',{urls:urls.split('\n').map(v=>v.trim()).filter(Boolean)});if(result.rejected.length)throw new Error(`${result.added} eklendi, ${result.existing} zaten var. ${result.rejected.length} adres reddedildi: ${result.rejected[0].reason}`);setUrls('')},'Adresler kuyruğa alındı. Tekrarlanan adresler korunur.')}}>
                   <div><h2 className="text-base font-semibold">Bir adresle başlayın</h2><p className="mt-1 text-sm text-muted-foreground">Her satıra bir tam URL. Alt sayfa yolları korunur; en fazla 100 adres.</p></div>
                   <div className="grid gap-2"><Label htmlFor="crawl-seeds" className="sr-only">Taranacak adresler</Label><Textarea id="crawl-seeds" value={urls} onChange={e=>setUrls(e.target.value)} placeholder={'https://ornek.com/giris\nhttps://baska-ornek.com'} maxLength={100000} rows={2} required/></div>
                   <Button type="submit" disabled={busy||!urls.trim()}><Plus/> Aday ekle</Button>
@@ -204,7 +207,7 @@ export default function CrawlerPage() {
                   {latest.features.forms.map((form,index)=><p className="mt-2.5 break-all rounded-md border border-border p-2.5 text-[11px]" key={index}>{form.fields.join(', ')||'Standart form'} → {form.target_host||'Hedef çözümlenemedi'} · {form.method.toUpperCase()}</p>)}
                   {latest.has_screenshot&&<img className="mt-5 w-full rounded-lg border border-border" src={`/api/v2/crawler/observations/${latest.id}/screenshot`} alt="Taranan sayfanın çalıştırılmayan ekran görüntüsü"/>}
                   <details className="mt-5"><summary className="cursor-pointer text-xs text-muted-foreground">Script ve tracker kanıtları</summary><pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-all rounded-md bg-background p-4 text-[10px] text-muted-foreground">{JSON.stringify({scripts:latest.features.scripts,script_hashes:latest.features.script_hashes,trackers:latest.features.trackers},null,2)}</pre></details>
-                </>:<p className="mt-4 text-sm text-muted-foreground">Henüz gözlem yok. {errorLabels[detail.last_error]||detail.last_error}</p>}
+                </>:<p className="mt-4 text-sm text-muted-foreground">Henüz gözlem yok. {(detail.last_error && errorLabels[detail.last_error])||detail.last_error}</p>}
               </CardContent></Card>
 
               <aside className="flex flex-col gap-5">
@@ -213,8 +216,8 @@ export default function CrawlerPage() {
                   <p className="mt-1 text-sm text-muted-foreground">Risk puanı olasılık değildir. Kaydı yalnızca kanıtları inceledikten sonra onaylayın.</p>
                   <Label htmlFor="review-note" className="mt-4 block">Karar gerekçesi</Label>
                   <Textarea id="review-note" className="mt-2" value={note} onChange={e=>setNote(e.target.value)} rows={4} maxLength={2000} placeholder="Hangi bulgu kararınızı destekliyor?"/>
-                  <Button className="mt-3 w-full" disabled={busy||!eligible||note.trim().length<5} onClick={()=>perform(()=>request(`/candidates/${selected}/review`,{decision:'confirmed',observation_id:latest.id,note}),'Phishing kaydı onaylandı.')}>Phishing olarak onayla</Button>
-                  <Button variant="secondary" className="mt-2 w-full" disabled={busy||!latest||!['review','confirmed','dismissed'].includes(detail.state)||note.trim().length<5} onClick={()=>perform(()=>request(`/candidates/${selected}/review`,{decision:'dismissed',observation_id:latest.id,note}),'Aday elendi; bu crawler’ın varsa yayını geri çekildi.')}>Yanlış pozitif / geri çek</Button>
+                  <Button className="mt-3 w-full" disabled={busy||!eligible||note.trim().length<5} onClick={()=>perform(()=>request(`/candidates/${selected}/review`,{decision:'confirmed',observation_id:latest?.id,note}),'Phishing kaydı onaylandı.')}>Phishing olarak onayla</Button>
+                  <Button variant="secondary" className="mt-2 w-full" disabled={busy||!latest||!['review','confirmed','dismissed'].includes(detail.state)||note.trim().length<5} onClick={()=>perform(()=>request(`/candidates/${selected}/review`,{decision:'dismissed',observation_id:latest?.id,note}),'Aday elendi; bu crawler’ın varsa yayını geri çekildi.')}>Yanlış pozitif / geri çek</Button>
                   <Button variant="outline" className="mt-2 w-full" disabled={busy||detail.state==='running'} onClick={()=>perform(()=>request(`/candidates/${selected}/retry`,{}),'Yeniden tarama kuyruğuna alındı.')}><RefreshCw className="size-3.5"/> Yeniden tara</Button>
                   {!eligible&&<small className="mt-2.5 block text-[11px] text-muted-foreground">Onay için son 48 saat içinde başarılı ve tam bir canlı gözlem gerekir.</small>}
                 </CardContent></Card>
@@ -245,7 +248,7 @@ export default function CrawlerPage() {
   </div>
 }
 
-function Sources({sources,perform,busy}){
+function Sources({sources,perform,busy}: { sources: CrawlSource[]; perform: Perform; busy: boolean }){
   const [name,setName]=useState(''),[url,setUrl]=useState(''),[kind,setKind]=useState('url_list')
   return <div className="grid items-start gap-5 lg:grid-cols-2">
     <Card><CardContent className="p-6">
@@ -278,10 +281,10 @@ function Sources({sources,perform,busy}){
   </div>
 }
 
-function SnapshotImport({perform,busy,onOpen}){
+function SnapshotImport({perform,busy,onOpen}: { perform: Perform; busy: boolean; onOpen: (id: number) => void }){
   const [url,setUrl]=useState(''),[html,setHtml]=useState('')
   return <Card className="max-w-3xl"><CardContent className="p-6">
-    <form onSubmit={e=>{e.preventDefault();perform(async()=>{const result=await request('/snapshots',{url,html});onOpen(result.id)},'Kaynak kod incelendi. Canlı tarama yapılmadı.')}}>
+    <form onSubmit={e=>{e.preventDefault();perform(async()=>{const result=await request<{ id: number }>('/snapshots',{url,html});onOpen(result.id)},'Kaynak kod incelendi. Canlı tarama yapılmadı.')}}>
       <h2 className="text-base font-semibold">HTML kaynak kodunu incele</h2>
       <p className="mt-1 text-sm text-muted-foreground">Kaynak kod çalıştırılmaz ve hedef siteye istek yapılmaz. İçe aktarılan gözlem canlı doğrulama yerine geçmez.</p>
       <div className="mt-4 grid gap-2"><Label htmlFor="snap-url">Sayfanın tam adresi</Label><Input id="snap-url" value={url} onChange={e=>setUrl(e.target.value)} required maxLength={4096} placeholder="https://ornek.com/giris"/></div>
@@ -291,8 +294,8 @@ function SnapshotImport({perform,busy,onOpen}){
   </CardContent></Card>
 }
 
-function Configuration({config,perform,busy}){
-  const [daily,setDaily]=useState(config.daily_limit),[browserLimit,setBrowserLimit]=useState(config.browser_limit),[browser,setBrowser]=useState(config.browser_enabled),[excluded,setExcluded]=useState(config.excluded_hosts.join('\n'))
+function Configuration({config,perform,busy}: { config: CrawlConfig; perform: Perform; busy: boolean }){
+  const [daily,setDaily]=useState(String(config.daily_limit)),[browserLimit,setBrowserLimit]=useState(String(config.browser_limit)),[browser,setBrowser]=useState(config.browser_enabled),[excluded,setExcluded]=useState(config.excluded_hosts.join('\n'))
   return <Card className="max-w-3xl"><CardContent className="p-6">
     <form onSubmit={e=>{e.preventDefault();perform(()=>request('/settings',{...config,daily_limit:Number(daily),browser_limit:Number(browserLimit),browser_enabled:browser,excluded_hosts:excluded.split('\n').map(v=>v.trim()).filter(Boolean)},'PATCH'),'Ayarlar kaydedildi.')}}>
       <h2 className="text-base font-semibold">Kontrollü keşif</h2>

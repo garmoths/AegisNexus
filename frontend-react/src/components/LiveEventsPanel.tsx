@@ -1,24 +1,24 @@
-import { Activity, Trash2, Radio } from 'lucide-react'
-import useEventBus from '@/stores/eventBus'
+import { Trash2, Radio } from 'lucide-react'
+import useEventBus, { type BusEvent, type Severity } from '@/stores/eventBus'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
-const moduleMeta = {
+const moduleMeta: Record<string, { label: string; short: string }> = {
   phishing: { label: 'Phishing', short: 'PH' },
   analiz: { label: 'İçerik Analizi', short: 'AN' },
   ioc: { label: 'IOC / Tuzak', short: 'IOC' },
   system: { label: 'Sistem', short: 'SYS' },
 }
 
-const severityVariant = { critical: 'destructive', high: 'destructive', medium: 'warning', low: 'default', info: 'muted' }
-const severityDot = { critical: 'bg-destructive', high: 'bg-destructive', medium: 'bg-[color:var(--warning)]', low: 'bg-primary', info: 'bg-muted-foreground' }
+const severityVariant: Record<Severity, 'destructive' | 'warning' | 'default' | 'muted'> = { critical: 'destructive', high: 'destructive', medium: 'warning', low: 'default', info: 'muted' }
+const severityDot: Record<Severity, string> = { critical: 'bg-destructive', high: 'bg-destructive', medium: 'bg-[color:var(--warning)]', low: 'bg-primary', info: 'bg-muted-foreground' }
 
-function clock(ts) {
+function clock(ts: number) {
   return new Date(ts).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
-export default function LiveEventsPanel({ className, onJump }) {
+export default function LiveEventsPanel({ className, onJump }: { className?: string; onJump?: (module: string, event: BusEvent) => void }) {
   const events = useEventBus(s => s.events)
   const clear = useEventBus(s => s.clear)
   const highCount = events.filter(e => e.severity === 'high' || e.severity === 'critical').length

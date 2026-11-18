@@ -23,8 +23,9 @@ stop:            ## Stop all local services
 status:          ## Show local service status
 	./run.sh status
 
-test:            ## Run the backend test suite
+test:            ## Backend (pytest) and frontend (vitest) tests
 	$(PYTHON) -m pytest -q
+	cd frontend-react && npm test
 
 cov:             ## Run tests with a coverage report
 	$(PYTHON) -m pytest -q --cov --cov-report=term
@@ -38,6 +39,7 @@ format:          ## Apply ruff autofixes
 
 typecheck:       ## mypy (backend) and tsc (frontend)
 	$(PYTHON) -m mypy
+	cd frontend-react && npm run typecheck
 
 frontend:        ## Production build of the React app
 	cd frontend-react && npm run build

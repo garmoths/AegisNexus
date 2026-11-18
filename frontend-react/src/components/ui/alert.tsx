@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { cva } from 'class-variance-authority'
+import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
 
 const alertVariants = cva(
@@ -17,16 +17,16 @@ const alertVariants = cva(
   },
 )
 
-const Alert = React.forwardRef(function Alert({ className, variant, ...props }, ref) {
-  return <div ref={ref} role="alert" className={cn(alertVariants({ variant }), className)} {...props} />
-})
+function Alert({ className, variant, ...props }: React.ComponentProps<'div'> & VariantProps<typeof alertVariants>) {
+  return <div role="alert" className={cn(alertVariants({ variant }), className)} {...props} />
+}
 
-const AlertTitle = React.forwardRef(function AlertTitle({ className, ...props }, ref) {
-  return <h5 ref={ref} className={cn('mb-0.5 font-semibold leading-none tracking-tight', className)} {...props} />
-})
+function AlertTitle({ className, ...props }: React.ComponentProps<'h5'>) {
+  return <h5 className={cn('mb-0.5 font-semibold leading-none tracking-tight', className)} {...props} />
+}
 
-const AlertDescription = React.forwardRef(function AlertDescription({ className, ...props }, ref) {
-  return <div ref={ref} className={cn('text-sm [&_p]:leading-relaxed opacity-90', className)} {...props} />
-})
+function AlertDescription({ className, ...props }: React.ComponentProps<'div'>) {
+  return <div className={cn('text-sm [&_p]:leading-relaxed opacity-90', className)} {...props} />
+}
 
 export { Alert, AlertTitle, AlertDescription }

@@ -4,10 +4,11 @@ import { Settings, Users } from 'lucide-react'
 import { adminAPI } from '../lib/endpoints'
 import useAuthStore from '../stores/authStore'
 import PrivateRoute from '../components/PrivateRoute'
+import type { AdminUser, Role } from '../lib/types'
 import OperationsPanel from '../components/OperationsPanel'
 
 export default function AdminPage() {
-  const [users, setUsers] = useState([])
+  const [users, setUsers] = useState<AdminUser[]>([])
   const [error, setError] = useState('')
   const isAdmin = useAuthStore(s => s.isAdmin)
 
@@ -17,7 +18,7 @@ export default function AdminPage() {
     }
   }, [isAdmin])
 
-  const handleRoleChange = async (userId, newRole) => {
+  const handleRoleChange = async (userId: number, newRole: Role) => {
     try {
       await adminAPI.changeRole(userId, newRole)
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u))
@@ -81,7 +82,7 @@ export default function AdminPage() {
                       <td style={{ padding: '10px 12px' }}>
                         <select
                           value={u.role}
-                          onChange={e => handleRoleChange(u.id, e.target.value)}
+                          onChange={e => handleRoleChange(u.id, e.target.value as Role)}
                           style={{
                             padding: '4px 8px', background: theme.surface,
                             border: `1px solid ${theme.border}`, borderRadius: 4,

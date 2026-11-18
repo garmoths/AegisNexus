@@ -4,20 +4,18 @@ import { cn } from '@/lib/utils'
 
 const Tabs = TabsPrimitive.Root
 
-const TabsList = React.forwardRef(function TabsList({ className, ...props }, ref) {
+function TabsList({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.List>) {
   return (
     <TabsPrimitive.List
-      ref={ref}
       className={cn('inline-flex h-10 items-center justify-center gap-1 rounded-lg bg-muted p-1 text-muted-foreground', className)}
       {...props}
     />
   )
-})
+}
 
-const TabsTrigger = React.forwardRef(function TabsTrigger({ className, ...props }, ref) {
+function TabsTrigger({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.Trigger>) {
   return (
     <TabsPrimitive.Trigger
-      ref={ref}
       className={cn(
         'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-all',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50',
@@ -27,16 +25,15 @@ const TabsTrigger = React.forwardRef(function TabsTrigger({ className, ...props 
       {...props}
     />
   )
-})
+}
 
-const TabsContent = React.forwardRef(function TabsContent({ className, ...props }, ref) {
+function TabsContent({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.Content>) {
   return (
     <TabsPrimitive.Content
-      ref={ref}
       className={cn('mt-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', className)}
       {...props}
     />
   )
-})
+}
 
 export { Tabs, TabsList, TabsTrigger, TabsContent }

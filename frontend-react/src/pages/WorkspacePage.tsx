@@ -1,25 +1,29 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import api from '../lib/api'
+import api, { errorMessage } from '../lib/api'
+import type { Paged, Report, UserNotification } from '../lib/types'
+
+type ReportPatch = { status: Report['status']; completed_steps: number[] }
 
 export default function WorkspacePage(){
-  const [reports,setReports]=useState([])
-  const [selected,setSelected]=useState(null)
+  const [reports,setReports]=useState<Report[]>([])
+  const [selected,setSelected]=useState<Report | null>(null)
   const [error,setError]=useState('')
   const [loading,setLoading]=useState(true)
-  const [notifications,setNotifications]=useState([])
-  const load=useCallback(()=>Promise.all([api.get('/reports/'),api.get('/notifications')])
+  const [notifications,setNotifications]=useState<UserNotification[]>([])
+  const load=useCallback(()=>Promise.all([api.get<Paged<Report>>('/reports/'),api.get<{ data: UserNotification[] }>('/notifications')])
     .then(([a,b])=>{setReports(a.data.data);setNotifications(b.data.data)})
-    .catch(e=>setError(e.response?.data?.detail||'Kayıtlar yüklenemedi.'))
+    .catch(e=>setError(errorMessage(e,'Kayıtlar yüklenemedi.')))
     .finally(()=>setLoading(false)),[])
   useEffect(()=>{void load()},[load])
-  const update=async(patch)=>{
-    try{const {data}=await api.patch('/reports/'+selected.id,patch);setSelected(data);setReports(v=>v.map(r=>r.id===data.id?data:r))}
-    catch(e){setError(e.response?.data?.detail||'Güncelleme başarısız.')}
+  const update=async(patch: ReportPatch)=>{
+    if(!selected)return
+    try{const {data}=await api.patch<Report>('/reports/'+selected.id,patch);setSelected(data);setReports(v=>v.map(r=>r.id===data.id?data:r))}
+    catch (e) {setError(errorMessage(e, 'Güncelleme başarısız.'))}
   }
-  const download=async(id)=>{
-    try{const response=await api.get('/reports/'+id+'/pdf',{responseType:'blob'});const url=URL.createObjectURL(response.data);const a=document.createElement('a');a.href=url;a.download='rapor_'+id+'.pdf';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
-    catch(e){const payload=e.response?.data instanceof Blob?await e.response.data.text():'';try{setError(JSON.parse(payload).detail)}catch{setError('PDF indirilemedi.')}}
+  const download=async(id: number)=>{
+    try{const response=await api.get<Blob>('/reports/'+id+'/pdf',{responseType:'blob'});const url=URL.createObjectURL(response.data);const a=document.createElement('a');a.href=url;a.download='rapor_'+id+'.pdf';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+    catch(e){const data=(e as { response?: { data?: unknown } }).response?.data;const payload=data instanceof Blob?await data.text():'';try{setError(JSON.parse(payload).detail)}catch{setError('PDF indirilemedi.')}}
   }
   return <section><div className="workspace-row"><h1>Vakalarım ve aksiyonlarım</h1><Link to="/analyze">Yeni analiz →</Link></div>
     {error&&<p role="alert" className="error-message">{error}</p>}
@@ -28,7 +32,7 @@ export default function WorkspacePage(){
     <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(100%,300px),1fr))',gap:18}}>
       <div>{reports.map(r=><article key={r.id} className="workspace-card"><p>#{r.id} · {r.status} · {r.created_at?new Date(r.created_at).toLocaleDateString('tr-TR'):''}</p><h2 style={{margin:'12px 0'}}>{r.attack_type||'Olay analizi'}</h2><p>{r.user_description.slice(0,180)}</p><button style={{marginTop:12}} onClick={()=>setSelected(r)}>Aksiyonları aç</button></article>)}</div>
       {selected&&<article className="workspace-card"><h2>Vaka #{selected.id}</h2><p style={{margin:'12px 0',whiteSpace:'pre-wrap'}}>{selected.user_description}</p>
-        <label>Durum <select value={selected.status} onChange={e=>update({status:e.target.value,completed_steps:selected.action_steps.map((s,i)=>s.done?i:-1).filter(i=>i>=0)})}><option value="open">Açık</option><option value="in_progress">Üzerinde çalışılıyor</option><option value="resolved">Tamamlandı</option></select></label>
+        <label>Durum <select value={selected.status} onChange={e=>update({status:e.target.value as Report['status'],completed_steps:selected.action_steps.map((s,i)=>s.done?i:-1).filter(i=>i>=0)})}><option value="open">Açık</option><option value="in_progress">Üzerinde çalışılıyor</option><option value="resolved">Tamamlandı</option></select></label>
         {(selected.action_steps||[]).map((s,i)=><label key={i} style={{display:'flex',gap:12,alignItems:'start'}}><input type="checkbox" checked={s.done} onChange={e=>update({status:selected.status,completed_steps:selected.action_steps.map((step,j)=>(j===i?e.target.checked:step.done)?j:-1).filter(j=>j>=0)})}/>{s.text}</label>)}
         <button onClick={()=>download(selected.id)}>PDF indir</button><p style={{fontSize:13,marginTop:12}}>Ücretsiz planda ayda 3 farklı PDF. Aynı PDF’yi yeniden indirmek ek kota tüketmez.</p>
       </article>}

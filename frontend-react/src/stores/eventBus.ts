@@ -12,6 +12,32 @@ import { create } from 'zustand'
  *   severity: 'info' | 'low' | 'medium' | 'high' | 'critical'
  */
 
+export type Severity = 'info' | 'low' | 'medium' | 'high' | 'critical'
+
+export interface BusEvent {
+  id: string
+  ts: number
+  module: string
+  type: string
+  severity: Severity
+  title: string
+  detail: string
+  payload: unknown
+}
+
+interface EventBusState {
+  events: BusEvent[]
+  emit: (event: Partial<Omit<BusEvent, 'id' | 'ts'>>) => string
+  clear: () => void
+  byModule: (module: string) => BusEvent[]
+  latestOfType: (type: string) => BusEvent | null
+  counts: () => { total: number; high: number }
+}
+
+declare global {
+  interface Window { __aegisEvents?: typeof useEventBus }
+}
+
 const MAX_EVENTS = 100
 
 let counter = 0
@@ -20,11 +46,11 @@ function nextId() {
   return `${Date.now().toString(36)}-${counter}`
 }
 
-const useEventBus = create((set, get) => ({
+const useEventBus = create<EventBusState>((set, get) => ({
   events: [],
 
   emit(event) {
-    const entry = {
+    const entry: BusEvent = {
       id: nextId(),
       ts: Date.now(),
       severity: 'info',
@@ -64,7 +90,7 @@ const useEventBus = create((set, get) => ({
 }))
 
 /** Modül dışından (store seçicisi olmadan) olay yayınlamak için kısayol. */
-export function emitEvent(event) {
+export function emitEvent(event: Parameters<EventBusState['emit']>[0]): string {
   return useEventBus.getState().emit(event)
 }
 

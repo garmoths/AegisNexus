@@ -1,19 +1,20 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
-import api from '../lib/api'
+import api, { errorMessage } from '../lib/api'
 import useAuthStore from '../stores/authStore'
+import type { WatchItem } from '../lib/types'
 
 export default function SettingsPage(){
-  const [items,setItems]=useState([])
+  const [items,setItems]=useState<WatchItem[]>([])
   const kind='domain'
   const [value,setValue]=useState('')
   const [message,setMessage]=useState('')
   const [newKey,setNewKey]=useState('')
   const {email}=useAuthStore()
-  const load=useCallback(()=>api.get('/watchlist').then(r=>setItems(r.data.data)).catch(()=>setMessage('Takip listesi yüklenemedi.')),[])
+  const load=useCallback(()=>api.get<{ data: WatchItem[] }>('/watchlist').then(r=>setItems(r.data.data)).catch(()=>setMessage('Takip listesi yüklenemedi.')),[])
   useEffect(()=>{void load()},[load])
-  const add=async(e)=>{e.preventDefault();try{await api.post('/watchlist',{kind,value});setValue('');await load();setMessage('Takibe eklendi. İlk kontrol bir sonraki saatlik çalışmada yapılır.')}catch(e){setMessage(e.response?.data?.detail||'Takip eklenemedi.')}}
-  const rotate=async()=>{try{const {data}=await api.post('/auth/rotate-key');setNewKey(data.new_api_key)}catch(e){setMessage(e.response?.data?.detail||'Anahtar yenilenemedi.')}}
+  const add=async (e: FormEvent) => {e.preventDefault();try{await api.post('/watchlist',{kind,value});setValue('');await load();setMessage('Takibe eklendi. İlk kontrol bir sonraki saatlik çalışmada yapılır.')}catch (e) {setMessage(errorMessage(e, 'Takip eklenemedi.'))}}
+  const rotate=async()=>{try{const {data}=await api.post<{ new_api_key: string }>('/auth/rotate-key');setNewKey(data.new_api_key)}catch (e) {setMessage(errorMessage(e, 'Anahtar yenilenemedi.'))}}
   return <section><h1>Hesap ve takip ayarları</h1><p>{email}</p>
     <form className="workspace-card" onSubmit={add}><h2>Takip listesi</h2><p>Yalnızca yeni veya değişen sonuçlarda panel bildirimi oluşturulur. Kaynak kullanılamıyorsa güvenli sonucu üretilmez.</p>
       <div className="workspace-row" style={{marginTop:16}}><input aria-label="Takip edilecek gösterge" value={value} onChange={e=>setValue(e.target.value)} required maxLength={255}/><button>Takibe ekle</button></div>

@@ -4,14 +4,14 @@ import api from './lib/api'
 import useAuthStore from './stores/authStore'
 import PrivateRoute from './components/PrivateRoute'
 
-const Modules=lazy(()=>import('./ModulesApp.jsx'))
-const Analyze=lazy(()=>import('./pages/AnalyzePage.jsx'))
-const Login=lazy(()=>import('./pages/LoginPage.jsx'))
-const Dashboard=lazy(()=>import('./pages/WorkspacePage.jsx'))
-const Admin=lazy(()=>import('./pages/AdminPage.jsx'))
-const Settings=lazy(()=>import('./pages/SettingsPage.jsx'))
-const Crawler=lazy(()=>import('./pages/CrawlerPage.jsx'))
-const Recovery=lazy(()=>import('./pages/RecoveryPage.jsx'))
+const Modules=lazy(()=>import('./ModulesApp'))
+const Analyze=lazy(()=>import('./pages/AnalyzePage'))
+const Login=lazy(()=>import('./pages/LoginPage'))
+const Dashboard=lazy(()=>import('./pages/WorkspacePage'))
+const Admin=lazy(()=>import('./pages/AdminPage'))
+const Settings=lazy(()=>import('./pages/SettingsPage'))
+const Crawler=lazy(()=>import('./pages/CrawlerPage'))
+const Recovery=lazy(()=>import('./pages/RecoveryPage'))
 
 function SessionBootstrap() {
   useEffect(()=>{

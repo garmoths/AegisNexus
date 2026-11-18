@@ -1,10 +1,9 @@
 import * as React from 'react'
 import { cn } from '@/lib/utils'
 
-const Input = React.forwardRef(function Input({ className, type = 'text', ...props }, ref) {
+function Input({ className, type = 'text', ...props }: React.ComponentProps<'input'>) {
   return (
     <input
-      ref={ref}
       type={type}
       className={cn(
         'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm transition-colors',
@@ -15,6 +14,6 @@ const Input = React.forwardRef(function Input({ className, type = 'text', ...pro
       {...props}
     />
   )
-})
+}
 
 export { Input }

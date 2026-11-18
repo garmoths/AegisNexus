@@ -2,39 +2,35 @@ import js from '@eslint/js'
 import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
+import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
   globalIgnores(['dist', 'dist-crawler']),
   {
-    files: ['**/*.{js,jsx}'],
+    files: ['**/*.{ts,tsx}'],
     extends: [
       js.configs.recommended,
+      tseslint.configs.recommended,
       reactHooks.configs.flat.recommended,
       reactRefresh.configs.vite,
     ],
     languageOptions: {
-      ecmaVersion: 2020,
+      ecmaVersion: 2022,
       globals: globals.browser,
-      parserOptions: {
-        ecmaVersion: 'latest',
-        ecmaFeatures: { jsx: true },
-        sourceType: 'module',
-      },
     },
     rules: {
-      // `motion` ve `AnimatePresence` JSX namespace pattern (örn. <motion.div>) ile
-      // kullanıldığı için, ESLint default kuralı bu importları yanlışlıkla unused olarak işaretliyor.
-      // Aşağıdaki ignorePattern bu pattern'i ve standart uppercase component naming'i kapsar.
-      'no-unused-vars': ['error', { varsIgnorePattern: '^([A-Z_]|motion|AnimatePresence)' }],
+      // `motion.div` style namespaces and PascalCase components are used as values in JSX.
+      '@typescript-eslint/no-unused-vars': ['error', { varsIgnorePattern: '^([A-Z_]|motion|AnimatePresence)', argsIgnorePattern: '^_' }],
     },
   },
   {
-    // shadcn/ui bileşen dosyaları, bileşenin yanında cva varyant fonksiyonlarını da
-    // dışa aktarır (buttonVariants vb.). Bu, kütüphane dosyaları için kabul edilir.
-    files: ['src/components/ui/**/*.{js,jsx}'],
-    rules: {
-      'react-refresh/only-export-components': 'off',
-    },
+    // shadcn/ui files export cva variant helpers next to the component.
+    files: ['src/components/ui/**/*.tsx', 'src/modules/shared.tsx'],
+    rules: { 'react-refresh/only-export-components': 'off' },
+  },
+  {
+    files: ['src/**/*.test.{ts,tsx}'],
+    languageOptions: { globals: { ...globals.browser, ...globals.node } },
   },
 ])

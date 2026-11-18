@@ -1,11 +1,45 @@
 import { apiFetch as fetch } from '../lib/api'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, type ComponentType } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Shield, ShieldAlert, AlertTriangle, Activity, Globe, Search, Copy, Check, Database, Zap, Bug, Mail, Server, Hash, Radio, Eye, BarChart3, Lock, Download } from 'lucide-react'
-import { theme, API, Toast, CountUp, Card } from './shared.jsx'
+import { theme, API, Toast, CountUp, Card } from './shared'
 import { emitEvent } from '../stores/eventBus'
+import type { ModuleScreenProps } from '../ModulesApp'
 
-const THREAT_META = {
+/** IOC rows come from several endpoints (honeypot cache, DB search, risk bands) with slightly different keys. */
+interface IOCItem {
+  id?: number
+  value?: string
+  ioc_value?: string
+  ioc?: string
+  indicator?: string
+  type?: string
+  ioc_type?: string
+  threat_type?: string
+  risk_score?: number
+  confidence?: number
+  source?: string
+  detection_count?: number | null
+  first_seen?: string | null
+  last_seen?: string | null
+  created_at?: string | null
+  date?: string | null
+}
+interface CountRow { type?: string; threat_type?: string; name?: string; source?: string; range?: string; count?: number; percentage?: number }
+interface IOCStatsView {
+  stats?: IOCStatsView
+  total_iocs?: number
+  total_records?: number
+  high_risk_count?: number
+  medium_risk_count?: number
+  risk_distribution?: CountRow[]
+  top_threats?: CountRow[]
+  source_breakdown?: CountRow[]
+}
+type ThreatMeta = { color: string; icon: ComponentType<{ size?: number; color?: string; strokeWidth?: number }> }
+type ToastState = { message: string; type: 'success' | 'error'; visible: boolean }
+
+const THREAT_META: Record<string, ThreatMeta> = {
   BOTNET:              { color:'#ef4444', icon: Bug },
   MALWARE:             { color:'#ef4444', icon: AlertTriangle },
   PAYLOAD_DELIVERY:    { color:'#f59e0b', icon: Zap },
@@ -16,13 +50,13 @@ const THREAT_META = {
   'CREDENTIAL HARVESTING': { color:'#06b6d4', icon: Lock },
 }
 
-function ThreatIcon({ type, size=14 }) {
-  const meta = THREAT_META[type?.toUpperCase()] || { color: theme.primary, icon: Shield }
+function ThreatIcon({ type, size=14 }: { type?: string; size?: number }) {
+  const meta = THREAT_META[(type || '').toUpperCase()] || { color: theme.primary, icon: Shield }
   const Icon = meta.icon
   return <Icon size={size} color={meta.color} strokeWidth={2} />
 }
 
-function CopyBtn({ value }) {
+function CopyBtn({ value }: { value: string }) {
   const [copied, setCopied] = useState(false)
   function handleCopy() {
     navigator.clipboard?.writeText(value).catch(()=>{})
@@ -37,16 +71,16 @@ function CopyBtn({ value }) {
   )
 }
 
-function HoneypotIOC({ initialIocQuery = '', onClearPrefill }) {
-  const [iocStats, setIocStats] = useState(null)
-  const [iocList, setIocList] = useState([])
+function HoneypotIOC({ initialIocQuery = '', onClearPrefill }: ModuleScreenProps & { onClearPrefill?: () => void }) {
+  const [iocStats, setIocStats] = useState<IOCStatsView | null>(null)
+  const [iocList, setIocList] = useState<IOCItem[]>([])
   const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState([])
+  const [searchResults, setSearchResults] = useState<IOCItem[]>([])
   const [searching, setSearching] = useState(false)
-  const [toast, setToast] = useState({ message:'', type:'success', visible:false })
+  const [toast, setToast] = useState<ToastState>({ message:'', type:'success', visible:false })
   const [showDropdown, setShowDropdown] = useState(false)
   const [exportingSTIX, setExportingSTIX] = useState(false)
-  const searchTimeoutRef = useRef(null)
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const iocPrefillRef = useRef('')
 
   useEffect(() => {
@@ -80,13 +114,13 @@ function HoneypotIOC({ initialIocQuery = '', onClearPrefill }) {
       URL.revokeObjectURL(downloadUrl)
       showToast('STIX 2.1 dosyası indirildi')
     } catch (e) {
-      showToast('STIX export hatası: ' + e.message, 'error')
+      showToast('STIX export hatası: ' + (e instanceof Error ? e.message : String(e)), 'error')
     }
     setExportingSTIX(false)
   }
 
-  async function handleSearch(){if(!searchQuery)return;setSearching(true);try{const r=await fetch(`${API}/honeypot/ioc/search?q=${encodeURIComponent(searchQuery)}`);const d=await r.json();if(d.status==='success'||d.results){const list=d.results||d.data||d.iocs||[];setSearchResults(list);setShowDropdown(true);emitEvent({module:'ioc',type:'ioc.search',severity:list.length?'medium':'info',title:list.length?`${list.length} IOC eşleşti: ${searchQuery}`:`IOC bulunamadı: ${searchQuery}`,detail:'Tuzak / IOC veritabanı arandı.',payload:{query:searchQuery,count:list.length}})}else{showToast('Arama sonucu bulunamadi veya hata: '+d.message,'error')}}catch(e){showToast('Arama hatasi: '+e.message,'error')};setSearching(false)}
-  function showToast(msg,t='success'){setToast({message:msg,type:t,visible:true});setTimeout(()=>setToast(v=>({...v,visible:false})),3000)}
+  async function handleSearch(){if(!searchQuery)return;setSearching(true);try{const r=await fetch(`${API}/honeypot/ioc/search?q=${encodeURIComponent(searchQuery)}`);const d=await r.json();if(d.status==='success'||d.results){const list=d.results||d.data||d.iocs||[];setSearchResults(list);setShowDropdown(true);emitEvent({module:'ioc',type:'ioc.search',severity:list.length?'medium':'info',title:list.length?`${list.length} IOC eşleşti: ${searchQuery}`:`IOC bulunamadı: ${searchQuery}`,detail:'Tuzak / IOC veritabanı arandı.',payload:{query:searchQuery,count:list.length}})}else{showToast('Arama sonucu bulunamadi veya hata: '+d.message,'error')}}catch(e){showToast('Arama hatasi: '+(e instanceof Error?e.message:String(e)),'error')};setSearching(false)}
+  function showToast(msg: string,t: ToastState['type']='success'){setToast({message:msg,type:t,visible:true});setTimeout(()=>setToast(v=>({...v,visible:false})),3000)}
   
   // Real-time autocomplete with debouncing
   useEffect(() => {
@@ -136,7 +170,7 @@ function HoneypotIOC({ initialIocQuery = '', onClearPrefill }) {
 
       try {
         const levels = ['critical', 'high', 'medium', 'low']
-        const allIocs = []
+        const allIocs: IOCItem[] = []
         for (const level of levels) {
           try {
             const response = await fetch(`${API}/honeypot/ioc/by-risk-score?level=${level}&limit=8`)
@@ -164,7 +198,7 @@ function HoneypotIOC({ initialIocQuery = '', onClearPrefill }) {
     }
   }, [])
 
-  const statsData=iocStats?.stats||iocStats||{}
+  const statsData: IOCStatsView=iocStats?.stats||iocStats||{}
   const riskDist=statsData?.risk_distribution||iocStats?.risk_distribution||[]
   const topThreats=statsData?.top_threats||iocStats?.top_threats||[]
   const sourceBreakdown=statsData?.source_breakdown||iocStats?.source_breakdown||[]
@@ -173,7 +207,7 @@ function HoneypotIOC({ initialIocQuery = '', onClearPrefill }) {
   const mediumRisk=statsData?.medium_risk_count||iocStats?.medium_risk_count||0
 
   const maxThreat = Math.max(...(topThreats.map(t=>t.count||0)), 1)
-  const highRiskPct = totalIocs>0 ? ((highRisk/totalIocs)*100).toFixed(1) : 0
+  const highRiskPct = totalIocs>0 ? ((highRisk/totalIocs)*100).toFixed(1) : '0'
 
   return <div style={{ animation:'fadeInUp 0.5s ease' }}>
     <Toast {...toast}/>
@@ -220,7 +254,7 @@ function HoneypotIOC({ initialIocQuery = '', onClearPrefill }) {
                   onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:8 }}>
                     <span style={{ color:theme.primary, fontFamily:theme.mono, fontSize:12, wordBreak:'break-all', flex:1 }}>{item.value||item.ioc_value||item.ioc||'-'}</span>
-                    <span style={{ fontSize:10, padding:'2px 8px', borderRadius:10, background:`${THREAT_META[item.ioc_type?.toUpperCase()]?.color||theme.primary}20`, color:THREAT_META[item.ioc_type?.toUpperCase()]?.color||theme.primary, whiteSpace:'nowrap' }}>{item.ioc_type||item.type||'-'}</span>
+                    <span style={{ fontSize:10, padding:'2px 8px', borderRadius:10, background:`${THREAT_META[(item.ioc_type||'').toUpperCase()]?.color||theme.primary}20`, color:THREAT_META[(item.ioc_type||'').toUpperCase()]?.color||theme.primary, whiteSpace:'nowrap' }}>{item.ioc_type||item.type||'-'}</span>
                   </div>
                   <div style={{ display:'flex', gap:12, fontSize:11, color:theme.textMuted, marginTop:4 }}>
                     <span style={{ display:'flex', alignItems:'center', gap:4 }}><Shield size={10}/> Risk: <b style={{ color:(item.risk_score||0)>75?'#ef4444':(item.risk_score||0)>40?theme.warning:theme.success }}>{item.risk_score}</b></span>

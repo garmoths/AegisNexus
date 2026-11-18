@@ -1,12 +1,41 @@
 import { apiFetch as fetch } from '../lib/api'
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, type MouseEvent } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search } from 'lucide-react'
 import { emitEvent } from '../stores/eventBus'
-import { IkLink2, IkShieldDoc, IkGlobe2, IkBolt, IkSearch, IkScope, IkCamera, theme, Card, RiskGauge, IkAlert, IkWarn, IkCheck2, IkRadar, IkGrid, IkMonitor, IkClipboard, useWindowWidth, API, Toast, IkChart, CountUp, StatusDot, normalizeStatus } from './shared.jsx'
+import { IkLink2, IkShieldDoc, IkGlobe2, IkBolt, IkSearch, IkScope, IkCamera, theme, Card, RiskGauge, IkAlert, IkWarn, IkCheck2, IkRadar, IkGrid, IkMonitor, IkClipboard, useWindowWidth, API, Toast, IkChart, CountUp, StatusDot, normalizeStatus } from './shared'
 
-function PhishingResult({ result, url }) {
-  if (['timeout','failed','error','expired','degraded'].includes(result.status)) return <Card><h2>Analiz tamamlanamadı</h2><p>Bu sonuç güvenli veya tehlikeli kararı değildir. Yeniden deneyin.</p></Card>
+import type { ModuleScreenProps } from '../ModulesApp'
+import type { PhishingStats, ScanHistoryRow } from '../lib/types'
+
+/**
+ * The scan verdict is produced by the scoring pipeline (threat-intel sources,
+ * screenshot analysis, ...); its nested provider payloads are open-ended.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- provider payloads are scorer-defined
+type ProviderPayload = Record<string, any>
+interface ScanSource { name?: string; status?: string; detail?: string; [key: string]: unknown }
+interface ScanView {
+  status?: string
+  job_id?: string
+  url?: string
+  domain?: string
+  risk_score?: number
+  safety_score?: number
+  score?: number
+  risk_level?: string
+  risk?: string
+  details?: string[]
+  sources?: ScanSource[]
+  threat_intel?: ProviderPayload
+  message?: string
+  error?: string
+  [key: string]: unknown
+}
+interface FeedRow { id?: number; url?: string; domain?: string; target?: string; status?: string; risk_score?: number; risk_level?: string; submission_time?: string | null; created_at?: string | null }
+type ToastState = { message: string; type: 'success' | 'error'; visible: boolean }
+
+function PhishingResult({ result, url }: { result: ScanView; url: string }) {
+  if (['timeout','failed','error','expired','degraded'].includes(result.status ?? '')) return <Card><h2>Analiz tamamlanamadı</h2><p>Bu sonuç güvenli veya tehlikeli kararı değildir. Yeniden deneyin.</p></Card>
   const ti = result.threat_intel || {}
   const sa = ti.screenshot_analysis || {}
   const screenshotB64 = sa.screenshot_b64 || null
@@ -48,7 +77,7 @@ function PhishingResult({ result, url }) {
           <span style={{padding:'8px 20px',borderRadius:'24px',fontSize:14,fontWeight:600,background:safetyScore<50?theme.accentDim:theme.primaryDim,color:safetyScore<50?theme.accent:theme.primary}}>{result.risk_level||'Bilinmiyor'}</span>
           {screenshotB64&&(
             <motion.div initial={{opacity:0,scale:0.9}} animate={{opacity:1,scale:1}} transition={{delay:0.3,duration:0.4}} style={{position:'relative',cursor:'pointer'}} onClick={openScreenshot}>
-              <img src={`data:image/png;base64,${screenshotB64}`} alt="Site screenshot" style={{width:200,height:'auto',maxHeight:150,objectFit:'cover',borderRadius:theme.radius.md,border:`1px solid ${theme.border}`,boxShadow:'0 1px 2px rgba(0,0,0,0.3)',opacity:0.9,transition:'opacity 0.3s ease'}} onMouseEnter={e=>e.target.style.opacity=1} onMouseLeave={e=>e.target.style.opacity=0.9}/>
+              <img src={`data:image/png;base64,${screenshotB64}`} alt="Site screenshot" style={{width:200,height:'auto',maxHeight:150,objectFit:'cover',borderRadius:theme.radiusMd,border:`1px solid ${theme.border}`,boxShadow:'0 1px 2px rgba(0,0,0,0.3)',opacity:0.9,transition:'opacity 0.3s ease'}} onMouseEnter={e=>{e.currentTarget.style.opacity='1'}} onMouseLeave={e=>{e.currentTarget.style.opacity='0.9'}}/>
               <span style={{position:'absolute',bottom:6,right:6,padding:'3px 8px',borderRadius:6,fontSize:9,fontWeight:600,background:'rgba(0,0,0,0.7)',color:theme.primary,display:'flex',alignItems:'center',gap:4}}><IkSearch size={9} color={theme.primary}/> BÜYÜT</span>
             </motion.div>
           )}
@@ -60,7 +89,7 @@ function PhishingResult({ result, url }) {
             <div style={{marginBottom:16}}>
               <p style={{fontSize:12,fontWeight:600,color:theme.textMuted,marginBottom:10,display:'flex',alignItems:'center',gap:6}}><IkShieldDoc size={12} color={theme.textMuted}/> Tespitler</p>
               <div style={{display:'flex',flexDirection:'column',gap:5,maxHeight:220,overflowY:'auto'}}>
-                {result.details.slice(0,12).map((d,i)=>{
+                {(result.details ?? []).slice(0,12).map((d,i)=>{
                   const isDanger=d.includes('🚨')||d.includes('❌')||/tehlike|kritik|phishing|malware/i.test(d)
                   const isWarn=d.includes('⚠️')||/uyar|şüpheli|dikkat/i.test(d)
                   const isSafe=d.includes('✅')||/temiz|güvenli/i.test(d)
@@ -101,7 +130,7 @@ function PhishingResult({ result, url }) {
           const bgColor=src.isBad?'rgba(255,0,64,0.06)':src.isClean?'rgba(34,197,94,0.06)':'rgba(255,255,255,0.02)'
           const borderColor=src.isBad?theme.accent+'40':src.isClean?theme.success+'40':theme.border
           return (
-            <motion.div key={src.key} initial={{opacity:0,y:15}} animate={{opacity:1,y:0}} transition={{delay:0.3+i*0.05,duration:0.35}} style={{padding:'16px 18px',background:bgColor,border:`1px solid ${borderColor}`,borderRadius:theme.radius.md,position:'relative',overflow:'hidden'}}>
+            <motion.div key={src.key} initial={{opacity:0,y:15}} animate={{opacity:1,y:0}} transition={{delay:0.3+i*0.05,duration:0.35}} style={{padding:'16px 18px',background:bgColor,border:`1px solid ${borderColor}`,borderRadius:theme.radiusMd,position:'relative',overflow:'hidden'}}>
               <div style={{position:'absolute',top:0,left:0,right:0,height:2,background:statusColor}}/>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
                 <span style={{fontSize:14,fontWeight:600,color:'#fff',display:'flex',alignItems:'center',gap:6}}><src.Icon size={13} color={statusColor}/> {src.name}</span>
@@ -124,11 +153,11 @@ function PhishingResult({ result, url }) {
       <motion.div initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} transition={{delay:0.5,duration:0.4}} style={{marginBottom:24}}>
         <p style={{fontSize:13,fontWeight:600,color:theme.textMuted,marginBottom:16,display:'flex',alignItems:'center',gap:7}}><IkGrid size={13} color={theme.textMuted}/> Görsel Tehdit İndikatörleri</p>
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill, minmax(280px, 1fr))',gap:10}}>
-          {indicators.map((ind,j)=>{
+          {indicators.map((ind: ProviderPayload,j: number)=>{
             const t=ind.type||'visual'
             const IcComp=t==='url'?IkLink2:t==='domain'?IkGlobe2:t==='ip'?IkMonitor:IkScope
             return (
-              <motion.div key={j} initial={{opacity:0,x:-10}} animate={{opacity:1,x:0}} transition={{delay:0.6+j*0.05,duration:0.3}} style={{padding:'12px 16px',background:'rgba(239,68,68,0.06)',border:`1px solid ${theme.accent}30`,borderRadius:theme.radius.md,borderLeft:`3px solid ${theme.accent}`}}>
+              <motion.div key={j} initial={{opacity:0,x:-10}} animate={{opacity:1,x:0}} transition={{delay:0.6+j*0.05,duration:0.3}} style={{padding:'12px 16px',background:'rgba(239,68,68,0.06)',border:`1px solid ${theme.accent}30`,borderRadius:theme.radiusMd,borderLeft:`3px solid ${theme.accent}`}}>
                 <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6}}>
                   <IcComp size={14} color={theme.accent}/>
                   <span style={{fontSize:12,fontWeight:600,color:theme.accent}}>{t}</span>
@@ -147,7 +176,7 @@ function PhishingResult({ result, url }) {
       <motion.div initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} transition={{delay:0.6,duration:0.4}}>
         <p style={{fontSize:13,fontWeight:600,color:theme.textMuted,marginBottom:16,display:'flex',alignItems:'center',gap:7}}><IkClipboard size={13} color={theme.textMuted}/> Taranan Kaynaklar</p>
         <div style={{display:'flex',flexDirection:'column',gap:6}}>
-          {result.sources.map((s,i)=>{
+          {result.sources.map((s: ScanSource,i: number)=>{
             const isFail=typeof s.status==='string'&&(s.status.includes('Başarısız')||s.status.includes('timeout')||s.status.includes('error'))
             const isOk=typeof s.status==='string'&&(s.status.includes('CLEAN')||s.status.includes('SAFE')||s.status.includes('Tamamlandı')||s.status.includes('Ulaşılabilir')||s.status.includes('temiz'))
             return (
@@ -165,23 +194,23 @@ function PhishingResult({ result, url }) {
   )
 }
 
-function PhishingDetector({ initialUrl = '', onClearPrefill }) {
+function PhishingDetector({ initialUrl = '', onClearPrefill }: ModuleScreenProps & { onClearPrefill?: () => void }) {
   const isMobile = useWindowWidth() < 768
   const [url, setUrl] = useState(initialUrl)
   const [checking, setChecking] = useState(false)
-  const [result, setResult] = useState(null)
-  const [latestFeeds, setLatestFeeds] = useState([])
-  const [scanHistory, setScanHistory] = useState([])
-  const [stats, setStats] = useState(null)
+  const [result, setResult] = useState<ScanView | null>(null)
+  const [latestFeeds, setLatestFeeds] = useState<FeedRow[]>([])
+  const [scanHistory, setScanHistory] = useState<(ScanHistoryRow & { domain?: string; risk?: string })[]>([])
+  const [stats, setStats] = useState<PhishingStats | null>(null)
   const [pageNum, setPageNum] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [latestTotal, setLatestTotal] = useState(0)
   const [loadingLatest, setLoadingLatest] = useState(false)
-  const [toast, setToast] = useState({ message:'', type:'success', visible:false })
-  const [searchResults, setSearchResults] = useState([])
+  const [toast, setToast] = useState<ToastState>({ message:'', type:'success', visible:false })
+  const [searchResults, setSearchResults] = useState<FeedRow[]>([])
   const [showDropdown, setShowDropdown] = useState(false)
-  const searchTimeoutRef = useRef(null)
-  const [jobId, setJobId] = useState(null)
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [jobId, setJobId] = useState<string | null>(null)
   const [analyzing, setAnalyzing] = useState(false)
   const [pollCount, setPollCount] = useState(0)
   const MAX_POLLS = 310
@@ -198,15 +227,15 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialUrl])
 
-  function showToast(msg,t='success'){setToast({message:msg,type:t,visible:true});setTimeout(()=>setToast(t=>({...t,visible:false})),3000)}
+  function showToast(msg: string,t: ToastState['type']='success'){setToast({message:msg,type:t,visible:true});setTimeout(()=>setToast(t=>({...t,visible:false})),3000)}
 
   // Tarama bir sonuca ulaştığında canlı olay veriyoluna yayınla; diğer modüller
   // ve olaylar paneli anında tepki verir. Ara "analyzing" durumları atlanır.
-  const emittedResult = useRef(null)
+  const emittedResult = useRef<ScanView | null>(null)
   useEffect(() => {
     if (!result || result === emittedResult.current) return
     if (result.status === 'analyzing') return
-    if (['timeout','failed','error','expired','degraded'].includes(result.status)) return
+    if (['timeout','failed','error','expired','degraded'].includes(result.status ?? '')) return
     const score = result.safety_score ?? result.score
     if (score == null && !result.risk_level) return
     emittedResult.current = result
@@ -232,7 +261,7 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
       setPageNum(d.page||p)
       setLatestTotal(d.total||0)
     }catch(e){
-      showToast('Son phishing verileri yüklenemedi: '+e.message,'error')
+      showToast('Son phishing verileri yüklenemedi: '+(e instanceof Error?e.message:String(e)),'error')
     } finally {
       setLoadingLatest(false)
     }
@@ -245,7 +274,7 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
       const d = await r.json()
       const items = d.data || d.history || []
       const seen = new Set()
-      const deduped = items.filter(item => {
+      const deduped = items.filter((item: ScanHistoryRow) => {
         if (!item?.url) return false
         if (seen.has(item.url)) return false
         seen.add(item.url)
@@ -264,7 +293,7 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
       const d=await r.json()
       setStats(d)
     }catch(e){
-      showToast('Istatistikler yüklenemedi: '+e.message,'error')
+      showToast('Istatistikler yüklenemedi: '+(e instanceof Error?e.message:String(e)),'error')
     }
   }, [])
 
@@ -303,7 +332,7 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
     }
   }, [url])
 
-  const submitCheckRequest = useCallback(async (normalizedInput, forceFresh = false) => {
+  const submitCheckRequest = useCallback(async (normalizedInput: string, forceFresh = false) => {
     const r = await fetch(`${API}/phishing/check-url`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -313,7 +342,7 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
     return r.json()
   }, [])
 
-  async function handleCheck(forceFreshOrEvent = false, urlOverride = null) {
+  async function handleCheck(forceFreshOrEvent: boolean | MouseEvent = false, urlOverride: string | null = null) {
     // Event handler olarak kullanıldığında (onClick), React event object gelir - ignore et
     const forceFresh = typeof forceFreshOrEvent === 'boolean' ? forceFreshOrEvent : false
     const urlToCheck = urlOverride || url
@@ -333,7 +362,7 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
       }
       loadScanHistory(1)
     }catch(e){
-      const errMsg = e?.message || (typeof e === 'string' ? e : 'Bilinmeyen hata')
+      const errMsg = (e instanceof Error && e.message) || (typeof e === 'string' ? e : 'Bilinmeyen hata')
       showToast('URL kontrol hatasi: '+errMsg,'error')
     }
     setChecking(false)
@@ -391,9 +420,9 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
     return ()=>clearTimeout(timer)
   },[jobId,analyzing,pollCount,url,loadScanHistory,submitCheckRequest])
 
-  const totalUrls=stats?.stats?.total_urls||stats?.total_urls||0
-  const phCount=stats?.stats?.phishing_count||stats?.phishing_count||0
-  const safeCount=stats?.stats?.safe_count||stats?.safe_count||0
+  const totalUrls=stats?.stats?.total_urls||0
+  const phCount=stats?.stats?.phishing_count||0
+  const safeCount=stats?.stats?.safe_count||0
 
   return <div>
     <Toast {...toast}/>
@@ -421,7 +450,7 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
           <div style={{ 
             background:'rgba(255,255,255,0.05)', 
             border:`1px solid ${theme.primary}33`,
-            borderRadius:theme.radius.lg,
+            borderRadius:theme.radiusLg,
             padding:8,
             boxShadow:'0 1px 2px rgba(0,0,0,0.3)',
             position:'relative'
@@ -434,7 +463,7 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
                 style={{ 
                   flex:1, 
                   padding:'20px 28px', 
-                  borderRadius:theme.radius.md,
+                  borderRadius:theme.radiusMd,
                   background:'rgba(255,255,255,0.05)',
                   border:'none',
                   color:'#fff', 
@@ -449,7 +478,7 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
                 disabled={checking}
                 style={{
                   padding:'20px 40px',
-                  borderRadius:theme.radius.md,
+                  borderRadius:theme.radiusMd,
                   cursor:checking?'not-allowed':'pointer',
                   fontSize:16,
                   fontWeight:600,
@@ -487,7 +516,7 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
                   left:0,
                   right:0,
                   background:'rgba(8,12,20,0.98)',
-                  borderRadius:theme.radius.md,
+                  borderRadius:theme.radiusMd,
                   border:`1px solid ${theme.border}`,
                   maxHeight:320,
                   overflowY:'auto',
@@ -537,7 +566,7 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
               maxWidth:900, 
               margin:'32px auto 0',
               background:'rgba(255,255,255,0.03)',
-              borderRadius:theme.radius.lg,
+              borderRadius:theme.radiusLg,
               border:`1px solid ${theme.border}`,
               overflow:'hidden'
             }}
@@ -574,7 +603,7 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
                       flex:1, 
                       fontFamily:theme.mono, 
                       fontSize:12, 
-                      color:theme.textSecondary || '#ccc',
+                      color:theme.textMuted || '#ccc',
                       overflow:'hidden',
                       textOverflow:'ellipsis',
                       whiteSpace:'nowrap'
@@ -618,7 +647,7 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
               padding:'20px 24px',
               background:'rgba(250,250,250,0.025)',
               border:`1px solid ${theme.primary}33`,
-              borderRadius:theme.radius.md,
+              borderRadius:theme.radiusMd,
               display:'flex',
               alignItems:'center',
               gap:20
@@ -679,7 +708,7 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
           onClick={() => handleCheck(true)}
           style={{
             padding:'10px 18px',
-            borderRadius:theme.radius.md,
+            borderRadius:theme.radiusMd,
             border:`1px solid ${theme.warning}`,
             background:'rgba(245,158,11,0.12)',
             color:theme.warning,
@@ -757,7 +786,7 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
                   animate={{ opacity:1, y:0 }}
                   transition={{ delay:0.8 + i * 0.02, duration:0.3, ease:theme.ease.out }}
                   style={{ borderBottom:`1px solid ${theme.border}`, cursor:'pointer' }}
-                  onClick={()=>{setUrl(item.url);handleCheck(false, item.url)}}
+                  onClick={()=>{setUrl(item.url ?? '');handleCheck(false, item.url ?? null)}}
                 >
                   <td style={{ padding:'10px 8px', maxWidth:300, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}><span style={{ color:theme.text, fontSize:12, fontFamily:theme.mono }}>{item.url}</span></td>
                   <td style={{ padding:'10px 8px' }}><span style={{ color:theme.primary, fontSize:12 }}>{item.domain||'-'}</span></td>

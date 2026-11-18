@@ -1,41 +1,42 @@
 import api from '../lib/api'
+import type { AdminUser, LoginResponse, Paged, RegisterResponse, Report, Role, SmsAnalysis } from './types'
 
 export const authAPI = {
-  register: (email, fullName) =>
-    api.post('/auth/register', { email, full_name: fullName }),
+  register: (email: string, fullName: string) =>
+    api.post<RegisterResponse>('/auth/register', { email, full_name: fullName }),
 
-  login: (email, apiKey) =>
-    api.post('/auth/login', { email, api_key: apiKey }),
+  login: (email: string, apiKey: string) =>
+    api.post<LoginResponse>('/auth/login', { email, api_key: apiKey }),
 
   rotateKey: () =>
-    api.post('/auth/rotate-key'),
+    api.post<{ new_api_key: string; message: string }>('/auth/rotate-key'),
 
   logout: () =>
     api.post('/auth/logout'),
 }
 
 export const reportsAPI = {
-  analyze: (description) =>
-    api.post('/reports/analyze', { description }),
+  analyze: (description: string) =>
+    api.post<Report>('/reports/analyze', { description }),
 
   list: (page = 1) =>
-    api.get('/reports/', { params: { page } }),
+    api.get<Paged<Report>>('/reports/', { params: { page } }),
 
-  pdf: (id) =>
+  pdf: (id: number) =>
     api.get(`/reports/${id}/pdf`, { responseType: 'blob' }),
 }
 
 export const adminAPI = {
   users: (page = 1) =>
-    api.get('/admin/users', { params: { page } }),
+    api.get<{ data: AdminUser[]; page: number; total: number }>('/admin/users', { params: { page } }),
 
-  changeRole: (userId, role) =>
+  changeRole: (userId: number, role: Role) =>
     api.patch(`/admin/users/${userId}`, { role }),
 }
 
 export const smsGuardAPI = {
-  analyze: (text, sender) =>
-    api.post('/sms/analyze', { text, sender }),
+  analyze: (text: string, sender?: string) =>
+    api.post<SmsAnalysis>('/sms/analyze', { text, sender }),
 
   info: () =>
     api.get('/sms/info'),

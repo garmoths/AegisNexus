@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from 'react'
+import { lazy, Suspense, useState, type ComponentType, type LazyExoticComponent } from 'react'
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Shield, Menu, X, Activity } from 'lucide-react'
 import logo from './assets/logo.png'
@@ -8,15 +8,32 @@ import { Button } from './components/ui/button'
 import { Badge } from './components/ui/badge'
 import { cn } from './lib/utils'
 
-// Modül başlıkları ve açıklamaları tek yerde; her modül aynı başlık şablonuyla açılır.
-const entries = {
-  phishing: {label:'Phishing Tarayıcı', description:'Bir URL’yi tarayın; tehdit istihbaratı, ekran görüntüsü ve güvenilirlik puanını görün.', Component:lazy(()=>import('./modules/phishing.jsx'))},
-  analiz: {label:'İçerik Analizi', description:'URL, SMS veya e-posta içeriğini yapıştırın; kararı ve gerekçesini görün.', Component:lazy(()=>import('./pages/AnalyzePage.jsx'))},
-  ioc: {label:'IOC / Tuzak', description:'Zararlı IP, alan adı ve URL göstergelerini sorgulayın.', Component:lazy(()=>import('./modules/ioc.jsx'))},
+/** Props every module screen accepts from the shell (unused ones are ignored). */
+export interface ModuleScreenProps {
+  initialUrl?: string
+  initialIocQuery?: string
+  initialProfile?: unknown
+  onNavigate?: (module: string, value?: string, profile?: unknown) => void
 }
-const aliases={'phishing-detector':'phishing',honeypot:'ioc',sms:'analiz','ai-analyzer':'analiz'}
 
-function ModuleNav({ module, counts, onPick }) {
+type ModuleId = 'phishing' | 'analiz' | 'ioc'
+interface ModuleEntry {
+  label: string
+  description: string
+  status?: string
+  Component: LazyExoticComponent<ComponentType<ModuleScreenProps>>
+}
+
+// Modül başlıkları ve açıklamaları tek yerde; her modül aynı başlık şablonuyla açılır.
+const entries: Record<ModuleId, ModuleEntry> = {
+  phishing: {label:'Phishing Tarayıcı', description:'Bir URL’yi tarayın; tehdit istihbaratı, ekran görüntüsü ve güvenilirlik puanını görün.', Component:lazy(()=>import('./modules/phishing'))},
+  analiz: {label:'İçerik Analizi', description:'URL, SMS veya e-posta içeriğini yapıştırın; kararı ve gerekçesini görün.', Component:lazy(()=>import('./pages/AnalyzePage'))},
+  ioc: {label:'IOC / Tuzak', description:'Zararlı IP, alan adı ve URL göstergelerini sorgulayın.', Component:lazy(()=>import('./modules/ioc'))},
+}
+const aliases: Record<string, ModuleId> = {'phishing-detector':'phishing',honeypot:'ioc',sms:'analiz','ai-analyzer':'analiz'}
+const isModule = (id: string): id is ModuleId => Object.hasOwn(entries, id)
+
+function ModuleNav({ module, counts, onPick }: { module: string; counts: Record<string, number>; onPick?: () => void }) {
   return (
     <nav aria-label="Güvenlik modülleri" className="flex flex-col gap-1">
       {Object.entries(entries).map(([id, item]) => {
@@ -50,15 +67,15 @@ export default function ModulesApp() {
   const [menuOpen,setMenuOpen]=useState(false)
   const [eventsOpen,setEventsOpen]=useState(false)
   const events=useEventBus(s=>s.events)
-  const counts=events.reduce((acc,e)=>{acc[e.module]=(acc[e.module]||0)+1;return acc},{})
-  const entry=Object.hasOwn(entries,module)?entries[module]:null
-  if (!entry) return <Navigate to={'/modules/'+(entries[aliases[module]]?aliases[module]:'phishing')} replace />
+  const counts=events.reduce<Record<string, number>>((acc,e)=>{acc[e.module]=(acc[e.module]||0)+1;return acc},{})
+  const entry=isModule(module)?entries[module]:null
+  if (!entry) return <Navigate to={'/modules/'+(aliases[module]??'phishing')} replace />
   const Module=entry.Component
-  const go=(target,value='',profile=null)=>{
+  const go=(target: string,value='',profile: unknown=null)=>{
     nav('/modules/'+(aliases[target]||target),{state:{value,profile}})
     window.scrollTo({top:0,behavior:'instant'})
   }
-  const jump=(target)=>{ const t=aliases[target]||target; if(entries[t]){go(t)}; setEventsOpen(false) }
+  const jump=(target: string)=>{ const t=aliases[target]||target; if(isModule(t)){go(t)}; setEventsOpen(false) }
 
   return <div className="flex min-h-screen flex-col bg-background text-foreground">
     <header className="sticky top-0 z-40 flex items-center gap-3 border-b border-border bg-background/90 px-4 py-3 backdrop-blur md:px-6">

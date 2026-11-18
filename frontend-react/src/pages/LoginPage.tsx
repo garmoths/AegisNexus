@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, type FormEvent } from 'react'
+import { errorMessage } from '../lib/api'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { theme } from '../theme'
@@ -16,7 +17,7 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
-  const handleRegister = async (e) => {
+  const handleRegister = async (e: FormEvent) => {
     e.preventDefault()
     setError('')
     setSuccess('')
@@ -29,11 +30,11 @@ export default function LoginPage() {
         setMode('login')
       }
     } catch (err) {
-      setError(err.response?.data?.detail || 'Kayıt sırasında hata oluştu.')
+      setError(errorMessage(err, 'Kayıt sırasında hata oluştu.'))
     }
   }
 
-  const handleLogin = async (e) => {
+  const handleLogin = async (e: FormEvent) => {
     e.preventDefault()
     setError('')
     try {
@@ -42,12 +43,12 @@ export default function LoginPage() {
       setAuth({
         role: data.role,
         email: data.email || email,
-        fullName: data.full_name || '',
+        fullName: '',
       })
       setApiKey('')
       nav('/dashboard')
     } catch (err) {
-      setError(err.response?.data?.detail || 'Giriş sırasında hata oluştu.')
+      setError(errorMessage(err, 'Giriş sırasında hata oluştu.'))
     }
   }
 
