@@ -1,11 +1,11 @@
 """Compatibility API backed by shared, expiring SQLite storage (no Redis server)."""
-import os
 
 from app import runtime_store as store
+from app.config import get_settings
 
-SCAN_CACHE_TTL = int(os.getenv('SCAN_CACHE_TTL', '21600'))
+SCAN_CACHE_TTL = get_settings().scan_cache_ttl
 THREAT_INTEL_TTL = 21600
-AI_DAILY_LIMIT = int(os.getenv('AI_DAILY_LIMIT', '14000'))
+AI_DAILY_LIMIT = get_settings().ai_daily_limit
 
 
 def redis_set_scan(url_hash, result):

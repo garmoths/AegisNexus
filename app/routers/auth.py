@@ -2,7 +2,6 @@
 
 Tüm endpoint'ler /api/v2/auth altında.
 """
-import os
 import secrets
 from datetime import UTC, datetime, timedelta
 from typing import Literal
@@ -12,6 +11,7 @@ from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
 
 from app.auth import _hash_key, generate_api_key, resolve_api_key
+from app.config import get_settings
 from app.database import get_db
 from app.models import APIKey, RecoveryToken, User, UserRole, UserSession
 
@@ -167,7 +167,7 @@ class RecoveryComplete(BaseModel):
 
 @router.post('/recovery/request')
 def recovery_request(body: RecoveryRequest, db: Session = Depends(get_db)):
-    if not os.getenv('SMTP_HOST') or not os.getenv('SMTP_FROM'):
+    if not get_settings().recovery_mail_enabled:
         raise HTTPException(503, 'E-posta kurtarma servisi yapılandırılmadı. Yöneticiyle iletişime geçin.')
     user = db.query(User).filter_by(email=body.email, is_active=True).first()
     if user:

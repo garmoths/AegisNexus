@@ -25,6 +25,7 @@ websocket-client==1.9.0
 
 # Configuration
 python-dotenv==1.2.1
+pydantic-settings==2.16.3
 celery[redis]==5.5.3
 
 # LLM & AI

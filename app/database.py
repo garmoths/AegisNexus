@@ -4,18 +4,14 @@ Tüm uygulama verisi ve tarayıcı önbelleği bu dosyada tutulur; şema app/mod
 sürüm geçmişi alembic/versions altındadır. Kısa ömürlü önbellek ve iş kilitleri ayrı
 bir dosyada (app/runtime_store.py → data/runtime.db) durur.
 """
-import os
 import pathlib
 
-from dotenv import load_dotenv
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-load_dotenv()
+from app.config import get_settings
 
-SQLALCHEMY_DATABASE_URL = os.getenv('DATABASE_URL') or 'sqlite:///./data/aegis.db'
-if not SQLALCHEMY_DATABASE_URL.startswith('sqlite:///'):
-    raise RuntimeError('DATABASE_URL bir SQLite dosyası olmalı (örn. sqlite:///./data/aegis.db).')
+SQLALCHEMY_DATABASE_URL = get_settings().database_url
 
 DB_FILE = pathlib.Path(SQLALCHEMY_DATABASE_URL.replace('sqlite:///', '', 1)).resolve()
 DB_FILE.parent.mkdir(parents=True, exist_ok=True)

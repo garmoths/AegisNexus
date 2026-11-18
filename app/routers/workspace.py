@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app import runtime_store as store
 from app.auth import require_admin, resolve_api_key
+from app.config import get_settings
 from app.database import get_db
 from app.models import AnalysisFeedback, APIKey, EventOutbox, IndicatorOfCompromise, UserNotification, UserReport, WatchItem
 from app.outbound import validate_url
@@ -160,6 +161,5 @@ def telemetry(db: Session = Depends(get_db)):
 
 @router.get('/system/capabilities')
 def capabilities():
-    import os
-    return {'modules': 3,
-            'demo_mode': os.getenv('DEMO_MODE', '0') == '1', 'recovery_available': bool(os.getenv('SMTP_HOST') and os.getenv('SMTP_FROM'))}
+    settings = get_settings()
+    return {'modules': 3, 'demo_mode': settings.demo_mode, 'recovery_available': settings.recovery_mail_enabled}

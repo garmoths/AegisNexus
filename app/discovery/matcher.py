@@ -4,11 +4,11 @@ Bir alan adını (CT kaydından gelen) phishing *adayı* olarak işaretler. Eşl
 phishing kanıtı DEĞİLDİR; yalnızca incelenmeye değer bir sinyaldir. Karar ve
 yayın işini daima insan onayı verir. Bu modül ağa çıkmaz; yalnızca metin inceler.
 """
-import os
 import re
 
 from rapidfuzz import fuzz
 
+from app.config import get_settings
 from app.discovery.analysis import BRANDS
 
 # Phishing sayfalarında sık geçen eylem/konu sözcükleri (TR + EN).
@@ -26,7 +26,7 @@ SUSPICIOUS_TLDS = (
 )
 
 # Aday sayılmak için gereken en düşük puan. AEGIS_CERTSTREAM_THRESHOLD ile ayarlanır.
-THRESHOLD = int(os.getenv('AEGIS_CERTSTREAM_THRESHOLD', '40'))
+THRESHOLD = get_settings().aegis_certstream_threshold
 # Typosquat benzerlik eşiği (rapidfuzz ratio, 0-100). Uzunluk farkı en fazla 1
 # olan etiketlere uygulanır: karakter değiştirme/ekleme kaçamaklarını yakalar
 # ('paypa1'↔'paypal'), 'snapple'↔'apple' gibi yanlış pozitifleri yakalamaz.

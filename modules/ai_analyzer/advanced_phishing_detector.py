@@ -18,7 +18,6 @@ Short-message safety rule:
 import json
 import logging
 import math
-import os
 import re
 import socket
 import ssl
@@ -26,14 +25,11 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from urllib.parse import urlparse
 
-# Load .env file
-from dotenv import load_dotenv
-
-load_dotenv()
-
 # Third-party imports
 from openai import OpenAI
 from rapidfuzz import distance, fuzz
+
+from app.config import get_settings
 
 # transformers opsiyonel — kaldırıldıysa emotion pipeline None kalır (no-op).
 try:
@@ -57,9 +53,9 @@ BETA = 1.5
 PRIOR = 0.5
 
 # API Keys from env - Groq (OpenAI uyumlu)
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "") or ""
-GROQ_BASE_URL = os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+GROQ_API_KEY = get_settings().groq_api_key
+GROQ_BASE_URL = get_settings().groq_base_url
+GROQ_MODEL = get_settings().groq_model
 if not GROQ_API_KEY:
     logger.warning("GROQ_API_KEY not set - LLM scoring will be limited")
 

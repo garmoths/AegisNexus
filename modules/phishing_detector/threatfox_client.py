@@ -7,18 +7,15 @@ Auth: ABUSE_API_KEY header.
 """
 
 import logging
-import os
 from datetime import UTC, datetime
-from pathlib import Path
 
 import requests
-from dotenv import load_dotenv
 
-BASE_DIR = Path(__file__).resolve().parents[2]
-load_dotenv(BASE_DIR / ".env")
+from app.config import get_settings
+
 logger = logging.getLogger(__name__)
 
-ABUSE_CH_API_KEY = os.getenv("ABUSE_API_KEY", os.getenv("ABUSE_API_KEYS", "")).strip()
+ABUSE_CH_API_KEY = next(iter(get_settings().abuse_ch_api_keys), "")
 if "," in ABUSE_CH_API_KEY:
     ABUSE_CH_API_KEY = ABUSE_CH_API_KEY.split(",")[0].strip()
 

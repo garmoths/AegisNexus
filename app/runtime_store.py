@@ -1,14 +1,15 @@
 """Shared SQLite coordination for API/worker cache, quotas and job leases."""
 import json
-import os
 import sqlite3
 import time
 from contextlib import contextmanager
 from pathlib import Path
 
+from app.config import get_settings
+
 
 def path():
-    return Path(os.getenv('RUNTIME_DB_PATH', str(Path(__file__).resolve().parents[1] / 'data/runtime.db')))
+    return Path(get_settings().runtime_db_path)
 
 
 @contextmanager

@@ -22,6 +22,7 @@ from requests.adapters import HTTPAdapter
 from sqlalchemy.orm import Session
 from urllib3.util.retry import Retry
 
+from app.config import get_settings
 from app.models import PhishingURL
 
 from .url_normalize import normalize_url_record
@@ -64,14 +65,14 @@ def _http_session() -> requests.Session:
     adapter = HTTPAdapter(max_retries=retry)
     session.mount("http://", adapter)
     session.mount("https://", adapter)
-    pt_username = os.getenv("PHISHTANK_USERNAME", "aegisnexus")
+    pt_username = get_settings().phishtank_username
     session.headers.update({"User-Agent": f"phishtank/{pt_username}"})
     return session
 
 
 def get_github_feed_urls() -> dict[str, str]:
     """GitHub feed URL'lerini env'den veya varsayilandan alir."""
-    raw = os.getenv("PHISHING_GITHUB_FEEDS", "").strip()
+    raw = get_settings().phishing_github_feeds.strip()
     if not raw:
         return DEFAULT_GITHUB_FEEDS
 
@@ -120,7 +121,7 @@ def parse_feed_lines_to_urls(content: str) -> list[str]:
 def fetch_openphish_data(session: requests.Session | None = None) -> list[str]:
     """OpenPhish canlı feed."""
     http = session or _http_session()
-    limit = int(os.getenv("PHISHING_OPENPHISH_LIMIT", "20000"))
+    limit = get_settings().phishing_openphish_limit
     try:
         response = http.get("https://openphish.com/feed.txt", timeout=60)
         if response.status_code != 200:
@@ -136,8 +137,8 @@ def fetch_openphish_data(session: requests.Session | None = None) -> list[str]:
 def fetch_urlhaus_data(session: requests.Session | None = None) -> list[str]:
     """URLHaus CSV recent dump'tan phishing odaklı URL'ler."""
     http = session or _http_session()
-    limit = int(os.getenv("PHISHING_URLHAUS_LIMIT", "3000"))
-    phishing_only = os.getenv("PHISHING_URLHAUS_PHISHING_ONLY", "0").strip().lower() in {"1", "true", "yes"}
+    limit = get_settings().phishing_urlhaus_limit
+    phishing_only = get_settings().phishing_urlhaus_phishing_only
     try:
         response = http.get("https://urlhaus.abuse.ch/downloads/csv_recent/", timeout=90)
         if response.status_code != 200:
@@ -204,11 +205,11 @@ def fetch_kaggle_data(session: requests.Session | None = None) -> list[str]:
     - KAGGLE_API_TOKEN (new token style), or
     - KAGGLE_USERNAME + KAGGLE_KEY (legacy style).
     """
-    username = os.getenv("KAGGLE_USERNAME", "").strip()
-    key = os.getenv("KAGGLE_KEY", "").strip()
-    api_token = os.getenv("KAGGLE_API_TOKEN", "").strip()
-    dataset_ref = os.getenv("PHISHING_KAGGLE_DATASET", "taruntiwarihp/phishing-site-urls").strip()
-    limit = int(os.getenv("PHISHING_KAGGLE_LIMIT", "100000"))
+    username = get_settings().kaggle_username.strip()
+    key = get_settings().kaggle_key.strip()
+    api_token = get_settings().kaggle_api_token.strip()
+    dataset_ref = get_settings().phishing_kaggle_dataset.strip()
+    limit = get_settings().phishing_kaggle_limit
 
     if not api_token and (not username or not key):
         print("Kaggle atlandi: KAGGLE_API_TOKEN veya KAGGLE_USERNAME/KAGGLE_KEY tanimli degil")
@@ -242,12 +243,12 @@ def fetch_kaggle_data(session: requests.Session | None = None) -> list[str]:
 
 def fetch_otx_phishing_data(session: requests.Session | None = None) -> list[str]:
     """AlienVault OTX subscribed pulses üzerinden phishing URL/domain toplar."""
-    api_key = os.getenv("ALIENVAULT_OTX_API_KEY", "").strip()
+    api_key = get_settings().alienvault_otx_api_key.strip()
     if not api_key:
         print("OTX atlandi: ALIENVAULT_OTX_API_KEY tanimli degil")
         return []
 
-    limit = int(os.getenv("PHISHING_OTX_LIMIT", "200"))
+    limit = get_settings().phishing_otx_limit
     endpoint = f"https://otx.alienvault.com/api/v1/pulses/subscribed?limit={max(limit, 1)}"
     headers = {"X-OTX-API-KEY": api_key}
     http = session or _http_session()
@@ -313,10 +314,10 @@ def fetch_certstream_data(session: requests.Session | None = None) -> list[str]:
         print("CertStream atlandi: websocket-client paketi kurulu degil")
         return []
 
-    ws_url = os.getenv("CERTSTREAM_WS_URL", "wss://certstream.calidog.io/")
-    max_urls = int(os.getenv("CERTSTREAM_MAX_URLS", "500"))
-    duration = int(os.getenv("CERTSTREAM_DURATION_SECONDS", "20"))
-    custom_keywords = os.getenv("CERTSTREAM_KEYWORDS", "").strip()
+    ws_url = get_settings().certstream_ws_url
+    max_urls = get_settings().certstream_max_urls
+    duration = get_settings().certstream_duration_seconds
+    custom_keywords = get_settings().certstream_keywords.strip()
     keywords = (
         [k.strip().lower() for k in custom_keywords.split(",") if k.strip()]
         if custom_keywords
@@ -360,7 +361,7 @@ def fetch_certstream_data(session: requests.Session | None = None) -> list[str]:
     if found:
         return list(found)
 
-    allow_generic = os.getenv("CERTSTREAM_ALLOW_GENERIC_DOMAINS", "0").strip().lower() in {"1", "true", "yes"}
+    allow_generic = get_settings().certstream_allow_generic_domains
     if allow_generic and observed_domains:
         fallback = [f"http://{domain}" for domain in sorted(observed_domains)[:max_urls]]
         return fallback
@@ -419,7 +420,7 @@ def extract_target_from_url(url: str) -> str:
 def _fetch_phishtank_direct(http: requests.Session) -> list[dict[str, Any]]:
     """PhishTank JSON DB'sini doğrudan indirir. App key varsa limitsiz, yoksa günde birkaç kez."""
     import bz2
-    app_key = os.getenv("PHISHTANK_APP_KEY", "")
+    app_key = get_settings().phishtank_app_key
     if app_key:
         url = f"http://data.phishtank.com/data/{app_key}/online-valid.json.bz2"
     else:
@@ -446,7 +447,7 @@ def update_phishtank_json(session: requests.Session | None = None) -> int:
     output_path = os.path.join(BASE_DIR, "phishtank.json")
     http = session or _http_session()
 
-    app_key = os.getenv("PHISHTANK_APP_KEY", "")
+    app_key = get_settings().phishtank_app_key
     entries: list[dict[str, Any]] = []
 
     if app_key:
@@ -708,7 +709,7 @@ def fetch_threatfox_data(session: requests.Session | None = None) -> list[str]:
     """ThreatFox API üzerinden son IOC'ları çeker ve URL listesine çevirir."""
     try:
         from .threatfox_client import get_recent_iocs
-        limit = int(os.getenv("PHISHING_THREATFOX_LIMIT", "500"))
+        limit = get_settings().phishing_threatfox_limit
         iocs = get_recent_iocs(limit=limit)
         urls: list[str] = []
         for ioc in iocs:

@@ -1,14 +1,13 @@
 import logging
-import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.config import get_settings
 from app.database import Base, engine
 from app.discovery.router import router as discovery_router
 from app.middleware.rate_limit import RateLimitMiddleware
@@ -18,8 +17,6 @@ from app.routers.contact import router as contact_router
 from app.routers.reports import router as reports_router
 from app.routers.workspace import router as workspace_router
 
-# Load environment variables
-load_dotenv()
 # Çekirdek modüller
 from modules import (
     ai_analyzer_router,  # 05 - AI Güvenlik Asistanı
@@ -68,14 +65,7 @@ app = FastAPI(
     version="2.0.0",
 )
 
-allowed_origins = [
-    origin.strip()
-    for origin in os.getenv(
-        "CORS_ALLOW_ORIGINS",
-        "http://localhost:8000,http://localhost:5173",
-    ).split(",")
-    if origin.strip()
-]
+allowed_origins = get_settings().cors_allow_origins
 app.add_middleware(RateLimitMiddleware)
 app.add_middleware(
     CORSMiddleware,

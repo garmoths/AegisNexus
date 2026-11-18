@@ -10,15 +10,14 @@ Harici API servisleri ile tehdit istihbaratı entegrasyonu.
 import hashlib
 import ipaddress
 import logging
-import os
 import socket
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from urllib.parse import urlparse
 
 import requests
-from dotenv import load_dotenv
+
+from app.config import get_settings
 
 from .cache_db import write_ioc, write_phishing_url
 from .scoring import (
@@ -29,8 +28,6 @@ from .scoring import (
 )
 from .screenshot_analyzer import analyze as analyze_screenshot
 
-BASE_DIR = Path(__file__).resolve().parents[2]
-load_dotenv(BASE_DIR / ".env")
 logger = logging.getLogger(__name__)
 
 def _parse_api_keys(raw_value: str) -> list[str]:
@@ -40,22 +37,12 @@ def _parse_api_keys(raw_value: str) -> list[str]:
     return [k.strip() for k in normalized.split(",") if k.strip()]
 
 
-# API Key'ler .env dosyasından okunur (multiple keys for rotation)
-VIRUSTOTAL_API_KEYS = _parse_api_keys(os.getenv("VIRUSTOTAL_API_KEYS", ""))
-if not VIRUSTOTAL_API_KEYS:
-    VIRUSTOTAL_API_KEYS = _parse_api_keys(os.getenv("VIRUSTOTAL_API_KEY", ""))
-
-GOOGLE_SAFE_BROWSING_KEYS = _parse_api_keys(os.getenv("GOOGLE_SAFE_BROWSING_KEYS", ""))
-if not GOOGLE_SAFE_BROWSING_KEYS:
-    GOOGLE_SAFE_BROWSING_KEYS = _parse_api_keys(os.getenv("GOOGLE_SAFE_BROWSING_KEY", ""))
-
-ABUSEIPDB_API_KEYS = _parse_api_keys(os.getenv("ABUSEIPDB_API_KEYS", ""))
-if not ABUSEIPDB_API_KEYS:
-    ABUSEIPDB_API_KEYS = _parse_api_keys(os.getenv("ABUSEIPDB_API_KEY", ""))
-
-ABUSE_CH_API_KEYS = _parse_api_keys(os.getenv("ABUSE_API_KEYS", ""))
-if not ABUSE_CH_API_KEYS:
-    ABUSE_CH_API_KEYS = _parse_api_keys(os.getenv("ABUSE_API_KEY", ""))
+# API keys (comma-separated lists rotate on rate limits); see app/config.py
+_settings = get_settings()
+VIRUSTOTAL_API_KEYS = list(_settings.virustotal_api_keys)
+GOOGLE_SAFE_BROWSING_KEYS = list(_settings.google_safe_browsing_keys)
+ABUSEIPDB_API_KEYS = list(_settings.abuseipdb_api_keys)
+ABUSE_CH_API_KEYS = list(_settings.abuse_ch_api_keys)
 
 ABUSE_CH_KEY_INDEX = 0
 
@@ -1040,7 +1027,7 @@ def _check_freehost_phishing(url: str, domain: str) -> int:
 # =========================================================
 
 # A4: Paralel çalışma için iş parçacığı sayısı
-_THREAT_INTEL_WORKERS = int(os.getenv("THREAT_INTEL_WORKERS", "5"))
+_THREAT_INTEL_WORKERS = get_settings().threat_intel_workers
 
 
 def _task_screenshot(url: str, http_meta, page_text: str, pre_penalty: int):
@@ -1756,7 +1743,7 @@ def check_phishtank_live(url: str, timeout: int = 5) -> dict:
     API key opsiyoneldir; anonim istekler de çalışır (rate-limited).
     Döndürür: {"in_database": bool, "valid": bool, "phish_id": str|None, "error": str|None}
     """
-    app_key = os.getenv("PHISHTANK_APP_KEY", "")
+    app_key = get_settings().phishtank_app_key
     try:
         payload = {"url": url, "format": "json"}
         if app_key:
@@ -1764,7 +1751,7 @@ def check_phishtank_live(url: str, timeout: int = 5) -> dict:
         resp = requests.post(
             "https://checkurl.phishtank.com/checkurl/",
             data=payload,
-            headers={"User-Agent": f"phishtank/{os.getenv('PHISHTANK_USERNAME', 'aegisnexus')}"},
+            headers={"User-Agent": f"phishtank/{get_settings().phishtank_username}"},
             timeout=timeout,
         )
         if resp.status_code != 200:

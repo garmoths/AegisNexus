@@ -14,13 +14,13 @@ Monitoring:
 from __future__ import annotations
 
 import logging
-import os
 from datetime import UTC
 
 from billiard.exceptions import SoftTimeLimitExceeded
 from celery.signals import worker_process_init, worker_process_shutdown
 
 from app.celery_app import celery_app as app
+from app.config import get_settings
 
 from .cache_db import set_celery_job
 from .redis_cache import redis_set_scan
@@ -29,7 +29,7 @@ from .url_normalize import normalize_url_record
 logger = logging.getLogger(__name__)
 
 # Job sonuçları SQLite'ta bu TTL ile saklanır (1 saat)
-_JOB_TTL = int(os.getenv("PHISHING_JOB_TTL", "3600"))
+_JOB_TTL = get_settings().phishing_job_ttl
 
 # ── A3: Worker process sinyalleri — Playwright pool ───────────────────────
 
@@ -41,7 +41,7 @@ def _preload_worker_models(**kwargs):
     SADECE phishing worker'da çalışır (CELERY_WORKER_TYPE=phishing).
     Default worker Playwright başlatmamalı — gereksiz RAM israfı.
     """
-    if os.getenv("CELERY_WORKER_TYPE") != "phishing" or os.getenv("CELERY_PRELOAD_MODELS", "0") != "1":
+    if get_settings().celery_worker_type != "phishing" or not get_settings().celery_preload_models:
         return
 
     # 1. Playwright pool pre-warm
@@ -64,7 +64,7 @@ def _preload_worker_models(**kwargs):
 @worker_process_shutdown.connect
 def _close_playwright_pool(**kwargs):
     """Worker process kapanırken Playwright browser'ı temiz kapat."""
-    if os.getenv("CELERY_WORKER_TYPE") != "phishing":
+    if get_settings().celery_worker_type != "phishing":
         return
     try:
         from .playwright_pool import close_pool
@@ -97,8 +97,8 @@ def sync_phishtank_db():
 
     import requests
 
-    app_key = os.getenv("PHISHTANK_APP_KEY", "")
-    pt_username = os.getenv("PHISHTANK_USERNAME", "aegisnexus")
+    app_key = get_settings().phishtank_app_key
+    pt_username = get_settings().phishtank_username
     headers = {"User-Agent": f"phishtank/{pt_username}"}
 
     if app_key:

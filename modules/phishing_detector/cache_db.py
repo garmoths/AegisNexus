@@ -8,7 +8,6 @@ Tarayıcı önbelleği — ana veritabanında (data/aegis.db).
 
 import json
 import logging
-import os
 import sqlite3
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
@@ -16,10 +15,12 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+from app.config import get_settings
+
 logger = logging.getLogger(__name__)
 
-MAX_CACHE_ROWS = int(os.getenv("THREAT_CACHE_MAX_ROWS", "1000"))
-MAX_SCAN_EVENTS = int(os.getenv("THREAT_SCAN_EVENTS_MAX_ROWS", "5000"))
+MAX_CACHE_ROWS = get_settings().threat_cache_max_rows
+MAX_SCAN_EVENTS = get_settings().threat_scan_events_max_rows
 _DB_INITIALIZED = False
 
 

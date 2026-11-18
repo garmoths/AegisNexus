@@ -13,17 +13,17 @@ Sınırlar:
 - API anahtarı, ücretli servis veya Redis gerektirmez.
 """
 import json
-import os
 
 import websocket
 
 from app import runtime_store as store
+from app.config import get_settings
 from app.database import SessionLocal
 from app.discovery import matcher, service
 from app.models import CrawlSource
 
-DEFAULT_URL = os.getenv('AEGIS_CERTSTREAM_URL', 'wss://certstream.calidog.io')
-RATE_PER_MIN = max(1, int(os.getenv('AEGIS_CERTSTREAM_RATE', '20')))
+DEFAULT_URL = get_settings().aegis_certstream_url
+RATE_PER_MIN = get_settings().aegis_certstream_rate
 MAX_DOMAINS_PER_CERT = 50
 RECV_TIMEOUT = 30
 MAX_BACKOFF = 60

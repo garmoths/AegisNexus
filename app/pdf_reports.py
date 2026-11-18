@@ -4,6 +4,8 @@ import tempfile
 from html import escape
 from pathlib import Path
 
+from app.config import get_settings
+
 
 def generate_pdf(report):
     import reportlab
@@ -13,7 +15,7 @@ def generate_pdf(report):
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
     from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
-    font_paths = [os.getenv('PDF_FONT_PATH', ''), '/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf',
+    font_paths = [get_settings().pdf_font_path, '/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf',
                   '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
                   '/System/Library/Fonts/Supplemental/Arial.ttf', str(Path(reportlab.__file__).parent / 'fonts/Vera.ttf')]
     font_path = next((p for p in font_paths if p and Path(p).is_file()), None)
@@ -21,7 +23,7 @@ def generate_pdf(report):
         raise RuntimeError('Türkçe PDF fontu bulunamadı.')
     if 'AegisReport' not in pdfmetrics.getRegisteredFontNames():
         pdfmetrics.registerFont(TTFont('AegisReport', font_path))
-    directory = Path(os.getenv('PDF_OUTPUT_DIR', str(Path(__file__).resolve().parents[1] / 'data/reports')))
+    directory = Path(get_settings().pdf_output_dir)
     directory.mkdir(parents=True, exist_ok=True)
     target = directory / f'rapor_{report.id}.pdf'
     styles = getSampleStyleSheet()

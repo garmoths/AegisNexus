@@ -1,6 +1,5 @@
 """Durable candidate lifecycle. A scanner result cannot publish itself as a threat."""
 import hashlib
-import os
 import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -8,6 +7,7 @@ from pathlib import Path
 from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 
+from app.config import get_settings
 from app.discovery.analysis import assess, canonical_url, display_url, extract
 from app.models import CrawlCandidate, CrawlObservation, CrawlReview, CrawlSettings, PhishingURL
 
@@ -79,7 +79,7 @@ def claim(db):
 
 
 def artifacts():
-    root = Path(os.getenv('CRAWLER_DATA_DIR', str(Path(__file__).resolve().parents[2] / 'data/crawler')))
+    root = Path(get_settings().crawler_data_dir)
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
     return root
 

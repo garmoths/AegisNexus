@@ -8,12 +8,13 @@
 """
 import json
 import logging
-import os
 import time
 from typing import Any
 
 from google import genai
 from google.genai import types
+
+from app.config import get_settings
 
 from .prompts.incident_report import ANALYZE_REPORT_SYSTEM, ANALYZE_REPORT_USER
 
@@ -21,8 +22,8 @@ logger = logging.getLogger(__name__)
 
 # ── Yapılandırma ─────────────────────────────────────────
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+GEMINI_API_KEY = get_settings().gemini_api_key
+GEMINI_MODEL = get_settings().gemini_model
 MAX_RETRIES = 3
 RETRY_BASE_DELAY = 2  # saniye
 MAX_OUTPUT_TOKENS = 2048

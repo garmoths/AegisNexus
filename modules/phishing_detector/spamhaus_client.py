@@ -7,19 +7,16 @@ Auth: Login-based token (POST /api/v1/login → Bearer token).
 
 import ipaddress
 import logging
-import os
 from datetime import datetime, timedelta
-from pathlib import Path
 
 import requests
-from dotenv import load_dotenv
 
-BASE_DIR = Path(__file__).resolve().parents[2]
-load_dotenv(BASE_DIR / ".env")
+from app.config import get_settings
+
 logger = logging.getLogger(__name__)
 
-SPAMHAUS_USERNAME = os.getenv("SPAMHAUS_USERNAME", "")
-SPAMHAUS_PASSWORD = os.getenv("SPAMHAUS_PASSWORD", "")
+SPAMHAUS_USERNAME = get_settings().spamhaus_username
+SPAMHAUS_PASSWORD = get_settings().spamhaus_password
 
 LOGIN_URL = "https://api.spamhaus.org/api/v1/login"
 API_BASE = "https://api.spamhaus.org/api/intel/v1"

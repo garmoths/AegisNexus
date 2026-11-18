@@ -1,6 +1,5 @@
 """Shared per-client request and expensive-operation budgets."""
 import hashlib
-import os
 from urllib.parse import urlsplit
 
 from fastapi import Request
@@ -10,6 +9,7 @@ from starlette.responses import JSONResponse
 
 from app import runtime_store as store
 from app.auth import _resolve
+from app.config import get_settings
 from app.database import SessionLocal
 
 RATE_LIMITS = {'free': 10, 'premium': 60, 'corporate': 300, 'admin': 0}
@@ -46,7 +46,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
         if request.cookies.get('aegis_session') and not request.headers.get('x-api-key') and request.method in ('POST', 'PATCH', 'DELETE'):
             origin = request.headers.get('origin')
-            allowed = {x.strip() for x in os.getenv('CORS_ALLOW_ORIGINS', '').split(',') if x.strip()}
+            allowed = set(get_settings().cors_allow_origins)
             if origin and urlsplit(origin).netloc != request.headers.get('host') and origin not in allowed:
                 return JSONResponse({'detail': 'İstek kaynağına izin verilmedi.'}, status_code=403)
         try:

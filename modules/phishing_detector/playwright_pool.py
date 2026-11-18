@@ -28,12 +28,14 @@ from contextlib import contextmanager
 
 from playwright.sync_api import Browser, BrowserContext, sync_playwright
 
+from app.config import get_settings
+
 from .stealth import DEFAULT_VIEWPORT, launch_chromium_sync, new_stealth_browser_context_sync
 
 logger = logging.getLogger(__name__)
 
 # ── Config ────────────────────────────────────────────────────────────────────
-POOL_SIZE = int(os.getenv("PLAYWRIGHT_POOL_SIZE", "1"))  # process başına browser sayısı
+POOL_SIZE = get_settings().playwright_pool_size  # process başına browser sayısı
 
 # ── Process-local state (her fork'ta sıfır) ───────────────────────────────────
 _lock = threading.Lock()

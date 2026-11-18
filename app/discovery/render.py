@@ -1,9 +1,9 @@
 """Disposable browser capture. No forms, downloads, websocket or private-network access."""
 import json
-import os
 import sys
 from pathlib import Path
 
+from app.config import get_settings
 from app.discovery.analysis import canonical_url
 from app.discovery.transport import UA, robots_allows
 from app.outbound import safe_request
@@ -14,7 +14,7 @@ def capture(url, token, exclusions):
     if not token.isalnum() or len(token) != 32:
         raise ValueError('Invalid capture identity')
     with sync_playwright() as p:
-        executable = os.getenv('AEGIS_CHROMIUM_PATH')
+        executable = get_settings().aegis_chromium_path
         browser = p.chromium.launch(headless=True, **({'executable_path': executable} if executable else {}))
         context = browser.new_context(service_workers='block', accept_downloads=False, user_agent=UA)
         context.add_init_script("Object.defineProperty(window, 'RTCPeerConnection', {value: undefined}); Object.defineProperty(window, 'WebTransport', {value: undefined}); HTMLFormElement.prototype.submit = function(){}; HTMLFormElement.prototype.requestSubmit = function(){}; document.addEventListener('submit', e => e.preventDefault(), true);")
@@ -58,7 +58,7 @@ def capture(url, token, exclusions):
             if len(html.encode()) > 1_000_000:
                 return {}
             screenshot = token + '.png'
-            screenshot_file = Path(os.environ['CRAWLER_DATA_DIR']) / screenshot
+            screenshot_file = Path(get_settings().crawler_data_dir) / screenshot
             page.screenshot(path=str(screenshot_file), full_page=False, timeout=5000)
             screenshot_file.chmod(0o600)
             return {'html': html, 'url': page.url, 'screenshot': screenshot}

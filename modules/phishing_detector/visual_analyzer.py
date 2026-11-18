@@ -25,11 +25,12 @@ from __future__ import annotations
 import io
 import json
 import logging
-import os
 import re
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
+
+from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -265,7 +266,7 @@ def analyze_html(html_content: str, url: str) -> dict[str, Any]:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 _LOGO_DB_PATH = Path(__file__).parent / "data" / "logo_hashes.json"
-_PHASH_THRESHOLD = int(os.getenv("PHASH_THRESHOLD", "8"))
+_PHASH_THRESHOLD = get_settings().phash_threshold
 
 _LOGO_DB: dict[str, list[dict[str, str]]] = {}
 
@@ -408,9 +409,7 @@ def check_logo_phash(
 # B3 — EasyOCR Metin Okuma
 # ═══════════════════════════════════════════════════════════════════════════════
 
-_OCR_MODEL_DIR = os.getenv(
-    "EASYOCR_MODEL_DIR", "/var/www/aegis_nexus/.easyocr_models"
-)
+_OCR_MODEL_DIR = get_settings().easyocr_model_dir
 _OCR_MAX_PENALTY = 70
 _OCR_DEFINITIVE_THRESHOLD = 65
 

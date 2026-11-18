@@ -11,6 +11,7 @@ from urllib.parse import urlparse
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.models import IndicatorOfCompromise, PhishingURL
 from app.outbound import safe_get, validate_url
 
@@ -22,7 +23,7 @@ from .url_normalize import normalize_url_record
 from .visual_analyzer import analyze_html
 
 logger = logging.getLogger(__name__)
-SCORING_MODEL = (os.getenv("PHISHING_SCORING_MODEL", "rule-based-v1") or "rule-based-v1").strip()
+SCORING_MODEL = (get_settings().phishing_scoring_model or "rule-based-v1").strip()
 
 # =========================================================
 # AYARLAR VE JSON YÜKLEME

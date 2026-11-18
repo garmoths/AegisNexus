@@ -12,6 +12,8 @@ from playwright.sync_api import Browser as SyncBrowser
 from playwright.sync_api import BrowserContext as SyncBrowserContext
 from playwright.sync_api import Playwright as SyncPlaywright
 
+from app.config import get_settings
+
 # avoid decade-old Chrome/91 UAs.
 DEFAULT_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -165,8 +167,7 @@ def launch_chromium_sync(playwright: SyncPlaywright, *, headless: bool) -> SyncB
 
 
 def _local_browser_options():
-    import os
-    executable = os.getenv('AEGIS_CHROMIUM_PATH')
+    executable = get_settings().aegis_chromium_path
     return {'executable_path': executable} if executable else {}
 
 

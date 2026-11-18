@@ -2,7 +2,6 @@
 Alert System - Slack & Email Notifications
 """
 
-import os
 import smtplib
 from datetime import datetime
 from email.mime.multipart import MIMEMultipart
@@ -10,14 +9,17 @@ from email.mime.text import MIMEText
 
 import requests
 
+from app.config import get_settings
+
 
 class AlertManager:
     def __init__(self):
-        self.slack_webhook = os.getenv('SLACK_WEBHOOK_URL')
-        self.email_from = os.getenv('EMAIL_FROM', 'alerts@example.com')
-        self.email_password = os.getenv('EMAIL_PASSWORD')
-        self.smtp_server = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
-        self.smtp_port = int(os.getenv('SMTP_PORT', 587))
+        settings = get_settings()
+        self.slack_webhook = settings.slack_webhook_url or None
+        self.email_from = settings.alert_email_from
+        self.email_password = settings.alert_email_password or None
+        self.smtp_server = settings.alert_smtp_server
+        self.smtp_port = settings.smtp_port
 
     def send_slack_alert(self, title: str, message: str, risk_level: str = "⚠️"):
         """
@@ -111,7 +113,7 @@ class AlertManager:
         Günlük özet email
         """
         if not recipient:
-            recipient = os.getenv('ADMIN_EMAIL', 'admin@example.com')
+            recipient = get_settings().admin_email
 
         html = f"""
         <html>

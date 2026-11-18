@@ -7,12 +7,13 @@ from __future__ import annotations
 import base64
 import json
 import logging
-import os
 from typing import Any
 
 import httpx
 from openai import OpenAI
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
+
+from app.config import get_settings
 
 from .playwright_pool import acquire_browser_context
 from .redis_cache import AI_DAILY_LIMIT, redis_get_ai_count, redis_incr_ai_counter
@@ -20,16 +21,14 @@ from .redis_cache import AI_DAILY_LIMIT, redis_get_ai_count, redis_incr_ai_count
 logger = logging.getLogger(__name__)
 _groq_client = None
 
-AI_MODEL = os.getenv("AI_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
-AI_SKIP_PENALTY_THRESHOLD = int(os.getenv("AI_SKIP_THRESHOLD", "50"))
+AI_MODEL = get_settings().ai_model
+AI_SKIP_PENALTY_THRESHOLD = get_settings().ai_skip_threshold
 MAX_PAGE_TEXT = 3000
 PLAYWRIGHT_TIMEOUT_MS = 12000
 _SCREENSHOT_SETTLE_MS = 800
 _SCREENSHOT_MAX_RETRIES = 1
-_NETWORK_IDLE_REQUIRED = os.getenv("SCREENSHOT_NETWORK_IDLE", "true").strip().lower() in {
-    "1", "true", "yes", "on"
-}
-_NETWORK_IDLE_TIMEOUT_MS = int(os.getenv("SCREENSHOT_NETWORK_IDLE_TIMEOUT_MS", str(PLAYWRIGHT_TIMEOUT_MS)))
+_NETWORK_IDLE_REQUIRED = get_settings().screenshot_network_idle
+_NETWORK_IDLE_TIMEOUT_MS = get_settings().screenshot_network_idle_timeout_ms
 
 SYSTEM_PROMPT = """
 You are a senior phishing detection analyst specialized in visual deception detection.
@@ -234,7 +233,7 @@ def _normalize_result(data: dict[str, Any]) -> dict[str, Any]:
 def _get_groq_client() -> OpenAI:
     global _groq_client
     if _groq_client is None:
-        api_key = os.getenv("GROQ_API_KEY", "").strip()
+        api_key = get_settings().groq_api_key.strip()
         if not api_key:
             raise RuntimeError("GROQ_API_KEY not configured")
         _groq_client = OpenAI(
@@ -246,7 +245,7 @@ def _get_groq_client() -> OpenAI:
 
 
 def _call_groq(url: str, screenshot_b64: str, http_meta: dict[str, Any], page_text: str) -> dict[str, Any]:
-    api_key = os.getenv("GROQ_API_KEY", "").strip()
+    api_key = get_settings().groq_api_key.strip()
     if not api_key:
         raise RuntimeError("GROQ_API_KEY not configured")
 

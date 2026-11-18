@@ -1,5 +1,4 @@
 """Private reports, actionable cases and quota-accounted PDF exports."""
-import os
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -10,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app import runtime_store as store
 from app.auth import resolve_api_key
+from app.config import get_settings
 from app.database import get_db
 from app.models import APIKey, EventOutbox, PDFDownload, UserReport, UserRole
 
@@ -105,7 +105,7 @@ def download_pdf(report_id: int, api_key: APIKey = Depends(resolve_api_key), db:
         previous = db.query(PDFDownload).filter_by(user_id=api_key.user_id, report_id=report_id, month=month).first()
         if previous is None and not _check_pdf_quota(api_key, db):
             raise HTTPException(429, 'Aylık 3 farklı PDF dışa aktarma sınırı doldu.')
-        directory = Path(os.getenv('PDF_OUTPUT_DIR', str(Path(__file__).resolve().parents[2] / 'data/reports'))).resolve()
+        directory = Path(get_settings().pdf_output_dir).resolve()
         path = Path(report.pdf_path).resolve() if report.pdf_path else None
         if path is None or not path.is_relative_to(directory) or not path.exists() or path.read_bytes()[:5] != b'%PDF-':
             from app.pdf_reports import generate_pdf

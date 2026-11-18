@@ -14,7 +14,6 @@ Implements best practices from:
 
 import hashlib
 import logging
-import os
 import re
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
@@ -24,6 +23,8 @@ from typing import Any
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+
+from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -262,20 +263,13 @@ class AbuseChCollector:
         self.http = HTTPSession(timeout=ABUSE_CH_API_TIMEOUT)
 
         # Load API keys for rotation
-        urlhaus_keys = os.getenv("URLHAUS_API_KEYS", "").split(",") if os.getenv("URLHAUS_API_KEYS") else []
-        urlhaus_keys = [k.strip() for k in urlhaus_keys if k.strip()]
-
-        # Fallback to single key if no multi-key configured
-        if not urlhaus_keys:
-            single_key = os.getenv("URLHAUS_API_KEY", "")
-            if single_key:
-                urlhaus_keys = [single_key]
+        # URLHAUS_API_KEYS (comma-separated) or the single URLHAUS_API_KEY
+        urlhaus_keys = list(get_settings().urlhaus_api_keys)
 
         self.urlhaus_api_keys = urlhaus_keys
         self.urlhaus_key_index = 0
 
-        phishtank_keys = os.getenv("PHISHTANK_API_KEYS", "").split(",") if os.getenv("PHISHTANK_API_KEYS") else []
-        phishtank_keys = [k.strip() for k in phishtank_keys if k.strip()]
+        phishtank_keys = list(get_settings().phishtank_api_keys)
 
         # Fallback to URLhaus keys for PhishTank (same API)
         if not phishtank_keys:
@@ -433,7 +427,7 @@ class AbuseIPDBCollector:
     BASE_URL = "https://api.abuseipdb.com/api/v2"
 
     def __init__(self, api_key: str = None):
-        self.api_keys = [k.strip() for k in os.getenv("ABUSEIPDB_API_KEYS", "").split(",") if k.strip()]
+        self.api_keys = list(get_settings().abuseipdb_api_keys)
         self.current_key_index = 0
         self.api_key = api_key or (self.api_keys[0] if self.api_keys else "")
         self.http = HTTPSession(timeout=ABUSEIPDB_API_TIMEOUT)
@@ -760,11 +754,8 @@ class AlienVaultOTXCollector:
     """AlienVault OTX IOC Collector (requests.get)"""
 
     def __init__(self, api_key: str = None):
-        import os
 
-        from dotenv import load_dotenv
-        load_dotenv()
-        self.api_key = api_key or os.getenv('ALIENVAULT_OTX_API_KEY')
+        self.api_key = api_key or get_settings().alienvault_otx_api_key or None
         self.base_url = "https://otx.alienvault.com/api/v1"
 
     def fetch_recent_pulses(self, limit: int = 100) -> list[IOCRecord]:

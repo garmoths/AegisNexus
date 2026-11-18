@@ -6,6 +6,8 @@ from pathlib import Path
 import pytest
 
 _TEST_ROOT = Path(tempfile.mkdtemp(prefix='aegis-tests-'))
+# Never read the developer's .env during tests.
+os.environ['AEGIS_ENV_FILE'] = ''
 os.environ['DATABASE_URL'] = 'sqlite:///' + str(_TEST_ROOT / 'app.db')
 os.environ['RUNTIME_DB_PATH'] = str(_TEST_ROOT / 'runtime.db')
 os.environ['PDF_OUTPUT_DIR'] = str(_TEST_ROOT / 'reports')

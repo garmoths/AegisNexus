@@ -1,8 +1,8 @@
 import logging
-import os
 from datetime import UTC, datetime
 
 from app.celery_app import celery_app as app
+from app.config import get_settings
 from app.database import SessionLocal
 from app.models import IndicatorOfCompromise
 from modules.phishing_detector.fetch_all_sources import fetch_all_sources
@@ -91,9 +91,8 @@ def fetch_otx(self, limit: int = 100):
 def update_ioc_feeds(self):
     db = SessionLocal()
     try:
-        raw_sources = os.getenv("CELERY_IOC_SOURCES", "abuse_urlhaus,abuse_phishtank")
-        sources = [s.strip() for s in raw_sources.split(",") if s.strip()]
-        per_source_limit = int(os.getenv("CELERY_IOC_LIMIT_PER_SOURCE", "1000"))
+        sources = list(get_settings().celery_ioc_sources)
+        per_source_limit = get_settings().celery_ioc_limit_per_source
 
         collector = IOCCollectorEngine()
         iocs = collector.collect_all(include_sources=sources, limit=per_source_limit)
@@ -191,7 +190,7 @@ def fetch_threatfox_iocs(self):
     db = SessionLocal()
     try:
         from modules.phishing_detector.threatfox_client import get_recent_iocs
-        limit = int(os.getenv("PHISHING_THREATFOX_LIMIT", "500"))
+        limit = get_settings().phishing_threatfox_limit
         iocs = get_recent_iocs(limit=limit)
 
         inserted = 0
