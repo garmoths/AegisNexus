@@ -32,12 +32,18 @@ function PhishingResult({ result, url }) {
 
   const openScreenshot = () => {
     if (!screenshotB64) return
-    const w = window.open('','_blank')
-    if(w){w.document.write(`<html><head><title>Screenshot</title><style>body{margin:0;background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh}img{max-width:100%;height:auto}</style></head><body><img src="data:image/png;base64,${screenshotB64}"/></body></html>`);w.document.close()}
+    // Sunucudan gelen veriyi HTML şablonuna gömmeden, yalnızca bir Blob olarak aç.
+    if (!/^[A-Za-z0-9+/=\s]+$/.test(screenshotB64)) return
+    try {
+      const bytes = Uint8Array.from(atob(screenshotB64.replace(/\s/g,'')), c => c.charCodeAt(0))
+      const href = URL.createObjectURL(new Blob([bytes], { type:'image/png' }))
+      window.open(href, '_blank', 'noopener')
+      setTimeout(() => URL.revokeObjectURL(href), 60000)
+    } catch { /* bozuk görüntü verisi: sessizce yok say */ }
   }
 
   return (
-  <motion.div initial={{opacity:0,y:30}} animate={{opacity:1,y:0}} transition={{duration:0.6,ease:theme.ease.out}} style={{marginBottom:48}}>
+  <motion.div initial={{opacity:0,y:30}} animate={{opacity:1,y:0}} transition={{duration:0.4,ease:theme.ease.out}} style={{marginBottom:48}}>
     {/* Hero Result Card */}
     {(() => { const safetyScore = result.safety_score ?? result.score ?? 0; return (
     <Card style={{background:'rgba(255,255,255,0.03)',border:`1px solid ${safetyScore<50?theme.accent+'40':theme.primary+'40'}`,marginBottom:24}}>
@@ -92,7 +98,7 @@ function PhishingResult({ result, url }) {
     )})()}
 
     {/* Threat Intel Source Cards */}
-    <motion.div initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} transition={{delay:0.2,duration:0.5}} style={{marginBottom:24}}>
+    <motion.div initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} transition={{delay:0.1,duration:0.35}} style={{marginBottom:24}}>
       <p style={{fontSize:13,fontWeight:600,color:theme.textMuted,marginBottom:16,display:'flex',alignItems:'center',gap:7}}><IkRadar size={13} color={theme.textMuted}/> Tehdit İstihbaratı Kaynakları</p>
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill, minmax(220px, 1fr))',gap:12}}>
         {srcCards.map((src,i)=>{
@@ -101,7 +107,7 @@ function PhishingResult({ result, url }) {
           const bgColor=src.isBad?'rgba(255,0,64,0.06)':src.isClean?'rgba(34,197,94,0.06)':'rgba(255,255,255,0.02)'
           const borderColor=src.isBad?theme.accent+'40':src.isClean?theme.success+'40':theme.border
           return (
-            <motion.div key={src.key} initial={{opacity:0,y:15}} animate={{opacity:1,y:0}} transition={{delay:0.3+i*0.05,duration:0.35}} style={{padding:'16px 18px',background:bgColor,border:`1px solid ${borderColor}`,borderRadius:theme.radius.md,position:'relative',overflow:'hidden'}}>
+            <motion.div key={src.key} initial={{opacity:0,y:15}} animate={{opacity:1,y:0}} transition={{delay:0.15+i*0.04,duration:0.3}} style={{padding:'16px 18px',background:bgColor,border:`1px solid ${borderColor}`,borderRadius:theme.radius.md,position:'relative',overflow:'hidden'}}>
               <div style={{position:'absolute',top:0,left:0,right:0,height:2,background:statusColor}}/>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
                 <span style={{fontSize:14,fontWeight:600,color:'#fff',display:'flex',alignItems:'center',gap:6}}><src.Icon size={13} color={statusColor}/> {src.name}</span>
@@ -121,14 +127,14 @@ function PhishingResult({ result, url }) {
 
     {/* Screenshot Threat Indicators */}
     {indicators.length>0&&(
-      <motion.div initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} transition={{delay:0.5,duration:0.4}} style={{marginBottom:24}}>
+      <motion.div initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} transition={{delay:0.25,duration:0.35}} style={{marginBottom:24}}>
         <p style={{fontSize:13,fontWeight:600,color:theme.textMuted,marginBottom:16,display:'flex',alignItems:'center',gap:7}}><IkGrid size={13} color={theme.textMuted}/> Görsel Tehdit İndikatörleri</p>
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill, minmax(280px, 1fr))',gap:10}}>
           {indicators.map((ind,j)=>{
             const t=ind.type||'visual'
             const IcComp=t==='url'?IkLink2:t==='domain'?IkGlobe2:t==='ip'?IkMonitor:IkScope
             return (
-              <motion.div key={j} initial={{opacity:0,x:-10}} animate={{opacity:1,x:0}} transition={{delay:0.6+j*0.05,duration:0.3}} style={{padding:'12px 16px',background:'rgba(239,68,68,0.06)',border:`1px solid ${theme.accent}30`,borderRadius:theme.radius.md,borderLeft:`3px solid ${theme.accent}`}}>
+              <motion.div key={j} initial={{opacity:0,x:-10}} animate={{opacity:1,x:0}} transition={{delay:0.3+j*0.04,duration:0.25}} style={{padding:'12px 16px',background:'rgba(239,68,68,0.06)',border:`1px solid ${theme.accent}30`,borderRadius:theme.radius.md,borderLeft:`3px solid ${theme.accent}`}}>
                 <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6}}>
                   <IcComp size={14} color={theme.accent}/>
                   <span style={{fontSize:12,fontWeight:600,color:theme.accent}}>{t}</span>
@@ -144,14 +150,14 @@ function PhishingResult({ result, url }) {
 
     {/* Sources Summary */}
     {result.sources&&Array.isArray(result.sources)&&result.sources.length>0&&(
-      <motion.div initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} transition={{delay:0.6,duration:0.4}}>
+      <motion.div initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} transition={{delay:0.3,duration:0.35}}>
         <p style={{fontSize:13,fontWeight:600,color:theme.textMuted,marginBottom:16,display:'flex',alignItems:'center',gap:7}}><IkClipboard size={13} color={theme.textMuted}/> Taranan Kaynaklar</p>
         <div style={{display:'flex',flexDirection:'column',gap:6}}>
           {result.sources.map((s,i)=>{
             const isFail=typeof s.status==='string'&&(s.status.includes('Başarısız')||s.status.includes('timeout')||s.status.includes('error'))
             const isOk=typeof s.status==='string'&&(s.status.includes('CLEAN')||s.status.includes('SAFE')||s.status.includes('Tamamlandı')||s.status.includes('Ulaşılabilir')||s.status.includes('temiz'))
             return (
-              <motion.div key={i} initial={{opacity:0,x:-10}} animate={{opacity:1,x:0}} transition={{delay:0.7+i*0.03,duration:0.3}} style={{padding:'10px 16px',background:isFail?'rgba(255,0,64,0.06)':isOk?'rgba(34,197,94,0.04)':'rgba(255,255,255,0.03)',borderRadius:10,fontSize:13,display:'flex',gap:10,alignItems:'center',borderLeft:isFail?`3px solid ${theme.accent}`:isOk?`3px solid ${theme.success}`:`3px solid ${theme.border}`}}>
+              <motion.div key={i} initial={{opacity:0,x:-10}} animate={{opacity:1,x:0}} transition={{delay:0.3+i*0.03,duration:0.25}} style={{padding:'10px 16px',background:isFail?'rgba(255,0,64,0.06)':isOk?'rgba(34,197,94,0.04)':'rgba(255,255,255,0.03)',borderRadius:10,fontSize:13,display:'flex',gap:10,alignItems:'center',borderLeft:isFail?`3px solid ${theme.accent}`:isOk?`3px solid ${theme.success}`:`3px solid ${theme.border}`}}>
                 <span style={{color:theme.textMuted}}>Kaynak:</span>
                 <span style={{color:'#fff',fontWeight:600}}>{s.name}</span>
                 <span style={{marginLeft:'auto',color:isFail?theme.danger:isOk?theme.success:theme.textMuted,fontSize:12}}>{s.status}</span>
@@ -273,15 +279,17 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
 
   // Real-time autocomplete with debouncing
   useEffect(() => {
-    if (url.length < 1) return
+    if (url.trim().length < 3) return
     
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current)
     }
+    const ctrl = new AbortController()
     
     searchTimeoutRef.current = setTimeout(async () => {
       try {
-        const r = await fetch(`${API}/phishing/search?url=${encodeURIComponent(url)}`)
+        const r = await fetch(`${API}/phishing/search?url=${encodeURIComponent(url.trim())}`, { signal: ctrl.signal })
+        if (!r.ok) throw new Error('search failed')
         const d = await r.json()
         if (d.status === 'success' || d.results || d.data) {
           setSearchResults(d.results || d.data || [])
@@ -294,9 +302,10 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
         setSearchResults([])
         setShowDropdown(false)
       }
-    }, 150)
+    }, 300)
     
     return () => {
+      ctrl.abort()
       if (searchTimeoutRef.current) {
         clearTimeout(searchTimeoutRef.current)
       }
@@ -318,6 +327,7 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
     const forceFresh = typeof forceFreshOrEvent === 'boolean' ? forceFreshOrEvent : false
     const urlToCheck = urlOverride || url
     if(!urlToCheck){showToast('Lutfen bir URL girin','error');return}
+    setShowDropdown(false)
     setChecking(true);setResult(null);setJobId(null);setAnalyzing(false);setPollCount(0);setShowRetryButton(false)
     try{
       const normalizedInput = /^https?:\/\//i.test(urlToCheck) ? urlToCheck : `https://${urlToCheck}`
@@ -402,7 +412,7 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
     <motion.div 
       initial={{ opacity:0, y:30 }}
       animate={{ opacity:1, y:0 }}
-      transition={{ duration:0.8, ease:theme.ease.out }}
+      transition={{ duration:0.4, ease:theme.ease.out }}
       style={{ 
         position:'relative',
         padding:'0 0 8px',
@@ -415,7 +425,7 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
         <motion.div 
           initial={{ opacity:0, y:30 }}
           animate={{ opacity:1, y:0 }}
-          transition={{ delay:0.4, duration:0.6, ease:theme.ease.out }}
+          transition={{ delay:0.1, duration:0.4, ease:theme.ease.out }}
           style={{ maxWidth:800, margin:'0 auto', position:'relative', zIndex:200 }}
         >
           <div style={{ 
@@ -433,6 +443,7 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
                 placeholder="https://ornek.com/supheli-link" 
                 style={{ 
                   flex:1, 
+                  minWidth:0,
                   padding:'20px 28px', 
                   borderRadius:theme.radius.md,
                   background:'rgba(255,255,255,0.05)',
@@ -447,7 +458,11 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
               <motion.button 
                 onClick={handleCheck}
                 disabled={checking}
+                whileHover={checking ? undefined : { scale:1.02 }}
+                whileTap={checking ? undefined : { scale:0.97 }}
+                transition={{ duration:0.15 }}
                 style={{
+                  flexShrink:0,
                   padding:'20px 40px',
                   borderRadius:theme.radius.md,
                   cursor:checking?'not-allowed':'pointer',
@@ -532,7 +547,7 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
           <motion.div
             initial={{ opacity:0, y:20 }}
             animate={{ opacity:1, y:0 }}
-            transition={{ delay:0.6, duration:0.6, ease:theme.ease.out }}
+            transition={{ delay:0.2, duration:0.4, ease:theme.ease.out }}
             style={{ 
               maxWidth:900, 
               margin:'32px auto 0',
@@ -699,8 +714,8 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
     <motion.div 
       initial={{ opacity:0, y:20 }}
       animate={{ opacity:1, y:0 }}
-      transition={{ delay:0.5, duration:0.6, ease:theme.ease.out }}
-      style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:20, marginBottom:48 }}
+      transition={{ delay:0.15, duration:0.4, ease:theme.ease.out }}
+      style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', gap:16, marginBottom:48 }}
     >
       {[
         { label:'Toplam URL', value:totalUrls, color:theme.primary },
@@ -712,7 +727,7 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
           key={i}
           initial={{ opacity:0, y:20 }}
           animate={{ opacity:1, y:0 }}
-          transition={{ delay:0.6 + i * 0.1, duration:0.5, ease:theme.ease.spring }}
+          transition={{ delay:0.2 + i * 0.06, duration:0.35, ease:theme.ease.spring }}
         >
           <Card style={{ 
             textAlign:'center', 
@@ -730,7 +745,7 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }) {
     <motion.div
       initial={{ opacity:0, y:20 }}
       animate={{ opacity:1, y:0 }}
-      transition={{ delay:0.7, duration:0.5, ease:theme.ease.out }}
+      transition={{ delay:0.2, duration:0.4, ease:theme.ease.out }}
     >
       <Card>
         <h3 style={{ fontSize:15, fontWeight:600, color:'#fff', marginBottom:16, display:'flex', gap:8, alignItems:'center' }}>

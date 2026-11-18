@@ -402,7 +402,7 @@ function HoneypotIOC({ initialIocQuery = '', onClearPrefill }) {
                 <span style={{ fontSize:11, fontWeight:600, color:'#fff' }}>{(t.count||0).toLocaleString('tr-TR')}</span>
               </div>
               <div style={{ height:4, background:theme.bg, borderRadius:2, overflow:'hidden' }}>
-                <motion.div initial={{width:0}} animate={{width:`${barW}%`}} transition={{delay:0.1+i*0.04,duration:0.6}}
+                <motion.div initial={{width:0}} animate={{width:`${barW}%`}} transition={{delay:0.1+i*0.03,duration:0.5}}
                   style={{ height:'100%', background:meta.color, borderRadius:2 }}/>
               </div>
             </div>
