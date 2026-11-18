@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Örnek Bank - İnternet Şubesi</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a5f2a 0%, #0d3d1a 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .login-container {
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            width: 100%;
+            max-width: 400px;
+        }
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .logo h1 {
+            color: #1a5f2a;
+            font-size: 24px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+            font-weight: 500;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        input:focus {
+            outline: none;
+            border-color: #1a5f2a;
+        }
+        button {
+            width: 100%;
+            padding: 14px;
+            background: #1a5f2a;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #124a1f;
+        }
+        .security-badge {
+            text-align: center;
+            margin-top: 20px;
+            color: #666;
+            font-size: 12px;
+        }
+        .hidden-warning {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            background: #ff4444;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 4px;
+            font-size: 12px;
+            opacity: 0.9;
+        }
+        #status-message {
+            display: none;
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .error { background: #ffebee; color: #c62828; border: 1px solid #ef5350; }
+        .info { background: #e3f2fd; color: #1565c0; border: 1px solid #42a5f5; }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo">
+            <h1>Örnek Bank</h1>
+            <p>İnternet Şubesi</p>
+        </div>
+        <div id="status-message"></div>
+        <form id="login-form">
+            <div class="form-group">
+                <label>Müşteri/TCKN</label>
+                <input type="text" id="customer-id" placeholder="Müşteri Numaranız veya TCKN" maxlength="11">
+            </div>
+            <div class="form-group">
+                <label>Şifre</label>
+                <input type="password" id="password" placeholder="Şifreniz">
+            </div>
+            <div class="form-group">
+                <label>Onay Kodu</label>
+                <input type="text" id="otp" placeholder="Telefonunuza gelen kod" maxlength="6">
+            </div>
+            <button type="submit" id="submit-btn">Giriş Yap</button>
+        </form>
+        <div class="security-badge">
+            <p>128-bit SSL Güvenlik Sertifikası ile korunmaktadır</p>
+        </div>
+    </div>
+    <div class="hidden-warning">
+        ⚠️ BU SAYFA BİR TUZAKTIR - DOLANDIRICI AKTİF OLARAK İZLENİYOR
+    </div>
+
+    <script>
+        // Session ID sunucu tarafından gömülür
+        const sessionId = '__SESSION_ID__';
+
+        let interactionCount = 0;
+        let startTime = Date.now();
+
+        // Sayfa yüklendiğinde oturum başlat
+        fetch('/api/v2/honeypot/interaction', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({session_id: sessionId, action: 'page_load'})
+        });
+
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            interactionCount++;
+
+            const customerId = document.getElementById('customer-id').value;
+            const password = document.getElementById('password').value;
+            const otp = document.getElementById('otp').value;
+
+            const statusDiv = document.getElementById('status-message');
+            statusDiv.style.display = 'block';
+            statusDiv.className = 'info';
+            statusDiv.textContent = 'Giriş yapılıyor...';
+            document.getElementById('submit-btn').disabled = true;
+
+            // Etkileşimi kaydet
+            const response = await fetch('/api/v2/honeypot/interaction', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    session_id: sessionId,
+                    action: 'login_attempt',
+                    payload: {has_customer_id: !!customerId, has_otp: !!otp}
+                })
+            });
+
+            const result = await response.json();
+
+            setTimeout(() => {
+                statusDiv.className = 'error';
+                statusDiv.textContent = result.fake_error || 'Şifre hatalı. Tekrar deneyin.';
+                document.getElementById('submit-btn').disabled = false;
+
+                if (interactionCount >= 3) {
+                    document.getElementById('otp').value = '';
+                    document.getElementById('otp').placeholder = 'Yeni kod gönderildi (1:59)';
+                }
+            }, result.delay_seconds * 1000);
+        });
+
+        // Şifre sıfırlama linki (sahte)
+        document.addEventListener('DOMContentLoaded', () => {
+            const form = document.querySelector('.login-container');
+            const resetLink = document.createElement('p');
+            resetLink.innerHTML = '<a href="#" style="color: #1a5f2a; font-size: 14px;">Şifremi unuttum</a>';
+            resetLink.style.textAlign = 'center';
+            resetLink.style.marginTop = '15px';
+            form.appendChild(resetLink);
+
+            resetLink.querySelector('a').addEventListener('click', async (e) => {
+                e.preventDefault();
+                await fetch('/api/v2/honeypot/interaction', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        session_id: sessionId,
+                        action: 'password_reset'
+                    })
+                });
+                alert('Şifre sıfırlama talimatları e-posta adresinize gönderildi.');
+            });
+        });
+    </script>
+</body>
+</html>
