@@ -1,3 +1,4 @@
+import { motion, AnimatePresence } from 'framer-motion'
 import { Trash2, Radio } from 'lucide-react'
 import useEventBus, { type BusEvent, type Severity } from '@/stores/eventBus'
 import { Badge } from '@/components/ui/badge'
@@ -24,19 +25,17 @@ export default function LiveEventsPanel({ className, onJump }: { className?: str
   const highCount = events.filter(e => e.severity === 'high' || e.severity === 'critical').length
 
   return (
-    <aside className={cn('flex h-full flex-col rounded-xl border border-border bg-card', className)}>
+    <aside className={cn('panel panel-corners flex h-full flex-col overflow-hidden', className)}>
       <div className="flex items-center justify-between gap-2 border-b border-border p-4">
-        <div className="flex items-center gap-2">
-          <span className="relative flex size-2.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
-            <span className="relative inline-flex size-2.5 rounded-full bg-primary" />
-          </span>
-          <h2 className="text-sm font-semibold">Canlı Olaylar</h2>
-          <Badge variant="muted">{events.length}</Badge>
-          {highCount > 0 && <Badge variant="destructive">{highCount} yüksek</Badge>}
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className={cn('signal-dot', highCount > 0 && 'is-danger')} />
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold leading-none">Canlı Olaylar</h2>
+            <p className="mono-label mt-1.5">{events.length} kayıt{highCount > 0 ? ` · ${highCount} yüksek` : ''}</p>
+          </div>
         </div>
         {events.length > 0 && (
-          <Button variant="ghost" size="icon" className="size-8 text-muted-foreground" onClick={clear} title="Temizle">
+          <Button variant="ghost" size="icon" className="size-8 text-muted-foreground" onClick={clear} title="Temizle" aria-label="Olayları temizle">
             <Trash2 className="size-4" />
           </Button>
         )}
@@ -44,21 +43,31 @@ export default function LiveEventsPanel({ className, onJump }: { className?: str
 
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
         {events.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center gap-2 px-4 py-10 text-center text-muted-foreground">
-            <Radio className="size-7 text-primary/70" />
-            <p className="text-sm">Henüz olay yok.</p>
+          <div className="flex h-full flex-col items-center justify-center gap-3 px-4 py-10 text-center text-muted-foreground">
+            <span className="relative grid size-20 place-items-center">
+              {[0, 1, 2].map(i => (
+                <motion.span key={i} className="absolute inset-0 rounded-full border border-primary/40"
+                  initial={{ scale: 0.4, opacity: 0 }} animate={{ scale: [0.4, 1.15], opacity: [0.7, 0] }}
+                  transition={{ duration: 2.8, repeat: Infinity, delay: i * 0.9, ease: 'easeOut' }} />
+              ))}
+              <span className="grid size-10 place-items-center rounded-full border border-primary/40 bg-primary/10"><Radio className="size-5 text-primary" /></span>
+            </span>
+            <p className="font-display text-sm text-foreground">Dinlemede — henüz olay yok.</p>
             <p className="text-xs">Bir modülü çalıştırın; bulgular burada canlı akar ve diğer modüllere iletilir.</p>
           </div>
         ) : (
           <ul className="flex flex-col gap-1.5">
+            <AnimatePresence initial={false}>
             {events.map(e => {
               const meta = moduleMeta[e.module] || moduleMeta.system
               return (
-                <li key={e.id}>
+                <motion.li key={e.id} layout="position"
+                  initial={{ opacity: 0, y: -10, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.97 }}
+                  transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}>
                   <button
                     type="button"
                     onClick={() => onJump?.(e.module, e)}
-                    className="group w-full rounded-lg border border-transparent p-2.5 text-left transition-colors hover:border-border hover:bg-muted/50"
+                    className="group press relative w-full overflow-hidden rounded-lg border border-transparent p-2.5 text-left transition-colors hover:border-border hover:bg-muted/50"
                   >
                     <div className="flex items-center gap-2">
                       <span className={cn('size-2 shrink-0 rounded-full', severityDot[e.severity] || severityDot.info)} />
@@ -68,9 +77,10 @@ export default function LiveEventsPanel({ className, onJump }: { className?: str
                     </div>
                     {e.detail && <p className="mt-1 line-clamp-2 pl-4 text-[11px] text-muted-foreground">{e.detail}</p>}
                   </button>
-                </li>
+                </motion.li>
               )
             })}
+            </AnimatePresence>
           </ul>
         )}
       </div>
