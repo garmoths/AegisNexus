@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import api, { errorMessage } from '../lib/api'
 import type { Paged, Report, UserNotification } from '../lib/types'
+import { Skeleton } from '../components/ui/skeleton'
 
 type ReportPatch = { status: Report['status']; completed_steps: number[] }
 
@@ -28,7 +29,7 @@ export default function WorkspacePage(){
   return <section><div className="workspace-row"><h1>Vakalarım ve aksiyonlarım</h1><Link to="/analyze">Yeni analiz →</Link></div>
     {error&&<p role="alert" className="error-message">{error}</p>}
     {notifications.filter(n=>!n.read_at).map(n=><article className="workspace-card" key={n.id}><h3>{n.title}</h3><p>{n.detail?.value} · Risk: {n.detail?.risk_score}</p><button onClick={async()=>{await api.patch('/notifications/'+n.id);void load()}}>Okundu</button></article>)}
-    {loading?<p role="status">Vakalar yükleniyor…</p>:reports.length===0?<div className="workspace-card"><h2>Henüz bir vakanız yok</h2><p>Bir şüpheli içeriği analiz ederek kişisel aksiyon listenizi oluşturun.</p><Link to="/analyze">Analize başla</Link></div>:null}
+    {loading?<div role="status" aria-label="Vakalar yükleniyor" className="workspace-card"><Skeleton className="h-5 w-1/3"/><Skeleton className="mt-3 h-4 w-full"/><Skeleton className="mt-2 h-4 w-2/3"/></div>:(reports.length===0&&!error)?<div className="workspace-card"><h2>Henüz bir vakanız yok</h2><p>Bir şüpheli içeriği analiz ederek kişisel aksiyon listenizi oluşturun.</p><Link to="/analyze">Analize başla</Link></div>:null}
     <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(100%,300px),1fr))',gap:18}}>
       <div>{reports.map(r=><article key={r.id} className="workspace-card"><p>#{r.id} · {r.status} · {r.created_at?new Date(r.created_at).toLocaleDateString('tr-TR'):''}</p><h2 style={{margin:'12px 0'}}>{r.attack_type||'Olay analizi'}</h2><p>{r.user_description.slice(0,180)}</p><button style={{marginTop:12}} onClick={()=>setSelected(r)}>Aksiyonları aç</button></article>)}</div>
       {selected&&<article className="workspace-card"><h2>Vaka #{selected.id}</h2><p style={{margin:'12px 0',whiteSpace:'pre-wrap'}}>{selected.user_description}</p>

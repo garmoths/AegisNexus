@@ -1,8 +1,10 @@
 import { apiFetch as fetch } from '../lib/api'
-import { useState, useEffect, useRef, useCallback, type MouseEvent } from 'react'
+import { useState, useEffect, useRef, useCallback, type MouseEvent, type CSSProperties } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { emitEvent } from '../stores/eventBus'
-import { IkLink2, IkShieldDoc, IkGlobe2, IkBolt, IkSearch, IkScope, IkCamera, theme, Card, RiskGauge, IkAlert, IkWarn, IkCheck2, IkRadar, IkGrid, IkMonitor, IkClipboard, useWindowWidth, API, Toast, IkChart, CountUp, StatusDot, normalizeStatus } from './shared'
+import { BorderBeam } from '../components/ui/border-beam'
+import SpotlightCard from '../components/SpotlightCard'
+import { IkLink2, IkShieldDoc, IkGlobe2, IkBolt, IkSearch, IkScope, IkCamera, theme, Card, RiskGauge, IkAlert, IkWarn, IkCheck2, IkRadar, IkGrid, IkMonitor, IkClipboard, useWindowWidth, API, Toast, IkChart, CountUp, StatusDot, normalizeStatus } from './shared.jsx'
 
 import type { ModuleScreenProps } from '../ModulesApp'
 import type { PhishingStats, ScanHistoryRow } from '../lib/types'
@@ -61,12 +63,18 @@ function PhishingResult({ result, url }: { result: ScanView; url: string }) {
 
   const openScreenshot = () => {
     if (!screenshotB64) return
-    const w = window.open('','_blank')
-    if(w){w.document.write(`<html><head><title>Screenshot</title><style>body{margin:0;background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh}img{max-width:100%;height:auto}</style></head><body><img src="data:image/png;base64,${screenshotB64}"/></body></html>`);w.document.close()}
+    // Sunucudan gelen veriyi HTML şablonuna gömmeden, yalnızca bir Blob olarak aç.
+    if (!/^[A-Za-z0-9+/=\s]+$/.test(screenshotB64)) return
+    try {
+      const bytes = Uint8Array.from(atob(screenshotB64.replace(/\s/g,'')), c => c.charCodeAt(0))
+      const href = URL.createObjectURL(new Blob([bytes], { type:'image/png' }))
+      window.open(href, '_blank', 'noopener')
+      setTimeout(() => URL.revokeObjectURL(href), 60000)
+    } catch { /* bozuk görüntü verisi: sessizce yok say */ }
   }
 
   return (
-  <motion.div initial={{opacity:0,y:30}} animate={{opacity:1,y:0}} transition={{duration:0.6,ease:theme.ease.out}} style={{marginBottom:48}}>
+  <motion.div initial={{opacity:0,y:30}} animate={{opacity:1,y:0}} transition={{duration:0.4,ease:theme.ease.out}} style={{marginBottom:48}}>
     {/* Hero Result Card */}
     {(() => { const safetyScore = result.safety_score ?? result.score ?? 0; return (
     <Card style={{background:'rgba(255,255,255,0.03)',border:`1px solid ${safetyScore<50?theme.accent+'40':theme.primary+'40'}`,marginBottom:24}}>
@@ -76,10 +84,10 @@ function PhishingResult({ result, url }: { result: ScanView; url: string }) {
           <RiskGauge score={safetyScore} label="Güvenilirlik Skoru" size="lg" safetyMode={true}/>
           <span style={{padding:'8px 20px',borderRadius:'24px',fontSize:14,fontWeight:600,background:safetyScore<50?theme.accentDim:theme.primaryDim,color:safetyScore<50?theme.accent:theme.primary}}>{result.risk_level||'Bilinmiyor'}</span>
           {screenshotB64&&(
-            <motion.div initial={{opacity:0,scale:0.9}} animate={{opacity:1,scale:1}} transition={{delay:0.3,duration:0.4}} style={{position:'relative',cursor:'pointer'}} onClick={openScreenshot}>
-              <img src={`data:image/png;base64,${screenshotB64}`} alt="Site screenshot" style={{width:200,height:'auto',maxHeight:150,objectFit:'cover',borderRadius:theme.radiusMd,border:`1px solid ${theme.border}`,boxShadow:'0 1px 2px rgba(0,0,0,0.3)',opacity:0.9,transition:'opacity 0.3s ease'}} onMouseEnter={e=>{e.currentTarget.style.opacity='1'}} onMouseLeave={e=>{e.currentTarget.style.opacity='0.9'}}/>
+            <motion.button type="button" aria-label="Ekran görüntüsünü büyüt" initial={{opacity:0,scale:0.9}} animate={{opacity:1,scale:1}} transition={{delay:0.3,duration:0.4}} style={{position:'relative',cursor:'zoom-in',padding:0,border:0,background:'none'}} onClick={openScreenshot}>
+              <img src={`data:image/png;base64,${screenshotB64}`} alt="Taranan sitenin ekran görüntüsü" style={{width:200,height:'auto',maxHeight:150,objectFit:'cover',borderRadius:theme.radius.md,border:`1px solid ${theme.border}`,boxShadow:'0 1px 2px rgba(0,0,0,0.3)',opacity:0.9,transition:'opacity 0.3s ease'}} onMouseEnter={e=>{e.currentTarget.style.opacity='1'}} onMouseLeave={e=>{e.currentTarget.style.opacity='0.9'}}/>
               <span style={{position:'absolute',bottom:6,right:6,padding:'3px 8px',borderRadius:6,fontSize:9,fontWeight:600,background:'rgba(0,0,0,0.7)',color:theme.primary,display:'flex',alignItems:'center',gap:4}}><IkSearch size={9} color={theme.primary}/> BÜYÜT</span>
-            </motion.div>
+            </motion.button>
           )}
         </div>
         {/* Right: Details */}
@@ -102,7 +110,7 @@ function PhishingResult({ result, url }: { result: ScanView; url: string }) {
                   const techNote=techMatch?techMatch[2]:null
                   return (
                     <motion.div key={i} initial={{opacity:0,x:-10}} animate={{opacity:1,x:0}} transition={{delay:0.08+i*0.03,duration:0.28}}
-                      style={{padding:'9px 12px',background:isDanger?'rgba(255,0,64,0.08)':isWarn?'rgba(255,193,7,0.06)':isSafe?'rgba(34,197,94,0.05)':theme.primaryDim,borderRadius:8,borderLeft:isDanger?`3px solid ${theme.accent}`:isWarn?`3px solid ${theme.warning}`:isSafe?`3px solid ${theme.success}`:`3px solid ${theme.primary}`,display:'flex',alignItems:'flex-start',gap:9}}
+                      style={{padding:'9px 12px',background:isDanger?'rgba(255,0,64,0.08)':isWarn?'rgba(255,193,7,0.06)':isSafe?'rgba(34,197,94,0.05)':theme.primaryDim,borderRadius:8,border:`1px solid ${isDanger?theme.accent+'33':isWarn?theme.warning+'2e':isSafe?theme.success+'26':theme.border}`,display:'flex',alignItems:'flex-start',gap:9}}
                     >
                       <span style={{flexShrink:0,marginTop:2}}><DetailIcon size={13} color={iconColor}/></span>
                       <span style={{flex:1,minWidth:0}}>
@@ -121,7 +129,7 @@ function PhishingResult({ result, url }: { result: ScanView; url: string }) {
     )})()}
 
     {/* Threat Intel Source Cards */}
-    <motion.div initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} transition={{delay:0.2,duration:0.5}} style={{marginBottom:24}}>
+    <motion.div initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} transition={{delay:0.1,duration:0.35}} style={{marginBottom:24}}>
       <p style={{fontSize:13,fontWeight:600,color:theme.textMuted,marginBottom:16,display:'flex',alignItems:'center',gap:7}}><IkRadar size={13} color={theme.textMuted}/> Tehdit İstihbaratı Kaynakları</p>
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill, minmax(220px, 1fr))',gap:12}}>
         {srcCards.map((src,i)=>{
@@ -130,7 +138,7 @@ function PhishingResult({ result, url }: { result: ScanView; url: string }) {
           const bgColor=src.isBad?'rgba(255,0,64,0.06)':src.isClean?'rgba(34,197,94,0.06)':'rgba(255,255,255,0.02)'
           const borderColor=src.isBad?theme.accent+'40':src.isClean?theme.success+'40':theme.border
           return (
-            <motion.div key={src.key} initial={{opacity:0,y:15}} animate={{opacity:1,y:0}} transition={{delay:0.3+i*0.05,duration:0.35}} style={{padding:'16px 18px',background:bgColor,border:`1px solid ${borderColor}`,borderRadius:theme.radiusMd,position:'relative',overflow:'hidden'}}>
+            <motion.div key={src.key} initial={{opacity:0,y:15}} animate={{opacity:1,y:0}} transition={{delay:0.15+i*0.04,duration:0.3}} style={{padding:'16px 18px',background:bgColor,border:`1px solid ${borderColor}`,borderRadius:theme.radius.md,position:'relative',overflow:'hidden'}}>
               <div style={{position:'absolute',top:0,left:0,right:0,height:2,background:statusColor}}/>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
                 <span style={{fontSize:14,fontWeight:600,color:'#fff',display:'flex',alignItems:'center',gap:6}}><src.Icon size={13} color={statusColor}/> {src.name}</span>
@@ -150,14 +158,14 @@ function PhishingResult({ result, url }: { result: ScanView; url: string }) {
 
     {/* Screenshot Threat Indicators */}
     {indicators.length>0&&(
-      <motion.div initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} transition={{delay:0.5,duration:0.4}} style={{marginBottom:24}}>
+      <motion.div initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} transition={{delay:0.25,duration:0.35}} style={{marginBottom:24}}>
         <p style={{fontSize:13,fontWeight:600,color:theme.textMuted,marginBottom:16,display:'flex',alignItems:'center',gap:7}}><IkGrid size={13} color={theme.textMuted}/> Görsel Tehdit İndikatörleri</p>
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill, minmax(280px, 1fr))',gap:10}}>
           {indicators.map((ind: ProviderPayload,j: number)=>{
             const t=ind.type||'visual'
             const IcComp=t==='url'?IkLink2:t==='domain'?IkGlobe2:t==='ip'?IkMonitor:IkScope
             return (
-              <motion.div key={j} initial={{opacity:0,x:-10}} animate={{opacity:1,x:0}} transition={{delay:0.6+j*0.05,duration:0.3}} style={{padding:'12px 16px',background:'rgba(239,68,68,0.06)',border:`1px solid ${theme.accent}30`,borderRadius:theme.radiusMd,borderLeft:`3px solid ${theme.accent}`}}>
+              <motion.div key={j} initial={{opacity:0,x:-10}} animate={{opacity:1,x:0}} transition={{delay:0.3+j*0.04,duration:0.25}} style={{padding:'12px 16px',background:'rgba(239,68,68,0.06)',border:`1px solid ${theme.accent}30`,borderRadius:theme.radius.md}}>
                 <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6}}>
                   <IcComp size={14} color={theme.accent}/>
                   <span style={{fontSize:12,fontWeight:600,color:theme.accent}}>{t}</span>
@@ -173,14 +181,14 @@ function PhishingResult({ result, url }: { result: ScanView; url: string }) {
 
     {/* Sources Summary */}
     {result.sources&&Array.isArray(result.sources)&&result.sources.length>0&&(
-      <motion.div initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} transition={{delay:0.6,duration:0.4}}>
+      <motion.div initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} transition={{delay:0.3,duration:0.35}}>
         <p style={{fontSize:13,fontWeight:600,color:theme.textMuted,marginBottom:16,display:'flex',alignItems:'center',gap:7}}><IkClipboard size={13} color={theme.textMuted}/> Taranan Kaynaklar</p>
         <div style={{display:'flex',flexDirection:'column',gap:6}}>
           {result.sources.map((s: ScanSource,i: number)=>{
             const isFail=typeof s.status==='string'&&(s.status.includes('Başarısız')||s.status.includes('timeout')||s.status.includes('error'))
             const isOk=typeof s.status==='string'&&(s.status.includes('CLEAN')||s.status.includes('SAFE')||s.status.includes('Tamamlandı')||s.status.includes('Ulaşılabilir')||s.status.includes('temiz'))
             return (
-              <motion.div key={i} initial={{opacity:0,x:-10}} animate={{opacity:1,x:0}} transition={{delay:0.7+i*0.03,duration:0.3}} style={{padding:'10px 16px',background:isFail?'rgba(255,0,64,0.06)':isOk?'rgba(34,197,94,0.04)':'rgba(255,255,255,0.03)',borderRadius:10,fontSize:13,display:'flex',gap:10,alignItems:'center',borderLeft:isFail?`3px solid ${theme.accent}`:isOk?`3px solid ${theme.success}`:`3px solid ${theme.border}`}}>
+              <motion.div key={i} initial={{opacity:0,x:-10}} animate={{opacity:1,x:0}} transition={{delay:0.3+i*0.03,duration:0.25}} style={{padding:'10px 16px',background:isFail?'rgba(255,0,64,0.06)':isOk?'rgba(34,197,94,0.04)':'rgba(255,255,255,0.03)',borderRadius:10,fontSize:13,display:'flex',gap:10,alignItems:'center',border:`1px solid ${isFail?theme.accent+'33':isOk?theme.success+'26':theme.border}`}}>
                 <span style={{color:theme.textMuted}}>Kaynak:</span>
                 <span style={{color:'#fff',fontWeight:600}}>{s.name}</span>
                 <span style={{marginLeft:'auto',color:isFail?theme.danger:isOk?theme.success:theme.textMuted,fontSize:12}}>{s.status}</span>
@@ -302,15 +310,17 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }: ModuleScreenProps
 
   // Real-time autocomplete with debouncing
   useEffect(() => {
-    if (url.length < 1) return
+    if (url.trim().length < 3) return
     
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current)
     }
+    const ctrl = new AbortController()
     
     searchTimeoutRef.current = setTimeout(async () => {
       try {
-        const r = await fetch(`${API}/phishing/search?url=${encodeURIComponent(url)}`)
+        const r = await fetch(`${API}/phishing/search?url=${encodeURIComponent(url.trim())}`, { signal: ctrl.signal })
+        if (!r.ok) throw new Error('search failed')
         const d = await r.json()
         if (d.status === 'success' || d.results || d.data) {
           setSearchResults(d.results || d.data || [])
@@ -323,9 +333,10 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }: ModuleScreenProps
         setSearchResults([])
         setShowDropdown(false)
       }
-    }, 150)
+    }, 300)
     
     return () => {
+      ctrl.abort()
       if (searchTimeoutRef.current) {
         clearTimeout(searchTimeoutRef.current)
       }
@@ -347,6 +358,7 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }: ModuleScreenProps
     const forceFresh = typeof forceFreshOrEvent === 'boolean' ? forceFreshOrEvent : false
     const urlToCheck = urlOverride || url
     if(!urlToCheck){showToast('Lutfen bir URL girin','error');return}
+    setShowDropdown(false)
     setChecking(true);setResult(null);setJobId(null);setAnalyzing(false);setPollCount(0);setShowRetryButton(false)
     try{
       const normalizedInput = /^https?:\/\//i.test(urlToCheck) ? urlToCheck : `https://${urlToCheck}`
@@ -431,7 +443,7 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }: ModuleScreenProps
     <motion.div 
       initial={{ opacity:0, y:30 }}
       animate={{ opacity:1, y:0 }}
-      transition={{ duration:0.8, ease:theme.ease.out }}
+      transition={{ duration:0.4, ease:theme.ease.out }}
       style={{ 
         position:'relative',
         padding:'0 0 8px',
@@ -444,17 +456,17 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }: ModuleScreenProps
         <motion.div 
           initial={{ opacity:0, y:30 }}
           animate={{ opacity:1, y:0 }}
-          transition={{ delay:0.4, duration:0.6, ease:theme.ease.out }}
+          transition={{ delay:0.1, duration:0.4, ease:theme.ease.out }}
           style={{ maxWidth:800, margin:'0 auto', position:'relative', zIndex:200 }}
         >
-          <div style={{ 
-            background:'rgba(255,255,255,0.05)', 
-            border:`1px solid ${theme.primary}33`,
-            borderRadius:theme.radiusLg,
+          <p className="eyebrow" style={{ marginBottom:12 }}>Hedef adres</p>
+          <div className="panel" style={{ 
+            borderRadius:theme.radius.lg,
             padding:8,
-            boxShadow:'0 1px 2px rgba(0,0,0,0.3)',
+            boxShadow:'0 0 0 1px rgba(242,106,46,0.06), 0 30px 80px -40px rgba(242,106,46,0.35)',
             position:'relative'
           }}>
+            <BorderBeam size={120} duration={8} colorFrom="#f26a2e" colorTo="#ffb15c" borderWidth={1.5} />
             <div style={{ display:'flex', gap:12, flexDirection: isMobile ? 'column' : 'row' }}>
               <input 
                 value={url} 
@@ -462,34 +474,40 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }: ModuleScreenProps
                 placeholder="https://ornek.com/supheli-link" 
                 style={{ 
                   flex:1, 
-                  padding:'20px 28px', 
-                  borderRadius:theme.radiusMd,
-                  background:'rgba(255,255,255,0.05)',
-                  border:'none',
-                  color:'#fff', 
-                  fontSize:17, 
+                  minWidth:0,
+                  padding:'18px 22px', 
+                  borderRadius:theme.radius.md,
+                  background:'rgba(9,8,7,0.6)',
+                  border:`1px solid ${theme.borderSoft}`,
+                  color:theme.text, 
+                  fontSize:16, 
                   outline:'none',
-                  fontFamily:theme.font
+                  fontFamily:theme.mono,
+                  letterSpacing:'0.01em'
                 }} 
                 onKeyDown={e=>e.key==='Enter'&&handleCheck()}
               />
               <motion.button 
                 onClick={handleCheck}
                 disabled={checking}
+                whileHover={checking ? undefined : { scale:1.02 }}
+                whileTap={checking ? undefined : { scale:0.97 }}
+                transition={{ duration:0.15 }}
                 style={{
-                  padding:'20px 40px',
-                  borderRadius:theme.radiusMd,
+                  flexShrink:0,
+                  padding:'18px 32px',
+                  borderRadius:theme.radius.md,
                   cursor:checking?'not-allowed':'pointer',
                   fontSize:16,
                   fontWeight:600,
-                  background:checking?'#444':theme.gradientPrimary,
-                  color:checking?'#888':'#000',
+                  background:checking?'#2b2622':theme.gradientPrimary,
+                  color:checking?theme.textMuted:'#1a0e07',
                   border:'none',
                   display:'inline-flex',
                   alignItems:'center',
                   gap:10,
                   opacity:checking?0.5:1,
-                  boxShadow:checking?'none':'0 1px 2px rgba(0,0,0,0.3)',
+                  boxShadow:checking?'none':'0 0 30px -8px rgba(242,106,46,0.65)',
                   transition:'all 0.3s ease'
                 }}
               >
@@ -515,8 +533,8 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }: ModuleScreenProps
                   top:'calc(100% + 8px)',
                   left:0,
                   right:0,
-                  background:'rgba(8,12,20,0.98)',
-                  borderRadius:theme.radiusMd,
+                  background:'rgba(13,11,10,0.98)',
+                  borderRadius:theme.radius.md,
                   border:`1px solid ${theme.border}`,
                   maxHeight:320,
                   overflowY:'auto',
@@ -527,6 +545,7 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }: ModuleScreenProps
                 {searchResults.slice(0, 10).map((item, i) => (
                   <div
                     key={i}
+                    role="button" tabIndex={0} className="row-action" onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.currentTarget.click()}}}
                     onClick={() => {
                       setUrl(item.url || '')
                       setShowDropdown(false)
@@ -561,12 +580,12 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }: ModuleScreenProps
           <motion.div
             initial={{ opacity:0, y:20 }}
             animate={{ opacity:1, y:0 }}
-            transition={{ delay:0.6, duration:0.6, ease:theme.ease.out }}
+            transition={{ delay:0.2, duration:0.4, ease:theme.ease.out }}
             style={{ 
               maxWidth:900, 
               margin:'32px auto 0',
               background:'rgba(255,255,255,0.03)',
-              borderRadius:theme.radiusLg,
+              borderRadius:theme.radius.lg,
               border:`1px solid ${theme.border}`,
               overflow:'hidden'
             }}
@@ -585,6 +604,8 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }: ModuleScreenProps
                 return (
                   <div
                     key={i}
+                    role="button" tabIndex={0} className="row-action" onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.currentTarget.click()}}}
+                    title={'Yeniden tara: ' + item.url}
                     onClick={() => { setUrl(item.url); handleCheck(false, item.url) }}
                     style={{ 
                       display:'flex', 
@@ -603,7 +624,7 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }: ModuleScreenProps
                       flex:1, 
                       fontFamily:theme.mono, 
                       fontSize:12, 
-                      color:theme.textMuted || '#ccc',
+                      color:theme.textSecondary || '#ccc',
                       overflow:'hidden',
                       textOverflow:'ellipsis',
                       whiteSpace:'nowrap'
@@ -647,7 +668,7 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }: ModuleScreenProps
               padding:'20px 24px',
               background:'rgba(250,250,250,0.025)',
               border:`1px solid ${theme.primary}33`,
-              borderRadius:theme.radiusMd,
+              borderRadius:theme.radius.md,
               display:'flex',
               alignItems:'center',
               gap:20
@@ -708,9 +729,9 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }: ModuleScreenProps
           onClick={() => handleCheck(true)}
           style={{
             padding:'10px 18px',
-            borderRadius:theme.radiusMd,
+            borderRadius:theme.radius.md,
             border:`1px solid ${theme.warning}`,
-            background:'rgba(245,158,11,0.12)',
+            background:'rgba(234,179,8,0.12)',
             color:theme.warning,
             fontWeight:600,
             cursor:'pointer'
@@ -728,30 +749,28 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }: ModuleScreenProps
     <motion.div 
       initial={{ opacity:0, y:20 }}
       animate={{ opacity:1, y:0 }}
-      transition={{ delay:0.5, duration:0.6, ease:theme.ease.out }}
-      style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:20, marginBottom:48 }}
+      transition={{ delay:0.15, duration:0.4, ease:theme.ease.out }}
+      style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', gap:16, marginBottom:48 }}
     >
       {[
         { label:'Toplam URL', value:totalUrls, color:theme.primary },
         { label:'Phishing', value:phCount, color:theme.danger },
-        { label:'Guvenli', value:safeCount, color:theme.success },
-        { label:'Bugun Taranan', value:stats?.stats?.today_scans||0, color:theme.warning }
+        { label:'Güvenli', value:safeCount, color:theme.success },
+        { label:'Bugün Taranan', value:stats?.stats?.today_scans||0, color:theme.warning }
       ].map((stat, i) => (
         <motion.div
           key={i}
           initial={{ opacity:0, y:20 }}
           animate={{ opacity:1, y:0 }}
-          transition={{ delay:0.6 + i * 0.1, duration:0.5, ease:theme.ease.spring }}
+          transition={{ delay:0.2 + i * 0.06, duration:0.35, ease:theme.ease.spring }}
         >
-          <Card style={{ 
-            textAlign:'center', 
-            padding:'32px 20px',
-            background:'rgba(255,255,255,0.03)',
-            border:`1px solid ${theme.border}`
-          }}>
-            <p style={{ fontSize:11, color:theme.textMuted, fontWeight:600, marginBottom:12 }}>{stat.label}</p>
-            <p style={{ fontSize:30, fontWeight:600, color:stat.color }}><CountUp end={stat.value}/></p>
-          </Card>
+          <SpotlightCard spotlightColor={stat.color} intensity={0.22} spotlightSize={220} borderGlow={0.5}
+            className="!rounded-2xl !p-5 border border-[color:var(--border)]"
+            style={{ '--spotlight-card-surface':'rgba(21,18,16,0.96)' } as CSSProperties}>
+            <p className="mono-label" style={{ marginBottom:14 }}>{stat.label}</p>
+            <p style={{ fontSize:32, fontWeight:600, color:stat.color, fontFamily:theme.display, letterSpacing:'-0.02em', lineHeight:1 }}><CountUp end={stat.value}/></p>
+            <span aria-hidden="true" style={{ display:'block', height:2, marginTop:16, borderRadius:2, background:`linear-gradient(90deg, ${stat.color}, transparent)`, opacity:0.6 }} />
+          </SpotlightCard>
         </motion.div>
       ))}
     </motion.div>
@@ -759,7 +778,7 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }: ModuleScreenProps
     <motion.div
       initial={{ opacity:0, y:20 }}
       animate={{ opacity:1, y:0 }}
-      transition={{ delay:0.7, duration:0.5, ease:theme.ease.out }}
+      transition={{ delay:0.2, duration:0.4, ease:theme.ease.out }}
     >
       <Card>
         <h3 style={{ fontSize:15, fontWeight:600, color:'#fff', marginBottom:16, display:'flex', gap:8, alignItems:'center' }}>
@@ -784,8 +803,12 @@ function PhishingDetector({ initialUrl = '', onClearPrefill }: ModuleScreenProps
                   key={item.id||i}
                   initial={{ opacity:0, y:10 }}
                   animate={{ opacity:1, y:0 }}
-                  transition={{ delay:0.8 + i * 0.02, duration:0.3, ease:theme.ease.out }}
+                  transition={{ delay:0.1 + i * 0.02, duration:0.25, ease:theme.ease.out }}
+                  className="row-hover"
                   style={{ borderBottom:`1px solid ${theme.border}`, cursor:'pointer' }}
+                  tabIndex={0}
+                  aria-label={'Bu adresi tara: ' + (item.url||'')}
+                  onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setUrl(item.url ?? '');handleCheck(false, item.url ?? null)}}}
                   onClick={()=>{setUrl(item.url ?? '');handleCheck(false, item.url ?? null)}}
                 >
                   <td style={{ padding:'10px 8px', maxWidth:300, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}><span style={{ color:theme.text, fontSize:12, fontFamily:theme.mono }}>{item.url}</span></td>

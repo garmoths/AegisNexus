@@ -1,5 +1,7 @@
-import { useState, useEffect, type CSSProperties, type HTMLAttributes, type ReactNode } from 'react'
+import { useState, useEffect, useRef, type CSSProperties, type HTMLAttributes, type ReactNode } from 'react'
+import { animate, motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { CheckCircle, XCircle } from 'lucide-react'
+import { theme } from '../theme'
 
 export interface IconProps { size?: number; color?: string }
 
@@ -20,74 +22,50 @@ function useWindowWidth() {
   return w
 }
 
-const theme = {
-  // shadcn/ui "zinc" koyu paleti — siyah-beyaz; renk yalnızca anlam taşır.
-  bg: '#09090b',
-  bgDeep: '#09090b',
-  surface: '#09090b',
-  surface2: '#18181b',
-  surface3: '#0f0f11',
-  border: '#27272a',
-  borderSoft: '#1f1f23',
-  borderLight: 'rgba(39,39,42,0.6)',
-  primary: '#fafafa',
-  primaryDim: 'rgba(250,250,250,0.06)',
-  primarySoft: 'rgba(250,250,250,0.1)',
-  accent: '#ef4444',
-  accentDim: 'rgba(239,68,68,0.1)',
-  accentSoft: 'rgba(239,68,68,0.16)',
-  violet: '#a1a1aa',
-  success: '#22c55e',
-  warning: '#f59e0b',
-  danger: '#ef4444',
-  text: '#fafafa',
-  textMuted: '#a1a1aa',
-  textSubtle: '#71717a',
-  textDim: '#71717a',
-  font: "'Geist', 'Inter', sans-serif",
-  mono: "'Geist Mono', 'JetBrains Mono', monospace",
-  navFont: "'Geist', 'Inter', sans-serif",
-  radius: '8px',
-  radiusSm: '6px',
-  radiusMd: '8px',
-  radiusLg: '12px',
-  radiusXl: '16px',
-  glow: 'none',
-  cardShadow: '0 1px 2px rgba(0,0,0,0.3)',
-  cardShadowHover: '0 1px 2px rgba(0,0,0,0.3)',
-  gradientHero: 'none',
-  gradientPrimary: '#fafafa',
-  gradientAccent: '#ef4444',
-  gradientSurface: '#09090b',
-  gradientGlow: 'transparent',
-  gridPattern: 'none',
-  gridPatternSize: 'auto',
-  shadow: {
-    card: '0 1px 2px rgba(0,0,0,0.3)',
-    glow: '0 1px 2px rgba(0,0,0,0.3)',
-    glowStrong: '0 1px 2px rgba(0,0,0,0.3)',
-  },
-  // framer-motion wants cubic-bezier control points, not a CSS string.
-  ease: {
-    out: [0.16, 1, 0.3, 1] as [number, number, number, number],
-    spring: [0.16, 1, 0.3, 1] as [number, number, number, number],
-  },
-}
 
 function Toast({ message, type='success', visible }: { message: string; type?: 'success' | 'error'; visible: boolean }) {
-  if (!visible) return null
   const ok = type === 'success'
-  return <div role="status" style={{ position:'fixed', bottom:24, right:24, zIndex:9999, padding:'12px 16px', borderRadius:8, background:'#09090b', border:'1px solid #27272a', color:'#fafafa', fontWeight:500, fontSize:14, boxShadow:'0 1px 2px rgba(0,0,0,0.3)', animation:'fadeInUp 0.2s ease', display:'flex', alignItems:'center', gap:10, maxWidth:420 }}>{ok?<CheckCircle size={16} color="#22c55e"/>:<XCircle size={16} color="#ef4444"/>}{message}</div>
+  return (
+    <AnimatePresence>
+      {visible && (
+        <motion.div role="status" key="toast"
+          initial={{ opacity:0, y:16, scale:0.96 }} animate={{ opacity:1, y:0, scale:1 }} exit={{ opacity:0, y:8, scale:0.98 }}
+          transition={{ type:'spring', stiffness:460, damping:34 }}
+          className="panel"
+          style={{ position:'fixed', bottom:24, right:24, zIndex:9999, padding:'12px 16px 12px 14px', color:theme.text, fontWeight:500, fontSize:14,
+            boxShadow:'0 24px 60px -24px rgba(0,0,0,0.9)', display:'flex', alignItems:'center', gap:10, maxWidth:420 }}>
+          {ok?<CheckCircle size={16} color={theme.success}/>:<XCircle size={16} color={theme.danger}/>}{message}
+        </motion.div>
+      )}
+    </AnimatePresence>
+  )
 }
 function StatusDot({ active }: { active: boolean }) {
   return <span style={{ display:'inline-block', width:8, height:8, borderRadius:'50%', background:active?theme.success:theme.danger, marginRight:6 }} />
 }
-function Card({ children, style, ...props }: { children?: ReactNode; style?: CSSProperties } & HTMLAttributes<HTMLDivElement>) {
-  return <div style={{ background:'#09090b', border:'1px solid #27272a', borderRadius:12, padding:24, boxShadow:'0 1px 2px rgba(0,0,0,0.3)', ...style }} {...props}>{children}</div>
+function Card({ children, style, className, ...props }: { children?: ReactNode; style?: CSSProperties } & HTMLAttributes<HTMLDivElement>) {
+  return <div className={['panel', className].filter(Boolean).join(' ')} style={{ borderRadius:16, padding:24, boxShadow:theme.cardShadow, ...style }} {...props}>{children}</div>
 }
+// Değer değiştiğinde mevcut sayıdan yenisine yumuşakça sayar.
+function useTweened(target: number, duration = 0.9): number {
+  const reduce = useReducedMotion()
+  const [value, setValue] = useState(0)
+  const from = useRef(0)
+  useEffect(() => {
+    if (reduce) return
+    const controls = animate(from.current, target, {
+      duration,
+      ease: theme.ease.out,
+      onUpdate: v => { from.current = v; setValue(v) },
+    })
+    return () => controls.stop()
+  }, [target, duration, reduce])
+  return reduce ? target : value
+}
+
 function CountUp({ end }: { end: number | string }) {
-  // Sayı animasyonsuz, doğrudan gösterilir.
-  return <>{(Number(end) || 0).toLocaleString('tr-TR')}</>
+  const v = useTweened(Number(end) || 0)
+  return <>{Math.round(v).toLocaleString('tr-TR')}</>
 }
 function IkBolt({ size=16, color='currentColor' }: IconProps) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
@@ -156,9 +134,8 @@ function RiskGauge({ score, label, showPercentage = false, size = 'md', safetyMo
     lg: { width: 160, height: 160, radius: 56, stroke: 10, fontSize: 28 }
   }
   const { width, height, radius, stroke, fontSize } = sizeMap[size] || sizeMap.md
-  
-  // Skor animasyonsuz, doğrudan gösterilir.
-  const displayScore = Math.round(Math.min(Number(score) || 0, 100))
+  const tweened = useTweened(Math.min(Number(score) || 0, 100), 1)
+  const displayScore = Math.round(tweened)
 
   const c = 2 * Math.PI * radius
   const o = c - (Math.min(displayScore, 100) / 100) * c
@@ -166,22 +143,28 @@ function RiskGauge({ score, label, showPercentage = false, size = 'md', safetyMo
     ? (score > 75 ? theme.success : score > 50 ? theme.primary : score > 25 ? theme.warning : theme.danger)
     : (score > 75 ? theme.danger : score > 50 ? theme.warning : score > 25 ? theme.primary : theme.success)
   const center = width / 2
-  
+  const ticks = Array.from({ length: 40 }, (_, i) => i)
+
   return <div style={{ display:'inline-flex', flexDirection:'column', alignItems:'center' }}>
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ overflow:'visible', filter:`drop-shadow(0 0 14px ${color}55)` }}>
+      {ticks.map(i => {
+        const ang = (i / ticks.length) * Math.PI * 2 - Math.PI / 2
+        const r1 = radius + stroke / 2 + 4, r2 = r1 + (i % 5 === 0 ? 5 : 2.5)
+        return <line key={i} x1={center + Math.cos(ang) * r1} y1={center + Math.sin(ang) * r1} x2={center + Math.cos(ang) * r2} y2={center + Math.sin(ang) * r2}
+          stroke={i / ticks.length * 100 <= displayScore ? color : theme.border} strokeWidth={1} strokeLinecap="round" opacity={i % 5 === 0 ? 0.9 : 0.55} />
+      })}
       <circle cx={center} cy={center} r={radius} fill="none" stroke={theme.border} strokeWidth={stroke}/>
-      <circle 
-        cx={center} cy={center} r={radius} fill="none" stroke={color} strokeWidth={stroke} 
-        strokeDasharray={c} strokeDashoffset={o} 
-        transform={`rotate(-90 ${center} ${center})`} 
-        
+      <circle
+        cx={center} cy={center} r={radius} fill="none" stroke={color} strokeWidth={stroke}
+        strokeDasharray={c} strokeDashoffset={o}
+        transform={`rotate(-90 ${center} ${center})`}
         strokeLinecap="round"
       />
-      <text x={center} y={center} textAnchor="middle" dominantBaseline="central" fill="#fafafa" fontSize={fontSize} fontWeight="600" fontFamily="Geist, Inter, sans-serif">
+      <text x={center} y={center} textAnchor="middle" dominantBaseline="central" fill={theme.text} fontSize={fontSize} fontWeight="600" fontFamily="Space Grotesk, Geist, sans-serif">
         {showPercentage ? `${displayScore}%` : displayScore}
       </text>
     </svg>
-    <p style={{ fontSize: size === 'lg' ? 14 : 12, color:theme.textMuted, marginTop:10, fontWeight:600 }}>{label}</p>
+    <p style={{ fontSize: 10.5, color:theme.textMuted, marginTop:14, fontWeight:500, fontFamily:theme.mono, letterSpacing:'0.14em', textTransform:'uppercase' }}>{label}</p>
   </div>
 }
 

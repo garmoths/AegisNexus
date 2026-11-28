@@ -1,5 +1,7 @@
 import { lazy, Suspense, useEffect } from 'react'
-import { BrowserRouter, Navigate, Routes, Route, Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { BrowserRouter, Navigate, Routes, Route, Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
+import { motion } from 'framer-motion'
+import { Skeleton } from './components/ui/skeleton'
 import api from './lib/api'
 import useAuthStore from './stores/authStore'
 import PrivateRoute from './components/PrivateRoute'
@@ -23,16 +25,17 @@ function SessionBootstrap() {
 function AccountLayout(){
   const nav=useNavigate()
   const {email,role}=useAuthStore()
+  const location=useLocation()
   const logout=async()=>{try{await api.post('/auth/logout')}finally{useAuthStore.getState().logout();nav('/login')}}
   return <div className="account-layout"><nav className="account-nav" aria-label="Hesap gezinmesi">
-    <NavLink to="/">Ana Sayfa</NavLink><NavLink to="/analyze">Analiz</NavLink><NavLink to="/modules">Modüller</NavLink>
+    <NavLink to="/" end>Ana Sayfa</NavLink><NavLink to="/analyze">Analiz</NavLink><NavLink to="/modules">Modüller</NavLink>
     <NavLink to="/dashboard">Vakalarım</NavLink><NavLink to="/settings">Ayarlar</NavLink>
     {role==='admin'&&<><NavLink to="/crawler">Keşif</NavLink><NavLink to="/admin">Yönetim</NavLink></>}
     {email?<button className="action-button" onClick={logout}>Çıkış</button>:<NavLink to="/login">Giriş</NavLink>}
-  </nav><Outlet/></div>
+  </nav><motion.div key={location.pathname} initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} transition={{duration:0.28,ease:[0.16,1,0.3,1]}}><Outlet/></motion.div></div>
 }
 export default function AppRouter(){ return <BrowserRouter><SessionBootstrap/>
-  <Suspense fallback={<p role="status" style={{padding:40}}>Yükleniyor…</p>}><Routes>
+  <Suspense fallback={<div role="status" aria-label="Yükleniyor" style={{maxWidth:1120,margin:'0 auto',padding:24,display:'flex',flexDirection:'column',gap:16}}><Skeleton className="h-10 w-1/3"/><Skeleton className="h-40 w-full"/><Skeleton className="h-40 w-full"/></div>}><Routes>
     {/* Tek arayüz: uygulama doğrudan modül çalışma alanına açılır. */}
     <Route path="/" element={<Navigate to="/modules/phishing" replace/>}/>
     <Route path="/crawler" element={<PrivateRoute roles={['admin']}><Crawler/></PrivateRoute>}/>

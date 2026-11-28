@@ -1,11 +1,19 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { MotionGlobalConfig } from 'framer-motion'
+import { MotionConfig } from 'framer-motion'
 import RuntimeApp from './RuntimeApp'
 import AppErrorBoundary from './components/AppErrorBoundary'
+import ConsoleBackdrop from './components/ConsoleBackdrop'
 import './index.css'
+import './console.css'
 
-// Sade arayüz: tüm framer-motion animasyonları anında son haline geçer.
-MotionGlobalConfig.skipAnimations = true
-
-createRoot(document.getElementById('root')!).render(<StrictMode><AppErrorBoundary><RuntimeApp/></AppErrorBoundary></StrictMode>)
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <AppErrorBoundary>
+      <MotionConfig reducedMotion="user">
+        <ConsoleBackdrop/>
+        <div className="console-layer"><RuntimeApp/></div>
+      </MotionConfig>
+    </AppErrorBoundary>
+  </StrictMode>
+)
